@@ -1,0 +1,15 @@
+{
+  "app": "crypto-ai-trading-bot",
+  "channel": "stable",
+  "version": "0.5.0",
+  "published_at": "2026-09-11T22:26:48Z",
+  "package_url": "https://raw.githubusercontent.com/jlboper/Crypto-BOT/main/packages/crypto-ai-trader-v0.5.0-automatic-updates.zip",
+  "sha256": "483e0a231a77b5c106244898f63175ee6b9b9710fac3645d825c70cc0b0ff009",
+  "size_bytes": 212537,
+  "notes": [
+    "Busca versiones nuevas al abrir la aplicación y cada seis horas.",
+    "Descarga el paquete sin pedirte seleccionar un ZIP.",
+    "Comprueba el origen, tamaño y SHA-256 antes de instalar.",
+    "Mantiene confirmación manual, respaldo y reversión automática."
+  ]
+}
