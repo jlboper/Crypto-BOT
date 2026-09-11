@@ -1,15 +1,15 @@
 {
   "app": "crypto-ai-trading-bot",
   "channel": "stable",
-  "version": "0.5.0",
-  "published_at": "2026-09-11T22:26:48Z",
-  "package_url": "https://raw.githubusercontent.com/jlboper/Crypto-BOT/main/packages/crypto-ai-trader-v0.5.0-automatic-updates.zip",
-  "sha256": "483e0a231a77b5c106244898f63175ee6b9b9710fac3645d825c70cc0b0ff009",
-  "size_bytes": 212537,
+  "version": "0.5.1",
+  "published_at": "2026-09-11T22:35:36Z",
+  "package_url": "https://raw.githubusercontent.com/jlboper/Crypto-BOT/main/packages/crypto-ai-trader-v0.5.1-background-and-icons.zip",
+  "sha256": "80d879de743258a6f4b8629938c99a7ea63a9442e1f717227a1f275772d61b20",
+  "size_bytes": 213527,
   "notes": [
-    "Busca versiones nuevas al abrir la aplicación y cada seis horas.",
-    "Descarga el paquete sin pedirte seleccionar un ZIP.",
-    "Comprueba el origen, tamaño y SHA-256 antes de instalar.",
-    "Mantiene confirmación manual, respaldo y reversión automática."
+    "Mantiene el Centro de Control activo al cerrar o minimizar la ventana.",
+    "Solo Salir del indicador termina manualmente la aplicación.",
+    "Activa el inicio con Windows salvo que lo deshabilites expresamente.",
+    "Usa el icono propio en la barra de tareas, inicio y área de notificaciones."
   ]
 }
