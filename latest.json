@@ -1,16 +1,16 @@
 {
   "app": "crypto-ai-trading-bot",
   "channel": "stable",
-  "version": "0.6.1",
-  "published_at": "2026-09-12T16:38:42Z",
-  "package_url": "https://raw.githubusercontent.com/jlboper/Crypto-BOT/main/packages/crypto-ai-trader-v0.6.1-robust-research.zip",
-  "sha256": "a1480d8a88dd2f219464e30d54bd23139a53dde87299c367542962b9d75ab9f5",
-  "size_bytes": 233752,
+  "version": "0.6.2",
+  "published_at": "2026-09-12T17:40:00Z",
+  "package_url": "https://raw.githubusercontent.com/jlboper/Crypto-BOT/main/packages/crypto-ai-trader-v0.6.2-cash-gate.zip",
+  "sha256": "116ff22e5cda2840d8c55098116d37a34a0493389480544717ac9c4507ffa687",
+  "size_bytes": 236246,
   "notes": [
-    "Amplía la investigación a 5,000 velas por activo y más periodos fuera de muestra.",
-    "Separa resultados por régimen alcista, lateral y bajista.",
-    "Añade evaluación del portafolio combinado y correlaciones entre activos.",
-    "Mide sensibilidad de parámetros y permite abrir detalles o exportar CSV.",
-    "Ejecuta el análisis fuera del motor para mantener el portal fluido."
+    "Separa correctamente estrategia fija y selector adaptativo.",
+    "Añade efectivo USDT al 0% como benchmark obligatorio.",
+    "El selector permanece en cash cuando el entrenamiento no demuestra ventaja.",
+    "Incorpora nueve puertas simultáneas antes de marcar un candidato prometedor.",
+    "Mantiene el motor PAPER sin cambios ni promociones automáticas."
   ]
 }
