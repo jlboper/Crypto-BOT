@@ -1,16 +1,16 @@
 {
   "app": "crypto-ai-trading-bot",
   "channel": "stable",
-  "version": "0.6.0",
-  "published_at": "2026-09-12T16:17:09Z",
-  "package_url": "https://raw.githubusercontent.com/jlboper/Crypto-BOT/main/packages/crypto-ai-trader-v0.6.0-research-lab.zip",
-  "sha256": "e9e41146463842836dec770fb85a52b8bcbbe347ed3ea7cc210dde6f679c2b7e",
-  "size_bytes": 229589,
+  "version": "0.6.1",
+  "published_at": "2026-09-12T16:38:42Z",
+  "package_url": "https://raw.githubusercontent.com/jlboper/Crypto-BOT/main/packages/crypto-ai-trader-v0.6.1-robust-research.zip",
+  "sha256": "a1480d8a88dd2f219464e30d54bd23139a53dde87299c367542962b9d75ab9f5",
+  "size_bytes": 233752,
   "notes": [
-    "Nuevo Research Lab para BTC, ETH, SOL, BNB y XRP.",
-    "Compara cinco estrategias por activo con walk-forward y Monte Carlo.",
-    "Backtesting conservador con ejecución en la vela siguiente, costos y stop-first.",
-    "Portal móvil instalable con seguridad reforzada.",
-    "Los candidatos permanecen en modo investigación y no alteran el motor PAPER."
+    "Amplía la investigación a 5,000 velas por activo y más periodos fuera de muestra.",
+    "Separa resultados por régimen alcista, lateral y bajista.",
+    "Añade evaluación del portafolio combinado y correlaciones entre activos.",
+    "Mide sensibilidad de parámetros y permite abrir detalles o exportar CSV.",
+    "Ejecuta el análisis fuera del motor para mantener el portal fluido."
   ]
 }
