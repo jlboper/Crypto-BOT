@@ -1,0 +1,50 @@
+[bot]
+mode = "paper"
+cycle_seconds = 900
+protection_seconds = 30
+timeframe = "4h"
+universe_size = 25
+max_parallel_requests = 6
+database_path = "data/trader.db"
+kill_switch_path = "data/KILL_SWITCH"
+
+[paper]
+initial_cash_usdt = 1000.0
+fee_rate = 0.001
+slippage_rate = 0.0005
+
+[risk]
+max_positions = 5
+max_position_pct = 0.15
+max_total_exposure_pct = 0.60
+risk_per_trade_pct = 0.0075
+daily_loss_limit_pct = 0.02
+weekly_loss_limit_pct = 0.05
+stop_atr_multiple = 2.0
+minimum_stop_pct = 0.025
+reward_to_risk = 2.0
+trailing_atr_multiple = 2.0
+max_consecutive_errors = 3
+
+[strategy]
+minimum_score = 70
+ema_fast = 20
+ema_slow = 50
+rsi_period = 14
+atr_period = 14
+breakout_period = 20
+volume_period = 20
+
+[ai]
+enabled = true
+model = "gpt-5.6-luna"
+max_reviews_per_cycle = 3
+minimum_confidence = 0.60
+fail_closed = true
+timeout_seconds = 30
+max_output_tokens = 800
+max_reviews_per_day = 30
+
+[dashboard]
+host = "127.0.0.1"
+port = 8765

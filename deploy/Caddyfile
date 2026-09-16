@@ -1,0 +1,8 @@
+# Set PORTAL_HOST to the DNS name owned by the user, e.g. portal.example.com.
+{$PORTAL_HOST} {
+    encode gzip
+    request_body {
+        max_size 64KB
+    }
+    reverse_proxy 127.0.0.1:8080
+}

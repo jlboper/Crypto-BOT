@@ -1,0 +1,8 @@
+node_modules/
+.pnpm-store/
+.wrangler/
+.dev.vars*
+.secrets/
+wrangler.production.json
+test-results.json
+deployment-state.json

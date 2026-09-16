@@ -1,0 +1,19 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "crypto-paper-private-portal",
+  "main": "src/worker.mjs",
+  "compatibility_date": "2026-09-14",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "preview_urls": false,
+  "observability": { "enabled": false },
+  "triggers": { "crons": ["17 3 * * *"] },
+  "assets": { "directory": "public", "binding": "ASSETS", "run_worker_first": true },
+  "vars": { "PORTAL_ORIGIN": "https://portal.invalid" },
+  "d1_databases": [{
+    "binding": "DB",
+    "database_name": "crypto-paper-private-portal",
+    "database_id": "00000000-0000-0000-0000-000000000000",
+    "migrations_dir": "migrations"
+  }]
+}
