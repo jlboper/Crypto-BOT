@@ -1,0 +1,26 @@
+[Unit]
+Description=Private PAPER trading monitor
+After=network-online.target
+
+[Service]
+Type=simple
+User=crypto-portal
+Group=crypto-portal
+WorkingDirectory=/opt/crypto-portal
+EnvironmentFile=/etc/crypto-portal.env
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=/opt/crypto-portal/.venv/bin/python -m trader.remote_portal
+Restart=on-failure
+RestartSec=10
+StateDirectory=crypto-portal
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/crypto-portal
+MemoryMax=256M
+CPUQuota=50%
+
+[Install]
+WantedBy=multi-user.target

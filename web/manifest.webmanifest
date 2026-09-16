@@ -1,0 +1,12 @@
+{
+  "name": "Crypto AI Trader",
+  "short_name": "Crypto Trader",
+  "description": "Portal privado de monitoreo y laboratorio de estrategias",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#080d18",
+  "theme_color": "#080d18",
+  "icons": [
+    {"src": "/crypto-ai-trader-icon.png", "sizes": "256x256", "type": "image/png", "purpose": "any maskable"}
+  ]
+}

@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#080d18">
+  <title>Crypto AI Trader</title>
+  <link rel="icon" type="image/png" href="/crypto-ai-trader-icon.png">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/monitoring.css">
+  <link rel="stylesheet" href="/portal.css">
+  <script src="/portal-bridge.js" defer></script>
+</head>
+<body>
+  <form id="portalLogin" hidden><h1>Crypto AI Trader</h1><p>Portal privado · PAPER</p><label for="portalPassword">Clave de acceso del propietario</label><input id="portalPassword" type="password" autocomplete="current-password" required maxlength="43"><button id="portalLoginButton" type="submit">Entrar</button><p id="portalLoginMessage"></p></form>
+  <main class="shell">
+    <header>
+      <div>
+        <img class="brand-mark" src="/crypto-ai-trader-icon.png" alt="">
+        <p class="eyebrow">BINANCE SPOT · MULTI-ASSET ENGINE</p>
+        <h1>Crypto AI Trader</h1>
+        <p id="portalConnection"></p>
+      </div>
+      <div class="header-actions">
+        <span id="botState" class="state">COMPROBANDO</span>
+        <span id="mode" class="badge">PAPER</span>
+        <button id="killButton" class="danger">Activar kill switch</button>
+        <button id="updateButton" class="secondary">Actualizaciones</button>
+        <button id="portalLogout" class="secondary" hidden>Cerrar sesión</button>
+      </div>
+    </header>
+    <section id="updatePanel" class="panel" hidden>
+      <h2>Actualizaciones del portal y del bot</h2>
+      <p>Work prepara los cambios en GitHub. Revisa la versión y sus pruebas antes de autorizar la publicación.</p>
+      <button id="checkUpdates" class="secondary">Buscar versiones del portal</button>
+      <p id="updateMessage" role="status"></p>
+      <div id="updateReleases"></div>
+      <h3>Bot de Windows</h3>
+      <p id="botUpdateMessage">La instalación remota del motor requiere completar el canal firmado y la parada, reinicio y recuperación supervisados. Todavía no está habilitada.</p>
+      <button id="installBotUpdate" class="secondary" disabled>Actualizar bot · pendiente de habilitar</button>
+    </section>
+    <ul id="portalCommands" aria-label="Solicitudes remotas"></ul>
+
+    <section class="metrics" aria-label="Resumen de cuenta">
+      <article><span>Equity</span><strong id="equity">—</strong><small id="return">—</small></article>
+      <article><span>Efectivo</span><strong id="cash">—</strong><small>USDT disponible</small></article>
+      <article><span>Exposición</span><strong id="exposure">—</strong><small id="positionsCount">—</small></article>
+      <article><span>Revisión IA</span><strong id="aiStatus">—</strong><small id="aiModel">—</small></article>
+    </section>
+
+    <section class="panel research-lab">
+      <div class="research-heading">
+        <div>
+          <p class="eyebrow">RESEARCH LAB · V0.6.2</p>
+          <h2>Validación multi-cripto</h2>
+          <p class="research-copy">Compara estrategias con ejecución en la vela siguiente, costos, walk-forward y Monte Carlo. Ningún resultado se activa automáticamente.</p>
+        </div>
+        <div class="research-actions">
+          <span id="researchState" class="state neutral">SIN EJECUTAR</span>
+          <button id="exportResearch" class="secondary" disabled>Exportar CSV</button>
+          <button id="researchButton" class="primary">Ejecutar análisis</button>
+        </div>
+      </div>
+      <div class="methodology">
+        <span>BTC · ETH · SOL · BNB · XRP</span>
+        <span>5 estrategias / activo</span>
+        <span>Fija vs. adaptativa</span>
+        <span>Cash gate</span>
+        <span>1,000 simulaciones</span>
+        <span>Solo investigación</span>
+      </div>
+      <div id="researchSummary" class="research-summary"></div>
+      <div class="table-wrap">
+        <table class="research-table">
+          <thead><tr><th>Activo</th><th>Estrategia fija</th><th>OOS fija</th><th>Selector adaptativo</th><th>Cash</th><th>Benchmark</th><th>Folds +</th><th>Puertas</th><th>Dictamen</th></tr></thead>
+          <tbody id="researchAssets"><tr><td colspan="9" class="empty">Ejecuta el primer análisis desde este portal.</td></tr></tbody>
+        </table>
+      </div>
+      <div id="researchDetail" class="research-detail" hidden></div>
+      <p id="researchUpdated" class="research-updated">El estudio descarga aproximadamente 5,000 velas cerradas por activo y puede tardar varios minutos.</p>
+    </section>
+
+    <section class="grid">
+      <article class="panel chart-panel">
+        <div class="panel-title"><h2>Curva de equity</h2><span id="updated">Esperando primer ciclo</span></div>
+        <canvas id="equityChart" height="230" aria-label="Curva de equity"></canvas>
+      </article>
+      <article class="panel guardrail">
+        <div class="panel-title"><h2>Guardrails</h2><span id="killState" class="state">Comprobando</span></div>
+        <dl>
+          <div><dt>Riesgo / trade</dt><dd>0.75%</dd></div>
+          <div><dt>Máx. posición</dt><dd>15%</dd></div>
+          <div><dt>Máx. exposición</dt><dd>60%</dd></div>
+          <div><dt>Límite diario</dt><dd>−2%</dd></div>
+          <div><dt>Límite semanal</dt><dd>−5%</dd></div>
+          <div><dt>Apalancamiento</dt><dd>Desactivado</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="panel">
+      <div class="panel-title"><h2>Posiciones abiertas</h2><span>Protección ATR activa</span></div>
+      <div class="table-wrap"><table><thead><tr><th>Par</th><th>Cantidad</th><th>Entrada</th><th>Precio actual</th><th>P&amp;L</th><th>P&amp;L %</th><th>Stop</th><th>Objetivo</th><th>Máximo</th></tr></thead><tbody id="positions"></tbody></table></div>
+    </section>
+
+    <section class="split">
+      <article class="panel">
+        <div class="panel-title"><h2>Últimas operaciones</h2><span>Incluye costos simulados</span></div>
+        <div id="trades" class="feed"></div>
+      </article>
+      <article class="panel">
+        <div class="panel-title"><h2>Decisiones IA</h2><span>Solo veta o reduce</span></div>
+        <div id="reviews" class="feed"></div>
+      </article>
+    </section>
+
+    <section class="panel">
+      <div class="panel-title"><h2>Actividad del motor</h2><span>Errores y advertencias recientes</span></div>
+      <div id="events" class="feed"></div>
+    </section>
+  </main>
+  <script src="/app.js"></script>
+</body>
+</html>

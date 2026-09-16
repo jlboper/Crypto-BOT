@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="Crypto AI Trader">
+  <defs>
+    <linearGradient id="background" x1="20" y1="16" x2="232" y2="240" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#14243d"/>
+      <stop offset="1" stop-color="#08111f"/>
+    </linearGradient>
+    <linearGradient id="line" x1="48" y1="176" x2="210" y2="70" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#20c997"/>
+      <stop offset="1" stop-color="#67f5c6"/>
+    </linearGradient>
+  </defs>
+  <rect x="8" y="8" width="240" height="240" rx="58" fill="url(#background)" stroke="#2b4264" stroke-width="8"/>
+  <path d="M49 177L91 132L128 153L202 78" fill="none" stroke="#06111d" stroke-width="25" stroke-linecap="round" stroke-linejoin="round" opacity=".72"/>
+  <path d="M49 177L91 132L128 153L202 78" fill="none" stroke="url(#line)" stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="49" cy="177" r="12" fill="#8dffe0"/>
+  <circle cx="91" cy="132" r="12" fill="#8dffe0"/>
+  <circle cx="128" cy="153" r="12" fill="#8dffe0"/>
+  <path d="M180 69h31M202 69v31" stroke="#effff9" stroke-width="11" stroke-linecap="round"/>
+  <circle cx="72" cy="71" r="9" fill="#7aa7ff"/>
+  <circle cx="103" cy="71" r="9" fill="#7aa7ff" opacity=".7"/>
+  <path d="M72 71h31" stroke="#7aa7ff" stroke-width="7" stroke-linecap="round" opacity=".75"/>
+</svg>

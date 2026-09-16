@@ -1,0 +1,42 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { createRequire } from 'node:module';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { createHash } from 'node:crypto';
+
+// Uses the exact Miniflare/workerd version pinned by Wrangler's lockfile.
+const wranglerRequire = createRequire(import.meta.resolve('wrangler'));
+const { Miniflare, convertV4MiniflareOptions } = wranglerRequire('miniflare');
+
+test('real workerd + local D1: browser session -> command -> Windows sync -> ack', {timeout:60000}, async t=>{
+  const origin='https://runtime.example.workers.dev';
+  const owner='R'.repeat(43), device='S'.repeat(43);
+  const hash=v=>createHash('sha256').update(v).digest('hex');
+  const mf=new Miniflare(convertV4MiniflareOptions({modules:[
+    {type:'ESModule',path:fileURLToPath(new URL('../src/worker.mjs',import.meta.url))},
+    {type:'ESModule',path:fileURLToPath(new URL('../src/github-updates.mjs',import.meta.url))}],
+    compatibilityDate:'2026-09-14',compatibilityFlags:['nodejs_compat'],
+    bindings:{PORTAL_ORIGIN:origin,OWNER_KEY_HASH:hash(owner),DEVICE_KEY_HASH:hash(device)},
+    d1Databases:{DB:'runtime-test-db'},outboundService:()=>new Response('Network disabled',{status:403})}));
+  t.after(()=>mf.dispose());
+  const db=await mf.getD1Database('DB');
+  // D1 exec requires one statement per line; a single prepared batch keeps the migration atomic.
+  const sql=['0001_portal.sql','0002_jobs.sql'].map(name=>readFileSync(new URL('../migrations/'+name,import.meta.url),'utf8')).join('\n');
+  await db.batch(sql.split(';').map(s=>s.trim()).filter(Boolean).map(s=>db.prepare(s)));
+  let cookie='',csrf='';
+  async function call(path,body,headers={}){
+    const response=await mf.dispatchFetch(origin+path,{method:body===undefined?'GET':'POST',headers:{'Content-Type':'application/json',Origin:origin,Cookie:cookie,'X-CSRF-Token':csrf,...headers},...(body===undefined?{}:{body:JSON.stringify(body)})});
+    const data=await response.json();return {status:response.status,headers:response.headers,body:data};
+  }
+  const logged=await call('/v1/login',{password:owner});assert.equal(logged.status,200,JSON.stringify(logged.body));
+  cookie=logged.headers.get('set-cookie').split(';')[0];csrf=logged.body.csrf;
+  assert.equal((await call('/v1/status')).status,200);
+  const cmd=await call('/v1/commands',{action:'kill',request_id:'runtime-kill-command-01'});assert.equal(cmd.status,202);
+  const snapshot={mode:'PAPER',equity:1000,cash:1000,exposure:0,positions:[],killed:false,last_cycle_at:new Date().toISOString(),ai_model:'gpt-5.6-luna',update_state:'manual_signed_install_only'};
+  const received=await call('/v1/device/sync',{snapshot,acks:[]},{Authorization:`Bearer ${device}`});
+  assert.equal(received.status,200);assert.equal(received.body.commands[0].id,cmd.body.id);
+  const acked=await call('/v1/device/sync',{snapshot:{...snapshot,killed:true},acks:[cmd.body.id]},{Authorization:`Bearer ${device}`});
+  assert.equal(acked.status,200);assert.deepEqual(acked.body.commands,[]);
+  const status=await call('/v1/status');assert.equal(status.body.commands[0].status,'applied');assert.equal(status.body.snapshot.killed,true);
+});

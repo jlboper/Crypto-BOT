@@ -1,0 +1,6 @@
+.positive{color:var(--green)}
+.negative,.event-error,.event-critical{color:var(--red)}
+.event-warn{color:var(--amber)}
+.warning{color:var(--amber)!important;border-color:#6b542b!important;background:#2b2415!important}
+.offline{color:var(--red)!important;border-color:#683342!important;background:#2e1620!important}
+@media(max-width:600px){.header-actions{flex-wrap:wrap}}

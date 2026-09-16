@@ -1,0 +1,64 @@
+name: Portal release with owner approval
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths: ['cloudflare/**', 'web/**', 'scripts/build_unified_portal.py', '.github/workflows/portal-release.yml']
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: portal-release-main
+  cancel-in-progress: true
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+      - run: corepack enable && corepack prepare pnpm@10.11.0 --activate
+      - run: pnpm install --frozen-lockfile --ignore-scripts && pnpm rebuild esbuild workerd
+        working-directory: cloudflare
+      - run: python scripts/build_unified_portal.py
+      - run: node --test tests/*.test.mjs
+        working-directory: cloudflare
+      - run: python -m pip install --disable-pip-version-check cryptography==50.0.1
+      - run: python scripts/test_offline.py
+  publish:
+    if: github.event_name == 'push'
+    needs: validate
+    environment: portal-production
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+      - run: corepack enable && corepack prepare pnpm@10.11.0 --activate
+      - run: pnpm install --frozen-lockfile --ignore-scripts && pnpm rebuild esbuild workerd
+        working-directory: cloudflare
+      - run: python scripts/build_unified_portal.py
+      - name: Publish the approved commit and verify health
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          PORTAL_D1_ID: ${{ vars.PORTAL_D1_ID }}
+          PORTAL_ORIGIN: ${{ vars.PORTAL_ORIGIN }}
+          DEPLOYMENT_ENABLED: ${{ secrets.DEPLOYMENT_ENABLED }}
+        run: node scripts/deploy-ci.mjs
+        working-directory: cloudflare
