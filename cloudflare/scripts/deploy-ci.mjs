@@ -1,7 +1,8 @@
 // Runs only in the approved GitHub environment; no owner/device keys in CI.
 import {spawn} from 'node:child_process';
-import {readFile,writeFile} from 'node:fs/promises';
+import {readFile,writeFile,readdir} from 'node:fs/promises';
 import {configure} from './configure.mjs';
+import {checkMigrations} from './check-migrations.mjs';
 if(process.env.GITHUB_REPOSITORY!=='jlboper/Crypto-BOT'||process.env.GITHUB_REF!=='refs/heads/main'||!/^[a-f0-9]{40}$/.test(process.env.GITHUB_SHA||''))throw Error('Unexpected release source');
 if(!process.env.CLOUDFLARE_API_TOKEN)throw Error('Environment deployment credential not configured');
 if(process.env.DEPLOYMENT_ENABLED!=='portal-production-v1')throw Error('Protected environment gate not configured');
@@ -15,8 +16,8 @@ async function wrangler(args,{capture=false}={}){
   await new Promise((resolve,reject)=>{child.once('error',reject);child.once('exit',code=>code===0?resolve():reject(Error('Deployment command failed')));});
   return output;
 }
-const migrations=await wrangler(['d1','migrations','list',config.d1_databases[0].database_name,'--remote'],{capture:true});
-if(migrations.includes('Migrations to be applied:'))throw Error('Pending D1 migration; review and apply it separately before publication');
+await checkMigrations({accountId:config.account_id,databaseId:config.d1_databases[0].database_id,
+  token:process.env.CLOUDFLARE_API_TOKEN,expected:(await readdir('migrations')).filter(name=>name.endsWith('.sql')).sort()});
 await wrangler(['deploy','--dry-run']);
 let deployed=false;
 try{

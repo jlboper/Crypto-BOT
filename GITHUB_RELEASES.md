@@ -17,7 +17,7 @@ Crear el entorno `portal-production` antes de habilitar el workflow:
 - Revisor obligatorio: `jlboper`. En esta cuenta de una sola persona debe permitirse la autorrevisión; si se activa `prevent self-review`, el propietario puede quedar impedido para aprobar una ejecución iniciada al integrar su PR.
 - Limitar ramas de despliegue a `main`.
 - Deshabilitar el bypass administrativo si la interfaz y el plan lo permiten.
-- Secreto de entorno `CLOUDFLARE_API_TOKEN`: token de API nuevo, limitado a esta cuenta y a edición de Workers. No copiar el OAuth local de Wrangler.
+- Secreto de entorno `CLOUDFLARE_API_TOKEN`: token de API nuevo, limitado a esta cuenta, con Workers Scripts:Edit y D1:Read. La comprobación de migraciones ejecuta únicamente SELECT. No copiar el OAuth local de Wrangler.
 - Secreto de entorno `DEPLOYMENT_ENABLED`: valor exacto `portal-production-v1`. Su ausencia hace que CI falle antes de publicar.
 - Variables de entorno `CLOUDFLARE_ACCOUNT_ID`, `PORTAL_D1_ID` y `PORTAL_ORIGIN`. El origen debe ser exactamente `https://crypto-paper-private-portal.jlboper.workers.dev`.
 

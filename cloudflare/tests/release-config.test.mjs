@@ -11,7 +11,7 @@ test('release workflow pins actions, cancels obsolete runs and protects deployme
   assert.doesNotMatch(workflow,/GITHUB_APPROVAL_TOKEN/);
 });
 test('CI fails closed for pending migrations and rolls back failed health',()=>{
-  assert.match(deploy,/Migrations to be applied:/);
+  assert.match(deploy,/await checkMigrations/);
   assert.match(deploy,/Protected environment gate not configured/);
   assert.match(deploy,/\['rollback','--message'/);
   assert.match(deploy,/attempt<3/);
