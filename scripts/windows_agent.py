@@ -50,6 +50,18 @@ def main():
     parser.add_argument("--check", action="store_true")
     parser.add_argument("--autostart", action="store_true")
     args = parser.parse_args()
+    # Recovery is opt-in and precedes reading a possibly migrated database.
+    channel = ROOT/'data/trusted-release.json'
+    recovery_record = ROOT/'data/remote-updates/supervisor.json'
+    if not args.check and channel.is_file() and recovery_record.is_file():
+        settings = json.loads(channel.read_text())
+        record = json.loads(recovery_record.read_text())
+        if (settings.get('supervised_install_enabled') is True and args.source.resolve() != ROOT
+                and record.get('phase') not in {'completed', 'rolled_back'}):
+            from trader.update_manager import UpdateManager
+            from trader.update_supervisor import UpdateSupervisor
+            UpdateSupervisor(UpdateManager(args.source, ROOT/'data/trusted-update.pub',
+                                           state_dir=ROOT/'data/remote-updates')).recover()
     config = source_settings(args.source)
     production = json.loads((ROOT / "cloudflare/wrangler.production.json").read_text())
     values = dict(line.split("=", 1) for line in (ROOT / "cloudflare/.secrets/windows-agent.env").read_text().splitlines() if "=" in line)

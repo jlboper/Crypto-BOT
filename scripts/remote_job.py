@@ -24,6 +24,8 @@ def main():
             report=(args.source/'data/research/latest.json').resolve()
             config=replace(config,research=replace(config.research,report_path=report))
             with single_instance(report.parent/'research.lock'):
+                from trader.runtime_control import RuntimeControl
+                RuntimeControl(config.bot.database_path.parent).guard_start()
                 execute_research(config)
             jobs.finish(args.id,'completed','Research Lab completado; informe sincronizado en el próximo ciclo del agente')
         elif job['action'] in ('update_check','update_install'):
@@ -34,12 +36,20 @@ def main():
                 jobs.finish(args.id,'failed','Canal firmado y clave de confianza aún no configurados; no se instaló nada')
                 return
             manager=UpdateManager(args.source,key,state_dir=ROOT/'data/remote-updates')
-            manager.stage(json.loads(channel.read_text())['manifest_url'])
+            settings = json.loads(channel.read_text())
+            staged = manager.stage(settings['manifest_url'])
+            if job['action']=='update_install' and job.get('release_id') != staged['release_id']:
+                raise ValueError('Approved release differs from staged package')
             if job['action']=='update_check':
-                jobs.finish(args.id,'completed','Paquete descargado y firma verificada; instalación pendiente')
+                jobs.finish(args.id,'completed','Paquete '+staged['version']+' verificado; identificación: '+staged['release_id']+'; instalación pendiente')
             else:
-                # Until supervised activation exists, refuse changing an operational installation.
-                jobs.finish(args.id,'failed','Paquete verificado; falta habilitar parada, reinicio y recuperación supervisados')
+                if settings.get('supervised_install_enabled') is not True or args.source.resolve() == ROOT:
+                    jobs.finish(args.id,'failed','Paquete verificado; instalación supervisada aún no aprovisionada')
+                    return
+                from trader.update_supervisor import UpdateSupervisor
+                package = Path(staged['package'])
+                result = UpdateSupervisor(manager).install(package, package.with_name(package.name+'.manifest.json'), job['release_id'])
+                jobs.finish(args.id,'completed','Bot '+result['version']+' instalado; arranque y portal local comprobados en PAPER')
         else:
             raise ValueError('Invalid action')
     except Exception as error:

@@ -1,19 +1,51 @@
 import json
 import tempfile
 import threading
+import os
 import unittest
 import urllib.error
 import urllib.request
 from dataclasses import replace
 from http.server import ThreadingHTTPServer
 from pathlib import Path
+from types import SimpleNamespace
 
 from trader.config import load_config
 from trader.dashboard import DashboardServer
 from trader.database import Database
+from trader.update_supervisor import ProcessRuntime
 
 
 class DashboardTests(unittest.TestCase):
+    def test_runtime_health_binds_port_and_identifies_exact_candidate(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            config = load_config()
+            config = replace(config, bot=replace(config.bot, database_path=root/'test.db'),
+                             dashboard=replace(config.dashboard, host='127.0.0.1', port=0))
+            dashboard = DashboardServer(config, Database(config.bot.database_path))
+            dashboard.runtime_token = 'a'*64
+            dashboard.start_thread()
+            try:
+                port = dashboard.server.server_port
+                (root/'config.toml').write_text(f'[dashboard]\nhost="127.0.0.1"\nport={port}\n')
+                runtime = ProcessRuntime(root)
+                child = SimpleNamespace(pid=os.getpid(), poll=lambda: None)
+                self.assertTrue(runtime.health(child, 'a'*64))
+                self.assertFalse(runtime.health(child, 'b'*64))
+                self.assertFalse(runtime.health(SimpleNamespace(pid=-1, poll=lambda: None), 'a'*64))
+                conflict = DashboardServer(replace(config, dashboard=replace(config.dashboard, port=port)), dashboard.db)
+                with self.assertRaises(OSError):
+                    conflict.start_thread()
+                marker = config.bot.database_path.parent/'UPDATE_MAINTENANCE.json'
+                marker.write_text('{}')
+                request = urllib.request.Request(f'http://127.0.0.1:{port}/api/resume', method='POST')
+                with self.assertRaises(urllib.error.HTTPError) as caught:
+                    urllib.request.urlopen(request)
+                self.assertEqual(caught.exception.code, 503)
+            finally:
+                dashboard.close()
+
     def test_research_endpoint_and_security_headers(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
