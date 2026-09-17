@@ -11,6 +11,7 @@ import unittest
 import zipfile
 from contextlib import closing
 from pathlib import Path
+from unittest.mock import patch
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
@@ -102,8 +103,9 @@ class SupervisorTests(unittest.TestCase):
         self.assertEqual(json.loads(self.supervisor.control.status.read_text())['version'], '0.6.2')
 
     def test_success_commits_before_candidate_can_execute_cycle(self):
-        result = self.supervisor.install(self.package, self.envelope, self.approved)
+        result = self.supervisor.install(self.package, self.envelope, self.approved, job_id=41)
         self.assertEqual(result['status'], 'installed_healthy')
+        self.assertEqual(json.loads(self.supervisor.record.read_text())['job_id'], 41)
         self.assertIsNotNone(self.original.poll())
         deadline = time.monotonic()+3
         while not (self.root/'candidate-cycle').exists() and time.monotonic()<deadline:
@@ -170,6 +172,33 @@ class SupervisorTests(unittest.TestCase):
 
 
 class RuntimeGateTests(unittest.TestCase):
+    def test_agent_reconciles_completed_job_without_restarting(self):
+        from scripts.windows_agent import recover_updates
+        from trader.remote_jobs import RemoteJobs
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root/'target'
+            (root/'data/remote-updates').mkdir(parents=True)
+            atomic_json(root/'data/trusted-release.json', {'supervised_install_enabled': True})
+            atomic_json(root/'data/remote-updates/supervisor.json', {'phase': 'completed', 'job_id': 5})
+            with patch('trader.remote_jobs.subprocess.Popen'), patch('scripts.windows_agent.ROOT', root), patch('trader.update_supervisor.UpdateSupervisor') as supervisor:
+                jobs = RemoteJobs(root, source)
+                jobs.accept({'id': 5, 'action': 'update_install', 'release_id': 'a'*64, 'expires': time.time()+100})
+                recover_updates(source)
+                self.assertEqual(jobs.results()[0]['status'], 'completed')
+                supervisor.assert_not_called()
+
+    def test_agent_does_not_recover_without_explicit_local_enable(self):
+        from scripts.windows_agent import recover_updates
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root/'data/remote-updates').mkdir(parents=True)
+            atomic_json(root/'data/trusted-release.json', {'supervised_install_enabled': 'true'})
+            atomic_json(root/'data/remote-updates/supervisor.json', {'phase': 'stopping'})
+            with patch('scripts.windows_agent.ROOT', root), patch('trader.update_supervisor.UpdateSupervisor') as supervisor:
+                recover_updates(root/'target')
+                supervisor.assert_not_called()
+
     def test_maintenance_blocks_normal_start_and_requires_exact_candidate(self):
         with tempfile.TemporaryDirectory() as directory:
             control = RuntimeControl(Path(directory))

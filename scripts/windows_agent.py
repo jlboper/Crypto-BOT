@@ -44,24 +44,38 @@ def source_settings(source):
     return replace(config, bot=replace(config.bot, database_path=database, kill_switch_path=kill), ai=replace(config.ai, model=model))
 
 
+def recover_updates(source):
+    # Recovery is opt-in and precedes reading a possibly migrated database.
+    channel = ROOT/'data/trusted-release.json'
+    recovery_record = ROOT/'data/remote-updates/supervisor.json'
+    if channel.is_file() and recovery_record.is_file():
+        settings = json.loads(channel.read_text())
+        record = json.loads(recovery_record.read_text())
+        if settings.get('supervised_install_enabled') is True and source.resolve() != ROOT:
+            recovered = {'status': record.get('phase')}
+            if record.get('phase') not in {'completed', 'rolled_back'}:
+                from trader.update_manager import UpdateManager
+                from trader.update_supervisor import UpdateSupervisor
+                recovered = UpdateSupervisor(UpdateManager(source, ROOT/'data/trusted-update.pub',
+                                                           state_dir=ROOT/'data/remote-updates')).recover()
+            if type(record.get('job_id')) is int and record['job_id'] > 0:
+                completed = recovered['status'] == 'completed'
+                jobs = RemoteJobs(ROOT, source)
+                try:
+                    jobs.finish(record['job_id'], 'completed' if completed else 'failed',
+                        'Actualización recuperada y arranque comprobado' if completed else 'Actualización interrumpida; versión anterior restaurada')
+                except (OSError, ValueError):
+                    print('Recovered update; remote job acknowledgement unavailable')
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--source", type=Path, required=True)
     parser.add_argument("--check", action="store_true")
     parser.add_argument("--autostart", action="store_true")
     args = parser.parse_args()
-    # Recovery is opt-in and precedes reading a possibly migrated database.
-    channel = ROOT/'data/trusted-release.json'
-    recovery_record = ROOT/'data/remote-updates/supervisor.json'
-    if not args.check and channel.is_file() and recovery_record.is_file():
-        settings = json.loads(channel.read_text())
-        record = json.loads(recovery_record.read_text())
-        if (settings.get('supervised_install_enabled') is True and args.source.resolve() != ROOT
-                and record.get('phase') not in {'completed', 'rolled_back'}):
-            from trader.update_manager import UpdateManager
-            from trader.update_supervisor import UpdateSupervisor
-            UpdateSupervisor(UpdateManager(args.source, ROOT/'data/trusted-update.pub',
-                                           state_dir=ROOT/'data/remote-updates')).recover()
+    if not args.check:
+        recover_updates(args.source)
     config = source_settings(args.source)
     production = json.loads((ROOT / "cloudflare/wrangler.production.json").read_text())
     values = dict(line.split("=", 1) for line in (ROOT / "cloudflare/.secrets/windows-agent.env").read_text().splitlines() if "=" in line)

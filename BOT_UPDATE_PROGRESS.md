@@ -1,7 +1,8 @@
 # Actualización remota del bot: estado comprobado
 
-Estado al 17 de septiembre de 2026. Cambios únicamente en la copia de auditoría;
-no publicados en GitHub ni desplegados sobre el motor o agente operativos.
+Estado al 17 de septiembre de 2026. Cambios en la copia de auditoría y propuestos
+en GitHub mediante PR #3 (`work/supervised-bot-updates`); no desplegados sobre
+el motor o agente operativos.
 
 ## Implementado y probado
 
@@ -31,7 +32,7 @@ no publicados en GitHub ni desplegados sobre el motor o agente operativos.
 - Puerto HTTP exclusivo en Windows, arranque con error visible si está ocupado,
   bloqueo de controles HTTP durante mantenimiento e invalidación de bytecode al
   instalar y al restaurar archivos Python.
-- 86 pruebas Python satisfactorias con red externa bloqueada, datos sintéticos
+- 88 pruebas Python satisfactorias con red externa bloqueada, datos sintéticos
   y directorios temporales; se ejecutaron procesos ficticios, nunca el bot
   operativo. Además, 10 repeticiones satisfactorias de recuperación posterior
   al commit. Esto no equivale a una actualización del motor real en producción.

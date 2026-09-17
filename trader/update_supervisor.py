@@ -113,7 +113,9 @@ class UpdateSupervisor:
             self.runtime.stop_owned(child)
             raise
 
-    def install(self, package, envelope, approved):
+    def install(self, package, envelope, approved, *, job_id=None):
+        if job_id is not None and (type(job_id) is not int or job_id <= 0):
+            raise ValueError("Invalid update job identifier")
         with single_instance(self.lock):
             if self.control.maintenance.exists():
                 raise RuntimeError("Recover previous maintenance before installing")
@@ -138,7 +140,7 @@ class UpdateSupervisor:
                 raise RuntimeError("Existing engine is stopped; supervised installation requires a running engine")
             token = secrets.token_hex(32)
             state = {'token': token, 'release_id': approved, 'old_version': original['version'],
-                     'version': manifest['version'], 'phase': 'stopping'}
+                     'version': manifest['version'], 'phase': 'stopping', 'job_id': job_id}
             atomic_json(self.record, state)
             self.phase(token, 'stopping')
             child = None
