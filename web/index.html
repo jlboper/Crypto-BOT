@@ -14,7 +14,7 @@
   <script src="/portal-bridge.js" defer></script>
 </head>
 <body>
-  <form id="portalLogin" hidden><h1>Crypto AI Trader</h1><p>Portal privado · PAPER</p><label for="portalPassword">Clave de acceso del propietario</label><input id="portalPassword" type="password" autocomplete="current-password" required maxlength="43"><button id="portalLoginButton" type="submit">Entrar</button><p id="portalLoginMessage"></p></form>
+  <form id="portalLogin" hidden><h1>Crypto AI Trader</h1><p>Portal privado · PAPER</p><label for="portalPassword">Contraseña del propietario</label><input id="portalPassword" type="password" autocomplete="current-password" required maxlength="128"><button id="portalLoginButton" type="submit">Entrar</button><p id="portalLoginMessage" role="status"></p></form>
   <main class="shell">
     <header>
       <div>
@@ -29,8 +29,24 @@
         <button id="killButton" class="danger">Activar kill switch</button>
         <button id="updateButton" class="secondary">Actualizaciones</button>
         <button id="portalLogout" class="secondary" hidden>Cerrar sesión</button>
+        <button id="portalPasswordButton" class="secondary">Cambiar contraseña</button>
       </div>
     </header>
+    <section id="passwordPanel" class="panel" hidden>
+      <h2>Cambiar contraseña del portal</h2>
+      <p>Se cerrarán las sesiones abiertas. El bot seguirá conectado con su propia credencial.</p>
+      <form id="passwordForm">
+        <label for="currentPassword">Contraseña actual</label>
+        <input id="currentPassword" type="password" autocomplete="current-password" required maxlength="128">
+        <label for="newPassword">Nueva contraseña (16 a 128 caracteres)</label>
+        <input id="newPassword" type="password" autocomplete="new-password" required minlength="16" maxlength="128">
+        <label for="confirmPassword">Repite la nueva contraseña</label>
+        <input id="confirmPassword" type="password" autocomplete="new-password" required minlength="16" maxlength="128">
+        <button id="savePassword" type="submit">Guardar contraseña y cerrar sesiones</button>
+        <button id="cancelPassword" type="button" class="secondary">Cancelar</button>
+        <p id="passwordMessage" role="status"></p>
+      </form>
+    </section>
     <section id="updatePanel" class="panel" hidden>
       <h2>Actualizaciones del portal y del bot</h2>
       <p>Work prepara los cambios en GitHub. Revisa la versión y sus pruebas antes de autorizar la publicación.</p>
