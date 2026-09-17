@@ -2,11 +2,21 @@
 const remotePortal = !['127.0.0.1','localhost','[::1]','::1'].includes(location.hostname);
 let portalCsrf = '', portalPending, portalCache, portalCacheAt = 0, portalEpoch=0;
 const portalRoute = {'/api/status':'status','/api/positions':'positions','/api/trades':'trades','/api/ai-reviews':'reviews','/api/equity':'equity','/api/events':'events','/api/research':'research','/api/research/status':'research_state','/api/updates':'updates'};
+async function portalPasswordProof(password,parameters){
+  if(parameters.scheme==='initial-key')return password;
+  if(parameters.scheme!=='pbkdf2-sha256'||parameters.iterations!==600000||!/^[A-Za-z0-9_-]{43}$/.test(parameters.salt||''))throw new Error('Parámetros de acceso inválidos');
+  const encoder=new TextEncoder();
+  const key=await crypto.subtle.importKey('raw',encoder.encode(password),'PBKDF2',false,['deriveBits']);
+  const bits=await crypto.subtle.deriveBits({name:'PBKDF2',hash:'SHA-256',iterations:600000,salt:encoder.encode(parameters.salt)},key,256);
+  return Array.from(new Uint8Array(bits),b=>b.toString(16).padStart(2,'0')).join('');
+}
 function portalLocked(){
   portalEpoch++;
   portalCsrf='';portalPending=null;portalCache=null;portalCacheAt=0;
   document.getElementById('portalLogin').hidden=false;
   document.querySelector('.shell').hidden=true;
+  document.getElementById('passwordPanel').hidden=true;
+  for(const id of ['currentPassword','newPassword','confirmPassword'])document.getElementById(id).value='';
 }
 async function portalRequest(path,body){
   const headers={Accept:'application/json'};
@@ -73,11 +83,38 @@ document.addEventListener('DOMContentLoaded',()=>{
   document.getElementById('portalConnection').textContent=remotePortal?'Conectando al portal':'Conexión local · datos directos de Windows';
   document.getElementById('portalLogin').onsubmit=async e=>{
     e.preventDefault();const button=document.getElementById('portalLoginButton');button.disabled=true;
-    try{const result=await portalRequest('/v1/login',{password:document.getElementById('portalPassword').value.trim()});portalCsrf=result.csrf;document.getElementById('portalPassword').value='';portalCacheAt=0;await portalState();window.dispatchEvent(new Event('portal-ready'));}
+    try{const parameters=await portalRequest('/v1/auth-parameters');const proof=await portalPasswordProof(document.getElementById('portalPassword').value,parameters);const result=await portalRequest('/v1/login',{password:proof});portalCsrf=result.csrf;document.getElementById('portalPassword').value='';portalCacheAt=0;await portalState();window.dispatchEvent(new Event('portal-ready'));}
     catch(error){document.getElementById('portalLoginMessage').textContent=error.message;}
     finally{button.disabled=false;}
   };
   document.getElementById('portalLogout').onclick=async()=>{await portalRequest('/v1/logout',{});portalLocked();};
+  document.getElementById('portalPasswordButton').onclick=()=>{
+    if(!remotePortal){window.open('https://crypto-paper-private-portal.jlboper.workers.dev/#password','_blank','noopener');return;}
+    document.getElementById('passwordPanel').hidden=false;
+    document.getElementById('passwordMessage').textContent='';
+  };
+  document.getElementById('cancelPassword').onclick=()=>{
+    document.getElementById('passwordPanel').hidden=true;
+    for(const id of ['currentPassword','newPassword','confirmPassword'])document.getElementById(id).value='';
+  };
+  document.getElementById('passwordForm').onsubmit=async event=>{
+    event.preventDefault();const button=document.getElementById('savePassword'),message=document.getElementById('passwordMessage');
+    const current=document.getElementById('currentPassword'),next=document.getElementById('newPassword'),confirmation=document.getElementById('confirmPassword');
+    if(next.value!==confirmation.value){message.textContent='Las contraseñas nuevas no coinciden';return;}
+    if(next.value.length<16||next.value.length>128||next.value.trim()!==next.value){message.textContent='Usa de 16 a 128 caracteres, sin espacios al principio o al final';return;}
+    if(next.value===current.value){message.textContent='Elige una contraseña diferente';return;}
+    button.disabled=true;message.textContent='Guardando…';
+    try{
+      await portalState();const parameters=await portalRequest('/v1/auth-parameters');
+      const salt=btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(32)))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+      const currentProof=await portalPasswordProof(current.value,parameters);
+      const newProof=await portalPasswordProof(next.value,{scheme:'pbkdf2-sha256',salt,iterations:600000});
+      await portalRequest('/v1/password',{current_password:currentProof,new_password:newProof,salt});
+      portalLocked();document.getElementById('portalLoginMessage').textContent='Contraseña cambiada. Entra con tu nueva contraseña.';
+    }catch(error){message.textContent=error.message;}
+    finally{current.value='';next.value='';confirmation.value='';button.disabled=false;}
+  };
+  window.addEventListener('portal-ready',()=>{if(location.hash==='#password')document.getElementById('passwordPanel').hidden=false;});
   let updatePending=false,lastUpdatesAt=0;
   async function checkUpdates(){
     if(!remotePortal){

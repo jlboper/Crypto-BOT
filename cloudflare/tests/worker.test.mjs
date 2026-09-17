@@ -2,11 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { readFileSync } from 'node:fs';
+import { pbkdf2Sync } from 'node:crypto';
 import worker, { sha256 } from '../src/worker.mjs';
 
 // Real SQLite executes the same parameterized SQL; workerd/D1 is tested separately.
 class LocalD1 {
-  constructor(){this.sqlite=new DatabaseSync(':memory:');for(const name of ['0001_portal.sql','0002_jobs.sql'])this.sqlite.exec(readFileSync(new URL('../migrations/'+name,import.meta.url),'utf8'));}
+  constructor(){this.sqlite=new DatabaseSync(':memory:');for(const name of ['0001_portal.sql','0002_jobs.sql','0003_owner_password.sql'])this.sqlite.exec(readFileSync(new URL('../migrations/'+name,import.meta.url),'utf8'));}
   prepare(sql){
     const db=this;
     const make=args=>({
@@ -28,6 +29,7 @@ class LocalD1 {
 
 const origin='https://paper.example.workers.dev';
 const owner='A'.repeat(43), device='B'.repeat(43);
+const proof=(password,salt)=>pbkdf2Sync(password,salt,600000,32,'sha256').toString('hex');
 const snapshot=()=>({mode:'PAPER',equity:1000,cash:900,exposure:100,positions:[{symbol:'BTCUSDT',quantity:1,entry_price:100,stop_price:95,take_profit:110}],killed:false,last_cycle_at:new Date().toISOString(),ai_model:'gpt-5.6-luna',update_state:'manual_signed_install_only'});
 
 async function fixture(t){
@@ -51,6 +53,48 @@ test('owner login, secure cookie, status and logout revoke the session',async t=
   const initial=await f.request('/v1/status');assert.equal(initial.body.stale,true);assert.equal(initial.body.snapshot,null);
   assert.equal((await f.request('/v1/logout',{})).status,200);
   assert.equal((await f.request('/v1/status')).status,401);
+});
+
+test('password change requires current password and CSRF, revokes all sessions, preserves device access',async t=>{
+  const f=await fixture(t);const first=await f.login();await f.login();
+  const next='A long unique test passphrase 2026';
+  const salt='T'.repeat(43),body={current_password:owner,new_password:proof(next,salt),salt};
+  assert.equal((await f.request('/v1/password',body,{'X-CSRF-Token':'wrong'})).status,403);
+  assert.equal((await f.request('/v1/password',{...body,current_password:'wrong'})).status,400);
+  assert.equal((await f.request('/v1/password',{...body,new_password:'short'})).status,400);
+  assert.equal((await f.request('/v1/password',{...body,new_password:owner})).status,400);
+  assert.equal((await f.request('/v1/password',{...body,new_password:device})).status,400);
+  assert.equal((await f.request('/v1/password',body)).status,200);
+  assert.equal((await f.request('/v1/status')).status,401);
+  assert.equal((await f.request('/v1/status',undefined,{Cookie:first.headers.get('set-cookie').split(';')[0]})).status,401);
+  assert.equal((await f.request('/v1/login',{password:owner})).status,401);
+  assert.equal((await f.request('/v1/login',{password:body.new_password})).status,200);
+  assert.equal((await f.request('/v1/login',{password:next})).status,401);
+  assert.deepEqual((await f.request('/v1/auth-parameters')).body,{scheme:'pbkdf2-sha256',salt,iterations:600000});
+  const saved=f.env.DB.sqlite.prepare('SELECT * FROM owner_password').get();
+  assert.equal(saved.iterations,600000);assert.equal(saved.digest.includes(next),false);
+  assert.equal((await f.sync()).status,200);
+});
+
+test('simultaneous password changes have exactly one winner and recovery rotates bootstrap',async t=>{
+  const f=await fixture(t);await f.login();
+  const passwords=['First independent passphrase','Second independent passphrase'].map((p,i)=>proof(p,String(i).repeat(43)));
+  const responses=await Promise.all(passwords.map((new_password,i)=>f.request('/v1/password',{current_password:owner,new_password,salt:String(i).repeat(43)})));
+  assert.deepEqual(responses.map(r=>r.status).sort(),[200,409]);
+  const winner=passwords[responses.findIndex(r=>r.status===200)];
+  assert.equal((await f.request('/v1/login',{password:winner})).status,200);
+  f.env.OWNER_KEY_HASH=await sha256('Z'.repeat(43));
+  assert.equal((await f.request('/v1/status')).status,401);
+  assert.equal((await f.request('/v1/login',{password:winner})).status,401);
+  assert.equal((await f.request('/v1/login',{password:'Z'.repeat(43)})).status,200);
+});
+
+test('failed credential transaction preserves old password and session',async t=>{
+  const f=await fixture(t);await f.login();
+  f.env.DB.sqlite.exec("CREATE TRIGGER reject_password BEFORE INSERT ON owner_password BEGIN SELECT RAISE(ABORT,'test failure'); END");
+  assert.equal((await f.request('/v1/password',{current_password:owner,new_password:proof('Never installed passphrase','F'.repeat(43)),salt:'F'.repeat(43)})).status,503);
+  assert.equal((await f.request('/v1/status')).status,200);
+  assert.equal((await f.request('/v1/login',{password:owner})).status,200);
 });
 
 test('owner and device credentials are separated; no unauthenticated DB writes',async t=>{

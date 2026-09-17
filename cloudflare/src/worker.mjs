@@ -1,5 +1,6 @@
 import { timingSafeEqual } from 'node:crypto';
 import { githubUpdates, UpdateError } from './github-updates.mjs';
+import { passwordDigest, validPassword, PASSWORD_ITERATIONS } from './password.mjs';
 
 const encoder = new TextEncoder();
 const TOKEN = /^[A-Za-z0-9_-]{43}$/;
@@ -92,6 +93,19 @@ function cookie(request) {
   return values.length === 1 ? values[0].slice('__Host-session='.length) : '';
 }
 function sessionCookie(token, age = 3600) { return `__Host-session=${token}; Path=/; Secure; HttpOnly; SameSite=Strict; Max-Age=${age}`; }
+async function passwordBudget(db,now){
+  const budget=await statement(db,`INSERT INTO login_budget VALUES(1,?,1)
+    ON CONFLICT(id) DO UPDATE SET attempts=CASE WHEN window_start<=? THEN 1 ELSE attempts+1 END,
+    window_start=CASE WHEN window_start<=? THEN excluded.window_start ELSE window_start END
+    WHERE attempts<10 OR window_start<=? RETURNING attempts`,now,now-300,now-300,now-300).all();
+  if(!budget.results.length)throw new HttpError(429,'Espera cinco minutos antes de volver a intentarlo');
+}
+async function matchesPassword(value,credential,bootstrap){
+  if(typeof value!=='string'||value.length>128)return false;
+  if(!credential)return TOKEN.test(value)&&same(await sha256(value),bootstrap);
+  if(!validPassword(value)||credential.iterations!==PASSWORD_ITERATIONS)return false;
+  return same(await passwordDigest(value,credential.salt),credential.digest);
+}
 
 export async function handle(request, env, now = Math.floor(Date.now() / 1000)) {
   const url = new URL(request.url);
@@ -146,29 +160,48 @@ export async function handle(request, env, now = Math.floor(Date.now() / 1000)) 
     return json({ commands: results(batch, commandIndex), jobs:results(batch,batch.length-1), poll_seconds: 30 });
   }
   if (method === 'POST' && request.headers.get('origin') !== env.PORTAL_ORIGIN) return json({ error: 'Origin not allowed' }, 403);
+  const credential=await statement(db,'SELECT version,salt,digest,iterations FROM owner_password WHERE id=1 AND bootstrap_hash=?',env.OWNER_KEY_HASH).first();
+  const ownerVersion=credential?.version||env.OWNER_KEY_HASH;
+  if(path==='/v1/auth-parameters'&&method==='GET')return json(credential?
+    {scheme:'pbkdf2-sha256',salt:credential.salt,iterations:PASSWORD_ITERATIONS}:
+    {scheme:'initial-key'});
   if (path === '/v1/login' && method === 'POST') {
     const body = await readBody(request);
-    const budget = await statement(db, `INSERT INTO login_budget VALUES(1,?,1)
-      ON CONFLICT(id) DO UPDATE SET
-        attempts=CASE WHEN window_start<=? THEN 1 ELSE attempts+1 END,
-        window_start=CASE WHEN window_start<=? THEN excluded.window_start ELSE window_start END
-      WHERE attempts<10 OR window_start<=? RETURNING attempts`, now, now-300, now-300, now-300).all();
-    if (!budget.results.length) return json({ error: 'Espera cinco minutos antes de volver a intentarlo' }, 429, { 'Retry-After': '300' });
-    // Only a generated 256-bit key is accepted. Never use a human password with SHA-256.
-    if (!TOKEN.test(body.password || '') || !same(await sha256(body.password), env.OWNER_KEY_HASH)) return json({ error: 'Clave incorrecta' }, 401);
+    await passwordBudget(db,now);
+    if (!await matchesPassword(body.password,credential,env.OWNER_KEY_HASH)) return json({ error: 'Clave incorrecta' }, 401);
     const token = randomToken(), csrf = randomToken();
     await db.batch([
       statement(db, 'DELETE FROM sessions WHERE expires<=?', now),
-      statement(db, 'INSERT INTO sessions(token,csrf,owner_version,expires) VALUES(?,?,?,?)', await sha256(token), csrf, env.OWNER_KEY_HASH, now+3600),
+      statement(db, 'INSERT INTO sessions(token,csrf,owner_version,expires) VALUES(?,?,?,?)', await sha256(token), csrf, ownerVersion, now+3600),
       statement(db, 'DELETE FROM sessions WHERE token NOT IN (SELECT token FROM sessions ORDER BY expires DESC,rowid DESC LIMIT 10)'),
     ]);
     return json({ csrf }, 200, { 'Set-Cookie': sessionCookie(token) });
   }
   const token = cookie(request);
   if (!TOKEN.test(token)) return json({ error: 'Session required' }, 401);
-  const session = await statement(db, 'SELECT token,csrf FROM sessions WHERE token=? AND expires>? AND owner_version=?', await sha256(token), now, env.OWNER_KEY_HASH).first();
+  const session = await statement(db, 'SELECT token,csrf FROM sessions WHERE token=? AND expires>? AND owner_version=?', await sha256(token), now, ownerVersion).first();
   if (!session) return json({ error: 'Session expired' }, 401);
   if (method === 'POST' && !same(request.headers.get('x-csrf-token') || '', session.csrf)) return json({ error: 'Invalid CSRF token' }, 403);
+  if(path==='/v1/password'&&method==='POST'){
+    const body=await readBody(request,2048);
+    assert(Object.keys(body).every(k=>['current_password','new_password','salt'].includes(k)),'Unknown field');
+    assert(validPassword(body.new_password)&&TOKEN.test(body.salt||''),'Invalid password proof');
+    await passwordBudget(db,now);
+    if(!await matchesPassword(body.current_password,credential,env.OWNER_KEY_HASH))return json({error:'Contraseña actual incorrecta'},400);
+    assert(body.new_password!==body.current_password,'Elige una contraseña diferente');
+    assert(!same(await sha256(body.new_password),env.DEVICE_KEY_HASH),'Usa una contraseña distinta de las credenciales técnicas');
+    assert(body.salt!==credential?.salt,'Use a new password salt');
+    const version=randomToken(),salt=body.salt,digest=await passwordDigest(body.new_password,salt);
+    const update=await db.batch([
+      statement(db,`INSERT INTO owner_password(id,bootstrap_hash,version,salt,digest,iterations) VALUES(1,?,?,?,?,?)
+        ON CONFLICT(id) DO UPDATE SET bootstrap_hash=excluded.bootstrap_hash,version=excluded.version,
+        salt=excluded.salt,digest=excluded.digest,iterations=excluded.iterations
+        WHERE owner_password.version=? OR owner_password.bootstrap_hash<>? RETURNING version`,env.OWNER_KEY_HASH,version,salt,digest,PASSWORD_ITERATIONS,ownerVersion,env.OWNER_KEY_HASH),
+      statement(db,'DELETE FROM sessions WHERE owner_version=? AND EXISTS(SELECT 1 FROM owner_password WHERE version=?)',ownerVersion,version)
+    ]);
+    if(!results(update,0).length)return json({error:'La contraseña cambió en otra sesión; vuelve a entrar'},409);
+    return json({ok:true},200,{'Set-Cookie':sessionCookie('',0)});
+  }
   if(path==='/v1/updates' && method==='GET')return json(await githubUpdates(env).list());
   if (path === '/v1/status' && method === 'GET') {
     const batch = await db.batch([
