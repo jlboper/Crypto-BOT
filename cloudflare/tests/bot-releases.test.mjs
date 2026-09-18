@@ -11,7 +11,7 @@ test('signer diagnostics never expose arbitrary exception contents',()=>{
 const rsa=generateKeyPairSync('rsa',{modulusLength:2048});
 const ed=generateKeyPairSync('ed25519');
 const claim={iss:'https://token.actions.githubusercontent.com',aud:origin+'/bot-releases',
-  sub:'repo:jlboper/Crypto-BOT:environment:portal-production',repository:'jlboper/Crypto-BOT',repository_id:'1366739763',
+  sub:'repo:jlboper@328148059/Crypto-BOT@1366739763:environment:portal-production',repository:'jlboper/Crypto-BOT',repository_id:'1366739763',repository_owner_id:'328148059',
   ref:'refs/heads/main',environment:'portal-production',workflow_ref:'jlboper/Crypto-BOT/.github/workflows/portal-release.yml@refs/heads/main',
   event_name:'push',sha:'a'.repeat(40),run_id:'12345',exp:now+300,nbf:now-10};
 const token=(overrides={},header={alg:'RS256',kid:'test-key'})=>{
@@ -24,7 +24,11 @@ const manifest=()=>({app:'crypto-ai-trading-bot',mode:'paper',version:'0.6.3',ru
   files:Object.fromEntries(['trader/__main__.py','trader/runtime_control.py','pyproject.toml'].map(p=>[p,'c'.repeat(64)]))});
 test('publisher identity binds protected environment, repository, workflow, revision and lifetime',async()=>{
   assert.equal((await authorizePublisher(token(),origin,now,transport)).sha,claim.sha);
-  for(const wrong of [{repository_id:'1'},{ref:'refs/heads/other'},{environment:'other'},{workflow_ref:'other'},
+  for(const wrong of [{repository_id:'1'},{repository_owner_id:'1'},
+    {sub:'repo:jlboper/Crypto-BOT:environment:portal-production'},
+    {sub:claim.sub.replace('@328148059','@1')},{sub:claim.sub.replace('@1366739763','@1')},
+    {sub:claim.sub.replace('portal-production','other')},
+    {ref:'refs/heads/other'},{environment:'other'},{workflow_ref:'other'},
     {aud:'elsewhere'},{sub:'repo:jlboper/Crypto-BOT:pull_request'},{exp:now-1},{event_name:'pull_request'}])
     await assert.rejects(authorizePublisher(token(wrong),origin,now,transport));
   await assert.rejects(authorizePublisher(token({}, {alg:'none',kid:'test-key'}),origin,now,transport));
