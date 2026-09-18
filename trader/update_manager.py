@@ -149,7 +149,8 @@ class UpdateManager:
         opener = urllib.request.build_opener(NoRedirect())
         with single_instance(self.state / "stage.lock"):
             def download(url, maximum):
-                with opener.open(url, timeout=30) as response:
+                request = urllib.request.Request(url, headers={"User-Agent": "CryptoAITraderUpdateManager/1"})
+                with opener.open(request, timeout=30) as response:
                     payload = response.read(maximum+1)
                 if len(payload) > maximum:
                     raise ValueError("download size limit")

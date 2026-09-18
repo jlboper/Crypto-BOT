@@ -1,10 +1,12 @@
 import base64
 import hashlib
+import io
 import json
 import sqlite3
 import tempfile
 import time
 import unittest
+from unittest.mock import patch
 import zipfile
 from pathlib import Path
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
@@ -50,6 +52,24 @@ class SignedUpdateTests(unittest.TestCase):
         self.assertIn('mode="paper"', (self.root/"config.toml").read_text())
         with self.assertRaises(ValueError):
             self.manager.apply(self.package, self.envelope)
+
+    def test_stage_identifies_client_and_verifies_without_installing(self):
+        manifest = json.loads(self.envelope.read_text())["manifest"]
+        manifest["package_url"] = "https://portal.example/package.zip"
+        envelope = json.dumps({"manifest": manifest, "signature": base64.b64encode(self.key.sign(canonical(manifest))).decode()}).encode()
+        urls = []
+        def opened(request, timeout):
+            self.assertEqual(request.get_header("User-agent"), "CryptoAITraderUpdateManager/1")
+            self.assertFalse(request.has_header("Authorization"))
+            urls.append(request.full_url)
+            return io.BytesIO(envelope if len(urls) == 1 else self.package.read_bytes())
+        with patch("trader.update_manager.urllib.request.build_opener") as opener:
+            opener.return_value.open.side_effect = opened
+            result = self.manager.stage("https://portal.example/latest")
+        self.assertEqual(urls, ["https://portal.example/latest", manifest["package_url"]])
+        self.assertEqual(result["status"], "staged_verified")
+        self.assertEqual((self.root/"trader/__main__.py").read_text(), "OLD = True\n")
+        self.assertFalse(self.manager.journal.exists())
 
     def test_health_failure_restores_and_removes_new_files(self):
         with self.assertRaises(RuntimeError):
