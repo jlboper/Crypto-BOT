@@ -12,13 +12,15 @@ import json
 import os
 import re
 import shutil
+import sqlite3
 import stat
 import time
+import tempfile
 import tomllib
 import zipfile
 import urllib.request
 from urllib.parse import urlsplit
-from contextlib import ExitStack
+from contextlib import ExitStack, closing
 from pathlib import Path, PurePosixPath
 
 from .runtime import single_instance
@@ -33,13 +35,41 @@ def canonical(value):
     return json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()
 
 
+def release_id(manifest):
+    """Bind consent to every signed field, including version, URL and expiry."""
+    return hashlib.sha256(canonical(manifest)).hexdigest()
+
+
+def public_bytes(path):
+    value = path.read_bytes()
+    if len(value) == 64 and re.fullmatch(b'[a-f0-9]{64}', value):
+        return bytes.fromhex(value.decode())
+    return value
+
+
 def atomic_json(path, value):
-    temporary = path.with_suffix(".tmp")
-    with temporary.open("wb") as handle:
-        handle.write(canonical(value))
-        handle.flush()
-        os.fsync(handle.fileno())
-    temporary.replace(path)
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(mode="wb", dir=path.parent, prefix="."+path.name,
+                                         suffix=".tmp", delete=False) as handle:
+            temporary = Path(handle.name)
+            handle.write(canonical(value))
+            handle.flush()
+            os.fsync(handle.fileno())
+        deadline = time.monotonic()+1
+        while True:
+            try:
+                temporary.replace(path)
+                break
+            except PermissionError as error:
+                # A short-lived reader can deny replace on Windows; retain the
+                # old complete document until replacement succeeds.
+                if os.name != "nt" or getattr(error, "winerror", None) not in {5, 32, 33} or time.monotonic() >= deadline:
+                    raise
+                time.sleep(0.01)
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
 
 
 def safe_name(name):
@@ -62,7 +92,7 @@ def verify(package: Path, envelope: Path, public_key: Path, minimum_sequence=0, 
         raise ValueError("package size limit")
     signed = json.loads(envelope.read_text(encoding="utf-8"))
     manifest = signed["manifest"]
-    Ed25519PublicKey.from_public_bytes(public_key.read_bytes()).verify(
+    Ed25519PublicKey.from_public_bytes(public_bytes(public_key)).verify(
         base64.b64decode(signed["signature"], validate=True), canonical(manifest))
     now = time.time() if now is None else now
     if manifest["app"] != "crypto-ai-trading-bot" or manifest["mode"] != "paper":
@@ -106,6 +136,8 @@ class UpdateManager:
         self.state.mkdir(parents=True, exist_ok=True)
         self.journal = self.state / "journal.json"
         self.sequence = self.state / "sequence.json"
+        # Shared by installers even if their staging directories differ.
+        self.transaction_lock = self.root / "data" / "update-transaction.lock"
 
     def stage(self, manifest_url: str):
         """Download to staging over HTTPS; no installation or engine shutdown."""
@@ -124,11 +156,12 @@ class UpdateManager:
                 return payload
             envelope_bytes = download(manifest_url, 1024*1024)
             signed = json.loads(envelope_bytes)
-            Ed25519PublicKey.from_public_bytes(self.public_key.read_bytes()).verify(
+            Ed25519PublicKey.from_public_bytes(public_bytes(self.public_key)).verify(
                 base64.b64decode(signed["signature"], validate=True), canonical(signed["manifest"]))
             package_url = signed["manifest"]["package_url"]
             package_origin = urlsplit(package_url)
-            if package_origin.scheme != "https" or package_origin.netloc != origin.netloc or package_origin.username or package_origin.fragment:
+            github_package = re.fullmatch(r'https://raw\.githubusercontent\.com/jlboper/Crypto-BOT/bot-releases/packages/[a-f0-9]{40}\.zip', package_url) is not None
+            if package_origin.scheme != "https" or (package_origin.netloc != origin.netloc and not github_package) or package_origin.username or package_origin.fragment:
                 raise ValueError("package origin mismatch")
             package = self.state / "staged.zip"
             envelope = self.state / "staged.zip.manifest.json"
@@ -140,7 +173,9 @@ class UpdateManager:
             manifest = verify(pending, pending_envelope, self.public_key, minimum)
             pending.replace(package)
             pending_envelope.replace(envelope)
-            return {"status": "staged_verified", "version": manifest["version"], "package": str(package)}
+            return {"status": "staged_verified", "version": manifest["version"],
+                    "release_id": release_id(manifest), "sequence": manifest["sequence"],
+                    "expires": manifest['expires'], "commit": manifest.get('commit'), "package": str(package)}
 
     def target(self, name):
         safe_name(name)
@@ -154,9 +189,49 @@ class UpdateManager:
             raise ValueError("install path escapes root")
         return path
 
+    def database_path(self):
+        with (self.root / "config.toml").open("rb") as handle:
+            config = tomllib.load(handle)
+        path = self.root / config["bot"]["database_path"]
+        if not path.resolve().is_relative_to(self.root) or path.resolve() == self.root:
+            raise ValueError("database must remain inside installation")
+        for parent in (path, *path.parents):
+            if parent == self.root:
+                break
+            if parent.is_symlink() or (hasattr(parent, "is_junction") and parent.is_junction()):
+                raise ValueError("linked database path")
+        return path
+
+    def invalidate_bytecode(self, name):
+        path = self.target(name)
+        if path.suffix != '.py':
+            return
+        cache = path.parent/'__pycache__'
+        if cache.is_symlink() or (hasattr(cache, 'is_junction') and cache.is_junction()):
+            raise ValueError('linked bytecode cache')
+        if cache.is_dir():
+            for compiled in cache.iterdir():
+                if compiled.name.startswith(path.stem+'.') and compiled.suffix == '.pyc':
+                    compiled.unlink()
+
+    @staticmethod
+    def copy_database(source, destination):
+        """SQLite backup includes WAL and restores transactionally, not file-copy."""
+        deadline = time.monotonic() + 30
+        def progress(status, remaining, total):
+            if time.monotonic() > deadline:
+                raise TimeoutError("database backup deadline exceeded")
+        with closing(sqlite3.connect(source.as_uri()+"?mode=ro", uri=True, timeout=30)) as reader:
+            with closing(sqlite3.connect(destination, timeout=30)) as writer:
+                reader.backup(writer, pages=256, progress=progress)
+                if writer.execute("PRAGMA quick_check").fetchone()[0] != "ok":
+                    raise ValueError("database integrity check failed")
+
     def locks(self):
         stack = ExitStack()
         try:
+            stack.enter_context(single_instance(self.transaction_lock))
+            stack.enter_context(single_instance(self.state / "stage.lock"))
             with (self.root / "config.toml").open("rb") as handle:
                 config = tomllib.load(handle)
             if config["bot"]["mode"] != "paper":
@@ -181,9 +256,20 @@ class UpdateManager:
         if record["phase"] == "committed":
             atomic_json(self.sequence, {"sequence": record["sequence"]})
             return False
-        if record["phase"] != "applying":
+        if record["phase"] not in {"applying", "pending_health"}:
             return False
         backup = self.state / "backup"
+        if "database_existed" in record:
+            database = self.database_path()
+            if str(database.relative_to(self.root)) != record["database_path"]:
+                raise ValueError("database configuration changed during update")
+            if record["database_existed"]:
+                self.copy_database(self.state / "database-before.sqlite", database)
+            elif database.exists():
+                # Only a supervisor with all writer locks may reach recovery.
+                database.unlink()
+                database.with_name(database.name+"-wal").unlink(missing_ok=True)
+                database.with_name(database.name+"-shm").unlink(missing_ok=True)
         for name, existed in record["previous"].items():
             target = self.target(name)
             if existed:
@@ -191,6 +277,7 @@ class UpdateManager:
                 shutil.copy2(backup / name, target)
             else:
                 target.unlink(missing_ok=True)
+            self.invalidate_bytecode(name)
         atomic_json(self.journal, {**record, "phase": "rolled_back"})
         return True
 
@@ -198,11 +285,39 @@ class UpdateManager:
         with self.locks():
             return self._recover()
 
-    def apply(self, package: Path, envelope: Path, health_check=None):
+    def commit_pending(self, expected_release, health_check):
+        """Commit after an external supervisor proves runtime health.
+
+        Never roll back files beneath a running process. On failure the caller
+        must stop that process and call recover(), which requires engine locks.
+        """
+        with single_instance(self.transaction_lock):
+            record = json.loads(self.journal.read_text())
+            if record.get("phase") != "pending_health" or record.get("release_id") != expected_release:
+                raise ValueError("pending release mismatch")
+            for name, digest in record["files"].items():
+                if hashlib.sha256(self.target(name).read_bytes()).hexdigest() != digest:
+                    raise ValueError("installed file changed before commit")
+            if health_check() is not True:
+                raise RuntimeError("runtime health check failed; stop candidate before recovery")
+            atomic_json(self.journal, {**record, "phase": "committed"})
+            atomic_json(self.sequence, {"sequence": record["sequence"]})
+            return {"status": "committed", "release_id": expected_release, "version": record["version"]}
+
+    def apply(self, package: Path, envelope: Path, health_check=None, *,
+              expected_release=None, defer_commit=False):
+        if defer_commit and (expected_release is None or health_check is not None):
+            raise ValueError("supervised activation requires exact approval and external health check")
         with self.locks():
-            self._recover()
             minimum = json.loads(self.sequence.read_text())["sequence"] if self.sequence.exists() else 0
             manifest = verify(package, envelope, self.public_key, minimum)
+            if expected_release is not None and release_id(manifest) != expected_release:
+                raise ValueError("approved release changed")
+            # Check consent before recovery or any changes to installed files.
+            self._recover()
+            minimum = json.loads(self.sequence.read_text())["sequence"] if self.sequence.exists() else 0
+            if manifest["sequence"] <= minimum:
+                raise ValueError("replayed or downgraded update")
             with (self.root / "pyproject.toml").open("rb") as handle:
                 old_version = tomllib.load(handle)["project"]["version"]
             def version(value):
@@ -222,7 +337,15 @@ class UpdateManager:
                     saved = backup / name
                     saved.parent.mkdir(parents=True, exist_ok=True)
                     shutil.copy2(target, saved)
-            record = {"phase": "applying", "previous": previous, "sequence": manifest["sequence"]}
+            record = {"phase": "applying", "previous": previous, "sequence": manifest["sequence"],
+                      "release_id": release_id(manifest), "version": manifest["version"], "files": manifest["files"]}
+            if defer_commit:
+                database = self.database_path()
+                record.update(database_path=str(database.relative_to(self.root)), database_existed=database.is_file())
+                if database.exists() and not database.is_file():
+                    raise ValueError("non-file database")
+                if database.is_file():
+                    self.copy_database(database, self.state / "database-before.sqlite")
             atomic_json(self.journal, record)
             try:
                 with zipfile.ZipFile(package) as archive:
@@ -237,14 +360,17 @@ class UpdateManager:
                         temporary = target.with_name(target.name + ".update-tmp")
                         temporary.write_bytes(payload)
                         temporary.replace(target)
+                        self.invalidate_bytecode(name)
                 if health_check is not None and not health_check():
                     raise RuntimeError("update health check failed")
-                atomic_json(self.journal, {**record, "phase": "committed"})
-                atomic_json(self.sequence, {"sequence": manifest["sequence"]})
+                atomic_json(self.journal, {**record, "phase": "pending_health" if defer_commit else "committed"})
+                if not defer_commit:
+                    atomic_json(self.sequence, {"sequence": manifest["sequence"]})
             except BaseException:
                 self._recover()
                 raise
-            return {"version": manifest["version"], "status": "installed_offline", "runtime_health": "not_started"}
+            return {"version": manifest["version"], "release_id": release_id(manifest),
+                    "status": "pending_health" if defer_commit else "installed_offline", "runtime_health": "not_started"}
 
 
 def main():

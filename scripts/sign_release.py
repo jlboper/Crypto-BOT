@@ -33,7 +33,8 @@ def main():
     manifest = {"app": "crypto-ai-trading-bot", "mode": "paper", "version": args.version,
         "sequence": args.sequence, "expires": int(time.time())+14*86400,
         "size": args.package.stat().st_size, "sha256": hashlib.sha256(args.package.read_bytes()).hexdigest(),
-        "files": files, "package_url": args.package_url}
+        "files": files, "package_url": args.package_url,
+        "runtime_protocol": 1 if "trader/runtime_control.py" in files else 0}
     target = args.package.with_name(args.package.name + ".manifest.json")
     with target.open("x", encoding="utf-8") as handle:
         json.dump({"manifest": manifest, "signature": base64.b64encode(key.sign(canonical(manifest))).decode()}, handle)

@@ -247,9 +247,9 @@ class TradingEngine:
             return True
         return False
 
-    def run_forever(self) -> None:
+    def run_forever(self, should_stop=lambda: False) -> None:
         self.db.event("INFO", "Trading engine started in PAPER mode")
-        while True:
+        while not should_stop():
             started = time.monotonic()
             try:
                 self.cycle()
@@ -259,7 +259,13 @@ class TradingEngine:
                 pass
             deadline = started + self.config.bot.cycle_seconds
             while time.monotonic() < deadline:
-                time.sleep(max(0.1, min(self.config.bot.protection_seconds, deadline-time.monotonic())))
+                protection_deadline = min(deadline, time.monotonic()+self.config.bot.protection_seconds)
+                while time.monotonic() < protection_deadline:
+                    if should_stop():
+                        return
+                    time.sleep(max(0.01, min(1.0, protection_deadline-time.monotonic())))
+                if should_stop():
+                    return
                 try:
                     self.protection_tick()
                 except Exception as exc:

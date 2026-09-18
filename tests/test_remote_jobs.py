@@ -6,6 +6,22 @@ from unittest.mock import patch
 from trader.remote_jobs import RemoteJobs
 
 class RemoteJobTests(unittest.TestCase):
+    def test_install_requires_exact_persisted_approval(self):
+        with tempfile.TemporaryDirectory() as directory, patch('trader.remote_jobs.subprocess.Popen') as spawn:
+            jobs = RemoteJobs(directory, directory)
+            job = {'id': 4, 'action': 'update_install', 'expires': time.time()+100}
+            for invalid in (None, '', 'latest', 'A'*64, 'a'*63):
+                with self.assertRaises(ValueError):
+                    jobs.accept({**job, 'release_id': invalid})
+            spawn.assert_not_called()
+            job['release_id'] = 'a'*64
+            jobs.accept(job)
+            jobs.accept(job)
+            self.assertEqual(jobs._read(jobs.directory/'4.json')['release_id'], 'a'*64)
+            with self.assertRaisesRegex(ValueError, 'identifier conflict'):
+                jobs.accept({**job, 'release_id': 'b'*64})
+            self.assertEqual(spawn.call_count, 1)
+
     def test_persisted_job_is_started_once_and_results_survive_restart(self):
         with tempfile.TemporaryDirectory() as directory, patch('trader.remote_jobs.subprocess.Popen') as spawn:
             jobs=RemoteJobs(directory,directory)

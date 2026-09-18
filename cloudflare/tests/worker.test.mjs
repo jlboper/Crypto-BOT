@@ -7,7 +7,7 @@ import worker, { sha256 } from '../src/worker.mjs';
 
 // Real SQLite executes the same parameterized SQL; workerd/D1 is tested separately.
 class LocalD1 {
-  constructor(){this.sqlite=new DatabaseSync(':memory:');for(const name of ['0001_portal.sql','0002_jobs.sql','0003_owner_password.sql'])this.sqlite.exec(readFileSync(new URL('../migrations/'+name,import.meta.url),'utf8'));}
+  constructor(){this.sqlite=new DatabaseSync(':memory:');for(const name of ['0001_portal.sql','0002_jobs.sql','0003_owner_password.sql','0004_bot_releases.sql'])this.sqlite.exec(readFileSync(new URL('../migrations/'+name,import.meta.url),'utf8'));}
   prepare(sql){
     const db=this;
     const make=args=>({
@@ -245,7 +245,7 @@ test('background jobs persist, deduplicate, reject unsupported actions and accep
   assert.equal((await f.request('/v1/jobs',{...body,action:'shell'})).status,400);
   const job=(await f.request('/v1/jobs',body)).body;
   assert.equal((await f.request('/v1/jobs',body)).body.id,job.id);
-  assert.equal((await f.request('/v1/jobs',{...body,action:'update_install'})).status,409);
+  assert.equal((await f.request('/v1/jobs',{...body,action:'update_install',release_id:'a'.repeat(64)})).status,409);
   const first=await f.sync({snapshot:snapshot(),job_results:[{id:job.id,action:'research',status:'completed',message:'not delivered'}]});
   assert.equal(first.body.jobs[0].id,job.id);
   await f.sync({snapshot:snapshot(),job_results:[{id:job.id,action:'research',status:'running',message:'Running'}]});
@@ -257,6 +257,23 @@ test('background jobs persist, deduplicate, reject unsupported actions and accep
   const invalid=await f.sync({snapshot:{...snapshot(),equity:1500},job_results:[{id:job.id,action:'research',status:'invalid',message:''}]});
   assert.equal(invalid.status,400);
   assert.equal((await f.request('/v1/status')).body.snapshot.equity,1000);
+});
+
+test('bot installation binds approval to an enabled unexpired Windows-verified release',async t=>{
+  const f=await fixture(t);await f.login();
+  const candidate={release_id:'a'.repeat(64),version:'0.6.3',sequence:123,commit:'b'.repeat(40),expires:Math.floor(Date.now()/1000)+3600,enabled:true};
+  const body={action:'update_install',request_id:'exact-bot-update-0001',release_id:candidate.release_id};
+  await f.sync();
+  assert.equal((await f.request('/v1/jobs',body)).status,409);
+  await f.sync({snapshot:{...snapshot(),bot_update:{...candidate,enabled:false}}});
+  assert.equal((await f.request('/v1/jobs',body)).status,409);
+  await f.sync({snapshot:{...snapshot(),bot_update:candidate}});
+  assert.equal((await f.request('/v1/jobs',{...body,release_id:'c'.repeat(64)})).status,409);
+  const accepted=await f.request('/v1/jobs',body);assert.equal(accepted.status,202);
+  assert.equal((await f.request('/v1/jobs',body)).body.id,accepted.body.id);
+  assert.equal((await f.request('/v1/jobs',{...body,release_id:'c'.repeat(64)})).status,409);
+  const delivery=await f.sync({snapshot:{...snapshot(),bot_update:candidate}});
+  assert.equal(delivery.body.jobs[0].release_id,candidate.release_id);
 });
 
 test('stale running job fails closed and no longer blocks a fresh request',async t=>{

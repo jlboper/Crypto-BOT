@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
+import tomllib
+from pathlib import Path
 
 from .backtest import run_backtest
 from .config import load_config
@@ -13,6 +16,7 @@ from .exchange import BinanceClient
 from .monitoring import activity_status, position_metrics
 from .research import execute_research, report_without_trades
 from .runtime import single_instance
+from .runtime_control import RuntimeControl
 
 
 def parser() -> argparse.ArgumentParser:
@@ -40,24 +44,42 @@ def parser() -> argparse.ArgumentParser:
 def main() -> None:
     args = parser().parse_args()
     config = load_config(args.config)
+    control = RuntimeControl(config.bot.database_path.parent, os.environ.get("CRYPTO_UPDATE_TOKEN"))
+    if args.command in {"once", "run", "dashboard", "research", "status", "resume"}:
+        if args.command != "run" and control.token is not None:
+            raise RuntimeError("Candidate handshake only supports run")
+        control.guard_start()
     if args.command == "once":
         with single_instance(config.bot.database_path.parent / "engine.lock"):
+            control.guard_start()
             print(json.dumps(TradingEngine(config).cycle(), indent=2))
     elif args.command == "run":
         lock_path = config.bot.database_path.parent / "engine.lock"
         try:
             with single_instance(lock_path):
+                # Recheck after taking the lock to close the maintenance/start race.
+                control.guard_start()
                 engine = TradingEngine(config)
-                DashboardServer(config, engine.db).start_thread()
-                print(f"PAPER dashboard: http://{config.dashboard.host}:{config.dashboard.port}")
-                engine.run_forever()
+                dashboard = DashboardServer(config, engine.db)
+                try:
+                    dashboard.runtime_token = control.token
+                    thread = dashboard.start_thread()
+                    metadata = tomllib.loads((Path(__file__).resolve().parent.parent/'pyproject.toml').read_text())
+                    control.ready(metadata['project']['version'], dashboard_ready=thread.is_alive())
+                    control.await_activation()
+                    print(f"PAPER dashboard: http://{config.dashboard.host}:{config.dashboard.port}")
+                    engine.run_forever(control.should_stop)
+                finally:
+                    dashboard.close()
         except RuntimeError as exc:
             print(str(exc), file=sys.stderr)
             raise SystemExit(2) from exc
     elif args.command == "dashboard":
-        db = Database(config.bot.database_path)
-        print(f"PAPER dashboard: http://{config.dashboard.host}:{config.dashboard.port}")
-        DashboardServer(config, db).serve_forever()
+        with single_instance(config.bot.database_path.parent / "engine.lock"):
+            control.guard_start()
+            db = Database(config.bot.database_path)
+            print(f"PAPER dashboard: http://{config.dashboard.host}:{config.dashboard.port}")
+            DashboardServer(config, db).serve_forever()
     elif args.command == "backtest":
         exchange = BinanceClient()
         candles = exchange.historical_candles(args.symbol.upper(), config.bot.timeframe, args.limit)
@@ -67,6 +89,7 @@ def main() -> None:
         lock_path = config.research.report_path.parent / "research.lock"
         try:
             with single_instance(lock_path):
+                control.guard_start()
                 report = execute_research(
                     config,
                     symbols=args.symbols,

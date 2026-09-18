@@ -1,6 +1,7 @@
 import { timingSafeEqual } from 'node:crypto';
 import { githubUpdates, UpdateError } from './github-updates.mjs';
 import { passwordDigest, validPassword, PASSWORD_ITERATIONS } from './password.mjs';
+import { signRelease } from './bot-releases.mjs';
 
 const encoder = new TextEncoder();
 const TOKEN = /^[A-Za-z0-9_-]{43}$/;
@@ -63,7 +64,7 @@ async function readBody(request, maximum = 65536) {
 }
 function validateSnapshot(snapshot) {
   assert(object(snapshot) && snapshot.mode === 'PAPER', 'PAPER snapshot required');
-  const allowed = ['mode','equity','cash','exposure','positions','killed','last_cycle_at','ai_model','update_state','dashboard'];
+  const allowed = ['mode','equity','cash','exposure','positions','killed','last_cycle_at','ai_model','update_state','dashboard','bot_update'];
   assert(Object.keys(snapshot).every(k => allowed.includes(k)), 'Unknown snapshot field');
   for (const key of ['equity', 'cash', 'exposure']) {
     assert(snapshot[key] === null || (typeof snapshot[key] === 'number' && Number.isFinite(snapshot[key]) && snapshot[key] >= 0), 'Invalid balance');
@@ -72,6 +73,11 @@ function validateSnapshot(snapshot) {
   assert(snapshot.last_cycle_at === null || (typeof snapshot.last_cycle_at === 'string' && snapshot.last_cycle_at.length <= 40 && Number.isFinite(Date.parse(snapshot.last_cycle_at))), 'Invalid cycle time');
   assert(typeof snapshot.ai_model === 'string' && /^[a-zA-Z0-9._-]{1,80}$/.test(snapshot.ai_model) && !snapshot.ai_model.startsWith('sk-'), 'Invalid model');
   assert(snapshot.update_state === 'manual_signed_install_only', 'Invalid update state');
+  if(snapshot.bot_update!=null){
+    const b=snapshot.bot_update;
+    assert(object(b)&&Object.keys(b).every(k=>['release_id','version','sequence','expires','commit','enabled'].includes(k)),'Invalid bot release');
+    assert(HASH.test(b.release_id)&&/^\d+\.\d+\.\d+$/.test(b.version)&&/^[a-f0-9]{40}$/.test(b.commit)&&Number.isSafeInteger(b.sequence)&&b.sequence>0&&Number.isInteger(b.expires)&&typeof b.enabled==='boolean','Invalid bot release');
+  }
   assert(Array.isArray(snapshot.positions) && snapshot.positions.length <= 100, 'Invalid positions');
   for (const p of snapshot.positions) {
     assert(object(p) && Object.keys(p).length === 5 && /^[A-Z0-9]{2,30}$/.test(p.symbol), 'Invalid position');
@@ -127,6 +133,15 @@ export async function handle(request, env, now = Math.floor(Date.now() / 1000)) 
   }
   if (!HASH.test(env.OWNER_KEY_HASH || '') || !HASH.test(env.DEVICE_KEY_HASH || '') || env.OWNER_KEY_HASH === env.DEVICE_KEY_HASH) return json({ error: 'Portal not provisioned' }, 503);
   const db = env.DB;
+  if(path==='/v1/releases/sign'&&method==='POST'){
+    const body=await readBody(request,LIMIT);
+    try{return json(await signRelease(env,(request.headers.get('authorization')||'').replace(/^Bearer /,''),body,now));}
+    catch{return json({error:'Publisher authorization or signed release validation failed'},403);}
+  }
+  if(path==='/v1/releases/latest'&&method==='GET'){
+    const row=await statement(db,'SELECT envelope FROM bot_releases ORDER BY sequence DESC LIMIT 1').first();
+    return row?json(JSON.parse(row.envelope)):json({error:'No signed bot release published'},404);
+  }
   if (path === '/v1/device/sync' && method === 'POST') {
     const auth = request.headers.get('authorization') || '';
     const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
@@ -155,7 +170,7 @@ export async function handle(request, env, now = Math.floor(Date.now() / 1000)) 
     jq.push(statement(db,"UPDATE jobs SET status='expired' WHERE status='pending' AND expires<=?",now));
     jq.push(statement(db,"UPDATE jobs SET status='failed',message='Windows no confirmó el resultado dentro del límite' WHERE status='running' AND created<=?",now-JOB_MAX_SECONDS));
     jq.push(statement(db,"UPDATE jobs SET delivered_at=COALESCE(delivered_at,?) WHERE status='pending' AND expires>?",now,now));
-    jq.push(statement(db,"SELECT id,action,expires FROM jobs WHERE status='pending' AND expires>? ORDER BY id LIMIT 1",now));
+    jq.push(statement(db,"SELECT id,action,expires,release_id FROM jobs WHERE status='pending' AND expires>? ORDER BY id LIMIT 1",now));
     const batch=await db.batch([...queries,...jq]);
     return json({ commands: results(batch, commandIndex), jobs:results(batch,batch.length-1), poll_seconds: 30 });
   }
@@ -216,19 +231,21 @@ export async function handle(request, env, now = Math.floor(Date.now() / 1000)) 
   }
   if(path==='/v1/jobs'&&method==='POST'){
     const body=await readBody(request);
-    assert(Object.keys(body).every(k=>['action','request_id'].includes(k)),'Unknown job field');
+    assert(Object.keys(body).every(k=>['action','request_id','release_id'].includes(k)),'Unknown job field');
     assert(['research','update_check','update_install'].includes(body.action)&&typeof body.request_id==='string'&&/^[A-Za-z0-9_-]{16,100}$/.test(body.request_id),'Invalid job');
+    assert(body.action==='update_install'?HASH.test(body.release_id||''):body.release_id===undefined,'Exact release approval required');
     const batch=await db.batch([
       statement(db,"UPDATE jobs SET status='expired' WHERE status='pending' AND expires<=?",now),
       statement(db,"UPDATE jobs SET status='failed',message='Windows no confirmó el resultado dentro del límite' WHERE status='running' AND created<=?",now-JOB_MAX_SECONDS),
-      statement(db,`INSERT INTO jobs(request_id,action,status,created,expires) SELECT ?,?,'pending',?,?
-        WHERE EXISTS(SELECT 1 FROM snapshots WHERE received_at>=?)
-        AND NOT EXISTS(SELECT 1 FROM jobs WHERE status IN ('pending','running') OR created>?) ON CONFLICT(request_id) DO NOTHING`,body.request_id,body.action,now,now+300,now-120,now-60),
-      statement(db,'SELECT id,action,status FROM jobs WHERE request_id=?',body.request_id),
+      statement(db,`INSERT INTO jobs(request_id,action,status,created,expires,release_id) SELECT ?,?,'pending',?,?,?
+        WHERE EXISTS(SELECT 1 FROM snapshots WHERE received_at>=? AND
+          (?!='update_install' OR (json_extract(payload,'$.bot_update.enabled')=1 AND json_extract(payload,'$.bot_update.release_id')=? AND json_extract(payload,'$.bot_update.expires')>?)))
+        AND NOT EXISTS(SELECT 1 FROM jobs WHERE status IN ('pending','running') OR created>?) ON CONFLICT(request_id) DO NOTHING`,body.request_id,body.action,now,now+300,body.release_id??null,now-120,body.action,body.release_id??null,now,now-60),
+      statement(db,'SELECT id,action,status,release_id FROM jobs WHERE request_id=?',body.request_id),
     ]);
     const job=results(batch,3)[0];
     if(!job)return json({error:'Windows no disponible, trabajo en curso o espera de un minuto'},409);
-    if(job.action!==body.action)return json({error:'Idempotency conflict'},409);
+    if(job.action!==body.action||job.release_id!==(body.release_id??null))return json({error:'Idempotency conflict'},409);
     return json(job,202);
   }
   if (path === '/v1/commands' && method === 'POST') {

@@ -1,6 +1,7 @@
 """Allowlisted, persisted background jobs. No arbitrary command or URL input."""
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -78,16 +79,24 @@ class RemoteJobs:
             raise ValueError('Invalid job')
         if type(job.get('expires')) not in (int, float) or not now < job['expires'] <= now + 305:
             raise ValueError('Expired job')
+        approved = job.get('release_id')
+        if job['action'] == 'update_install':
+            if not isinstance(approved, str) or re.fullmatch(r'[0-9a-f]{64}', approved) is None:
+                raise ValueError('Exact signed release approval required')
+        elif approved is not None:
+            raise ValueError('Unexpected release approval')
         path = self.directory / (str(job['id'])+'.json')
         try:
             with path.open('x', encoding='utf-8') as file:
                 json.dump({'id': job['id'], 'action': job['action'], 'status': 'running',
-                           'message': 'Trabajo recibido en Windows', 'at': now}, file, separators=(',', ':'))
+                           'message': 'Trabajo recibido en Windows', 'at': now,
+                           'release_id': approved}, file, separators=(',', ':'))
                 file.flush()
                 os.fsync(file.fileno())
         except FileExistsError:
             existing = self._read(path)
-            if existing['id'] != job['id'] or existing['action'] != job['action']:
+            if (existing['id'] != job['id'] or existing['action'] != job['action']
+                    or existing.get('release_id') != approved):
                 raise ValueError('Job identifier conflict')
             return
         try:

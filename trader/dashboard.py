@@ -4,6 +4,7 @@ import json
 import hmac
 import mimetypes
 import os
+import socket
 import subprocess
 import sys
 import threading
@@ -19,6 +20,16 @@ from .monitoring import activity_status, position_metrics
 
 
 WEB_ROOT = PROJECT_ROOT / "web"
+
+
+class LocalHTTPServer(ThreadingHTTPServer):
+    # Windows SO_REUSEADDR can let two servers bind the same port.
+    allow_reuse_address = os.name != "nt"
+
+    def server_bind(self):
+        if os.name == "nt":
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        super().server_bind()
 
 
 class DashboardServer:
@@ -76,6 +87,15 @@ class DashboardServer:
 
             def do_GET(self) -> None:
                 path = urlparse(self.path).path
+                if path == "/health/runtime":
+                    host = urlparse("//" + self.headers.get("Host", "")).hostname
+                    if self.client_address[0] not in {"127.0.0.1", "::1"} or host not in {"127.0.0.1", "localhost", "::1"}:
+                        self._json({"error": "loopback only"}, HTTPStatus.FORBIDDEN)
+                    elif not hasattr(outer, "runtime_token"):
+                        self._json({"error": "runtime not supervised"}, HTTPStatus.SERVICE_UNAVAILABLE)
+                    else:
+                        self._json({"pid": os.getpid(), "token": outer.runtime_token, "mode": "paper"})
+                    return
                 if path == "/health":
                     equity_rows = outer.db.recent("equity", 1)
                     latest_at = equity_rows[0]["created_at"] if equity_rows else None
@@ -96,6 +116,9 @@ class DashboardServer:
 
             def do_POST(self) -> None:
                 path = urlparse(self.path).path
+                if (outer.config.bot.database_path.parent / "UPDATE_MAINTENANCE.json").exists():
+                    self._json({"error": "update maintenance in progress"}, HTTPStatus.SERVICE_UNAVAILABLE)
+                    return
                 if not self._authorized():
                     self._json({"error": "unauthorized"}, HTTPStatus.UNAUTHORIZED)
                     return
@@ -245,10 +268,19 @@ class DashboardServer:
         return Handler
 
     def serve_forever(self) -> None:
-        server = ThreadingHTTPServer((self.config.dashboard.host, self.config.dashboard.port), self._handler())
+        server = LocalHTTPServer((self.config.dashboard.host, self.config.dashboard.port), self._handler())
         server.serve_forever()
 
     def start_thread(self) -> threading.Thread:
-        thread = threading.Thread(target=self.serve_forever, name="dashboard", daemon=True)
+        # Bind synchronously so callers cannot report healthy after a bind failure.
+        server = LocalHTTPServer((self.config.dashboard.host, self.config.dashboard.port), self._handler())
+        self.server = server
+        thread = threading.Thread(target=server.serve_forever, name="dashboard", daemon=True)
         thread.start()
         return thread
+
+    def close(self):
+        server = getattr(self, "server", None)
+        if server is not None:
+            server.shutdown()
+            server.server_close()
