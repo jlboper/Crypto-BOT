@@ -4,7 +4,15 @@ const issuer='https://token.actions.githubusercontent.com';
 export const canonical=value=>JSON.stringify(value,(_,v)=>v&&typeof v==='object'&&!Array.isArray(v)?Object.fromEntries(Object.keys(v).sort().map(k=>[k,v[k]])):v);
 const decode=value=>Uint8Array.from(atob(value.replace(/-/g,'+').replace(/_/g,'/')),c=>c.charCodeAt(0));
 const digest=async value=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',encoder.encode(value))),b=>b.toString(16).padStart(2,'0')).join('');
-function require(value,message){if(!value)throw new Error(message);}
+class ReleaseValidationError extends Error {}
+function require(value,message){if(!value)throw new ReleaseValidationError(message);}
+// Only our fixed validation labels may leave the signer; runtime/provider errors
+// can contain sensitive material and are deliberately reduced to a constant.
+export function releaseFailureCode(error){
+  return error instanceof ReleaseValidationError
+    ? error.message.toLowerCase().replace(/[^a-z0-9]+/g,'_')
+    : 'signing_runtime_failure';
+}
 export async function authorizePublisher(token,origin,now,transport=fetch){
   require(typeof token==='string'&&token.length<20000,'Invalid publisher token');
   const parts=token.split('.');require(parts.length===3,'Invalid publisher token');

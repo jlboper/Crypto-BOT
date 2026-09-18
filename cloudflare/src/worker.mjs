@@ -1,7 +1,7 @@
 import { timingSafeEqual } from 'node:crypto';
 import { githubUpdates, UpdateError } from './github-updates.mjs';
 import { passwordDigest, validPassword, PASSWORD_ITERATIONS } from './password.mjs';
-import { signRelease } from './bot-releases.mjs';
+import { signRelease, releaseFailureCode } from './bot-releases.mjs';
 
 const encoder = new TextEncoder();
 const TOKEN = /^[A-Za-z0-9_-]{43}$/;
@@ -136,7 +136,7 @@ export async function handle(request, env, now = Math.floor(Date.now() / 1000)) 
   if(path==='/v1/releases/sign'&&method==='POST'){
     const body=await readBody(request,LIMIT);
     try{return json(await signRelease(env,(request.headers.get('authorization')||'').replace(/^Bearer /,''),body,now));}
-    catch{return json({error:'Publisher authorization or signed release validation failed'},403);}
+    catch(error){return json({error:'Publisher authorization or signed release validation failed',code:releaseFailureCode(error)},403);}
   }
   if(path==='/v1/releases/latest'&&method==='GET'){
     const row=await statement(db,'SELECT envelope FROM bot_releases ORDER BY sequence DESC LIMIT 1').first();

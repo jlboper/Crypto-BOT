@@ -14,5 +14,6 @@ test('CI fails closed for pending migrations and rolls back failed health',()=>{
   assert.match(deploy,/await checkMigrations/);
   assert.match(deploy,/Protected environment gate not configured/);
   assert.match(deploy,/\['rollback','--message'/);
-  assert.match(deploy,/attempt<3/);
+  assert.match(deploy,/attempt<8/);
 });
+
