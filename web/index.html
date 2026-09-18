@@ -17,11 +17,13 @@
   <form id="portalLogin" hidden><h1>Crypto AI Trader</h1><p>Portal privado · PAPER</p><label for="portalPassword">Contraseña del propietario</label><input id="portalPassword" type="password" autocomplete="current-password" required maxlength="128"><button id="portalLoginButton" type="submit">Entrar</button><p id="portalLoginMessage" role="status"></p></form>
   <main class="shell">
     <header>
-      <div>
+      <div class="brand">
         <img class="brand-mark" src="/crypto-ai-trader-icon.png" alt="">
-        <p class="eyebrow">BINANCE SPOT · MULTI-ASSET ENGINE</p>
-        <h1>Crypto AI Trader</h1>
-        <p id="portalConnection"></p>
+        <div class="brand-copy">
+          <p class="eyebrow">BINANCE SPOT · MULTI-ASSET ENGINE</p>
+          <h1>Crypto AI Trader</h1>
+          <p id="portalConnection"></p>
+        </div>
       </div>
       <div class="header-actions">
         <span id="botState" class="state">COMPROBANDO</span>
@@ -70,7 +72,7 @@
     <section class="panel research-lab">
       <div class="research-heading">
         <div>
-          <p class="eyebrow">RESEARCH LAB · V0.6.2</p>
+          <p class="eyebrow">RESEARCH LAB · V0.6.5</p>
           <h2>Validación multi-cripto</h2>
           <p class="research-copy">Compara estrategias con ejecución en la vela siguiente, costos, walk-forward y Monte Carlo. Ningún resultado se activa automáticamente.</p>
         </div>

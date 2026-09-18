@@ -1,8 +1,12 @@
 # Bot updates: implementation and deployment status
 
-Version prepared: **0.6.3**. Source proposal: PR #3,
-`work/supervised-bot-updates`. This document distinguishes implemented code from
-production activation. See BOT_RELEASE_OPERATIONS.md for the owner workflow.
+Production baseline confirmed by the owner on 18 September 2026: **0.6.4** is
+installed on Windows and running in PAPER. The outgoing HTTPS agent is connected,
+and the local and remote portals use the shared `web/` interface. The first signed
+installation was verified locally. A later end-to-end update initiated with the
+remote portal button still needs to be demonstrated. This document distinguishes
+implemented code, publication and installation. See `BOT_RELEASE_OPERATIONS.md`
+for the owner workflow.
 
 ## Implemented and tested
 
@@ -24,23 +28,20 @@ production activation. See BOT_RELEASE_OPERATIONS.md for the owner workflow.
   signing, synthetic Windows child processes, bootstrap success/failure and
   exact remote approval. No operating bot was started/stopped by those tests.
 
-## Provisioned but not equivalent to deployment
+## Production baseline
 
-- Cloudflare secret `BOT_SIGNING_KEY` and local/repository public trust anchors.
-- D1 migration `0004_bot_releases.sql`, with a private pre-migration backup.
-- The trusted Windows channel points to the existing portal. Installation is
-  disabled until the owner-approved first transition has succeeded.
+- Cloudflare holds `BOT_SIGNING_KEY`; Windows and the repository use the public
+  trust anchor. D1 migration `0004_bot_releases.sql` is active.
+- The trusted Windows channel points to the existing portal and version 0.6.4 was
+  installed through the signed update path after explicit owner approval.
 
 ## Completion gates
 
-1. CI on the final PR revision, merge, owner approval in the existing
-   `portal-production` environment, successful portal and signed-package
-   publication, then download/verification of that actual package.
-2. Explicit owner permission for the first legacy-engine stop/restart. This is
-   required to respect the earlier instruction to leave the current instance
-   unaffected during development. No live trading mode will be enabled.
-3. Successful initial activation, enable the trusted channel, restart only the
-   outgoing agent, and verify the deployed UI and heartbeat.
+1. Prepare the next version on an isolated branch, pass CI and merge it.
+2. Obtain owner approval in the existing `portal-production` environment and
+   verify successful portal and signed-package publication.
+3. From the authenticated portal, find that exact signed release, approve its
+   manifest hash, install it remotely and verify version, health and heartbeat.
 
-Do not describe remote updates as active until these gates are recorded as
+Do not describe a new version as installed until all three gates are recorded as
 completed. No Android app or push-notification delivery is implemented here.
