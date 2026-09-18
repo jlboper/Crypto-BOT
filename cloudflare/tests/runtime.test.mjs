@@ -52,8 +52,8 @@ test('real workerd + local D1: browser session -> command -> Windows sync -> ack
   assert.equal((await call('/v1/login',{password:proof})).status,200);
   assert.equal((await call('/v1/device/sync',{snapshot,acks:[]},{Authorization:`Bearer ${device}`})).status,200);
   const now=Math.floor(Date.now()/1000),sha='d'.repeat(40);
-  const claims={iss:'https://token.actions.githubusercontent.com',aud:origin+'/bot-releases',sub:'repo:jlboper/Crypto-BOT:environment:portal-production',
-    repository:'jlboper/Crypto-BOT',repository_id:'1366739763',ref:'refs/heads/main',environment:'portal-production',event_name:'push',
+  const claims={iss:'https://token.actions.githubusercontent.com',aud:origin+'/bot-releases',sub:'repo:jlboper@328148059/Crypto-BOT@1366739763:environment:portal-production',
+    repository:'jlboper/Crypto-BOT',repository_id:'1366739763',repository_owner_id:'328148059',ref:'refs/heads/main',environment:'portal-production',event_name:'push',
     workflow_ref:'jlboper/Crypto-BOT/.github/workflows/portal-release.yml@refs/heads/main',sha,run_id:'12345',exp:now+300,nbf:now-10};
   const input=[{alg:'RS256',kid:'runtime-key'},claims].map(v=>Buffer.from(JSON.stringify(v)).toString('base64url')).join('.');
   const jwt=input+'.'+sign('RSA-SHA256',Buffer.from(input),publisher.privateKey).toString('base64url');

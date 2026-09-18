@@ -25,8 +25,10 @@ export async function authorizePublisher(token,origin,now,transport=fetch){
   require(jwk,'Unknown publisher key');
   const key=await crypto.subtle.importKey('jwk',jwk,{name:'RSASSA-PKCS1-v1_5',hash:'SHA-256'},false,['verify']);
   require(await crypto.subtle.verify('RSASSA-PKCS1-v1_5',key,decode(parts[2]),encoder.encode(parts[0]+'.'+parts[1])),'Invalid publisher signature');
-  require(claim.iss===issuer&&claim.aud===origin+'/bot-releases'&&claim.sub===`repo:${repo}:environment:portal-production`,'Invalid publisher audience');
-  require(claim.repository===repo&&claim.repository_id===repositoryId&&claim.ref==='refs/heads/main'&&claim.environment==='portal-production','Invalid publisher repository');
+  require(claim.iss===issuer&&claim.aud===origin+'/bot-releases','Invalid publisher audience');
+  // Repositories created after July 15, 2026 use immutable GitHub subjects.
+  require(claim.sub===`repo:jlboper@328148059/Crypto-BOT@${repositoryId}:environment:portal-production`,'Invalid publisher subject');
+  require(claim.repository===repo&&claim.repository_id===repositoryId&&claim.repository_owner_id==='328148059'&&claim.ref==='refs/heads/main'&&claim.environment==='portal-production','Invalid publisher repository');
   require(claim.workflow_ref===`${repo}/.github/workflows/portal-release.yml@refs/heads/main`&&claim.event_name==='push','Invalid publisher workflow');
   require(Number.isInteger(claim.exp)&&claim.exp>now&&claim.exp<=now+900&&Number.isInteger(claim.nbf)&&claim.nbf<=now+30,'Expired publisher token');
   require(/^[a-f0-9]{40}$/.test(claim.sha)&&/^[1-9][0-9]{0,14}$/.test(claim.run_id),'Invalid publisher revision');
