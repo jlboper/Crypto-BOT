@@ -2,3 +2,9 @@
 /* Account settings remain usable on narrow mobile screens. */
 #passwordForm{display:grid;gap:12px;max-width:560px}
 #passwordForm input{width:100%;box-sizing:border-box;padding:12px;border:1px solid #34435c;border-radius:8px;background:#101929;color:#eef3ff}
+
+/* Keep the identity mark and title as one aligned header unit. */
+.brand{display:flex;align-items:center;gap:14px;min-width:0}
+.brand-copy{min-width:0}
+.brand-mark{float:none;margin:0;flex:0 0 44px}
+#portalConnection{margin:7px 0 0}

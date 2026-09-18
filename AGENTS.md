@@ -5,6 +5,15 @@ at https://crypto-paper-private-portal.jlboper.workers.dev/. Work prepares chang
 the protected GitHub workflow publishes them; the Windows agent installs only
 the exact signed version approved by the owner through the portal or app.
 
+- Before each update, start from current `main`, use an isolated branch, read
+  this file plus `README.md`, `pyproject.toml`, `BOT_RELEASE_OPERATIONS.md` and
+  `BOT_UPDATE_PROGRESS.md`, then inspect recent commits and GitHub Actions. Treat
+  documentation as context, not proof of what is currently published or installed.
+- Finish each update with a PR and relevant test results. If checks pass and no
+  conflicts remain, merge through the repository's normal flow, then provide the
+  exact protected publication approval URL. Keep prepared, published and installed
+  states explicit; a merge never means that the Windows installation changed.
+
 - Keep PAPER. Never enable live orders, start a second engine, or touch operating
   credentials/data during development. Use an isolated copy and synthetic tests.
 - Read BOT_UPDATE_PROGRESS.md and BOT_RELEASE_OPERATIONS.md before changing the
