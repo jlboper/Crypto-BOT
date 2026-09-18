@@ -7,9 +7,10 @@ import {webcrypto} from 'node:crypto';
 const source=readFileSync(new URL('../../web/portal-bridge.js',import.meta.url),'utf8');
 
 function node(){
-  return {hidden:false,disabled:false,textContent:'',value:'',children:[],
+  return {hidden:false,disabled:false,textContent:'',value:'',children:[],attributes:{},
     append(...items){this.children.push(...items);},replaceChildren(...items){this.children=[...items];},
-    scrollIntoView(){},addEventListener(){}};
+    scrollIntoView(){},addEventListener(){},
+    setAttribute(name,value){this.attributes[name]=String(value);},getAttribute(name){return this.attributes[name];}};
 }
 
 function bridge(hostname,responses){
@@ -46,6 +47,33 @@ test('bot install approval carries the exact verified release and CSRF token',as
   assert.equal(request.path,'/v1/jobs');
   assert.equal(JSON.parse(request.options.body).release_id,candidate.release_id);
   assert.equal(request.options.headers['X-CSRF-Token'],'csrf-token');
+  assert.equal(instance.elements.get('installBotUpdate').disabled,true);
+});
+
+test('options menu groups maintenance and account actions',()=>{
+  const instance=bridge('paper.example.workers.dev',[]);
+  instance.start();
+  instance.elements.get('optionsMenu').hidden=true;
+  instance.elements.get('optionsButton').onclick();
+  assert.equal(instance.elements.get('optionsMenu').hidden,false);
+  assert.equal(instance.elements.get('optionsButton').getAttribute('aria-expanded'),'true');
+  instance.elements.get('updateButton').onclick();
+  assert.equal(instance.elements.get('optionsMenu').hidden,true);
+  assert.equal(instance.elements.get('updatePanel').hidden,false);
+});
+
+test('one update search checks GitHub and asks Windows to verify the bot',async()=>{
+  const instance=bridge('paper.example.workers.dev',[
+    {status:200,body:state()},
+    {status:200,body:{message:'Publicación consultada',runs:[]}},
+    {status:202,body:{id:31,action:'update_check',status:'pending'}},
+  ]);
+  instance.start();
+  await instance.elements.get('checkAllUpdates').onclick();
+  assert.deepEqual(instance.calls.map(call=>call.path),['/v1/status','/v1/updates','/v1/jobs']);
+  assert.equal(JSON.parse(instance.calls[2].options.body).action,'update_check');
+  assert.equal(instance.elements.get('updateMessage').textContent,'Publicación consultada');
+  assert.match(instance.elements.get('botUpdateMessage').textContent,/Solicitud enviada/);
 });
 
 test('remote Research Lab uses one authenticated allowlisted job request',async()=>{

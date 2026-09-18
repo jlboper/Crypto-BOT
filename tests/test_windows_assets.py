@@ -51,7 +51,7 @@ class WindowsAssetTests(unittest.TestCase):
         html = (PROJECT_ROOT / "web" / "index.html").read_text(encoding="utf-8")
         manifest = (PROJECT_ROOT / "web" / "manifest.webmanifest").read_text(encoding="utf-8")
         script = (PROJECT_ROOT / "web" / "app.js").read_text(encoding="utf-8")
-        self.assertIn("RESEARCH LAB · V0.6.5", html)
+        self.assertIn("RESEARCH LAB · V0.6.6", html)
         self.assertIn('"display": "standalone"', manifest)
         self.assertIn("/api/research/run", script)
         self.assertIn("serviceWorker", script)
@@ -68,6 +68,14 @@ class WindowsAssetTests(unittest.TestCase):
         self.assertIn('<div class="brand-copy">', html)
         self.assertIn(".brand{display:flex;align-items:center", css)
         self.assertIn(".brand-mark{float:none;margin:0;flex:0 0 44px}", css)
+
+    def test_portal_uses_one_options_menu_and_one_update_search(self):
+        html = (PROJECT_ROOT / "web" / "index.html").read_text(encoding="utf-8")
+        self.assertIn('id="optionsButton"', html)
+        self.assertIn('id="optionsMenu"', html)
+        self.assertIn('id="checkAllUpdates"', html)
+        self.assertNotIn('id="checkUpdates"', html)
+        self.assertNotIn('id="checkBotUpdate"', html)
 
     def test_remote_update_deep_link_opens_the_shared_center(self):
         bridge = (PROJECT_ROOT / "web" / "portal-bridge.js").read_text(encoding="utf-8")
