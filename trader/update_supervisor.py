@@ -125,6 +125,9 @@ class UpdateSupervisor:
                 raise ValueError("Approved release changed")
             if manifest.get('runtime_protocol') != 1 or 'trader/runtime_control.py' not in manifest['files']:
                 raise ValueError("Candidate lacks supervised runtime protocol")
+            installed = tomllib.loads((self.manager.root/'pyproject.toml').read_text())['project']['version']
+            if tuple(map(int, manifest['version'].split('.'))) <= tuple(map(int, installed.split('.'))):
+                raise ValueError('Version upgrade required before stopping engine')
             if not (self.manager.root/'trader/runtime_control.py').is_file():
                 raise RuntimeError("Existing installation requires one-time supervised bootstrap")
             original = json.loads(self.control.status.read_text())

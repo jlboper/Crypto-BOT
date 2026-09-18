@@ -35,6 +35,7 @@ class RemoteAgent:
         self.last_error = None
         self.dashboard_provider = None
         self.jobs = None
+        self.update_provider = None
 
     def snapshot(self):
         # Read-only SQLite connection never initializes or modifies the engine database.
@@ -96,6 +97,8 @@ class RemoteAgent:
     def sync(self):
         last = self._last_id()
         payload = {"snapshot": self.snapshot(), "acks": [last] if last else []}
+        if self.update_provider:
+            payload['snapshot']['bot_update'] = self.update_provider()
         if self.dashboard_provider:
             payload["snapshot"]["dashboard"] = self.dashboard_provider()
         if self.jobs:

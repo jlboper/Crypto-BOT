@@ -114,6 +114,24 @@ class SupervisorTests(unittest.TestCase):
         self.assertFalse((self.root/'UNSAFE_CYCLE').exists())
         self.assertFalse(self.supervisor.control.maintenance.exists())
 
+    def test_initial_transition_refuses_running_engine_then_activates_signed_release(self):
+        from scripts.bootstrap_bot_update import activate_stopped
+        with self.assertRaises(RuntimeError):
+            activate_stopped(self.manager,self.package,self.envelope,self.approved,self.runtime)
+        self.assertIsNone(self.original.poll())
+        self.runtime.stop_owned(self.original)
+        result=activate_stopped(self.manager,self.package,self.envelope,self.approved,self.runtime)
+        self.assertEqual(result['status'],'installed_healthy')
+
+    def test_failed_initial_transition_restores_and_keeps_legacy_engine_stopped(self):
+        from scripts.bootstrap_bot_update import activate_stopped
+        self.runtime.stop_owned(self.original)
+        self.runtime.behavior='exit'
+        with self.assertRaisesRegex(RuntimeError,'original code and database restored'):
+            activate_stopped(self.manager,self.package,self.envelope,self.approved,self.runtime)
+        self.assertEqual((self.root/'trader/__main__.py').read_text(),'# original fixture\n')
+        self.assertTrue(all(child.poll() is not None for child in self.runtime.children))
+
     def test_failed_start_restores_database_code_and_previous_engine(self):
         self.runtime.behavior = 'exit'
         with self.assertRaisesRegex(RuntimeError, 'exited'):

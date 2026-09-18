@@ -39,6 +39,13 @@ async function portalState(){
     for(const item of state.commands||[]){const row=document.createElement('li');row.textContent=`#${item.id} ${item.action==='kill'?'Pausar':'Reanudar'} · ${labels[item.status]||item.status}`;commands.append(row);}
     const actions={research:'Research Lab',update_check:'Verificar bot',update_install:'Actualizar bot'};
     for(const item of state.jobs||[]){const row=document.createElement('li');row.textContent=`#${item.id} ${actions[item.action]||item.action} · ${labels[item.status]||item.status} · ${item.message||''}`;commands.append(row);}
+    const candidate=state.snapshot?.bot_update;
+    const activeJob=(state.jobs||[]).some(j=>['pending','running'].includes(j.status));
+    const usable=candidate&&!state.stale&&candidate.expires>Date.now()/1000;
+    document.getElementById('installBotUpdate').disabled=!(usable&&candidate.enabled&&!activeJob);
+    document.getElementById('botUpdateMessage').textContent=usable?
+      `Bot ${candidate.version} · revisión ${candidate.commit} · firma verificada en Windows.${candidate.enabled?'':' Instalación pendiente de preparar en Windows.'}`:
+      'Busca una actualización firmada; la verificación se realizará en Windows.';
     document.getElementById('portalLogin').hidden=true;document.querySelector('.shell').hidden=false;
     return state;
   }).finally(()=>{portalPending=null;});
@@ -77,6 +84,7 @@ window.portalApi=async(path,options={})=>{
   return structuredClone(data[portalRoute[path]]);
 };
 document.addEventListener('DOMContentLoaded',()=>{
+  if(!remotePortal)document.getElementById('installBotUpdate').disabled=false;
   document.getElementById('portalLogin').hidden=!remotePortal;
   document.querySelector('.shell').hidden=remotePortal;
   document.getElementById('portalLogout').hidden=!remotePortal;
@@ -135,7 +143,7 @@ document.addEventListener('DOMContentLoaded',()=>{
       for(const run of data.runs){
         const card=document.createElement('article'),title=document.createElement('h3'),detail=document.createElement('p'),link=document.createElement('a');
         title.textContent=run.title;
-        detail.textContent=`Portal Cloudflare · commit ${run.sha} · autor ${run.actor} · intento ${run.attempt} · ${run.conclusion||run.status}`;
+        detail.textContent=`Portal y paquete del bot · commit ${run.sha} · autor ${run.actor} · intento ${run.attempt} · ${run.conclusion||run.status}`;
         link.href=run.url;link.textContent='Ver cambios y pruebas en GitHub';link.target='_blank';link.rel='noopener';
         const commit=document.createElement('a');commit.href=run.commit_url;commit.textContent='Ver commit exacto';commit.target='_blank';commit.rel='noopener';
         card.append(title,detail,commit,link);
@@ -157,6 +165,27 @@ document.addEventListener('DOMContentLoaded',()=>{
     if(!document.querySelector('.shell').hidden)panel.scrollIntoView({behavior:'smooth',block:'start'});
   }
   document.getElementById('checkUpdates').onclick=checkUpdates;
+  async function botJob(action){
+    if(!remotePortal){window.open('https://crypto-paper-private-portal.jlboper.workers.dev/#updates','_blank','noopener');return;}
+    const output=document.getElementById('botUpdateMessage');
+    const button=document.getElementById(action==='update_check'?'checkBotUpdate':'installBotUpdate');
+    button.disabled=true;
+    try{
+      const state=await portalState();if(state.stale)throw new Error('Windows debe estar conectado');
+      const body={action,request_id:crypto.randomUUID()};
+      if(action==='update_install'){
+        const candidate=state.snapshot?.bot_update;
+        if(!candidate?.enabled||candidate.expires<=Date.now()/1000)throw new Error('Primero verifica una versión disponible');
+        if(!confirm(`¿Instalar el bot ${candidate.version}, revisión ${candidate.commit}? El motor PAPER se reiniciará y se recuperará la versión anterior si falla el arranque.`))return;
+        body.release_id=candidate.release_id;
+      }
+      await portalRequest('/v1/jobs',body);portalCacheAt=0;
+      output.textContent='Solicitud enviada. El resultado aparecerá en las solicitudes remotas.';
+    }catch(error){output.textContent=error.message;}
+    finally{if(action==='update_check')button.disabled=false;}
+  }
+  document.getElementById('checkBotUpdate').onclick=()=>botJob('update_check');
+  document.getElementById('installBotUpdate').onclick=()=>botJob('update_install');
   document.getElementById('updateButton').onclick=async()=>{
     showUpdateCenter();
   };

@@ -36,6 +36,18 @@ function state(overrides={}){
   return {csrf:'csrf-token',stale:false,commands:[],jobs:[],snapshot:{dashboard:{}},...overrides};
 }
 
+test('bot install approval carries the exact verified release and CSRF token',async()=>{
+  const candidate={release_id:'a'.repeat(64),version:'0.6.3',commit:'b'.repeat(40),expires:Date.now()/1000+3600,enabled:true};
+  const instance=bridge('paper.example.workers.dev',[{status:200,body:state({snapshot:{bot_update:candidate}})},
+    {status:202,body:{id:22,status:'pending'}}]);
+  instance.start();
+  await instance.elements.get('installBotUpdate').onclick();
+  const request=instance.calls[1];
+  assert.equal(request.path,'/v1/jobs');
+  assert.equal(JSON.parse(request.options.body).release_id,candidate.release_id);
+  assert.equal(request.options.headers['X-CSRF-Token'],'csrf-token');
+});
+
 test('remote Research Lab uses one authenticated allowlisted job request',async()=>{
   const instance=bridge('paper.example.workers.dev',[
     {status:200,body:state()},

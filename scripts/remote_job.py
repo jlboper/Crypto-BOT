@@ -41,6 +41,8 @@ def main():
             if job['action']=='update_install' and job.get('release_id') != staged['release_id']:
                 raise ValueError('Approved release differs from staged package')
             if job['action']=='update_check':
+                from trader.update_manager import atomic_json
+                atomic_json(ROOT/'data/verified-release.json', {key:staged[key] for key in ('version','release_id','sequence','expires','commit')})
                 jobs.finish(args.id,'completed','Paquete '+staged['version']+' verificado; identificación: '+staged['release_id']+'; instalación pendiente')
             else:
                 if settings.get('supervised_install_enabled') is not True or args.source.resolve() == ROOT:

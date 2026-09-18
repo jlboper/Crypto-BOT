@@ -40,6 +40,13 @@ def release_id(manifest):
     return hashlib.sha256(canonical(manifest)).hexdigest()
 
 
+def public_bytes(path):
+    value = path.read_bytes()
+    if len(value) == 64 and re.fullmatch(b'[a-f0-9]{64}', value):
+        return bytes.fromhex(value.decode())
+    return value
+
+
 def atomic_json(path, value):
     temporary = None
     try:
@@ -85,7 +92,7 @@ def verify(package: Path, envelope: Path, public_key: Path, minimum_sequence=0, 
         raise ValueError("package size limit")
     signed = json.loads(envelope.read_text(encoding="utf-8"))
     manifest = signed["manifest"]
-    Ed25519PublicKey.from_public_bytes(public_key.read_bytes()).verify(
+    Ed25519PublicKey.from_public_bytes(public_bytes(public_key)).verify(
         base64.b64decode(signed["signature"], validate=True), canonical(manifest))
     now = time.time() if now is None else now
     if manifest["app"] != "crypto-ai-trading-bot" or manifest["mode"] != "paper":
@@ -149,11 +156,12 @@ class UpdateManager:
                 return payload
             envelope_bytes = download(manifest_url, 1024*1024)
             signed = json.loads(envelope_bytes)
-            Ed25519PublicKey.from_public_bytes(self.public_key.read_bytes()).verify(
+            Ed25519PublicKey.from_public_bytes(public_bytes(self.public_key)).verify(
                 base64.b64decode(signed["signature"], validate=True), canonical(signed["manifest"]))
             package_url = signed["manifest"]["package_url"]
             package_origin = urlsplit(package_url)
-            if package_origin.scheme != "https" or package_origin.netloc != origin.netloc or package_origin.username or package_origin.fragment:
+            github_package = re.fullmatch(r'https://raw\.githubusercontent\.com/jlboper/Crypto-BOT/bot-releases/packages/[a-f0-9]{40}\.zip', package_url) is not None
+            if package_origin.scheme != "https" or (package_origin.netloc != origin.netloc and not github_package) or package_origin.username or package_origin.fragment:
                 raise ValueError("package origin mismatch")
             package = self.state / "staged.zip"
             envelope = self.state / "staged.zip.manifest.json"
@@ -167,7 +175,7 @@ class UpdateManager:
             pending_envelope.replace(envelope)
             return {"status": "staged_verified", "version": manifest["version"],
                     "release_id": release_id(manifest), "sequence": manifest["sequence"],
-                    "package": str(package)}
+                    "expires": manifest['expires'], "commit": manifest.get('commit'), "package": str(package)}
 
     def target(self, name):
         safe_name(name)

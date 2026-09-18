@@ -36,6 +36,9 @@ jobs:
     if: github.event_name == 'push'
     needs: validate
     environment: portal-production
+    permissions:
+      contents: write
+      id-token: write
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -62,3 +65,8 @@ jobs:
           DEPLOYMENT_ENABLED: ${{ secrets.DEPLOYMENT_ENABLED }}
         run: node scripts/deploy-ci.mjs
         working-directory: cloudflare
+      - run: python -m pip install --disable-pip-version-check cryptography==50.0.1
+      - name: Publish signed bot if its version changed
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/publish_bot_release.mjs

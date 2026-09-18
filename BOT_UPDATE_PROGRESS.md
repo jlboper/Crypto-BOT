@@ -1,66 +1,46 @@
-# Actualización remota del bot: estado comprobado
+# Bot updates: implementation and deployment status
 
-Estado al 17 de septiembre de 2026. Cambios en la copia de auditoría y propuestos
-en GitHub mediante PR #3 (`work/supervised-bot-updates`); no desplegados sobre
-el motor o agente operativos.
+Version prepared: **0.6.3**. Source proposal: PR #3,
+`work/supervised-bot-updates`. This document distinguishes implemented code from
+production activation. See BOT_RELEASE_OPERATIONS.md for the owner workflow.
 
-## Implementado y probado
+## Implemented and tested
 
-- Identificación SHA-256 del manifiesto completo firmado. Vincula versión,
-  secuencia, caducidad, URL y contenido con una aprobación concreta.
-- El receptor de trabajos exige esa identificación para `update_install`, la
-  conserva y rechaza reutilizar un identificador de trabajo con otra versión.
-- La descarga devuelve la identificación verificada. El ejecutor compara la
-  aprobación antes de intentar una instalación.
-- `UpdateManager.apply(..., expected_release=..., defer_commit=True)` instala
-  con los bloqueos de los escritores y deja la transacción en `pending_health`.
-- `commit_pending(release_id, health_check)` comprueba archivos e identificación
-  y exige que la comprobación externa devuelva exactamente `True`. No mantiene
-  el bloqueo del motor durante esta comprobación. Solo entonces confirma la
-  secuencia instalada. Conectado al supervisor con comprobación del proceso y
-  una respuesta HTTP local que identifica PID y nonce de arranque.
-- Recuperación de una transacción pendiente con el motor detenido: restaura
-  archivos y la base SQLite previa, incluida la información del WAL. Si la
-  base no existía, elimina la creada durante el arranque fallido.
-- Bloqueo de transacciones común a los instaladores y bloqueo de staging
-  durante la aplicación para evitar reemplazar el paquete mientras se instala.
-- Supervisor de Windows con parada cooperativa, barrera antes del primer ciclo,
-  recuperación de transacciones interrumpidas y reinicio de la versión anterior.
-  Solo puede terminar hijos propios; nunca mata un PID descubierto en un archivo.
-- Si la transacción ya se confirmó, la recuperación conserva su base de datos:
-  no revierte balances después de autorizar ciclos financieros.
-- Puerto HTTP exclusivo en Windows, arranque con error visible si está ocupado,
-  bloqueo de controles HTTP durante mantenimiento e invalidación de bytecode al
-  instalar y al restaurar archivos Python.
-- 88 pruebas Python satisfactorias con red externa bloqueada, datos sintéticos
-  y directorios temporales; se ejecutaron procesos ficticios, nunca el bot
-  operativo. Además, 10 repeticiones satisfactorias de recuperación posterior
-  al commit. Esto no equivale a una actualización del motor real en producción.
+- Shared portal buttons for finding a signed release and approving its exact
+  manifest hash. The app/local UI open the same authenticated remote center.
+- CSRF/session protection, fresh Windows heartbeat, enabled/expiry checks,
+  idempotent requests and propagation of `release_id` into durable Windows jobs.
+- Deterministic allowlisted source ZIP, version increase requirement and a
+  protected GitHub publication step after portal deployment.
+- GitHub OIDC validation and Ed25519 signing in the portal. The private signing
+  key is held as a Cloudflare secret; GitHub receives no permanent signing key.
+- Windows signature/hash verification, replay/downgrade rejection, cooperative
+  stop, startup barrier, owned-process and loopback HTTP health checks, durable
+  commit, code/SQLite recovery and reconciliation of interrupted remote jobs.
+- Windows exclusive HTTP port binding and bytecode invalidation on rollback.
+- One-time bootstrap for an already stopped legacy engine. It refuses to stop
+  a discovered process or install while the original engine lock is occupied.
+- 91 offline Python tests and 43 Node tests passed locally, including workerd/D1
+  signing, synthetic Windows child processes, bootstrap success/failure and
+  exact remote approval. No operating bot was started/stopped by those tests.
 
-## Pendiente antes de habilitar instalaciones
+## Provisioned but not equivalent to deployment
 
-1. Preparar la transición inicial de la instalación original al protocolo de
-   mantenimiento. El supervisor rechaza instalaciones antiguas que todavía no
-   lo soportan, antes de solicitarles la parada. El agente tiene recuperación
-   al iniciar, condicionada al aprovisionamiento explícito del canal local.
-2. Publicación de paquetes y manifiestos con firma Ed25519 desde un entorno
-   GitHub protegido; aprovisionamiento de la confianza pública local.
-3. Transporte de `release_id` en el esquema/API de trabajos del portal y
-   selección de la versión concreta en la interfaz. El portal actualmente
-   todavía no envía ese campo; las solicitudes antiguas de instalación serán
-   rechazadas por el nuevo receptor, de forma intencional.
-4. Integración completa y pruebas del supervisor con procesos ficticios,
-   publicación revisada y primera transición controlada de la instalación
-   original. La instancia original sigue usando su código anterior.
+- Cloudflare secret `BOT_SIGNING_KEY` and local/repository public trust anchors.
+- D1 migration `0004_bot_releases.sql`, with a private pre-migration backup.
+- The trusted Windows channel points to the existing portal. Installation is
+  disabled until the owner-approved first transition has succeeded.
 
-`scripts/remote_job.py` integra el supervisor, pero exige
-`supervised_install_enabled: true` en el canal local de confianza y que el
-agente esté fuera de la carpeta que se actualiza. Este permiso no se ha
-aprovisionado. No se ha habilitado un botón funcional de instalación ni
-configurado un canal de firma en producción. La publicación del portal es un
-circuito separado ya existente. El flujo nuevo de GitHub valida en Windows y
-Linux; no publica ni instala paquetes.
+## Completion gates
 
-Las copias anteriores a estos cambios están en
-`data/update-manager-before-supervised.py` y
-`data/update-tests-before-supervised.py`.
+1. CI on the final PR revision, merge, owner approval in the existing
+   `portal-production` environment, successful portal and signed-package
+   publication, then download/verification of that actual package.
+2. Explicit owner permission for the first legacy-engine stop/restart. This is
+   required to respect the earlier instruction to leave the current instance
+   unaffected during development. No live trading mode will be enabled.
+3. Successful initial activation, enable the trusted channel, restart only the
+   outgoing agent, and verify the deployed UI and heartbeat.
+
+Do not describe remote updates as active until these gates are recorded as
+completed. No Android app or push-notification delivery is implemented here.
