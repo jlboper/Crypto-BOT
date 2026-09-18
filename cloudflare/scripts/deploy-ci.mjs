@@ -23,8 +23,8 @@ let deployed=false;
 try{
   await wrangler(['deploy','--strict']);deployed=true;
   let healthy=false;
-  for(let attempt=0;attempt<3&&!healthy;attempt++){
-    if(attempt)await new Promise(resolve=>setTimeout(resolve,2000*attempt));
+  for(let attempt=0;attempt<8&&!healthy;attempt++){
+    if(attempt)await new Promise(resolve=>setTimeout(resolve,5000));
     try{const response=await fetch(config.vars.PORTAL_ORIGIN+'/v1/health',{redirect:'error',signal:AbortSignal.timeout(15000)});const health=response.ok?await response.json():{};healthy=health.commit===process.env.GITHUB_SHA&&health.status==='ok';}catch{}
   }
   if(!healthy)throw Error('Post-deployment health failed');

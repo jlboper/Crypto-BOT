@@ -44,7 +44,11 @@ const oidcResponse=await fetch(oidcURL,{headers:{Authorization:`Bearer ${process
 if(!oidcResponse.ok)throw Error('Publisher identity unavailable');
 const oidc=await oidcResponse.json();
 const response=await fetch(origin+'/v1/releases/sign',{method:'POST',redirect:'error',headers:{Authorization:`Bearer ${oidc.value}`,'Content-Type':'application/json'},body:JSON.stringify(manifest),signal:AbortSignal.timeout(30000)});
-if(!response.ok)throw Error(`Signed publication rejected (${response.status})`);
+if(!response.ok){
+  const failure=await response.json().catch(()=>({}));
+  const code=/^[a-z_]{1,80}$/.test(failure.code||'')?failure.code:'unclassified';
+  throw Error(`Signed publication rejected (${response.status}; ${code})`);
+}
 const envelope=await response.json();
 await writeFile('dist/bot.zip.manifest.json',JSON.stringify(envelope));
 const verified=spawnSync('python',['-m','trader.update_manager','verify','--root','.', '--public-key','release-signing.pub','--package','dist/bot.zip','--manifest','dist/bot.zip.manifest.json'],{stdio:'inherit'});

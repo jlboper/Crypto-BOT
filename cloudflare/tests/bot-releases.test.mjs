@@ -2,8 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {generateKeyPairSync,sign,verify,createHash} from 'node:crypto';
 import {DatabaseSync} from 'node:sqlite';
-import {authorizePublisher,signRelease,canonical,validateManifest} from '../src/bot-releases.mjs';
+import {authorizePublisher,signRelease,canonical,validateManifest,releaseFailureCode} from '../src/bot-releases.mjs';
 const origin='https://portal.example',now=1800000000;
+test('signer diagnostics never expose arbitrary exception contents',()=>{
+  assert.equal(releaseFailureCode(new Error('secret bearer token private key')), 'signing_runtime_failure');
+  try{validateManifest(null,{},0);}catch(error){assert.equal(releaseFailureCode(error),'invalid_manifest');}
+});
 const rsa=generateKeyPairSync('rsa',{modulusLength:2048});
 const ed=generateKeyPairSync('ed25519');
 const claim={iss:'https://token.actions.githubusercontent.com',aud:origin+'/bot-releases',
