@@ -12,8 +12,9 @@
    ID, environment, workflow, main ref, expiry and matching deployed commit.
    The Ed25519 private key remains a Cloudflare secret. The public trust anchor
    is `release-signing.pub` (hexadecimal raw Ed25519 key).
-5. The owner chooses **Buscar actualización del bot** in the remote portal.
-   Windows downloads and verifies the manifest and ZIP. The portal then shows
+5. The owner chooses **Buscar actualizaciones** in the remote portal. The same
+   action checks the portal publication and asks Windows to download and verify
+   the signed bot manifest and ZIP. The portal then shows
    the exact version and commit. **Instalar versión verificada** submits its
    manifest hash; neither the portal nor Windows may substitute a newer package.
 6. The supervisor stops a compatible PAPER engine cooperatively, backs up files
@@ -24,6 +25,12 @@
 The Windows app and local portal open the same authenticated remote update
 center. They never need incoming PC ports, VPNs or tunnels. An online Windows
 agent is required for installation. A publication is not an installation.
+
+The installer retains the immediately previous code for automatic recovery
+while an installation is incomplete or unhealthy. Owner-requested restoration
+after a successful commit is not enabled yet; it requires an explicit supervised
+operation that preserves the current financial database and validates the exact
+restore target.
 
 ## One-time Windows transition
 

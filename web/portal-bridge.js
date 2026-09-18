@@ -13,6 +13,8 @@ async function portalPasswordProof(password,parameters){
 function portalLocked(){
   portalEpoch++;
   portalCsrf='';portalPending=null;portalCache=null;portalCacheAt=0;
+  const menu=document.getElementById('optionsMenu');menu.hidden=true;
+  document.getElementById('optionsButton').setAttribute('aria-expanded','false');
   document.getElementById('portalLogin').hidden=false;
   document.querySelector('.shell').hidden=true;
   document.getElementById('passwordPanel').hidden=true;
@@ -89,14 +91,18 @@ document.addEventListener('DOMContentLoaded',()=>{
   document.querySelector('.shell').hidden=remotePortal;
   document.getElementById('portalLogout').hidden=!remotePortal;
   document.getElementById('portalConnection').textContent=remotePortal?'Conectando al portal':'Conexión local · datos directos de Windows';
+  const optionsButton=document.getElementById('optionsButton'),optionsMenu=document.getElementById('optionsMenu');
+  function showOptions(open){optionsMenu.hidden=!open;optionsButton.setAttribute('aria-expanded',String(open));}
+  optionsButton.onclick=()=>showOptions(optionsMenu.hidden);
   document.getElementById('portalLogin').onsubmit=async e=>{
     e.preventDefault();const button=document.getElementById('portalLoginButton');button.disabled=true;
     try{const parameters=await portalRequest('/v1/auth-parameters');const proof=await portalPasswordProof(document.getElementById('portalPassword').value,parameters);const result=await portalRequest('/v1/login',{password:proof});portalCsrf=result.csrf;document.getElementById('portalPassword').value='';portalCacheAt=0;await portalState();window.dispatchEvent(new Event('portal-ready'));}
     catch(error){document.getElementById('portalLoginMessage').textContent=error.message;}
     finally{button.disabled=false;}
   };
-  document.getElementById('portalLogout').onclick=async()=>{await portalRequest('/v1/logout',{});portalLocked();};
+  document.getElementById('portalLogout').onclick=async()=>{showOptions(false);await portalRequest('/v1/logout',{});portalLocked();};
   document.getElementById('portalPasswordButton').onclick=()=>{
+    showOptions(false);document.getElementById('updatePanel').hidden=true;
     if(!remotePortal){window.open('https://crypto-paper-private-portal.jlboper.workers.dev/#password','_blank','noopener');return;}
     document.getElementById('passwordPanel').hidden=false;
     document.getElementById('passwordMessage').textContent='';
@@ -124,23 +130,30 @@ document.addEventListener('DOMContentLoaded',()=>{
   };
   window.addEventListener('portal-ready',()=>{if(location.hash==='#password')document.getElementById('passwordPanel').hidden=false;});
   let updatePending=false,lastUpdatesAt=0;
-  async function checkUpdates(){
+  async function checkAllUpdates(){
     if(!remotePortal){
       const output=document.getElementById('updateMessage');output.replaceChildren();
-      const link=document.createElement('a');link.href='https://crypto-paper-private-portal.jlboper.workers.dev/';
+      const link=document.createElement('a');link.href='https://crypto-paper-private-portal.jlboper.workers.dev/#updates';
       link.textContent='Abrir el portal privado para revisar y autorizar con tu sesión segura';
       link.rel='noopener';link.target='_blank';output.append(link);return;
     }
     if(updatePending || Date.now()-lastUpdatesAt<30000)return;
-    updatePending=true;const button=document.getElementById('checkUpdates');button.disabled=true;
-    const output=document.getElementById('updateMessage'), releases=document.getElementById('updateReleases');
+    updatePending=true;const button=document.getElementById('checkAllUpdates');button.disabled=true;
+    const output=document.getElementById('updateMessage'),releases=document.getElementById('updateReleases'),botOutput=document.getElementById('botUpdateMessage');
     releases.replaceChildren();output.textContent='Consultando versiones y pruebas en GitHub…';
+    botOutput.textContent='Solicitando a Windows la verificación del paquete firmado…';
     const epoch=portalEpoch;
     try{
-      await portalState();const data=await portalRequest('/v1/updates');
+      const state=await portalState();
+      const [portalResult,botResult]=await Promise.allSettled([
+        portalRequest('/v1/updates'),
+        state.stale?Promise.reject(new Error('Windows debe estar conectado')):
+          portalRequest('/v1/jobs',{action:'update_check',request_id:crypto.randomUUID()}),
+      ]);
       if(epoch!==portalEpoch)return;
-      output.textContent=data.message;lastUpdatesAt=Date.now();
-      for(const run of data.runs){
+      if(portalResult.status==='fulfilled'){
+        const data=portalResult.value;output.textContent=data.message;
+        for(const run of data.runs){
         const card=document.createElement('article'),title=document.createElement('h3'),detail=document.createElement('p'),link=document.createElement('a');
         title.textContent=run.title;
         detail.textContent=`Portal y paquete del bot · commit ${run.sha} · autor ${run.actor} · intento ${run.attempt} · ${run.conclusion||run.status}`;
@@ -153,43 +166,44 @@ document.addEventListener('DOMContentLoaded',()=>{
           const approve=document.createElement('a');approve.className='primary';approve.textContent='Revisar y autorizar publicación en GitHub';
           approve.href=run.url;approve.target='_blank';approve.rel='noopener';card.append(approve);
         }
-        releases.append(card);
-      }
+          releases.append(card);
+        }
+      }else output.textContent=portalResult.reason.message;
+      if(botResult.status==='fulfilled'){
+        portalCacheAt=0;botOutput.textContent='Solicitud enviada. Windows verificará la firma y mostrará aquí la versión disponible.';
+      }else botOutput.textContent=botResult.reason.message;
+      if(portalResult.status==='fulfilled'||botResult.status==='fulfilled')lastUpdatesAt=Date.now();
     }catch(error){output.textContent=error.message;}
     finally{updatePending=false;button.disabled=false;}
   }
   function showUpdateCenter(){
+    showOptions(false);document.getElementById('passwordPanel').hidden=true;
     const panel=document.getElementById('updatePanel');panel.hidden=false;
     if(remotePortal&&document.querySelector('.shell').hidden)document.getElementById('updateMessage').textContent='Inicia sesión para revisar las versiones disponibles.';
-    else checkUpdates();
     if(!document.querySelector('.shell').hidden)panel.scrollIntoView({behavior:'smooth',block:'start'});
   }
-  document.getElementById('checkUpdates').onclick=checkUpdates;
-  async function botJob(action){
+  async function installBotUpdate(){
     if(!remotePortal){window.open('https://crypto-paper-private-portal.jlboper.workers.dev/#updates','_blank','noopener');return;}
     const output=document.getElementById('botUpdateMessage');
-    const button=document.getElementById(action==='update_check'?'checkBotUpdate':'installBotUpdate');
-    button.disabled=true;
+    const button=document.getElementById('installBotUpdate');
+    let submitted=false;button.disabled=true;
     try{
       const state=await portalState();if(state.stale)throw new Error('Windows debe estar conectado');
-      const body={action,request_id:crypto.randomUUID()};
-      if(action==='update_install'){
-        const candidate=state.snapshot?.bot_update;
-        if(!candidate?.enabled||candidate.expires<=Date.now()/1000)throw new Error('Primero verifica una versión disponible');
-        if(!confirm(`¿Instalar el bot ${candidate.version}, revisión ${candidate.commit}? El motor PAPER se reiniciará y se recuperará la versión anterior si falla el arranque.`))return;
-        body.release_id=candidate.release_id;
-      }
-      await portalRequest('/v1/jobs',body);portalCacheAt=0;
+      button.disabled=true;
+      const candidate=state.snapshot?.bot_update;
+      if(!candidate?.enabled||candidate.expires<=Date.now()/1000)throw new Error('Primero verifica una versión disponible');
+      if(!confirm(`¿Instalar el bot ${candidate.version}, revisión ${candidate.commit}? El motor PAPER se reiniciará y se recuperará la versión anterior si falla el arranque.`))return;
+      const body={action:'update_install',request_id:crypto.randomUUID(),release_id:candidate.release_id};
+      await portalRequest('/v1/jobs',body);submitted=true;portalCacheAt=0;
       output.textContent='Solicitud enviada. El resultado aparecerá en las solicitudes remotas.';
     }catch(error){output.textContent=error.message;}
-    finally{if(action==='update_check')button.disabled=false;}
+    finally{if(!submitted)button.disabled=false;}
   }
-  document.getElementById('checkBotUpdate').onclick=()=>botJob('update_check');
-  document.getElementById('installBotUpdate').onclick=()=>botJob('update_install');
-  document.getElementById('updateButton').onclick=async()=>{
-    showUpdateCenter();
-  };
+  document.getElementById('checkAllUpdates').onclick=checkAllUpdates;
+  document.getElementById('installBotUpdate').onclick=installBotUpdate;
+  document.getElementById('updateButton').onclick=showUpdateCenter;
+  document.getElementById('closeUpdatePanel').onclick=()=>{document.getElementById('updatePanel').hidden=true;};
   if(location.hash==='#updates')showUpdateCenter();
   window.addEventListener('hashchange',()=>{if(location.hash==='#updates')showUpdateCenter();});
-  window.addEventListener('portal-ready',()=>{if(location.hash==='#updates'){lastUpdatesAt=0;checkUpdates();document.getElementById('updatePanel').scrollIntoView({behavior:'smooth',block:'start'});}});
+  window.addEventListener('portal-ready',()=>{if(location.hash==='#updates'){lastUpdatesAt=0;showUpdateCenter();}});
 });

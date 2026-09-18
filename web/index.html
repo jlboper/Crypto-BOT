@@ -29,9 +29,14 @@
         <span id="botState" class="state">COMPROBANDO</span>
         <span id="mode" class="badge">PAPER</span>
         <button id="killButton" class="danger">Activar kill switch</button>
-        <button id="updateButton" class="secondary">Actualizaciones</button>
-        <button id="portalLogout" class="secondary" hidden>Cerrar sesión</button>
-        <button id="portalPasswordButton" class="secondary">Cambiar contraseña</button>
+        <div class="options">
+          <button id="optionsButton" class="secondary" aria-haspopup="menu" aria-expanded="false">Opciones</button>
+          <div id="optionsMenu" class="options-menu" role="menu" hidden>
+            <button id="updateButton" role="menuitem">Actualizaciones</button>
+            <button id="portalPasswordButton" role="menuitem">Cambiar contraseña</button>
+            <button id="portalLogout" role="menuitem" hidden>Cerrar sesión</button>
+          </div>
+        </div>
       </div>
     </header>
     <section id="passwordPanel" class="panel" hidden>
@@ -51,13 +56,13 @@
     </section>
     <section id="updatePanel" class="panel" hidden>
       <h2>Actualizaciones del portal y del bot</h2>
-      <p>Work prepara los cambios en GitHub. Revisa la versión y sus pruebas antes de autorizar la publicación.</p>
-      <button id="checkUpdates" class="secondary">Buscar versiones del portal</button>
+      <p>Una sola búsqueda revisa la publicación del portal y solicita a Windows que verifique el paquete firmado del bot.</p>
+      <button id="checkAllUpdates" class="secondary">Buscar actualizaciones</button>
+      <button id="closeUpdatePanel" class="secondary">Cerrar</button>
       <p id="updateMessage" role="status"></p>
       <div id="updateReleases"></div>
       <h3>Bot de Windows</h3>
       <p id="botUpdateMessage">Busca una versión firmada. Windows verificará el paquete antes de permitir la instalación.</p>
-      <button id="checkBotUpdate" class="secondary">Buscar actualización del bot</button>
       <button id="installBotUpdate" class="primary" disabled>Instalar versión verificada</button>
     </section>
     <ul id="portalCommands" aria-label="Solicitudes remotas"></ul>
@@ -72,7 +77,7 @@
     <section class="panel research-lab">
       <div class="research-heading">
         <div>
-          <p class="eyebrow">RESEARCH LAB · V0.6.5</p>
+          <p class="eyebrow">RESEARCH LAB · V0.6.6</p>
           <h2>Validación multi-cripto</h2>
           <p class="research-copy">Compara estrategias con ejecución en la vela siguiente, costos, walk-forward y Monte Carlo. Ningún resultado se activa automáticamente.</p>
         </div>
