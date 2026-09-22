@@ -1,7 +1,7 @@
 /* One UI, local APIs or authenticated remote snapshots. No credentials in URLs. */
 const remotePortal = !['127.0.0.1','localhost','[::1]','::1'].includes(location.hostname);
 let portalCsrf = '', portalPending, portalCache, portalCacheAt = 0, portalEpoch=0;
-const portalRoute = {'/api/status':'status','/api/positions':'positions','/api/trades':'trades','/api/ai-reviews':'reviews','/api/equity':'equity','/api/events':'events','/api/research':'research','/api/research/status':'research_state','/api/updates':'updates'};
+const portalRoute = {'/api/status':'status','/api/positions':'positions','/api/trades':'trades','/api/ai-reviews':'reviews','/api/equity':'equity','/api/events':'events','/api/research':'research','/api/research/status':'research_state','/api/updates':'updates','/api/paper-scorecard':'paper_scorecard'};
 async function portalPasswordProof(password,parameters){
   if(parameters.scheme==='initial-key')return password;
   if(parameters.scheme!=='pbkdf2-sha256'||parameters.iterations!==600000||!/^[A-Za-z0-9_-]{43}$/.test(parameters.salt||''))throw new Error('Parámetros de acceso inválidos');
@@ -83,7 +83,7 @@ window.portalApi=async(path,options={})=>{
   const data=state.snapshot?.dashboard;
   if(!data)throw new Error('Esperando la primera sincronización del panel completo');
   if(!portalRoute[path])throw new Error('Ruta no disponible');
-  return structuredClone(data[portalRoute[path]]);
+  return structuredClone(data[portalRoute[path]]??{});
 };
 document.addEventListener('DOMContentLoaded',()=>{
   if(!remotePortal)document.getElementById('installBotUpdate').disabled=false;

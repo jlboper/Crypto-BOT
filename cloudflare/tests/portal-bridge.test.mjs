@@ -103,6 +103,15 @@ test('remote Research Lab exposes expiration and renders friendly action labels'
   assert.match(instance.elements.get('portalCommands').children[0].textContent,/Research Lab/);
 });
 
+test('PAPER evidence is optional until the stable Windows agent is updated',async()=>{
+  const instance=bridge('paper.example.workers.dev',[{status:200,body:state({snapshot:{dashboard:{status:{mode:'PAPER'},paper_scorecard:{mode:'PAPER',status:'INSUFFICIENT_EVIDENCE',equity_points:1}}}})}]);
+  const report=await instance.api('/api/paper-scorecard');
+  assert.equal(report.mode,'PAPER');
+  assert.equal(report.status,'INSUFFICIENT_EVIDENCE');
+  assert.deepEqual(await instance.api('/api/paper-scorecard'),report);
+  assert.equal(instance.calls.length,1);
+});
+
 test('localhost keeps the existing local Research endpoint',async()=>{
   const instance=bridge('localhost',[{status:202,body:{ok:true}}]);
   assert.deepEqual(await instance.api('/api/research/run',{method:'POST'}),{ok:true});
