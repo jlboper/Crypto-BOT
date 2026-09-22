@@ -103,6 +103,12 @@ function validateSnapshot(snapshot) {
   return snapshot;
 }
 function statement(db, sql, ...args) { return db.prepare(sql).bind(...args); }
+// The production jobs table accepts only its original actions. Encode a
+// restoration distinctly in its existing release_id column, then expose the
+// original action and exact hash to both Windows and the authenticated owner.
+const restoreStored = "action='update_install' AND substr(release_id,1,8)='restore:'";
+const jobAction = `CASE WHEN ${restoreStored} THEN 'update_restore' ELSE action END`;
+const jobRelease = `CASE WHEN ${restoreStored} THEN substr(release_id,9) ELSE release_id END`;
 function results(batch, index) { return batch[index]?.results || []; }
 function cookie(request) {
   const values = (request.headers.get('cookie') || '').split(';').map(p => p.trim()).filter(p => p.startsWith('__Host-session='));
@@ -175,12 +181,12 @@ export async function handle(request, env, now = Math.floor(Date.now() / 1000)) 
         Number.isSafeInteger(job.id)&&job.id>0&&['research','update_check','update_install','update_restore'].includes(job.action)&&
         ['running','completed','failed'].includes(job.status),'Invalid job result');
       assert(typeof job.message==='string'&&job.message.length<=300,'Invalid job message');
-      jq.push(statement(db,"UPDATE jobs SET status=?,message=? WHERE id=? AND action=? AND delivered_at IS NOT NULL AND status IN ('pending','running')",job.status,job.message,job.id,job.action));
+      jq.push(statement(db,`UPDATE jobs SET status=?,message=? WHERE id=? AND ${jobAction}=? AND delivered_at IS NOT NULL AND status IN ('pending','running')`,job.status,job.message,job.id,job.action));
     }
     jq.push(statement(db,"UPDATE jobs SET status='expired' WHERE status='pending' AND expires<=?",now));
     jq.push(statement(db,"UPDATE jobs SET status='failed',message='Windows no confirmó el resultado dentro del límite' WHERE status='running' AND created<=?",now-JOB_MAX_SECONDS));
     jq.push(statement(db,"UPDATE jobs SET delivered_at=COALESCE(delivered_at,?) WHERE status='pending' AND expires>?",now,now));
-    jq.push(statement(db,"SELECT id,action,expires,release_id FROM jobs WHERE status='pending' AND expires>? ORDER BY id LIMIT 1",now));
+    jq.push(statement(db,`SELECT id,${jobAction} AS action,expires,${jobRelease} AS release_id FROM jobs WHERE status='pending' AND expires>? ORDER BY id LIMIT 1`,now));
     const batch=await db.batch([...queries,...jq]);
     return json({ commands: results(batch, commandIndex), jobs:results(batch,batch.length-1), poll_seconds: 30 });
   }
@@ -232,7 +238,7 @@ export async function handle(request, env, now = Math.floor(Date.now() / 1000)) 
     const batch = await db.batch([
       statement(db, 'SELECT payload,received_at FROM snapshots WHERE id=1'),
       statement(db, "SELECT id,action,CASE WHEN status='pending' AND expires<=? THEN 'expired' ELSE status END AS status,expires FROM commands ORDER BY id DESC LIMIT 20", now),
-      statement(db,"SELECT id,action,status,message FROM jobs ORDER BY id DESC LIMIT 20"),
+      statement(db,`SELECT id,${jobAction} AS action,status,message FROM jobs ORDER BY id DESC LIMIT 20`),
     ]);
     const snapshot = results(batch, 0)[0];
     return json({ csrf: session.csrf, snapshot: snapshot ? JSON.parse(snapshot.payload) : null,
@@ -244,6 +250,8 @@ export async function handle(request, env, now = Math.floor(Date.now() / 1000)) 
     assert(Object.keys(body).every(k=>['action','request_id','release_id'].includes(k)),'Unknown job field');
     assert(['research','update_check','update_install','update_restore'].includes(body.action)&&typeof body.request_id==='string'&&/^[A-Za-z0-9_-]{16,100}$/.test(body.request_id),'Invalid job');
     assert(['update_install','update_restore'].includes(body.action)?HASH.test(body.release_id||''):body.release_id===undefined,'Exact release or restore approval required');
+    const storedAction=body.action==='update_restore'?'update_install':body.action;
+    const storedRelease=body.action==='update_restore'?'restore:'+body.release_id:(body.release_id??null);
     const batch=await db.batch([
       statement(db,"UPDATE jobs SET status='expired' WHERE status='pending' AND expires<=?",now),
       statement(db,"UPDATE jobs SET status='failed',message='Windows no confirmó el resultado dentro del límite' WHERE status='running' AND created<=?",now-JOB_MAX_SECONDS),
@@ -251,8 +259,8 @@ export async function handle(request, env, now = Math.floor(Date.now() / 1000)) 
         WHERE EXISTS(SELECT 1 FROM snapshots WHERE received_at>=? AND
           (?!='update_install' OR (json_extract(payload,'$.bot_update.enabled')=1 AND json_extract(payload,'$.bot_update.release_id')=? AND json_extract(payload,'$.bot_update.expires')>?))
           AND (?!='update_restore' OR (json_extract(payload,'$.bot_restore.enabled')=1 AND json_extract(payload,'$.bot_restore.restore_id')=?)))
-        AND NOT EXISTS(SELECT 1 FROM jobs WHERE status IN ('pending','running') OR created>?) ON CONFLICT(request_id) DO NOTHING`,body.request_id,body.action,now,now+300,body.release_id??null,now-120,body.action,body.release_id??null,now,body.action,body.release_id??null,now-60),
-      statement(db,'SELECT id,action,status,release_id FROM jobs WHERE request_id=?',body.request_id),
+        AND NOT EXISTS(SELECT 1 FROM jobs WHERE status IN ('pending','running') OR created>?) ON CONFLICT(request_id) DO NOTHING`,body.request_id,storedAction,now,now+300,storedRelease,now-120,body.action,body.release_id??null,now,body.action,body.release_id??null,now-60),
+      statement(db,`SELECT id,${jobAction} AS action,status,${jobRelease} AS release_id FROM jobs WHERE request_id=?`,body.request_id),
     ]);
     const job=results(batch,3)[0];
     if(!job)return json({error:'Windows no disponible, trabajo en curso o espera de un minuto'},409);

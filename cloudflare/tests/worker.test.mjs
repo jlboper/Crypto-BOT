@@ -7,7 +7,7 @@ import worker, { sha256 } from '../src/worker.mjs';
 
 // Real SQLite executes the same parameterized SQL; workerd/D1 is tested separately.
 class LocalD1 {
-  constructor(){this.sqlite=new DatabaseSync(':memory:');for(const name of ['0001_portal.sql','0002_jobs.sql','0003_owner_password.sql','0004_bot_releases.sql','0005_restore_jobs.sql'])this.sqlite.exec(readFileSync(new URL('../migrations/'+name,import.meta.url),'utf8'));}
+  constructor(){this.sqlite=new DatabaseSync(':memory:');for(const name of ['0001_portal.sql','0002_jobs.sql','0003_owner_password.sql','0004_bot_releases.sql'])this.sqlite.exec(readFileSync(new URL('../migrations/'+name,import.meta.url),'utf8'));}
   prepare(sql){
     const db=this;
     const make=args=>({
@@ -31,18 +31,6 @@ const origin='https://paper.example.workers.dev';
 const owner='A'.repeat(43), device='B'.repeat(43);
 const proof=(password,salt)=>pbkdf2Sync(password,salt,600000,32,'sha256').toString('hex');
 const snapshot=()=>({mode:'PAPER',equity:1000,cash:900,exposure:100,positions:[{symbol:'BTCUSDT',quantity:1,entry_price:100,stop_price:95,take_profit:110}],killed:false,last_cycle_at:new Date().toISOString(),ai_model:'gpt-5.6-luna',update_state:'manual_signed_install_only'});
-
-test('restore migration preserves existing jobs and permits the new action',()=>{
-  const db=new DatabaseSync(':memory:');
-  try{
-    for(const name of ['0001_portal.sql','0002_jobs.sql','0003_owner_password.sql','0004_bot_releases.sql'])db.exec(readFileSync(new URL('../migrations/'+name,import.meta.url),'utf8'));
-    db.prepare("INSERT INTO jobs(request_id,action,status,created,expires,release_id) VALUES ('prior-install','update_install','completed',1,2,?)").run('a'.repeat(64));
-    db.exec(readFileSync(new URL('../migrations/0005_restore_jobs.sql',import.meta.url),'utf8'));
-    assert.equal(db.prepare("SELECT release_id FROM jobs WHERE request_id='prior-install'").get().release_id,'a'.repeat(64));
-    db.prepare("INSERT INTO jobs(request_id,action,status,created,expires,release_id) VALUES ('restoration','update_restore','pending',3,4,?)").run('b'.repeat(64));
-    assert.equal(db.prepare("SELECT count(*) AS n FROM jobs").get().n,2);
-  }finally{db.close();}
-});
 
 async function fixture(t){
   const env={DB:new LocalD1(),PORTAL_ORIGIN:origin,OWNER_KEY_HASH:await sha256(owner),DEVICE_KEY_HASH:await sha256(device),ASSETS:{fetch:async()=>new Response('<html>Portal shell</html>',{headers:{'Content-Type':'text/html'}})}};
@@ -298,8 +286,17 @@ test('voluntary restore accepts only the fresh exact Windows verified previous c
   assert.equal((await f.request('/v1/jobs',{...body,release_id:'c'.repeat(64)})).status,409);
   const accepted=await f.request('/v1/jobs',body);
   assert.equal(accepted.status,202);
+  assert.equal(accepted.body.action,'update_restore');
+  const stored=f.env.DB.sqlite.prepare('SELECT action,release_id FROM jobs WHERE id=?').get(accepted.body.id);
+  assert.equal(stored.action,'update_install');
+  assert.equal(stored.release_id,'restore:'+offer.restore_id);
   const delivered=await f.sync({snapshot:{...snapshot(),bot_restore:offer}});
   assert.equal(delivered.body.jobs[0].release_id,offer.restore_id);
+  assert.equal(delivered.body.jobs[0].action,'update_restore');
+  await f.sync({snapshot:{...snapshot(),bot_restore:offer},job_results:[{id:accepted.body.id,action:'update_install',status:'completed',message:'Wrong job'}]});
+  assert.equal((await f.request('/v1/status')).body.jobs[0].status,'pending');
+  await f.sync({snapshot:{...snapshot(),bot_restore:offer},job_results:[{id:accepted.body.id,action:'update_restore',status:'completed',message:'Previous code healthy'}]});
+  assert.deepEqual((await f.request('/v1/status')).body.jobs[0],{id:accepted.body.id,action:'update_restore',status:'completed',message:'Previous code healthy'});
 });
 
 test('stale running job fails closed and no longer blocks a fresh request',async t=>{
