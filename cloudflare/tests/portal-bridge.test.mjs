@@ -50,6 +50,19 @@ test('bot install approval carries the exact verified release and CSRF token',as
   assert.equal(instance.elements.get('installBotUpdate').disabled,true);
 });
 
+test('restore in options submits the exact previous version and keeps CSRF',async()=>{
+  const offer={restore_id:'a'.repeat(64),current_release_id:'b'.repeat(64),version:'0.6.2',current_version:'0.6.3',enabled:true};
+  const instance=bridge('paper.example.workers.dev',[{status:200,body:state({snapshot:{bot_restore:offer}})},
+    {status:202,body:{id:23,status:'pending'}}]);
+  instance.start();
+  await instance.elements.get('restoreBotVersion').onclick();
+  const request=instance.calls[1];
+  assert.equal(request.path,'/v1/jobs');
+  assert.equal(JSON.parse(request.options.body).release_id,offer.restore_id);
+  assert.equal(JSON.parse(request.options.body).action,'update_restore');
+  assert.equal(request.options.headers['X-CSRF-Token'],'csrf-token');
+});
+
 test('options menu groups maintenance and account actions',()=>{
   const instance=bridge('paper.example.workers.dev',[]);
   instance.start();
@@ -101,6 +114,15 @@ test('remote Research Lab exposes expiration and renders friendly action labels'
   assert.equal(status.running,false);
   assert.match(status.error,/venció/);
   assert.match(instance.elements.get('portalCommands').children[0].textContent,/Research Lab/);
+});
+
+test('PAPER evidence is optional until the stable Windows agent is updated',async()=>{
+  const instance=bridge('paper.example.workers.dev',[{status:200,body:state({snapshot:{dashboard:{status:{mode:'PAPER'},paper_scorecard:{mode:'PAPER',status:'INSUFFICIENT_EVIDENCE',equity_points:1}}}})}]);
+  const report=await instance.api('/api/paper-scorecard');
+  assert.equal(report.mode,'PAPER');
+  assert.equal(report.status,'INSUFFICIENT_EVIDENCE');
+  assert.deepEqual(await instance.api('/api/paper-scorecard'),report);
+  assert.equal(instance.calls.length,1);
 });
 
 test('localhost keeps the existing local Research endpoint',async()=>{

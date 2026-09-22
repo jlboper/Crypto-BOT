@@ -1,7 +1,9 @@
 # Bot updates: implementation and deployment status
 
-Production baseline confirmed by the owner on 18 September 2026: **0.6.5** is
-installed on Windows and running in PAPER. The outgoing HTTPS agent is connected,
+Last Windows baseline confirmed by the owner on 18 September 2026: **0.6.5** was
+installed and running in PAPER. Version 0.6.6 was subsequently published to the
+portal and as a signed PAPER package; installation on Windows is not yet confirmed.
+The outgoing HTTPS agent was connected,
 and the local and remote portals use the shared `web/` interface. The first signed
 installation and a later end-to-end update initiated with the remote portal button
 were verified. This document distinguishes
@@ -34,9 +36,12 @@ for the owner workflow.
   trust anchor. D1 migration `0004_bot_releases.sql` is active.
 - The trusted Windows channel points to the existing portal and version 0.6.5 was
   installed through the signed update path after explicit owner approval.
-- The portal update center is being simplified around one options menu and one
-  combined search. Voluntary restoration of the last healthy version remains a
-  separate supervisor capability; automatic rollback on failed installation is active.
+- The portal update center already uses one options menu and one combined search.
+  PR #9 prepares a voluntary restoration action inside that menu, alongside a
+  full-history PAPER financial scorecard. Both require publication; the restore
+  additionally needs a refreshed independent Windows supervisor and a new
+  signed installation that captures the previous code. Do not count PR code
+  or a published portal as installation on the user's PC.
 
 ## Completion gates
 

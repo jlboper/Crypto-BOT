@@ -26,11 +26,28 @@ The Windows app and local portal open the same authenticated remote update
 center. They never need incoming PC ports, VPNs or tunnels. An online Windows
 agent is required for installation. A publication is not an installation.
 
-The installer retains the immediately previous code for automatic recovery
-while an installation is incomplete or unhealthy. Owner-requested restoration
-after a successful commit is not enabled yet; it requires an explicit supervised
-operation that preserves the current financial database and validates the exact
-restore target.
+The installer retains the immediately previous code for automatic recovery.
+With an updated independent Windows supervisor, **Options → Restore previous
+version** becomes available after a signed installation captured the preceding
+code and its hashes. Exact restore approval stops the PAPER engine cooperatively,
+checks its previous code, starts the restored code behind a candidate barrier,
+and verifies health before financial cycles resume. Financial SQLite data and
+the signed release sequence remain current; a restore may expose code/database
+incompatibility and is never an authorization to place real orders. Failed or
+interrupted precommit restoration recovers current code without rewinding data.
+This offer is one time and disappears after a successful restore.
+
+Version 0.6.7 requires a one-time refresh of the independent Windows agent and
+supervisor before installing the new signed bot release. The agent runs outside
+the signed target, so installing the target alone cannot update that supervisor;
+an older agent neither advertises nor accepts the voluntary restore job. Review
+the running scheduled task and its root, stop **only** the outbound agent with
+`scripts/stop_portal_agent.ps1`, verify its process exited, and refresh its
+allowlisted code from the signed 0.6.7 package after signature verification.
+Keep `data/`, `cloudflare/.secrets/`, the trusted public key and task definition
+intact. Restart the existing task and verify the portal heartbeat before requesting
+the signed installation. Do not assume the PC was refreshed because this PR was
+merged or the portal was published.
 
 ## One-time Windows transition
 

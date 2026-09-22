@@ -20,9 +20,10 @@ with single_instance(root/'data/engine.lock'):
     version = tomllib.loads((root/'pyproject.toml').read_text())['project']['version']
     if token:
         connection = sqlite3.connect(root/'data/bot.db')
-        connection.execute('UPDATE balance SET amount=123')
-        connection.execute('CREATE TABLE candidate_schema (value TEXT)')
-        connection.commit()
+        if connection.execute("SELECT name FROM sqlite_master WHERE name='candidate_schema'").fetchone() is None:
+            connection.execute('UPDATE balance SET amount=123')
+            connection.execute('CREATE TABLE candidate_schema (value TEXT)')
+            connection.commit()
         connection.close()
         if behavior == 'exit':
             raise SystemExit(17)
@@ -34,7 +35,7 @@ with single_instance(root/'data/engine.lock'):
     control.await_activation(timeout=10)
     if token:
         journal = json.loads((root/'data/updates/journal.json').read_text())
-        if journal['phase'] != 'committed':
+        if journal['phase'] not in {'committed','restored'}:
             (root/'UNSAFE_CYCLE').write_text('cycle before durable commit')
         (root/'candidate-cycle').write_text('synthetic cycle')
     while not control.should_stop():

@@ -85,6 +85,18 @@ def update_candidate(source):
     return value
 
 
+def restore_candidate(source):
+    channel = ROOT/'data/trusted-release.json'
+    key = ROOT/'data/trusted-update.pub'
+    if source.resolve() == ROOT or not channel.is_file() or not key.is_file():
+        return None
+    if json.loads(channel.read_text()).get('supervised_install_enabled') is not True:
+        return None
+    from trader.update_manager import UpdateManager
+    from trader.update_supervisor import UpdateSupervisor
+    return UpdateSupervisor(UpdateManager(source,key,state_dir=ROOT/'data/remote-updates')).available_restore()
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--source", type=Path, required=True)
@@ -103,6 +115,7 @@ def main():
     agent.dashboard_provider = lambda: dashboard_snapshot(config, args.source / 'data/research/latest.json')
     agent.jobs = RemoteJobs(ROOT,args.source)
     agent.update_provider = lambda: update_candidate(args.source)
+    agent.restore_provider = lambda: restore_candidate(args.source)
     snapshot = agent.snapshot()
     if args.check:
         print(json.dumps({"mode": snapshot["mode"], "database_readable": True,

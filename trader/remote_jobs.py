@@ -10,7 +10,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 
-ACTIONS = frozenset({'research', 'update_check', 'update_install'})
+ACTIONS = frozenset({'research', 'update_check', 'update_install', 'update_restore'})
 TERMINAL = frozenset({'completed', 'failed'})
 MAX_MESSAGE = 300
 MAX_RUNTIME_SECONDS = 7200
@@ -80,7 +80,7 @@ class RemoteJobs:
         if type(job.get('expires')) not in (int, float) or not now < job['expires'] <= now + 305:
             raise ValueError('Expired job')
         approved = job.get('release_id')
-        if job['action'] == 'update_install':
+        if job['action'] in {'update_install','update_restore'}:
             if not isinstance(approved, str) or re.fullmatch(r'[0-9a-f]{64}', approved) is None:
                 raise ValueError('Exact signed release approval required')
         elif approved is not None:

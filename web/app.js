@@ -49,6 +49,40 @@ function ageLabel(seconds) {
 
 const pct = value => `${Number(value || 0)>=0?'+':''}${Number(value || 0).toFixed(2)}%`;
 
+function renderPaperEvidence(report, equity, trades) {
+  const state=document.getElementById('paperEvidenceState');
+  const note=document.getElementById('paperEvidenceNote');
+  const panel=document.getElementById('paperEvidenceMetrics');
+  const complete=report?.mode==='PAPER'&&report?.equity_points>0;
+  const samples=equity.filter(row=>Number.isFinite(Number(row.equity))&&Number(row.equity)>0);
+  const closes=trades.filter(row=>row.side==='SELL');
+  let peak=0,drawdown=0;
+  for(const row of samples){const value=Number(row.equity);peak=Math.max(peak,value);drawdown=Math.max(drawdown,100*(peak-value)/peak);}
+  const first=samples[0],last=samples.at(-1);
+  const days=first&&last?Math.max(0,(Date.parse(last.created_at)-Date.parse(first.created_at))/86400000):0;
+  const values=complete?{
+    days:Number(report.observed_days),trades:Number(report.closed_trades),pnl:Number(report.net_realized_pnl_usdt),
+    fees:Number(report.fees_usdt),drawdown:Number(report.sampled_max_drawdown_pct),win:report.win_rate_pct,
+    points:Number(report.equity_points)
+  }:{days,trades:closes.length,pnl:closes.reduce((sum,row)=>sum+Number(row.realized_pnl||0),0),
+    fees:trades.reduce((sum,row)=>sum+Number(row.fee||0),0),drawdown,win:null,points:samples.length};
+  state.textContent=complete?(report.status==='REVIEW_REQUIRED'?'REVISIÓN HUMANA':'EVIDENCIA INSUFICIENTE'):'MUESTRA PARCIAL';
+  state.className='state '+(complete&&report.status==='REVIEW_REQUIRED'?'warning':'neutral');
+  note.textContent=complete?
+    `Historial PAPER desde ${shortTime(report.started_at)}. ${report.invalid_points?'Hay registros inválidos que requieren revisión. ':''}30 días y 30 cierres son solo un umbral de observación, nunca permiso para usar dinero real.`:
+    'Se muestran solo los últimos 300 puntos de equity y 50 operaciones recibidos. El historial completo aparecerá cuando el agente de Windows incorpore esta medición.';
+  const finite=value=>Number.isFinite(Number(value))?Number(value):0;
+  panel.innerHTML=[
+    ['Días observados',finite(values.days).toFixed(1)],
+    ['Operaciones cerradas',finite(values.trades).toFixed(0)],
+    ['P&amp;L realizado neto',`${finite(values.pnl).toFixed(2)} USDT`],
+    ['Comisiones simuladas',`${finite(values.fees).toFixed(2)} USDT`],
+    ['Drawdown de equity muestreada',`${finite(values.drawdown).toFixed(2)}%`],
+    ['Operaciones ganadoras',values.win===null?'—':`${finite(values.win).toFixed(1)}%`],
+    ['Muestras de equity',finite(values.points).toFixed(0)]
+  ].map(([label,value])=>`<article><span>${label}</span><strong>${value}</strong></article>`).join('');
+}
+
 function renderResearch(report, state) {
   lastResearchReport=report;
   const badge=document.getElementById('researchState');
@@ -138,8 +172,8 @@ function exportResearchCsv() {
 
 async function refresh() {
   try {
-    const [status,positions,trades,reviews,equity,events,research,researchState] = await Promise.all([
-      api('/api/status'),api('/api/positions'),api('/api/trades'),api('/api/ai-reviews'),api('/api/equity'),api('/api/events'),api('/api/research'),api('/api/research/status')
+    const [status,positions,trades,reviews,equity,events,research,researchState,paperReport] = await Promise.all([
+      api('/api/status'),api('/api/positions'),api('/api/trades'),api('/api/ai-reviews'),api('/api/equity'),api('/api/events'),api('/api/research'),api('/api/research/status'),api('/api/paper-scorecard')
     ]);
     document.getElementById('equity').textContent=money(status.equity);
     document.getElementById('cash').textContent=money(status.cash);
@@ -166,6 +200,7 @@ async function refresh() {
     document.getElementById('events').innerHTML=important.length?important.map(e=>`<div class="feed-item"><strong class="event-${esc(e.level.toLowerCase())}">${esc(e.level)}</strong><div><p>${esc(e.message)}</p></div><time>${shortTime(e.created_at)}</time></div>`).join(''):feedEmpty('Sin errores ni advertencias recientes');
     renderChart(equity);
     renderResearch(research,researchState);
+    renderPaperEvidence(paperReport,equity,trades);
     document.getElementById('updated').textContent=`Último ciclo ${ageLabel(activity.age_seconds)} · ${shortTime(activity.last_cycle_at)}`;
   } catch(error) {
     const botState=document.getElementById('botState');

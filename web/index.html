@@ -33,6 +33,7 @@
           <button id="optionsButton" class="secondary" aria-haspopup="menu" aria-expanded="false">Opciones</button>
           <div id="optionsMenu" class="options-menu" role="menu" hidden>
             <button id="updateButton" role="menuitem">Actualizaciones</button>
+            <button id="restoreBotVersion" role="menuitem" disabled>Restaurar versión anterior</button>
             <button id="portalPasswordButton" role="menuitem">Cambiar contraseña</button>
             <button id="portalLogout" role="menuitem" hidden>Cerrar sesión</button>
           </div>
@@ -74,10 +75,17 @@
       <article><span>Revisión IA</span><strong id="aiStatus">—</strong><small id="aiModel">—</small></article>
     </section>
 
+    <section class="panel paper-scorecard" aria-label="Seguimiento financiero PAPER">
+      <div class="panel-title"><h2>Seguimiento financiero PAPER</h2><span id="paperEvidenceState" class="state neutral">SIN DATOS</span></div>
+      <p id="paperEvidenceNote">Los resultados observados no autorizan operar con dinero real.</p>
+      <div id="paperEvidenceMetrics" class="research-summary"></div>
+      <p class="research-updated">El P&amp;L realizado ya incluye las comisiones de cada compra y venta; el drawdown se calcula con muestras de equity. Aún no hay historial de aportes/retiros ni benchmark sincronizado.</p>
+    </section>
+
     <section class="panel research-lab">
       <div class="research-heading">
         <div>
-          <p class="eyebrow">RESEARCH LAB · V0.6.6</p>
+          <p class="eyebrow">RESEARCH LAB · V0.6.7</p>
           <h2>Validación multi-cripto</h2>
           <p class="research-copy">Compara estrategias con ejecución en la vela siguiente, costos, walk-forward y Monte Carlo. Ningún resultado se activa automáticamente.</p>
         </div>

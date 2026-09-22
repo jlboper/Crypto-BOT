@@ -52,6 +52,17 @@ def main():
                 package = Path(staged['package'])
                 result = UpdateSupervisor(manager).install(package, package.with_name(package.name+'.manifest.json'), job['release_id'], job_id=args.id)
                 jobs.finish(args.id,'completed','Bot '+result['version']+' instalado; arranque y portal local comprobados en PAPER')
+        elif job['action'] == 'update_restore':
+            from trader.update_manager import UpdateManager
+            from trader.update_supervisor import UpdateSupervisor
+            channel=ROOT/'data/trusted-release.json'
+            key=ROOT/'data/trusted-update.pub'
+            if (not channel.is_file() or not key.is_file() or args.source.resolve()==ROOT
+                    or json.loads(channel.read_text()).get('supervised_install_enabled') is not True):
+                raise RuntimeError('Restauración supervisada no configurada')
+            manager=UpdateManager(args.source,key,state_dir=ROOT/'data/remote-updates')
+            result=UpdateSupervisor(manager).restore(job['release_id'],job_id=args.id)
+            jobs.finish(args.id,'completed','Código '+result['version']+' restaurado y motor PAPER comprobado; datos financieros conservados')
         else:
             raise ValueError('Invalid action')
     except Exception as error:

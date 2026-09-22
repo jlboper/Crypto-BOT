@@ -6,6 +6,7 @@ from dataclasses import asdict
 from pathlib import Path
 from .domain import Position
 from .monitoring import activity_status, position_metrics
+from .paper_scorecard import paper_scorecard
 
 
 def public_text(value):
@@ -42,6 +43,7 @@ def dashboard_snapshot(config, report_path=None):
             'reviews':rows('ai_reviews','id,symbol,verdict,confidence,risk_multiplier,reason,created_at',50),
             'events':rows('events','id,level,message,created_at',50),
             'risk':asdict(config.risk),
+            'paper_scorecard':paper_scorecard(connection),
             'research':{'mode':'RESEARCH_ONLY','status':'NOT_RUN','assets':[]},
             'research_state':{'running':False,'error':None},
             'updates':{'status':'not_configured','message':'Falta configurar el canal firmado y la recuperación supervisada.'},

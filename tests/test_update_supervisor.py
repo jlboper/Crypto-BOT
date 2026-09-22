@@ -188,6 +188,55 @@ class SupervisorTests(unittest.TestCase):
         with closing(sqlite3.connect(self.root/'data/bot.db')) as connection:
             self.assertEqual(connection.execute('SELECT amount FROM balance').fetchone()[0], 123)
 
+    def test_voluntary_restore_keeps_financial_data_and_signed_sequence(self):
+        self.supervisor.install(self.package,self.envelope,self.approved)
+        offer=self.supervisor.available_restore()
+        self.assertEqual((offer['version'],offer['current_version']),('0.6.2','0.6.3'))
+        with closing(sqlite3.connect(self.root/'data/bot.db')) as connection:
+            connection.execute('UPDATE balance SET amount=919')
+            connection.commit()
+        result=self.supervisor.restore(offer['restore_id'],job_id=52)
+        self.assertEqual(result['status'],'restored_healthy')
+        self.assertEqual((self.root/'trader/__main__.py').read_text(),'# original fixture\n')
+        with closing(sqlite3.connect(self.root/'data/bot.db')) as connection:
+            self.assertEqual(connection.execute('SELECT amount FROM balance').fetchone()[0],919)
+        self.assertEqual(json.loads(self.manager.sequence.read_text())['sequence'],1)
+        self.assertIsNone(self.supervisor.available_restore())
+
+    def test_failed_restore_returns_current_code_and_keeps_financial_data(self):
+        self.supervisor.install(self.package,self.envelope,self.approved)
+        offer=self.supervisor.available_restore()
+        with closing(sqlite3.connect(self.root/'data/bot.db')) as connection:
+            connection.execute('UPDATE balance SET amount=919')
+            connection.commit()
+        self.runtime.behavior='exit'
+        with self.assertRaisesRegex(RuntimeError,'exited'):
+            self.supervisor.restore(offer['restore_id'])
+        self.assertEqual((self.root/'trader/__main__.py').read_text(),'# candidate fixture\n')
+        with closing(sqlite3.connect(self.root/'data/bot.db')) as connection:
+            self.assertEqual(connection.execute('SELECT amount FROM balance').fetchone()[0],919)
+        self.assertEqual(json.loads(self.supervisor.record.read_text())['phase'],'rolled_back')
+
+    def test_interrupted_restore_recovers_current_code_without_database_rewind(self):
+        self.supervisor.install(self.package,self.envelope,self.approved)
+        offer=self.supervisor.available_restore()
+        token='c'*64
+        state={'action':'restore','token':token,'release_id':self.approved,'restore_id':offer['restore_id'],
+               'old_version':'0.6.3','version':'0.6.2','phase':'restore_applying'}
+        atomic_json(self.supervisor.record,state)
+        self.supervisor.phase(token,'stopping')
+        self.supervisor.wait_stopped()
+        self.manager.snapshot_current()
+        self.manager.swap_previous(offer['restore_id'])
+        with closing(sqlite3.connect(self.root/'data/bot.db')) as connection:
+            connection.execute('UPDATE balance SET amount=919')
+            connection.commit()
+        result=self.supervisor.recover()
+        self.assertEqual(result['status'],'rolled_back')
+        self.assertEqual((self.root/'trader/__main__.py').read_text(),'# candidate fixture\n')
+        with closing(sqlite3.connect(self.root/'data/bot.db')) as connection:
+            self.assertEqual(connection.execute('SELECT amount FROM balance').fetchone()[0],919)
+
 
 class RuntimeGateTests(unittest.TestCase):
     def test_agent_reconciles_completed_job_without_restarting(self):

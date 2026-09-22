@@ -282,6 +282,118 @@ class UpdateManager:
         atomic_json(self.journal, {**record, "phase": "rolled_back"})
         return True
 
+    def restore_offer(self):
+        """Advertise only the exact previous code captured during a signed install.
+
+        A successful restore keeps the committed sequence, so an older signed
+        release never becomes eligible as a new update.
+        """
+        if not self.journal.exists():
+            return None
+        record = json.loads(self.journal.read_text())
+        previous = record.get('previous')
+        hashes = record.get('previous_hashes')
+        if (record.get('phase') != 'committed' or not isinstance(previous, dict)
+                or not isinstance(hashes, dict) or not previous.get('pyproject.toml')
+                or not previous.get('trader/runtime_control.py') or not record.get('old_version')):
+            return None
+        if set(hashes) != {name for name, existed in previous.items() if existed}:
+            return None
+        current = tomllib.loads((self.root/'pyproject.toml').read_text())['project']['version']
+        if current != record['version']:
+            return None
+        for name, digest in record['files'].items():
+            target = self.target(name)
+            if not target.is_file() or hashlib.sha256(target.read_bytes()).hexdigest() != digest:
+                return None
+        for name, digest in hashes.items():
+            source = self.state/'backup'/name
+            if (not source.is_file() or source.is_symlink()
+                    or hashlib.sha256(source.read_bytes()).hexdigest() != digest):
+                return None
+        prior = tomllib.loads((self.state/'backup/pyproject.toml').read_text())['project']['version']
+        if prior != record['old_version']:
+            return None
+        identifier = hashlib.sha256(canonical({'current_release':record['release_id'],
+            'previous_version':prior,'previous_hashes':hashes})).hexdigest()
+        return {'restore_id':identifier, 'version':prior, 'current_version':current,
+                'current_release_id':record['release_id']}
+
+    def snapshot_current(self):
+        """Make a verified code-only escape hatch before changing installed files."""
+        with self.locks():
+            offer = self.restore_offer()
+            if offer is None:
+                raise ValueError('Previous code is no longer eligible for restoration')
+            current = self.state/'restore-current'
+            temporary = Path(tempfile.mkdtemp(prefix='restore-current-', dir=self.state))
+            try:
+                for name in json.loads(self.journal.read_text())['files']:
+                    target = self.target(name)
+                    saved = temporary/name
+                    saved.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(target,saved)
+                if current.exists():
+                    shutil.rmtree(current)
+                temporary.replace(current)
+            finally:
+                if temporary.exists():
+                    shutil.rmtree(temporary)
+            return offer
+
+    def swap_previous(self, approved):
+        with self.locks():
+            offer = self.restore_offer()
+            if offer is None or offer['restore_id'] != approved:
+                raise ValueError('Approved restore target changed')
+            record = json.loads(self.journal.read_text())
+            for name, existed in record['previous'].items():
+                target = self.target(name)
+                if existed:
+                    saved = self.state/'backup'/name
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(saved,target)
+                else:
+                    target.unlink(missing_ok=True)
+                self.invalidate_bytecode(name)
+
+    def rollback_restore(self):
+        """Reinstate the current code without touching PAPER balances or trades."""
+        with self.locks():
+            record = json.loads(self.journal.read_text())
+            snapshot = self.state/'restore-current'
+            for name,digest in record['files'].items():
+                saved = snapshot/name
+                if not saved.is_file() or saved.is_symlink() or hashlib.sha256(saved.read_bytes()).hexdigest()!=digest:
+                    raise ValueError('Cannot verify current code recovery snapshot')
+            for name in record['files']:
+                target = self.target(name)
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(snapshot/name,target)
+                self.invalidate_bytecode(name)
+
+    def finish_restore(self, approved):
+        """Close the one-time offer after previous code has passed health checks."""
+        with single_instance(self.transaction_lock):
+            record = json.loads(self.journal.read_text())
+            if record.get('phase') == 'restored' and record.get('restore_id') == approved:
+                return
+            if record.get('phase') != 'committed':
+                raise ValueError('No committed installation to restore')
+            hashes = record['previous_hashes']
+            identifier = hashlib.sha256(canonical({'current_release':record['release_id'],
+                'previous_version':record['old_version'],'previous_hashes':hashes})).hexdigest()
+            if identifier != approved:
+                raise ValueError('Restoration identifier changed')
+            for name, digest in hashes.items():
+                target = self.target(name)
+                if not target.is_file() or hashlib.sha256(target.read_bytes()).hexdigest() != digest:
+                    raise ValueError('Restored code changed before completion')
+            for name, existed in record['previous'].items():
+                if not existed and self.target(name).exists():
+                    raise ValueError('Restored code contains unexpected file')
+            atomic_json(self.journal,{**record,'phase':'restored','restore_id':approved})
+
     def recover(self):
         with self.locks():
             return self._recover()
@@ -329,6 +441,7 @@ class UpdateManager:
                 raise ValueError("version downgrade")
             backup = self.state / "backup"
             previous = {}
+            previous_hashes = {}
             for name in manifest["files"]:
                 target = self.target(name)
                 previous[name] = target.is_file()
@@ -338,8 +451,10 @@ class UpdateManager:
                     saved = backup / name
                     saved.parent.mkdir(parents=True, exist_ok=True)
                     shutil.copy2(target, saved)
+                    previous_hashes[name] = hashlib.sha256(saved.read_bytes()).hexdigest()
             record = {"phase": "applying", "previous": previous, "sequence": manifest["sequence"],
-                      "release_id": release_id(manifest), "version": manifest["version"], "files": manifest["files"]}
+                      "release_id": release_id(manifest), "version": manifest["version"], "files": manifest["files"],
+                      "old_version":old_version, "previous_hashes":previous_hashes}
             if defer_commit:
                 database = self.database_path()
                 record.update(database_path=str(database.relative_to(self.root)), database_existed=database.is_file())

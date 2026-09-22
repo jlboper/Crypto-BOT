@@ -140,7 +140,11 @@ El portal local y el remoto distribuyen la misma interfaz. El remoto exige auten
 
 La aplicación Windows y el portal local dirigen al mismo centro remoto. Para el portal web, Work prepara un PR, GitHub prueba el commit y el propietario autoriza el entorno protegido desde el enlace mostrado. Cloudflare recibe credenciales únicamente después de la aprobación; CI rechaza migraciones pendientes y hace rollback si la salud falla. Consulta `GITHUB_RELEASES.md`.
 
-El instalador gráfico antiguo basado únicamente en SHA-256 fue retirado. `trader.update_manager` verifica paquetes Ed25519, evita downgrade, conserva respaldo y recupera cambios incompletos, pero la instalación remota del motor sigue deshabilitada hasta completar el supervisor de parada, reinicio y salud. `ACTUALIZAR_BOT.cmd` queda como herramienta técnica local; no supone un canal remoto habilitado.
+El instalador gráfico antiguo basado únicamente en SHA-256 fue retirado. `trader.update_manager` verifica paquetes Ed25519, evita downgrade, conserva respaldo y recupera cambios incompletos. El supervisor de Windows instala versiones firmadas tras aprobación exacta y ofrece una restauración voluntaria del código anterior desde **Opciones → Restaurar versión anterior** cuando conserva una copia comprobable. La operación deja intactos saldos, operaciones y la secuencia antirretroceso; solo aparece después de una instalación firmada realizada por el supervisor actualizado. `ACTUALIZAR_BOT.cmd` queda como herramienta técnica local.
+
+## Seguimiento financiero PAPER
+
+El panel resume operaciones cerradas, P&L realizado neto de comisiones, costos simulados y drawdown observado en la curva de equity. El agente Windows actual puede enviar solo una muestra reciente; el panel la marca como parcial hasta recibir el historial completo. Un mes de observación y 30 cierres son un filtro mínimo para revisar resultados, nunca una aprobación automática para operar con dinero real. El registro actual no modela aportes/retiros ni contiene un benchmark histórico sincronizado, de modo que el informe no demuestra ventaja sobre comprar y mantener BTC. La ruta posterior es un forward test reproducible, luego Testnet con filtros del exchange y conciliación de órdenes, y solo después una decisión separada sobre dinero real.
 
 ## Centro de control de Windows
 
