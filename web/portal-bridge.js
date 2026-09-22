@@ -39,12 +39,14 @@ async function portalState(){
     const commands=document.getElementById('portalCommands');commands.replaceChildren();
     const labels={pending:'Pendiente',applied:'Confirmado por Windows',expired:'Vencido',superseded:'Sustituido',running:'En curso',completed:'Completado',failed:'Falló'};
     for(const item of state.commands||[]){const row=document.createElement('li');row.textContent=`#${item.id} ${item.action==='kill'?'Pausar':'Reanudar'} · ${labels[item.status]||item.status}`;commands.append(row);}
-    const actions={research:'Research Lab',update_check:'Verificar bot',update_install:'Actualizar bot'};
+    const actions={research:'Research Lab',update_check:'Verificar bot',update_install:'Actualizar bot',update_restore:'Restaurar bot'};
     for(const item of state.jobs||[]){const row=document.createElement('li');row.textContent=`#${item.id} ${actions[item.action]||item.action} · ${labels[item.status]||item.status} · ${item.message||''}`;commands.append(row);}
     const candidate=state.snapshot?.bot_update;
     const activeJob=(state.jobs||[]).some(j=>['pending','running'].includes(j.status));
     const usable=candidate&&!state.stale&&candidate.expires>Date.now()/1000;
     document.getElementById('installBotUpdate').disabled=!(usable&&candidate.enabled&&!activeJob);
+    const restore=state.snapshot?.bot_restore;
+    document.getElementById('restoreBotVersion').disabled=!(restore?.enabled&&!state.stale&&!activeJob);
     document.getElementById('botUpdateMessage').textContent=usable?
       `Bot ${candidate.version} · revisión ${candidate.commit} · firma verificada en Windows.${candidate.enabled?'':' Instalación pendiente de preparar en Windows.'}`:
       'Busca una actualización firmada; la verificación se realizará en Windows.';
@@ -87,6 +89,7 @@ window.portalApi=async(path,options={})=>{
 };
 document.addEventListener('DOMContentLoaded',()=>{
   if(!remotePortal)document.getElementById('installBotUpdate').disabled=false;
+  if(!remotePortal)document.getElementById('restoreBotVersion').disabled=false;
   document.getElementById('portalLogin').hidden=!remotePortal;
   document.querySelector('.shell').hidden=remotePortal;
   document.getElementById('portalLogout').hidden=!remotePortal;
@@ -199,8 +202,27 @@ document.addEventListener('DOMContentLoaded',()=>{
     }catch(error){output.textContent=error.message;}
     finally{if(!submitted)button.disabled=false;}
   }
+  async function restoreBotVersion(){
+    showOptions(false);
+    if(!remotePortal){window.open('https://crypto-paper-private-portal.jlboper.workers.dev/','_blank','noopener');return;}
+    const button=document.getElementById('restoreBotVersion');
+    button.disabled=true;
+    let submitted=false;
+    try{
+      const state=await portalState();
+      const offer=state.snapshot?.bot_restore;
+      if(state.stale||!offer?.enabled||(state.jobs||[]).some(j=>['pending','running'].includes(j.status)))throw new Error('Windows aún no ofrece una versión anterior verificable');
+      if(!confirm(`¿Restaurar el código del bot de ${offer.current_version} a ${offer.version}? El motor PAPER se reiniciará. Se conservarán los saldos y las operaciones actuales.`))return;
+      await portalRequest('/v1/jobs',{action:'update_restore',request_id:crypto.randomUUID(),release_id:offer.restore_id});
+      submitted=true;
+      portalCacheAt=0;
+      document.getElementById('botUpdateMessage').textContent='Restauración solicitada. Windows comprobará el arranque y conservará los datos financieros.';
+    }catch(error){document.getElementById('botUpdateMessage').textContent=error.message;}
+    finally{portalCacheAt=0;if(!submitted)button.disabled=false;}
+  }
   document.getElementById('checkAllUpdates').onclick=checkAllUpdates;
   document.getElementById('installBotUpdate').onclick=installBotUpdate;
+  document.getElementById('restoreBotVersion').onclick=restoreBotVersion;
   document.getElementById('updateButton').onclick=showUpdateCenter;
   document.getElementById('closeUpdatePanel').onclick=()=>{document.getElementById('updatePanel').hidden=true;};
   if(location.hash==='#updates')showUpdateCenter();

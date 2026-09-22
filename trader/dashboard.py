@@ -222,8 +222,9 @@ class DashboardServer:
                     self._json(list(reversed(outer.db.recent("equity", 300))))
                 elif path == "/api/paper-scorecard":
                     import sqlite3
+                    from contextlib import closing
                     from .paper_scorecard import paper_scorecard
-                    with sqlite3.connect(outer.config.bot.database_path.resolve().as_uri()+'?mode=ro', uri=True, timeout=3) as connection:
+                    with closing(sqlite3.connect(outer.config.bot.database_path.resolve().as_uri()+'?mode=ro', uri=True, timeout=3)) as connection:
                         self._json(paper_scorecard(connection))
                 elif path == "/api/events":
                     self._json(outer.db.recent("events", 50))

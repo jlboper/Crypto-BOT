@@ -7,7 +7,7 @@ import worker, { sha256 } from '../src/worker.mjs';
 
 // Real SQLite executes the same parameterized SQL; workerd/D1 is tested separately.
 class LocalD1 {
-  constructor(){this.sqlite=new DatabaseSync(':memory:');for(const name of ['0001_portal.sql','0002_jobs.sql','0003_owner_password.sql','0004_bot_releases.sql'])this.sqlite.exec(readFileSync(new URL('../migrations/'+name,import.meta.url),'utf8'));}
+  constructor(){this.sqlite=new DatabaseSync(':memory:');for(const name of ['0001_portal.sql','0002_jobs.sql','0003_owner_password.sql','0004_bot_releases.sql','0005_restore_jobs.sql'])this.sqlite.exec(readFileSync(new URL('../migrations/'+name,import.meta.url),'utf8'));}
   prepare(sql){
     const db=this;
     const make=args=>({
@@ -274,6 +274,20 @@ test('bot installation binds approval to an enabled unexpired Windows-verified r
   assert.equal((await f.request('/v1/jobs',{...body,release_id:'c'.repeat(64)})).status,409);
   const delivery=await f.sync({snapshot:{...snapshot(),bot_update:candidate}});
   assert.equal(delivery.body.jobs[0].release_id,candidate.release_id);
+});
+
+test('voluntary restore accepts only the fresh exact Windows verified previous code',async t=>{
+  const f=await fixture(t);await f.login();
+  const offer={restore_id:'a'.repeat(64),current_release_id:'b'.repeat(64),version:'0.6.2',current_version:'0.6.3',enabled:true};
+  const body={action:'update_restore',request_id:'exact-restore-request-01',release_id:offer.restore_id};
+  await f.sync();
+  assert.equal((await f.request('/v1/jobs',body)).status,409);
+  await f.sync({snapshot:{...snapshot(),bot_restore:offer}});
+  assert.equal((await f.request('/v1/jobs',{...body,release_id:'c'.repeat(64)})).status,409);
+  const accepted=await f.request('/v1/jobs',body);
+  assert.equal(accepted.status,202);
+  const delivered=await f.sync({snapshot:{...snapshot(),bot_restore:offer}});
+  assert.equal(delivered.body.jobs[0].release_id,offer.restore_id);
 });
 
 test('stale running job fails closed and no longer blocks a fresh request',async t=>{

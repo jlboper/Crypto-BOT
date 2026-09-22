@@ -177,6 +177,84 @@ class UpdateSupervisor:
                 atomic_json(self.record, {**state, 'phase': 'rolled_back'})
                 raise
 
+    def available_restore(self):
+        if self.control.maintenance.exists():
+            return None
+        offer = self.manager.restore_offer()
+        if offer is None:
+            return None
+        if not (self.manager.state/'backup/trader/runtime_control.py').is_file():
+            return None
+        try:
+            status = json.loads(self.control.status.read_text())
+        except (OSError, ValueError):
+            return None
+        if (status.get('protocol') != 1 or status.get('phase') != 'running'
+                or status.get('mode') != 'paper' or status.get('version') != offer['current_version']):
+            return None
+        try:
+            with single_instance(self.control.directory/'engine.lock'):
+                return None
+        except RuntimeError:
+            pass
+        return {**offer, 'enabled': True}
+
+    def restore(self, approved, *, job_id=None):
+        """Restore a verified previous code snapshot; retain PAPER data and sequence."""
+        if job_id is not None and (type(job_id) is not int or job_id <= 0):
+            raise ValueError('Invalid restoration job identifier')
+        with single_instance(self.lock):
+            offer = self.available_restore()
+            if offer is None or offer['restore_id'] != approved:
+                raise ValueError('Approved restore target changed')
+            original = json.loads(self.control.status.read_text())
+            if (original.get('protocol') != 1 or original.get('phase') != 'running'
+                    or original.get('mode') != 'paper' or original.get('version') != offer['current_version']):
+                raise RuntimeError('Existing engine has no matching cooperative runtime status')
+            try:
+                with single_instance(self.control.directory/'engine.lock'):
+                    pass
+            except RuntimeError:
+                pass
+            else:
+                raise RuntimeError('Restoration requires a running PAPER engine')
+            token = secrets.token_hex(32)
+            state = {'action':'restore', 'token':token, 'release_id':offer['current_release_id'],
+                     'restore_id':approved, 'old_version':offer['current_version'],
+                     'version':offer['version'], 'phase':'restore_stopping', 'job_id':job_id}
+            atomic_json(self.record,state)
+            self.phase(token,'stopping')
+            child = None
+            try:
+                self.wait_stopped()
+                self.manager.snapshot_current()
+                atomic_json(self.record,{**state,'phase':'restore_applying'})
+                self.manager.swap_previous(approved)
+                self.phase(token,'candidate')
+                child = self.runtime.start(token)
+                self.wait_ready(child,token,offer['version'],'candidate')
+                # Once financial cycles can resume, the previous code is committed.
+                atomic_json(self.record,{**state,'phase':'restore_committed'})
+                self.manager.finish_restore(approved)
+                atomic_json(self.control.activation,{'token':token,'release_id':approved})
+                self.control.maintenance.unlink()
+                self.wait_ready(child,token,offer['version'],'running')
+                atomic_json(self.record,{**state,'phase':'completed'})
+                return {'status':'restored_healthy','version':offer['version'],'restore_id':approved}
+            except BaseException:
+                saved = json.loads(self.record.read_text())
+                if saved['phase'] == 'restore_committed':
+                    atomic_json(self.record,{**state,'phase':'committed_restart_required'})
+                    raise
+                self.phase(token,'cancelled')
+                self.runtime.stop_owned(child)
+                self.wait_stopped()
+                if saved['phase'] == 'restore_applying':
+                    self.manager.rollback_restore()
+                self.restart_previous(offer['current_version'])
+                atomic_json(self.record,{**state,'phase':'rolled_back'})
+                raise
+
     def recover(self):
         """After supervisor/PC failure: cooperative stop, then journal recovery.
 
@@ -189,6 +267,17 @@ class UpdateSupervisor:
                 return {'status': state['phase']}
             self.phase(state['token'], 'cancelled')
             self.wait_stopped()
+            if state.get('action') == 'restore':
+                committed = state['phase'] in {'restore_committed','committed_restart_required'}
+                if committed:
+                    self.manager.finish_restore(state['restore_id'])
+                elif state['phase'] == 'restore_applying':
+                    self.manager.rollback_restore()
+                version = state['version'] if committed else state['old_version']
+                self.restart_previous(version)
+                result = 'completed' if committed else 'rolled_back'
+                atomic_json(self.record,{**state,'phase':result})
+                return {'status':result,'version':version}
             journal = json.loads(self.manager.journal.read_text()) if self.manager.journal.exists() else {}
             committed = journal.get('phase') == 'committed' and journal.get('release_id') == state['release_id']
             self.manager.recover()

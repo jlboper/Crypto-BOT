@@ -140,7 +140,7 @@ El portal local y el remoto distribuyen la misma interfaz. El remoto exige auten
 
 La aplicación Windows y el portal local dirigen al mismo centro remoto. Para el portal web, Work prepara un PR, GitHub prueba el commit y el propietario autoriza el entorno protegido desde el enlace mostrado. Cloudflare recibe credenciales únicamente después de la aprobación; CI rechaza migraciones pendientes y hace rollback si la salud falla. Consulta `GITHUB_RELEASES.md`.
 
-El instalador gráfico antiguo basado únicamente en SHA-256 fue retirado. `trader.update_manager` verifica paquetes Ed25519, evita downgrade, conserva respaldo y recupera cambios incompletos. El supervisor de Windows ya instala versiones firmadas y comprobadas tras aprobación exacta en el portal; la restauración voluntaria de una versión ya instalada todavía no está habilitada. `ACTUALIZAR_BOT.cmd` queda como herramienta técnica local.
+El instalador gráfico antiguo basado únicamente en SHA-256 fue retirado. `trader.update_manager` verifica paquetes Ed25519, evita downgrade, conserva respaldo y recupera cambios incompletos. El supervisor de Windows instala versiones firmadas tras aprobación exacta y ofrece una restauración voluntaria del código anterior desde **Opciones → Restaurar versión anterior** cuando conserva una copia comprobable. La operación deja intactos saldos, operaciones y la secuencia antirretroceso; solo aparece después de una instalación firmada realizada por el supervisor actualizado. `ACTUALIZAR_BOT.cmd` queda como herramienta técnica local.
 
 ## Seguimiento financiero PAPER
 

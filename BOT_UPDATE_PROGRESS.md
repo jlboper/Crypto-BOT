@@ -37,8 +37,11 @@ for the owner workflow.
 - The trusted Windows channel points to the existing portal and version 0.6.5 was
   installed through the signed update path after explicit owner approval.
 - The portal update center already uses one options menu and one combined search.
-  Voluntary restoration of the last healthy version remains a
-  separate supervisor capability; automatic rollback on failed installation is active.
+  PR #9 prepares a voluntary restoration action inside that menu, alongside a
+  full-history PAPER financial scorecard. Both require publication; the restore
+  additionally needs a refreshed independent Windows supervisor and a new
+  signed installation that captures the previous code. Do not count PR code
+  or a published portal as installation on the user's PC.
 
 ## Completion gates
 

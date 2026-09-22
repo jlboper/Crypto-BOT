@@ -64,7 +64,7 @@ async function readBody(request, maximum = 65536) {
 }
 function validateSnapshot(snapshot) {
   assert(object(snapshot) && snapshot.mode === 'PAPER', 'PAPER snapshot required');
-  const allowed = ['mode','equity','cash','exposure','positions','killed','last_cycle_at','ai_model','update_state','dashboard','bot_update'];
+  const allowed = ['mode','equity','cash','exposure','positions','killed','last_cycle_at','ai_model','update_state','dashboard','bot_update','bot_restore'];
   assert(Object.keys(snapshot).every(k => allowed.includes(k)), 'Unknown snapshot field');
   for (const key of ['equity', 'cash', 'exposure']) {
     assert(snapshot[key] === null || (typeof snapshot[key] === 'number' && Number.isFinite(snapshot[key]) && snapshot[key] >= 0), 'Invalid balance');
@@ -77,6 +77,11 @@ function validateSnapshot(snapshot) {
     const b=snapshot.bot_update;
     assert(object(b)&&Object.keys(b).every(k=>['release_id','version','sequence','expires','commit','enabled'].includes(k)),'Invalid bot release');
     assert(HASH.test(b.release_id)&&/^\d+\.\d+\.\d+$/.test(b.version)&&/^[a-f0-9]{40}$/.test(b.commit)&&Number.isSafeInteger(b.sequence)&&b.sequence>0&&Number.isInteger(b.expires)&&typeof b.enabled==='boolean','Invalid bot release');
+  }
+  if(snapshot.bot_restore!=null){
+    const b=snapshot.bot_restore;
+    assert(object(b)&&Object.keys(b).sort().join(',')==='current_release_id,current_version,enabled,restore_id,version','Invalid restore offer');
+    assert(HASH.test(b.restore_id)&&HASH.test(b.current_release_id)&&/^\d+\.\d+\.\d+$/.test(b.version)&&/^\d+\.\d+\.\d+$/.test(b.current_version)&&b.enabled===true,'Invalid restore offer');
   }
   assert(Array.isArray(snapshot.positions) && snapshot.positions.length <= 100, 'Invalid positions');
   for (const p of snapshot.positions) {
@@ -167,7 +172,7 @@ export async function handle(request, env, now = Math.floor(Date.now() / 1000)) 
     const jq=[];
     for(const job of jobResults){
       assert(object(job)&&Object.keys(job).every(key=>['id','action','status','message'].includes(key))&&
-        Number.isSafeInteger(job.id)&&job.id>0&&['research','update_check','update_install'].includes(job.action)&&
+        Number.isSafeInteger(job.id)&&job.id>0&&['research','update_check','update_install','update_restore'].includes(job.action)&&
         ['running','completed','failed'].includes(job.status),'Invalid job result');
       assert(typeof job.message==='string'&&job.message.length<=300,'Invalid job message');
       jq.push(statement(db,"UPDATE jobs SET status=?,message=? WHERE id=? AND action=? AND delivered_at IS NOT NULL AND status IN ('pending','running')",job.status,job.message,job.id,job.action));
@@ -237,15 +242,16 @@ export async function handle(request, env, now = Math.floor(Date.now() / 1000)) 
   if(path==='/v1/jobs'&&method==='POST'){
     const body=await readBody(request);
     assert(Object.keys(body).every(k=>['action','request_id','release_id'].includes(k)),'Unknown job field');
-    assert(['research','update_check','update_install'].includes(body.action)&&typeof body.request_id==='string'&&/^[A-Za-z0-9_-]{16,100}$/.test(body.request_id),'Invalid job');
-    assert(body.action==='update_install'?HASH.test(body.release_id||''):body.release_id===undefined,'Exact release approval required');
+    assert(['research','update_check','update_install','update_restore'].includes(body.action)&&typeof body.request_id==='string'&&/^[A-Za-z0-9_-]{16,100}$/.test(body.request_id),'Invalid job');
+    assert(['update_install','update_restore'].includes(body.action)?HASH.test(body.release_id||''):body.release_id===undefined,'Exact release or restore approval required');
     const batch=await db.batch([
       statement(db,"UPDATE jobs SET status='expired' WHERE status='pending' AND expires<=?",now),
       statement(db,"UPDATE jobs SET status='failed',message='Windows no confirmó el resultado dentro del límite' WHERE status='running' AND created<=?",now-JOB_MAX_SECONDS),
       statement(db,`INSERT INTO jobs(request_id,action,status,created,expires,release_id) SELECT ?,?,'pending',?,?,?
         WHERE EXISTS(SELECT 1 FROM snapshots WHERE received_at>=? AND
-          (?!='update_install' OR (json_extract(payload,'$.bot_update.enabled')=1 AND json_extract(payload,'$.bot_update.release_id')=? AND json_extract(payload,'$.bot_update.expires')>?)))
-        AND NOT EXISTS(SELECT 1 FROM jobs WHERE status IN ('pending','running') OR created>?) ON CONFLICT(request_id) DO NOTHING`,body.request_id,body.action,now,now+300,body.release_id??null,now-120,body.action,body.release_id??null,now,now-60),
+          (?!='update_install' OR (json_extract(payload,'$.bot_update.enabled')=1 AND json_extract(payload,'$.bot_update.release_id')=? AND json_extract(payload,'$.bot_update.expires')>?))
+          AND (?!='update_restore' OR (json_extract(payload,'$.bot_restore.enabled')=1 AND json_extract(payload,'$.bot_restore.restore_id')=?)))
+        AND NOT EXISTS(SELECT 1 FROM jobs WHERE status IN ('pending','running') OR created>?) ON CONFLICT(request_id) DO NOTHING`,body.request_id,body.action,now,now+300,body.release_id??null,now-120,body.action,body.release_id??null,now,body.action,body.release_id??null,now-60),
       statement(db,'SELECT id,action,status,release_id FROM jobs WHERE request_id=?',body.request_id),
     ]);
     const job=results(batch,3)[0];

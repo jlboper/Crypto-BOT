@@ -2,6 +2,7 @@ import json
 import sqlite3
 import tempfile
 import unittest
+from contextlib import closing
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from dataclasses import replace
@@ -39,7 +40,7 @@ class PortalSnapshotTests(unittest.TestCase):
             path=Path(folder)/'paper.db'
             Database(path)
             start=datetime(2026,1,1,tzinfo=UTC)
-            with sqlite3.connect(path) as connection:
+            with closing(sqlite3.connect(path)) as connection:
                 connection.executemany('INSERT INTO equity(equity,cash,exposure,created_at) VALUES(?,?,?,?)',[
                     (1000,1000,0,start.isoformat()),
                     (900,700,200,(start+timedelta(days=15)).isoformat()),
@@ -49,8 +50,9 @@ class PortalSnapshotTests(unittest.TestCase):
                     ('BTCUSDT','BUY',1,100,0.1,0,'test',start.isoformat()),
                     *[('BTCUSDT','SELL',1,100,0.2,2 if index<20 else -1,'test',(start+timedelta(days=index+1)).isoformat()) for index in range(30)],
                 ])
+                connection.commit()
             before=path.read_bytes()
-            with sqlite3.connect(path.resolve().as_uri()+'?mode=ro',uri=True) as connection:
+            with closing(sqlite3.connect(path.resolve().as_uri()+'?mode=ro',uri=True)) as connection:
                 result=paper_scorecard(connection)
             self.assertEqual(path.read_bytes(),before)
             self.assertEqual(result['status'],'REVIEW_REQUIRED')

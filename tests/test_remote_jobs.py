@@ -22,6 +22,15 @@ class RemoteJobTests(unittest.TestCase):
                 jobs.accept({**job, 'release_id': 'b'*64})
             self.assertEqual(spawn.call_count, 1)
 
+    def test_restore_requires_exact_persisted_snapshot_identifier(self):
+        with tempfile.TemporaryDirectory() as directory, patch('trader.remote_jobs.subprocess.Popen') as spawn:
+            jobs=RemoteJobs(directory,directory)
+            for invalid in ('latest','A'*64,'a'*63):
+                with self.assertRaises(ValueError):
+                    jobs.accept({'id':5,'action':'update_restore','expires':time.time()+100,'release_id':invalid})
+            jobs.accept({'id':5,'action':'update_restore','expires':time.time()+100,'release_id':'a'*64})
+            self.assertEqual(spawn.call_count,1)
+
     def test_persisted_job_is_started_once_and_results_survive_restart(self):
         with tempfile.TemporaryDirectory() as directory, patch('trader.remote_jobs.subprocess.Popen') as spawn:
             jobs=RemoteJobs(directory,directory)
