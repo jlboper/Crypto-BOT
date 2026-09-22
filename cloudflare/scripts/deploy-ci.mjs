@@ -16,14 +16,9 @@ async function wrangler(args,{capture=false}={}){
   await new Promise((resolve,reject)=>{child.once('error',reject);child.once('exit',code=>code===0?resolve():reject(Error('Deployment command failed')));});
   return output;
 }
-const schema={accountId:config.account_id,databaseId:config.d1_databases[0].database_id,
-  token:process.env.CLOUDFLARE_API_TOKEN,expected:(await readdir('migrations')).filter(name=>name.endsWith('.sql')).sort()};
-const pending=await checkMigrations({...schema,allowedPending:['0005_restore_jobs.sql']});
+await checkMigrations({accountId:config.account_id,databaseId:config.d1_databases[0].database_id,
+  token:process.env.CLOUDFLARE_API_TOKEN,expected:(await readdir('migrations')).filter(name=>name.endsWith('.sql')).sort()});
 await wrangler(['deploy','--dry-run']);
-if(pending.length){
-  await wrangler(['d1','migrations','apply',config.d1_databases[0].database_name,'--remote']);
-  await checkMigrations(schema);
-}
 let deployed=false;
 try{
   await wrangler(['deploy','--strict']);deployed=true;
