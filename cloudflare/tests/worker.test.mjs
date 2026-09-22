@@ -32,6 +32,18 @@ const owner='A'.repeat(43), device='B'.repeat(43);
 const proof=(password,salt)=>pbkdf2Sync(password,salt,600000,32,'sha256').toString('hex');
 const snapshot=()=>({mode:'PAPER',equity:1000,cash:900,exposure:100,positions:[{symbol:'BTCUSDT',quantity:1,entry_price:100,stop_price:95,take_profit:110}],killed:false,last_cycle_at:new Date().toISOString(),ai_model:'gpt-5.6-luna',update_state:'manual_signed_install_only'});
 
+test('restore migration preserves existing jobs and permits the new action',()=>{
+  const db=new DatabaseSync(':memory:');
+  try{
+    for(const name of ['0001_portal.sql','0002_jobs.sql','0003_owner_password.sql','0004_bot_releases.sql'])db.exec(readFileSync(new URL('../migrations/'+name,import.meta.url),'utf8'));
+    db.prepare("INSERT INTO jobs(request_id,action,status,created,expires,release_id) VALUES ('prior-install','update_install','completed',1,2,?)").run('a'.repeat(64));
+    db.exec(readFileSync(new URL('../migrations/0005_restore_jobs.sql',import.meta.url),'utf8'));
+    assert.equal(db.prepare("SELECT release_id FROM jobs WHERE request_id='prior-install'").get().release_id,'a'.repeat(64));
+    db.prepare("INSERT INTO jobs(request_id,action,status,created,expires,release_id) VALUES ('restoration','update_restore','pending',3,4,?)").run('b'.repeat(64));
+    assert.equal(db.prepare("SELECT count(*) AS n FROM jobs").get().n,2);
+  }finally{db.close();}
+});
+
 async function fixture(t){
   const env={DB:new LocalD1(),PORTAL_ORIGIN:origin,OWNER_KEY_HASH:await sha256(owner),DEVICE_KEY_HASH:await sha256(device),ASSETS:{fetch:async()=>new Response('<html>Portal shell</html>',{headers:{'Content-Type':'text/html'}})}};
   t.after(()=>env.DB.close());
