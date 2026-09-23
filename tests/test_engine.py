@@ -2,6 +2,7 @@ import tempfile
 import unittest
 from dataclasses import replace
 from pathlib import Path
+from unittest.mock import patch
 
 from trader.config import load_config
 from trader.domain import Candle, Position
@@ -9,6 +10,34 @@ from trader.engine import TradingEngine
 
 
 class EngineTests(unittest.TestCase):
+    def test_missing_or_invalid_spot_never_closes_held_position_at_candle_price(self):
+        with tempfile.TemporaryDirectory() as folder:
+            config = load_config()
+            config = replace(config, bot=replace(config.bot, database_path=Path(folder)/'test.db',
+                                                kill_switch_path=Path(folder)/'KILL_SWITCH'))
+            engine = TradingEngine(config)
+            engine.db.upsert_position(Position('TESTUSDT', 1, 100, 95, 120, 100, 2, 0.1, 'now'))
+            candles = [Candle(i*1000, 90, 92, 88, 90, 1000, i*1000+999) for i in range(80)]
+            for prices in ({}, {'TESTUSDT': float('nan')}, {'TESTUSDT': 0}):
+                with self.assertRaises(RuntimeError):
+                    engine._manage_positions({'TESTUSDT': candles}, prices)
+                self.assertIsNotNone(engine.db.position('TESTUSDT'))
+                self.assertEqual(engine.db.recent('trades'), [])
+
+    def test_missing_held_quote_blocks_cycle_before_universe_and_buy(self):
+        with tempfile.TemporaryDirectory() as folder:
+            config = load_config()
+            config = replace(config, bot=replace(config.bot, database_path=Path(folder)/'test.db',
+                                                kill_switch_path=Path(folder)/'KILL_SWITCH'))
+            engine = TradingEngine(config)
+            engine.db.upsert_position(Position('TESTUSDT', 1, 100, 95, 120, 100, 2, 0.1, 'now'))
+            with patch.object(engine.exchange, 'latest_prices', return_value={}), \
+                 patch.object(engine.exchange, 'top_usdt_symbols') as universe:
+                with self.assertRaises(RuntimeError):
+                    engine.cycle()
+                universe.assert_not_called()
+            self.assertEqual(engine.db.recent('trades'), [])
+
     def test_live_price_can_trigger_protective_stop(self):
         with tempfile.TemporaryDirectory() as folder:
             config = load_config()

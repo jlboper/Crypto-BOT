@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import math
 from datetime import UTC, datetime
+from .domain import Position
+from .monitoring import position_metrics, usable_price
 
 
 def _time(value):
@@ -13,7 +15,7 @@ def _time(value):
         return None
 
 
-def paper_scorecard(connection):
+def paper_scorecard(connection, *, prices=None, prices_at=None, cycle_seconds=None, paper=None, now=None):
     """Summarize all recorded equity points and closed PAPER trades.
 
     Existing accounting stores no external cash flows or historical benchmark
@@ -44,6 +46,44 @@ def paper_scorecard(connection):
     fees = float(connection.execute('SELECT COALESCE(SUM(fee),0) FROM trades').fetchone()[0])
     closed = int(trades[0])
     observed_days = (end-start).total_seconds()/86400 if start and end else 0.0
+    asset_rows = connection.execute('''
+        SELECT symbol, COUNT(*) AS closed_trades, SUM(realized_pnl) AS net_realized_pnl_usdt,
+               SUM(CASE WHEN realized_pnl>0 THEN 1 ELSE 0 END) AS wins
+        FROM trades WHERE side='SELL' GROUP BY symbol
+    ''').fetchall()
+    by_asset = {row[0]: {
+        'symbol': row[0], 'closed_trades': int(row[1]),
+        'net_realized_pnl_usdt': round(float(row[2]), 4),
+        'win_rate_pct': round(100 * int(row[3]) / int(row[1]), 2),
+        'open_exposure_usdt': None, 'estimated_open_pnl_usdt': None,
+    } for row in asset_rows}
+    cursor = connection.execute('SELECT * FROM positions ORDER BY symbol')
+    columns = [column[0] for column in cursor.description]
+    open_rows = [dict(zip(columns, row)) for row in cursor]
+    current = now or datetime.now(UTC)
+    quote_time = _time(prices_at)
+    open_pnl = open_exposure = 0.0
+    missing_quotes = []
+    for raw in open_rows:
+        position = Position(**raw)
+        quote = usable_price((prices or {}).get(position.symbol), prices_at,
+                             cycle_seconds, now=current) if cycle_seconds else None
+        valid = quote is not None and paper is not None
+        asset = by_asset.setdefault(position.symbol, {
+            'symbol': position.symbol, 'closed_trades': 0, 'net_realized_pnl_usdt': 0.0,
+            'win_rate_pct': None, 'open_exposure_usdt': None, 'estimated_open_pnl_usdt': None,
+        })
+        if valid:
+            metrics = position_metrics(position, quote, paper)
+            asset['open_exposure_usdt'] = round(metrics['market_value'], 4)
+            asset['estimated_open_pnl_usdt'] = round(metrics['unrealized_pnl'], 4)
+            open_pnl += metrics['unrealized_pnl']
+            open_exposure += metrics['market_value']
+        else:
+            missing_quotes.append(position.symbol)
+    open_symbols = {row['symbol'] for row in open_rows}
+    selected = sorted(by_asset.values(), key=lambda item:
+        (item['symbol'] not in open_symbols, -item['closed_trades'], item['symbol']))[:20]
     return {
         'mode': 'PAPER', 'status': 'REVIEW_REQUIRED' if observed_days >= 30 and closed >= 30 and invalid == 0 else 'INSUFFICIENT_EVIDENCE',
         'started_at': start.isoformat() if start else None,
@@ -54,6 +94,13 @@ def paper_scorecard(connection):
         'fees_usdt': round(fees, 4),
         'win_rate_pct': round(100*int(trades[2])/closed, 2) if closed else None,
         'profit_factor': round(float(trades[3])/float(trades[4]), 3) if trades[4] else None,
+        'estimated_open_pnl_usdt': round(open_pnl, 4) if not missing_quotes else None,
+        'open_exposure_usdt': round(open_exposure, 4) if not missing_quotes else None,
+        'open_positions': len(open_rows), 'unpriced_positions': len(missing_quotes),
+        'price_status': ('not_applicable' if not open_rows else
+                         'fresh' if not missing_quotes else 'stale_or_missing'),
+        'prices_at': quote_time.isoformat() if quote_time else None,
+        'by_asset': selected, 'omitted_assets': len(by_asset) - len(selected),
         'equity_change_pct': round(100*(last_equity/first_equity-1), 3) if points else None,
         'sampled_max_drawdown_pct': round(100*max_drawdown, 3) if points else None,
         'observation_gate': {'days': 30, 'closed_trades': 30},

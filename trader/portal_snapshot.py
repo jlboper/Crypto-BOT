@@ -5,7 +5,7 @@ import sqlite3
 from dataclasses import asdict
 from pathlib import Path
 from .domain import Position
-from .monitoring import activity_status, position_metrics
+from .monitoring import activity_status, position_metrics, usable_price
 from .paper_scorecard import paper_scorecard
 
 
@@ -28,7 +28,8 @@ def dashboard_snapshot(config, report_path=None):
         latest = equity[0] if equity else {}
         settings = dict(connection.execute("SELECT key,value FROM settings WHERE key IN ('market_prices','market_prices_at','paper_cash')"))
         prices = json.loads(settings.get('market_prices','{}'))
-        positions = [position_metrics(Position(**dict(p)), prices.get(p['symbol'],p['entry_price']), config.paper)
+        positions = [position_metrics(Position(**dict(p)),
+                     usable_price(prices.get(p['symbol']), settings.get('market_prices_at'), config.bot.cycle_seconds), config.paper)
                      for p in connection.execute('SELECT * FROM positions LIMIT 100')]
         initial = config.paper.initial_cash_usdt
         current = latest.get('equity',initial)
@@ -43,7 +44,9 @@ def dashboard_snapshot(config, report_path=None):
             'reviews':rows('ai_reviews','id,symbol,verdict,confidence,risk_multiplier,reason,created_at',50),
             'events':rows('events','id,level,message,created_at',50),
             'risk':asdict(config.risk),
-            'paper_scorecard':paper_scorecard(connection),
+            'paper_scorecard':paper_scorecard(connection, prices=prices,
+                prices_at=settings.get('market_prices_at'), cycle_seconds=config.bot.cycle_seconds,
+                paper=config.paper),
             'research':{'mode':'RESEARCH_ONLY','status':'NOT_RUN','assets':[]},
             'research_state':{'running':False,'error':None},
             'updates':{'status':'not_configured','message':'Falta configurar el canal firmado y la recuperación supervisada.'},

@@ -16,7 +16,7 @@ from urllib.parse import parse_qs, urlparse
 
 from .config import AppConfig, PROJECT_ROOT
 from .database import Database
-from .monitoring import activity_status, position_metrics
+from .monitoring import activity_status, position_metrics, usable_price
 
 
 WEB_ROOT = PROJECT_ROOT / "web"
@@ -209,7 +209,7 @@ class DashboardServer:
                     prices, prices_at = outer.db.market_snapshot()
                     rows = []
                     for position in outer.db.positions():
-                        price = prices.get(position.symbol, position.entry_price)
+                        price = usable_price(prices.get(position.symbol), prices_at, outer.config.bot.cycle_seconds)
                         row = position_metrics(position, price, outer.config.paper)
                         row["price_as_of"] = prices_at
                         rows.append(row)
@@ -225,7 +225,9 @@ class DashboardServer:
                     from contextlib import closing
                     from .paper_scorecard import paper_scorecard
                     with closing(sqlite3.connect(outer.config.bot.database_path.resolve().as_uri()+'?mode=ro', uri=True, timeout=3)) as connection:
-                        self._json(paper_scorecard(connection))
+                        prices, prices_at = outer.db.market_snapshot()
+                        self._json(paper_scorecard(connection, prices=prices, prices_at=prices_at,
+                            cycle_seconds=outer.config.bot.cycle_seconds, paper=outer.config.paper))
                 elif path == "/api/events":
                     self._json(outer.db.recent("events", 50))
                 elif path == "/api/ai-reviews":
