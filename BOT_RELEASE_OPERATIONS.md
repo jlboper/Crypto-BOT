@@ -22,6 +22,16 @@
    local HTTP identity, commits and authorizes operation. Before commit, failure
    restores files and database. After commit, recovery preserves current balances.
 
+Before requesting the owner's environment approval, verify an actual
+`portal-release.yml` run for the exact `main` commit with a `push` event. A PR
+validation run and a successful merge by themselves do not publish anything.
+After PR #11, a merge through an API did not yield a visible push run for the
+merged commit. A narrow follow-up PR merged by the owner in GitHub's web UI is
+the recovery path for this release: check that its merge starts the `main` push
+run, then review the protected `portal-production` job for that exact commit.
+Do not bypass the PR or environment review, reuse a PR run as a publication,
+or claim an installation from a workflow result alone.
+
 The Windows app and local portal open the same authenticated remote update
 center. They never need incoming PC ports, VPNs or tunnels. An online Windows
 agent is required for installation. A publication is not an installation.
