@@ -36,6 +36,7 @@ class TradingEngine:
             held_symbols = [position.symbol for position in self.db.positions()]
             if held_symbols:
                 protective_prices = self.exchange.latest_prices(set(held_symbols))
+                self._require_spot_prices(protective_prices, held_symbols)
                 self._manage_positions({}, protective_prices)
             symbols = self.exchange.top_usdt_symbols(self.config.bot.universe_size)
             held_symbols = [position.symbol for position in self.db.positions()]
@@ -45,9 +46,9 @@ class TradingEngine:
                 raise RuntimeError("BTC regime data unavailable")
             btc_bullish = self.strategy.btc_regime(candle_map["BTCUSDT"])
 
-            closed_prices = {symbol: candles[-1].close for symbol, candles in candle_map.items() if candles}
             try:
-                prices = {**closed_prices, **self.exchange.latest_prices(set(monitored_symbols))}
+                prices = self.exchange.latest_prices(set(monitored_symbols))
+                self._require_spot_prices(prices, held_symbols)
             except Exception as exc:
                 raise RuntimeError("Fresh prices unavailable; entries blocked") from exc
             self.db.record_market_snapshot(prices)
@@ -74,7 +75,8 @@ class TradingEngine:
                     self.db.record_signal(signal)
                 if signal.action == "BUY":
                     spot = prices.get(symbol)
-                    if spot and signal.stop_price and signal.take_profit and signal.stop_price < spot < signal.take_profit:
+                    if (spot is not None and self._valid_spot(spot) and signal.stop_price
+                            and signal.take_profit and signal.stop_price < spot < signal.take_profit):
                         candidates.append(replace(signal, price=spot))
             candidates.sort(key=lambda signal: signal.score, reverse=True)
 
@@ -159,6 +161,17 @@ class TradingEngine:
                     self.db.event("WARN", f"{symbol} data skipped: {type(exc).__name__}")
         return result
 
+    @staticmethod
+    def _valid_spot(price: object) -> bool:
+        return type(price) in (int, float) and math.isfinite(price) and price > 0
+
+    @classmethod
+    def _require_spot_prices(cls, prices: dict[str, float], held_symbols: list[str]) -> None:
+        if any(not cls._valid_spot(price) for price in prices.values()):
+            raise RuntimeError("Invalid spot quote")
+        if any(symbol not in prices for symbol in held_symbols):
+            raise RuntimeError("Held position missing spot quote")
+
     def _cached_candles(self, symbol):
         now = int(time.time() * 1000)
         cached = self._candle_cache.get(symbol)
@@ -189,13 +202,15 @@ class TradingEngine:
 
     def _manage_positions(self, candle_map: dict[str, list[Candle]], prices: dict[str, float]) -> None:
         for position in self.db.positions():
+            # Closed candles are signals, never a substitute for an executable
+            # quote when deciding whether to close a held position.
+            price = prices.get(position.symbol)
+            if not self._valid_spot(price):
+                raise RuntimeError("Held position missing valid spot quote")
             candles = candle_map.get(position.symbol)
             if not candles:
-                price = prices.get(position.symbol)
-                if price is not None:
-                    self.broker.protect(position, price, position.atr)
+                self.broker.protect(position, price, position.atr)
                 continue
-            price = prices.get(position.symbol, candles[-1].close)
             current_atr = atr(
                 [candle.high for candle in candles],
                 [candle.low for candle in candles],
@@ -275,5 +290,6 @@ class TradingEngine:
         symbols = {position.symbol for position in self.db.positions()}
         if symbols:
             prices = self.exchange.latest_prices(symbols)
+            self._require_spot_prices(prices, list(symbols))
             self._manage_positions({}, prices)
             self.db.record_market_snapshot(prices)

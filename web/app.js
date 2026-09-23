@@ -68,10 +68,13 @@ function renderPaperEvidence(report, equity, trades) {
     fees:trades.reduce((sum,row)=>sum+Number(row.fee||0),0),drawdown,win:null,points:samples.length};
   state.textContent=complete?(report.status==='REVIEW_REQUIRED'?'REVISIÓN HUMANA':'EVIDENCIA INSUFICIENTE'):'MUESTRA PARCIAL';
   state.className='state '+(complete&&report.status==='REVIEW_REQUIRED'?'warning':'neutral');
+  const openCount=Number(report?.open_positions||0);
+  const stale=openCount>0&&report?.price_status!=='fresh';
   note.textContent=complete?
-    `Historial PAPER desde ${shortTime(report.started_at)}. ${report.invalid_points?'Hay registros inválidos que requieren revisión. ':''}30 días y 30 cierres son solo un umbral de observación, nunca permiso para usar dinero real.`:
+    `Historial PAPER desde ${shortTime(report.started_at)}. ${stale?'Precios de posiciones abiertas ausentes o desactualizados: P&L abierto no disponible. ':''}${report.invalid_points?'Hay registros inválidos que requieren revisión. ':''}30 días y 30 cierres son solo un umbral de observación, nunca permiso para usar dinero real.`:
     'Se muestran solo los últimos 300 puntos de equity y 50 operaciones recibidos. El historial completo aparecerá cuando el agente de Windows incorpore esta medición.';
   const finite=value=>Number.isFinite(Number(value))?Number(value):0;
+  const optionalMoney=value=>value==null?'—':`${finite(value).toFixed(2)} USDT`;
   panel.innerHTML=[
     ['Días observados',finite(values.days).toFixed(1)],
     ['Operaciones cerradas',finite(values.trades).toFixed(0)],
@@ -79,8 +82,19 @@ function renderPaperEvidence(report, equity, trades) {
     ['Comisiones simuladas',`${finite(values.fees).toFixed(2)} USDT`],
     ['Drawdown de equity muestreada',`${finite(values.drawdown).toFixed(2)}%`],
     ['Operaciones ganadoras',values.win===null?'—':`${finite(values.win).toFixed(1)}%`],
-    ['Muestras de equity',finite(values.points).toFixed(0)]
+    ['Muestras de equity',finite(values.points).toFixed(0)],
+    ['P&amp;L abierto estimado',complete?optionalMoney(report.estimated_open_pnl_usdt):'—'],
+    ['Exposición abierta con precio reciente',complete?optionalMoney(report.open_exposure_usdt):'—'],
+    ['Factor de beneficio realizado',complete&&report.profit_factor!=null?finite(report.profit_factor).toFixed(2):'—']
   ].map(([label,value])=>`<article><span>${label}</span><strong>${value}</strong></article>`).join('');
+  const assets=complete&&Array.isArray(report.by_asset)?report.by_asset:[];
+  document.getElementById('paperAssetRows').innerHTML=assets.length?assets.map(asset=>`
+    <tr><td>${esc(asset.symbol)}</td><td>${finite(asset.closed_trades).toFixed(0)}</td>
+    <td class="${finite(asset.net_realized_pnl_usdt)>=0?'positive':'negative'}">${optionalMoney(asset.net_realized_pnl_usdt)}</td>
+    <td>${asset.win_rate_pct==null?'—':`${finite(asset.win_rate_pct).toFixed(1)}%`}</td>
+    <td>${optionalMoney(asset.open_exposure_usdt)}</td><td>${optionalMoney(asset.estimated_open_pnl_usdt)}</td></tr>`).join(''):
+    emptyRow(6,complete?'Aún no hay posiciones ni cierres.':'Disponible al sincronizar el historial completo.');
+  if (report?.omitted_assets) note.textContent+=` Se muestran los 20 activos más relevantes; ${report.omitted_assets} adicionales omitidos.`;
 }
 
 function renderResearch(report, state) {
@@ -133,6 +147,7 @@ function renderResearchDetail(asset) {
   const regimes=asset.regime_analysis||[];
   const sensitivity=asset.parameter_sensitivity||[];
   const holdout=asset.holdout;
+  const candidates=asset.candidates||[];
   const gateLabels={positive_vs_cash:'Supera efectivo',mean_fold_sharpe:'Sharpe OOS',positive_folds:'Consistencia',selection_stability:'Estabilidad de selección',monte_carlo_loss:'Monte Carlo',full_sample_sharpe:'Sharpe de desarrollo',parameter_stability:'Sensibilidad',turnover_control:'Rotación',data_quality:'Calidad de datos',holdout_positive:'Ventana final positiva',holdout_cost_stress:'Costos duplicados',minimum_oos_evidence:'Actividad OOS mínima'};
   const gates=Object.entries(asset.qualification?.gates||{});
   panel.hidden=false;
@@ -150,6 +165,10 @@ function renderResearchDetail(asset) {
       <article><span>Drawdown P95</span><strong>${Number(mc.p95_drawdown_pct||0).toFixed(2)}%</strong></article>
     </div>
     <div class="qualification"><h4>Puertas de promoción</h4><div>${gates.map(([name,ok])=>`<span class="gate ${ok?'gate-pass':'gate-fail'}">${ok?'✓':'×'} ${esc(gateLabels[name]||name)}</span>`).join('')||'<span class="gate">Informe anterior: vuelve a ejecutar el análisis.</span>'}</div></div>
+    <h4>Comparación entre estrategias · solo desarrollo OOS</h4>
+    <div class="table-wrap"><table class="research-table"><thead><tr><th>Estrategia</th><th>Retorno OOS</th><th>Cierres OOS</th><th>Ventanas +</th><th>Selección</th></tr></thead>
+    <tbody>${candidates.map(candidate=>`<tr><td>${esc(candidate.strategy)}</td><td>${candidate.development_oos_return_pct==null?'—':pct(candidate.development_oos_return_pct)}</td><td>${candidate.development_oos_trades==null?'—':Number(candidate.development_oos_trades)}</td><td>${candidate.development_positive_folds_pct==null?'—':pct(candidate.development_positive_folds_pct)}</td><td>${candidate.strategy===asset.champion_candidate?'Fijada en entrenamiento inicial':'Comparación retrospectiva'}</td></tr>`).join('')}</tbody></table></div>
+    <p class="research-updated">Este ranking se calculó después de observar las ventanas de desarrollo: no selecciona ni cambia estrategias en el bot. La ventana final reservada se informa arriba.</p>
     <div class="detail-columns"><div><h4>Por régimen · estrategia fija</h4>${regimes.map(row=>`<p><span>${esc(row.regime)} · ${Number(row.folds||0)} folds</span><strong>${pct(row.average_return_pct)}</strong></p>`).join('')}</div>
     <div><h4>Sensibilidad del score · muestra completa</h4>${sensitivity.map(row=>`<p><span>Umbral ${Number(row.minimum_score)}</span><strong>${pct(row.return_pct)} · DD ${Number(row.max_drawdown_pct||0).toFixed(1)}%</strong></p>`).join('')}</div></div>`;
   panel.scrollIntoView({behavior:'smooth',block:'nearest'});
@@ -193,7 +212,7 @@ async function refresh() {
     botState.classList.toggle('warning',activity.state==='delayed');
     botState.classList.toggle('offline',activity.state==='offline');
 
-    document.getElementById('positions').innerHTML=positions.length?positions.map(p=>`<tr><td><strong>${esc(p.symbol)}</strong></td><td>${num(p.quantity)}</td><td>${num(p.entry_price,4)}</td><td>${num(p.market_price,4)}</td><td class="${p.unrealized_pnl>=0?'positive':'negative'}">${p.unrealized_pnl>=0?'+':''}${num(p.unrealized_pnl,2)}</td><td class="${p.unrealized_pct>=0?'positive':'negative'}">${p.unrealized_pct>=0?'+':''}${num(p.unrealized_pct,2)}%</td><td>${num(p.stop_price,4)}</td><td>${num(p.take_profit,4)}</td><td>${num(p.high_water,4)}</td></tr>`).join(''):emptyRow(9,'Sin posiciones abiertas');
+    document.getElementById('positions').innerHTML=positions.length?positions.map(p=>`<tr><td><strong>${esc(p.symbol)}</strong></td><td>${num(p.quantity)}</td><td>${num(p.entry_price,4)}</td><td>${p.market_price==null?'—':num(p.market_price,4)}</td><td class="${p.unrealized_pnl==null?'':p.unrealized_pnl>=0?'positive':'negative'}">${p.unrealized_pnl==null?'—':`${p.unrealized_pnl>=0?'+':''}${num(p.unrealized_pnl,2)}`}</td><td class="${p.unrealized_pct==null?'':p.unrealized_pct>=0?'positive':'negative'}">${p.unrealized_pct==null?'—':`${p.unrealized_pct>=0?'+':''}${num(p.unrealized_pct,2)}%`}</td><td>${num(p.stop_price,4)}</td><td>${num(p.take_profit,4)}</td><td>${num(p.high_water,4)}</td></tr>`).join(''):emptyRow(9,'Sin posiciones abiertas');
     document.getElementById('trades').innerHTML=trades.length?trades.slice(0,8).map(t=>`<div class="feed-item"><strong class="${esc(t.side.toLowerCase())}">${esc(t.side)}</strong><div><strong>${esc(t.symbol)} · ${num(t.quantity)}</strong><p>${esc(t.reason)}</p></div><time>${shortTime(t.created_at)}</time></div>`).join(''):feedEmpty('Aún no hay operaciones');
     document.getElementById('reviews').innerHTML=reviews.length?reviews.slice(0,8).map(r=>`<div class="feed-item"><strong class="${esc(r.verdict.toLowerCase())}">${esc(r.verdict)}</strong><div><strong>${esc(r.symbol)} · ${(r.confidence*100).toFixed(0)}%</strong><p>${esc(r.reason)}</p></div><time>${shortTime(r.created_at)}</time></div>`).join(''):feedEmpty('Aún no hay revisiones');
     const important=events.filter(e=>['WARN','ERROR','CRITICAL'].includes(e.level)).slice(0,10);

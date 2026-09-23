@@ -33,6 +33,8 @@ La sensibilidad repite el candidato con el umbral de entrada cinco puntos por en
 
 La estrategia fija usa el mismo candidato en todos los bloques fuera de muestra. El selector adaptativo elige únicamente con información del bloque de entrenamiento anterior. Si el ganador de entrenamiento tiene retorno o Sharpe no positivo, o menos de tres operaciones, el siguiente bloque permanece en efectivo. Los dos resultados se muestran separados y nunca se atribuye el retorno adaptativo al candidato fijo.
 
+El detalle por activo muestra también el retorno OOS acumulado, número de operaciones y proporción de bloques positivos de cada candidato *solo durante el desarrollo*. Son comparaciones descriptivas sujetas a selección múltiple: no se usa la ventana final reservada para ordenarlos, no cambia la elección del campeón ni se transfieren parámetros al motor PAPER.
+
 El efectivo en USDT se modela como un benchmark de 0% antes de intereses. Una estrategia no califica solo por perder menos que una criptomoneda: debe superar también el efectivo.
 
 ## Puertas de promoción

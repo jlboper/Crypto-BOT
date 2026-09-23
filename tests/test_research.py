@@ -35,6 +35,8 @@ class ResearchTests(unittest.TestCase):
         self.assertEqual(report["mode"], "RESEARCH_ONLY")
         self.assertFalse(report["auto_promotion"])
         self.assertEqual(len(report["assets"][0]["candidates"]), 5)
+        self.assertTrue(all('development_oos_return_pct' in candidate and
+                            'development_oos_trades' in candidate for candidate in report['assets'][0]['candidates']))
         self.assertGreaterEqual(report["assets"][0]["walk_forward"]["folds"], 3)
         self.assertIn("portfolio", report)
         self.assertIn("correlations", report)
@@ -56,6 +58,7 @@ class ResearchTests(unittest.TestCase):
         self.assertEqual(changed["champion_candidate"], asset["champion_candidate"])
         self.assertEqual(changed["fixed_strategy"], asset["fixed_strategy"])
         self.assertEqual(changed["adaptive_selector"], asset["adaptive_selector"])
+        self.assertEqual(changed['candidates'], asset['candidates'])
 
 
 if __name__ == "__main__":

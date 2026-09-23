@@ -79,13 +79,18 @@
       <div class="panel-title"><h2>Seguimiento financiero PAPER</h2><span id="paperEvidenceState" class="state neutral">SIN DATOS</span></div>
       <p id="paperEvidenceNote">Los resultados observados no autorizan operar con dinero real.</p>
       <div id="paperEvidenceMetrics" class="research-summary"></div>
-      <p class="research-updated">El P&amp;L realizado ya incluye las comisiones de cada compra y venta; el drawdown se calcula con muestras de equity. Aún no hay historial de aportes/retiros ni benchmark sincronizado.</p>
+      <h3>Resultados por activo</h3>
+      <div class="table-wrap"><table class="asset-table">
+        <thead><tr><th>Activo</th><th>Cierres</th><th>Resultado realizado neto</th><th>Ganadoras</th><th>Exposición abierta</th><th>P&amp;L abierto estimado</th></tr></thead>
+        <tbody id="paperAssetRows"><tr><td colspan="6" class="empty">Esperando historial PAPER.</td></tr></tbody>
+      </table></div>
+      <p class="research-updated">P&amp;L realizado neto de comisiones; P&amp;L abierto estimado solo con cotizaciones recientes, incluyendo salida simulada. Drawdown muestreado. Sin libro de aportes/retiros ni benchmark PAPER sincronizado.</p>
     </section>
 
     <section class="panel research-lab">
       <div class="research-heading">
         <div>
-          <p class="eyebrow">RESEARCH LAB · V0.6.7</p>
+          <p class="eyebrow">RESEARCH LAB · V0.6.8</p>
           <h2>Validación multi-cripto</h2>
           <p class="research-copy">Compara estrategias con ejecución en la vela siguiente, costos, walk-forward y Monte Carlo. Ningún resultado se activa automáticamente.</p>
         </div>

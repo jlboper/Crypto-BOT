@@ -63,3 +63,32 @@ class PortalSnapshotTests(unittest.TestCase):
             self.assertEqual(result['sampled_max_drawdown_pct'],10)
             self.assertEqual(result['observed_days'],31)
             self.assertIn('no_historical_benchmark',result['limitations'])
+
+    def test_asset_breakdown_requires_fresh_price_for_open_estimate(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path=Path(folder)/'paper.db'
+            Database(path)
+            at=datetime(2026, 1, 1, tzinfo=UTC)
+            with closing(sqlite3.connect(path)) as connection:
+                connection.execute('INSERT INTO positions VALUES(?,?,?,?,?,?,?,?,?)',
+                    ('ETHUSDT',1,100,90,120,100,2,0.1,at.isoformat()))
+                connection.execute('INSERT INTO trades(symbol,side,quantity,price,fee,realized_pnl,reason,created_at) VALUES(?,?,?,?,?,?,?,?)',
+                    ('ETHUSDT','SELL',1,110,0.1,9.7,'test',at.isoformat()))
+                connection.execute('INSERT INTO trades(symbol,side,quantity,price,fee,realized_pnl,reason,created_at) VALUES(?,?,?,?,?,?,?,?)',
+                    ('BTCUSDT','SELL',1,50,0.1,-1,'test',at.isoformat()))
+                connection.commit()
+            config=load_config()
+            with closing(sqlite3.connect(path.resolve().as_uri()+'?mode=ro',uri=True)) as connection:
+                current=paper_scorecard(connection,prices={'ETHUSDT':110},prices_at=at.isoformat(),
+                    cycle_seconds=900,paper=config.paper,now=at+timedelta(minutes=1))
+                stale=paper_scorecard(connection,prices={'ETHUSDT':110},prices_at=at.isoformat(),
+                    cycle_seconds=900,paper=config.paper,now=at+timedelta(hours=1))
+            self.assertEqual(current['price_status'],'fresh')
+            self.assertEqual(current['open_positions'],1)
+            self.assertEqual(current['unpriced_positions'],0)
+            self.assertGreater(current['estimated_open_pnl_usdt'],0)
+            self.assertEqual(current['by_asset'][0]['symbol'],'ETHUSDT')
+            self.assertEqual(current['by_asset'][0]['net_realized_pnl_usdt'],9.7)
+            self.assertEqual(stale['price_status'],'stale_or_missing')
+            self.assertIsNone(stale['estimated_open_pnl_usdt'])
+            self.assertIsNone(stale['by_asset'][0]['estimated_open_pnl_usdt'])

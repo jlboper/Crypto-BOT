@@ -489,6 +489,14 @@ def _research_development(
         summary = _result_summary(full)
         summary["family"] = profile.family
         summary["mean_oos_score"] = round(statistics.fmean(test_scores[profile.name]), 4)
+        development_folds = fixed_folds[profile.name]
+        summary["development_oos_return_pct"] = round(
+            100.0 * (math.prod(1.0 + fold["test_return_pct"] / 100.0
+                               for fold in development_folds) - 1.0), 4)
+        summary["development_oos_trades"] = sum(fold["test_trades"] for fold in development_folds)
+        summary["development_positive_folds_pct"] = round(
+            100.0 * sum(fold["test_return_pct"] > 0 for fold in development_folds)
+            / len(development_folds), 2) if development_folds else 0.0
         summary["selected_folds"] = selection_counts[profile.name]
         candidates.append(summary)
         if profile.name == champion_name:
