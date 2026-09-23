@@ -2,8 +2,10 @@
 
 Last Windows baseline confirmed by the owner in the portal after the 0.6.7 update:
 **0.6.7** installed with startup and local PAPER portal checks completed. The
-voluntary restoration of 0.6.6 was offered but not executed. Version 0.6.8 is
-development work: it is not yet published or installed.
+voluntary restoration of 0.6.6 was offered but not executed. Version 0.6.8
+passed the PR #11 checks and was merged into `main`, but the merge did not
+produce a `portal-release.yml` push run. As of 23 September 2026 it is not
+confirmed published or installed.
 The outgoing HTTPS agent was connected,
 and the local and remote portals use the shared `web/` interface. The first signed
 installation and a later end-to-end update initiated with the remote portal button
