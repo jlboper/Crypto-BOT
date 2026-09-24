@@ -243,9 +243,12 @@ test('expanded dashboard remains authenticated and bounded',async t=>{
   const f=await fixture(t);
   const dashboard={status:{mode:'PAPER'},positions:[],equity:[],trades:[],reviews:[],events:[],research:{assets:[]}};
   assert.equal((await f.sync({snapshot:{...snapshot(),dashboard},acks:[]})).status,200);
+  const testnet={mode:'READ_ONLY_DRY_RUN',order_submission_enabled:false,planner:'public_filters_and_synthetic_reconciliation',next_step:'manual review'};
+  assert.equal((await f.sync({snapshot:{...snapshot(),dashboard:{...dashboard,testnet}},acks:[]})).status,200);
+  assert.equal((await f.sync({snapshot:{...snapshot(),dashboard:{...dashboard,testnet:{...testnet,order_submission_enabled:true}}},acks:[]})).status,400);
   assert.equal((await f.request('/v1/status')).status,401);
   await f.login();
-  assert.deepEqual((await f.request('/v1/status')).body.snapshot.dashboard,dashboard);
+  assert.deepEqual((await f.request('/v1/status')).body.snapshot.dashboard,{...dashboard,testnet});
   assert.equal((await f.sync({snapshot:{...snapshot(),dashboard:{...dashboard,status:{mode:'LIVE'}}},acks:[]})).status,400);
   assert.equal((await f.sync({snapshot:{...snapshot(),dashboard:{...dashboard,equity:Array(301).fill({})}},acks:[]})).status,400);
   const asset={symbol:'BTCUSDT',closed_trades:1,net_realized_pnl_usdt:1,win_rate_pct:100,

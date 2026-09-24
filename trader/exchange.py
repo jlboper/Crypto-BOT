@@ -200,3 +200,29 @@ class BinanceClient:
             }
         finally:
             self.base_url = original
+
+    def testnet_symbol_info(self, symbol: str) -> dict[str, Any]:
+        """Fetch public Testnet filters for planning; never submits an order."""
+        original = self.base_url
+        self.base_url = "https://testnet.binance.vision"
+        try:
+            payload = self._request("GET", "/api/v3/exchangeInfo", {"symbol": symbol.upper()})
+            rows = payload.get("symbols", []) if isinstance(payload, dict) else []
+            if not rows:
+                raise ExchangeError(f"Testnet symbol not found: {symbol.upper()}")
+            return rows[0]
+        finally:
+            self.base_url = original
+
+    def testnet_reference_price(self, symbol: str) -> float:
+        """Fetch a public Testnet reference price for a dry-run plan."""
+        original = self.base_url
+        self.base_url = "https://testnet.binance.vision"
+        try:
+            payload = self._request("GET", "/api/v3/ticker/price", {"symbol": symbol.upper()})
+            price = float(payload.get("price", 0)) if isinstance(payload, dict) else 0.0
+            if not math.isfinite(price) or price <= 0:
+                raise ExchangeError("Invalid Testnet reference price")
+            return price
+        finally:
+            self.base_url = original

@@ -1,5 +1,8 @@
 import tempfile
 import unittest
+import io
+import json
+import urllib.error
 from pathlib import Path
 from dataclasses import replace
 from unittest.mock import patch
@@ -61,3 +64,33 @@ class RemoteConnectionTests(unittest.TestCase):
                 raise ValueError('mode changed')
             self.agent.run(stop=lambda:bool(stopped), validate=invalid, report=report)
             sync.assert_not_called()
+
+    def test_dashboard_rejection_keeps_heartbeat_and_updates_without_exposing_response(self):
+        Database(self.config.bot.database_path)
+        self.agent.dashboard_provider = lambda: {'status': {'mode': 'PAPER'}}
+        calls = []
+        def send(request, timeout):
+            body = json.loads(request.data)
+            calls.append(body)
+            if len(calls) == 1:
+                raise urllib.error.HTTPError(request.full_url, 400, 'Bad Request', {},
+                    io.BytesIO(b'{"error":"Oversized PAPER scorecard"}'))
+            return io.BytesIO(b'{"commands":[],"jobs":[]}')
+        with patch.object(self.agent.opener, 'open', side_effect=send):
+            self.agent.sync()
+        self.assertEqual(len(calls), 2)
+        self.assertIn('dashboard', calls[0]['snapshot'])
+        self.assertNotIn('dashboard', calls[1]['snapshot'])
+        self.assertEqual(self.agent.last_error, 'DASHBOARD_REJECTED:Oversized PAPER scorecard')
+
+    def test_unknown_or_core_rejection_never_retries_or_surfaces_raw_body(self):
+        Database(self.config.bot.database_path)
+        self.agent.dashboard_provider = lambda: {'status': {'mode': 'PAPER'}}
+        for body in (b'{"error":"Invalid balance"}', b'{"error":"secret=sensitive"}'):
+            def reject(request, timeout):
+                raise urllib.error.HTTPError(request.full_url, 400, 'Bad Request', {}, io.BytesIO(body))
+            with patch.object(self.agent.opener, 'open', side_effect=reject) as call:
+                with self.assertRaises(urllib.error.HTTPError):
+                    self.agent.sync()
+                call.assert_called_once()
+            self.assertNotIn('sensitive', self.agent.last_error)

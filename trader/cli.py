@@ -17,6 +17,7 @@ from .monitoring import activity_status, position_metrics
 from .research import execute_research, report_without_trades
 from .runtime import single_instance
 from .runtime_control import RuntimeControl
+from .testnet import demo_lifecycle, plan_order
 
 
 def parser() -> argparse.ArgumentParser:
@@ -38,6 +39,15 @@ def parser() -> argparse.ArgumentParser:
     commands.add_parser("kill", help="Activate the emergency kill switch")
     commands.add_parser("resume", help="Clear the emergency kill switch")
     commands.add_parser("check-testnet", help="Verify Binance Spot Testnet credentials without placing an order")
+    testnet_plan = commands.add_parser(
+        "testnet-plan", help="Build a read-only Testnet order plan from public filters"
+    )
+    testnet_plan.add_argument("symbol", nargs="?", default="BTCUSDT")
+    testnet_plan.add_argument("--side", choices=("BUY", "SELL"), default="BUY")
+    testnet_plan.add_argument("--quote-amount", type=float, default=None)
+    testnet_plan.add_argument("--quantity", type=float, default=None)
+    testnet_plan.add_argument("--price", type=float, default=None, help="Reference price; fetched from Testnet when omitted")
+    commands.add_parser("testnet-simulate", help="Exercise synthetic Testnet reconciliation without network writes")
     return root
 
 
@@ -142,3 +152,28 @@ def main() -> None:
         except Exception as exc:
             print(f"Testnet verification failed: {exc}", file=sys.stderr)
             raise SystemExit(1) from exc
+    elif args.command == "testnet-plan":
+        if args.quote_amount is None and args.quantity is None:
+            raise SystemExit("Provide --quote-amount or --quantity")
+        try:
+            exchange = BinanceClient()
+            symbol = args.symbol.upper()
+            price = args.price if args.price is not None else exchange.testnet_reference_price(symbol)
+            plan = plan_order(
+                symbol,
+                args.side,
+                price,
+                exchange.testnet_symbol_info(symbol),
+                quote_amount=args.quote_amount,
+                quantity=args.quantity,
+            )
+            print(json.dumps(plan.as_dict(), indent=2))
+        except Exception as exc:
+            print(f"Testnet plan failed: {exc}", file=sys.stderr)
+            raise SystemExit(1) from exc
+    elif args.command == "testnet-simulate":
+        print(json.dumps({
+            "execution_mode": "READ_ONLY_DRY_RUN",
+            "order_submission_enabled": False,
+            "snapshots": demo_lifecycle(),
+        }, indent=2))

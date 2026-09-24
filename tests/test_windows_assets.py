@@ -22,15 +22,19 @@ class WindowsAssetTests(unittest.TestCase):
                 self.assertTrue(payload.startswith(b"\x00\x00\x01\x00"))
                 self.assertGreater(len(payload), 1024)
 
-    def test_manager_routes_remote_portal_and_updates_through_public_portal(self):
+    def test_manager_updates_locally_with_independent_signed_supervisor(self):
         source = (PROJECT_ROOT / "scripts" / "manager_windows.ps1").read_text(encoding="utf-8-sig")
         self.assertIn(
             '$RemotePortalUrl = "https://crypto-paper-private-portal.jlboper.workers.dev/"',
             source,
         )
-        self.assertIn('$UpdateCenterUrl = $RemotePortalUrl + "#updates"', source)
         self.assertIn('$openRemoteButton.Add_Click({ Start-Process -FilePath $RemotePortalUrl })', source)
-        self.assertIn('$updateButton.Add_Click({ Start-Process -FilePath $UpdateCenterUrl })', source)
+        self.assertIn('$updateButton.Add_Click({ Show-LocalUpdateCenter })', source)
+        self.assertIn('$checkUpdatesItem.Add_Click({ Show-LocalUpdateCenter })', source)
+        self.assertIn('scripts\\local_update.py', source)
+        self.assertIn('--agent-root', source)
+        self.assertIn('-ApprovedRelease $verified.release_id', source)
+        self.assertNotIn('Start-Process -FilePath $UpdateCenterUrl', source)
         self.assertIn('$notifyMenu.Items.Add("Abrir portal remoto")', source)
         self.assertIn('$notifyMenu.Items.Add("Centro de actualizaciones")', source)
 
@@ -51,7 +55,7 @@ class WindowsAssetTests(unittest.TestCase):
         html = (PROJECT_ROOT / "web" / "index.html").read_text(encoding="utf-8")
         manifest = (PROJECT_ROOT / "web" / "manifest.webmanifest").read_text(encoding="utf-8")
         script = (PROJECT_ROOT / "web" / "app.js").read_text(encoding="utf-8")
-        self.assertIn("EVALUACIÓN HISTÓRICA · V0.6.11", html)
+        self.assertIn("EVALUACIÓN HISTÓRICA · V0.6.12", html)
         self.assertIn('"display": "standalone"', manifest)
         self.assertIn("/api/research/run", script)
         self.assertIn("serviceWorker", script)

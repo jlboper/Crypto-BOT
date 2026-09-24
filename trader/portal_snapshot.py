@@ -49,6 +49,12 @@ def dashboard_snapshot(config, report_path=None):
                 paper=config.paper, research_symbols=config.research.symbols),
             'research':{'mode':'RESEARCH_ONLY','status':'NOT_RUN','assets':[]},
             'research_state':{'running':False,'error':None},
+            'testnet':{
+                'mode':'READ_ONLY_DRY_RUN',
+                'order_submission_enabled':False,
+                'planner':'public_filters_and_synthetic_reconciliation',
+                'next_step':'manual review of a Testnet plan, followed by separate approval and reconciliation work',
+            },
             'updates':{'status':'not_configured','message':'Falta configurar el canal firmado y la recuperación supervisada.'},
         }
         for key in ('trades','reviews','events'):

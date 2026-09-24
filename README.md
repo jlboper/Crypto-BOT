@@ -75,11 +75,17 @@ python -m trader resume
 
 # Verificar credenciales Binance Spot Testnet sin operar
 python -m trader check-testnet
+
+# Preparar una orden hipotética con filtros públicos de Testnet (sin enviarla)
+python -m trader testnet-plan BTCUSDT --side BUY --quote-amount 25
+
+# Simular conciliación NEW → PARTIALLY_FILLED → FILLED sin red ni credenciales
+python -m trader testnet-simulate
 ```
 
 ## Binance Testnet (preparado, no activado)
 
-`BINANCE_API_KEY` y `BINANCE_API_SECRET` pueden añadirse a `.env.local`. El comando `check-testnet` consulta la cuenta de Testnet y no envía órdenes. La activación de órdenes se hará solo después de validar backtests y varias semanas de paper trading.
+`BINANCE_API_KEY` y `BINANCE_API_SECRET` pueden añadirse a `.env.local`. El comando `check-testnet` consulta la cuenta de Testnet y no envía órdenes. `testnet-plan` consulta únicamente filtros y precio públicos para redondear una orden hipotética; `testnet-simulate` prueba la conciliación con datos sintéticos. No existe transporte de escritura y la activación de órdenes se hará solo después de validar backtests, varias semanas de paper trading, pruebas de conciliación y una autorización separada.
 
 Las claves de Binance deben pertenecer a una subcuenta separada, permitir únicamente lectura/trading, tener retiros desactivados y estar restringidas a la IP fija del servidor.
 
@@ -138,7 +144,7 @@ El portal local y el remoto distribuyen la misma interfaz. El remoto exige auten
 
 ## Actualizaciones asistidas
 
-La aplicación Windows y el portal local dirigen al mismo centro remoto. Para el portal web, Work prepara un PR, GitHub prueba el commit y el propietario autoriza el entorno protegido desde el enlace mostrado. Cloudflare recibe credenciales únicamente después de la aprobación; CI rechaza migraciones pendientes y hace rollback si la salud falla. Consulta `GITHUB_RELEASES.md`.
+La app de Windows dispone de un centro de actualización **local**: puede buscar y verificar el paquete firmado por Internet, o instalar uno ya descargado incluso si el portal web no está disponible. Solicita aprobación de la identificación exacta y usa el supervisor independiente para detener el motor PAPER de manera cooperativa, conservar respaldo y comprobar el arranque. El portal local mantiene la ruta web existente para quien prefiera ese flujo; ninguno instala ZIP sin firma. Para publicar una versión nueva, Work prepara un PR, GitHub prueba el commit y el propietario autoriza el entorno protegido desde el enlace mostrado. Cloudflare recibe credenciales únicamente después de la aprobación; CI rechaza migraciones pendientes y hace rollback si la salud falla. Consulta `GITHUB_RELEASES.md`.
 
 El instalador gráfico antiguo basado únicamente en SHA-256 fue retirado. `trader.update_manager` verifica paquetes Ed25519, evita downgrade, conserva respaldo y recupera cambios incompletos. El supervisor de Windows instala versiones firmadas tras aprobación exacta y ofrece una restauración voluntaria del código anterior desde **Opciones → Restaurar versión anterior** cuando conserva una copia comprobable. La operación deja intactos saldos, operaciones y la secuencia antirretroceso; solo aparece después de una instalación firmada realizada por el supervisor actualizado. `ACTUALIZAR_BOT.cmd` queda como herramienta técnica local.
 
@@ -154,9 +160,11 @@ En 0.6.10 el informe muestra también BTC con comisión y slippage PAPER en ambo
 
 En 0.6.11 el desglose muestra hasta 50 activos cerrados y concilia el resto en «Otros»; agrupa P&L neto por motivo de salida y muestra cuántas operaciones PAPER pertenecen realmente a los cinco activos del estudio. La proyección HTTPS admite este historial acotado. Antes de cada nueva compra PAPER, un diagnóstico usa las reglas públicas ya descargadas de Binance Spot para estimar si la cantidad y el valor mínimo de una hipotética orden MARKET serían compatibles. La operación simulada sigue igual: el resultado solo sirve para investigar incompatibilidades; no se envía ninguna orden. El precio spot no sustituye al precio medio que Binance puede usar para el filtro de notional, ni valida balances o ejecución Testnet. Los diagnósticos nuevos se conservan hasta 90 días; no se alteran las operaciones ni el historial financiero previo.
 
+En 0.6.12 el portal deja visibles las puertas unificadas de promoción: ventaja frente a efectivo y mantener el activo, consistencia OOS, costos duplicados en la ventana reservada, actividad mínima y un forward test futuro. Aunque un activo supere las puertas, permanece en `RESEARCH_ONLY` y no modifica el motor PAPER. Testnet añade un planificador de cantidad y notional basado en filtros públicos y una máquina de estados sintética para probar conciliación sin enviar órdenes. La revisión de IA sigue en GPT-5.6 Luna porque es el identificador disponible en la API; `OPENAI_MODEL` permite seleccionar un modelo API confirmado en una instalación autorizada. `gpt-6-luna` no se configura sin un identificador oficial.
+
 ## Centro de control de Windows
 
-Haz doble clic en `Crypto AI Trader.vbs` para abrir una aplicación gráfica sin consola. Desde allí puedes comprobar el estado, equity, rendimiento, efectivo, exposición, posiciones y último ciclo; abrir el portal local o el remoto; abrir el centro remoto de actualizaciones; reiniciar el motor; manejar el kill switch y configurar el inicio automático. Al minimizar o cerrar, el indicador continúa en el área de notificaciones de Windows y cambia de color según el estado.
+Haz doble clic en `Crypto AI Trader.vbs` para abrir una aplicación gráfica sin consola. Desde allí puedes comprobar el estado, equity, rendimiento, efectivo, exposición, posiciones y último ciclo; abrir el portal local o el remoto; buscar e instalar actualizaciones firmadas directamente desde la PC; reiniciar el motor; manejar el kill switch y configurar el inicio automático. Si Internet falla, el botón puede comprobar un paquete firmado previamente descargado; no puede descubrir versiones que no estén ya en la PC. El supervisor independiente debe estar configurado y la versión debe estar firmada, vigente y ser más reciente. Al minimizar o cerrar, el indicador continúa en el área de notificaciones de Windows y cambia de color según el estado.
 
 ## Seguridad operacional
 
