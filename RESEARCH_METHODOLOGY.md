@@ -48,6 +48,7 @@ Monte Carlo remuestrea los retornos de operaciones fuera de muestra 1,000 veces 
 - OHLC de cuatro horas no revela el orden exacto de eventos dentro de cada vela.
 - El modelo actual es long-only y no modela profundidad del libro, latencia variable, impuestos ni fallas de exchange.
 - Cinco candidatos reducen la búsqueda indiscriminada, pero no eliminan sesgos de selección.
+- El laboratorio predeterminado cubre BTC, ETH, SOL, BNB y XRP; el motor PAPER rota entre los pares líquidos del día. La cobertura real de cierres se informa en el portal desde 0.6.11. No se puede atribuir a los otros activos el resultado histórico de estos cinco.
 - El historial de un régimen no representa necesariamente el siguiente.
 - La heurística de sobreajuste no equivale a una implementación formal de Probability of Backtest Overfitting.
 

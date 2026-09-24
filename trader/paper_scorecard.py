@@ -1,6 +1,7 @@
 """Read-only forward PAPER evidence; no strategy selection or trading action."""
 from __future__ import annotations
 
+import json
 import math
 from datetime import UTC, datetime
 from .domain import Position
@@ -15,7 +16,8 @@ def _time(value):
         return None
 
 
-def paper_scorecard(connection, *, prices=None, prices_at=None, cycle_seconds=None, paper=None, now=None):
+def paper_scorecard(connection, *, prices=None, prices_at=None, cycle_seconds=None, paper=None,
+                    research_symbols=(), now=None):
     """Summarize all recorded equity points and closed PAPER trades.
 
     Cash flows have no dedicated ledger, so the comparison cannot claim
@@ -92,8 +94,34 @@ def paper_scorecard(connection, *, prices=None, prices_at=None, cycle_seconds=No
         else:
             missing_quotes.append(position.symbol)
     open_symbols = {row['symbol'] for row in open_rows}
-    selected = sorted(by_asset.values(), key=lambda item:
-        (item['symbol'] not in open_symbols, -item['closed_trades'], item['symbol']))[:20]
+    ordered = sorted(by_asset.values(), key=lambda item:
+        (item['symbol'] not in open_symbols, -item['closed_trades'], item['symbol']))
+    selected, omitted = ordered[:50], ordered[50:]
+    studied = set(research_symbols)
+    research_closes = sum(row['closed_trades'] for row in by_asset.values() if row['symbol'] in studied)
+    exits = connection.execute('''
+        SELECT CASE WHEN reason='protective stop' THEN 'protective_stop'
+                    WHEN reason='take profit' THEN 'take_profit'
+                    WHEN reason LIKE 'trend exit:%' THEN 'trend_exit'
+                    ELSE 'other' END AS exit_type,
+               COUNT(*), COALESCE(SUM(realized_pnl),0)
+        FROM trades WHERE side='SELL' GROUP BY exit_type ORDER BY exit_type
+    ''').fetchall()
+    preflight_counts = dict(connection.execute('''
+        SELECT status,COUNT(*) FROM order_preflight GROUP BY status
+    ''').fetchall())
+    preflight_issues = []
+    for symbol, status, raw in connection.execute('''
+        SELECT symbol,status,reasons FROM order_preflight
+        WHERE status!='estimated_compatible' ORDER BY id DESC LIMIT 3
+    '''):
+        try:
+            reasons = json.loads(raw)
+        except (TypeError, ValueError):
+            reasons = []
+        preflight_issues.append({'symbol': str(symbol)[:30], 'status': str(status)[:24],
+                                 'reasons': [str(reason)[:40] for reason in reasons[:4]]
+                                 if isinstance(reasons, list) else []})
     comparable = benchmark_count >= 2 and benchmark_start < benchmark_end
     paper_return = 100*(benchmark_last[0]/benchmark_first[0]-1) if comparable else None
     btc_return = 100*(benchmark_last[1]/benchmark_first[1]-1) if comparable else None
@@ -121,7 +149,20 @@ def paper_scorecard(connection, *, prices=None, prices_at=None, cycle_seconds=No
         'price_status': ('not_applicable' if not open_rows else
                          'fresh' if not missing_quotes else 'stale_or_missing'),
         'prices_at': quote_time.isoformat() if quote_time else None,
-        'by_asset': selected, 'omitted_assets': len(by_asset) - len(selected),
+        'by_asset': selected, 'omitted_assets': len(omitted),
+        'attribution': {
+            'omitted_closed_trades': sum(row['closed_trades'] for row in omitted),
+            'omitted_net_realized_pnl_usdt': round(sum(row['net_realized_pnl_usdt'] for row in omitted), 4),
+            'research_closed_trades': research_closes if studied else None,
+            'research_symbols': sorted(studied),
+            'exit_reasons': [{'reason': row[0], 'closed_trades': int(row[1]),
+                              'net_realized_pnl_usdt': round(float(row[2]),4)} for row in exits],
+            'market_preflight': {'checked': sum(preflight_counts.values()),
+                                 'estimated_compatible': preflight_counts.get('estimated_compatible',0),
+                                 'incompatible': preflight_counts.get('incompatible',0),
+                                 'unknown': preflight_counts.get('unknown',0),
+                                 'recent_issues': preflight_issues},
+        },
         'equity_change_pct': round(100*(last_equity/first_equity-1), 3) if points else None,
         'sampled_max_drawdown_pct': round(100*max_drawdown, 3) if points else None,
         'benchmark': {

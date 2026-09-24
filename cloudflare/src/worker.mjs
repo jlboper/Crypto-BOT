@@ -95,7 +95,11 @@ function validateSnapshot(snapshot) {
     if(d.paper_scorecard!==undefined){
       const s=d.paper_scorecard;
       assert(object(s)&&s.mode==='PAPER'&&['INSUFFICIENT_EVIDENCE','REVIEW_REQUIRED'].includes(s.status),'Invalid PAPER scorecard');
-      assert(Object.keys(s).length<=26&&JSON.stringify(s).length<3500,'Oversized PAPER scorecard');
+      assert(Object.keys(s).length<=26&&Array.isArray(s.by_asset)&&s.by_asset.length<=50
+        &&(!s.attribution||(object(s.attribution)&&Array.isArray(s.attribution.exit_reasons)
+          &&s.attribution.exit_reasons.length<=4&&Array.isArray(s.attribution.research_symbols)
+          &&s.attribution.research_symbols.length<=10))
+        &&JSON.stringify(s).length<13000,'Oversized PAPER scorecard');
     }
     for(const key of ['positions','equity','trades','reviews','events'])assert(Array.isArray(d[key]) && d[key].length<=300,'Dashboard rows exceeded');
     assert(object(d.research) && Array.isArray(d.research.assets) && d.research.assets.length<=30,'Invalid research report');

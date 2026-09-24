@@ -8,10 +8,11 @@ penalty. AI can reject or shrink candidates; ATR stops and portfolio caps
 remain in force. The five historical profiles are research comparisons, not
 five operating bots. No profile is promoted or reparameterized automatically.
 
-This source copy has **no authenticated account history** from the Windows PC.
-The owner's older portal screenshot showed PAPER balances but cannot establish
-current profit, sample size, benchmark comparison or an edge. The portal's
-actual 30-day and 30-close values must be reviewed on the installed version.
+The owner has separately inspected the installed Windows PAPER scorecard in
+read-only mode. This source copy still contains **no operating account history**.
+The observed historical study did not qualify any of its five assets, and its
+five-asset universe does not cover every PAPER trade. The 30-day observation
+and matched BTC benchmark windows need additional genuinely new data.
 
 ## Evidence informing this iteration
 
@@ -50,9 +51,17 @@ BTC quotes were recorded are not fabricated. Cash deposits and withdrawals
 have no dedicated ledger, so even a positive comparison is not conclusive.
 
 The daily 90-day cleanup covers only signals, AI reviews, events and entry
-attempt claims. It also runs during a kill switch or risk halt once prices and
+attempt claims (plus, since 0.6.11, candidate order preflight diagnostics).
+It also runs during a kill switch or risk halt once prices and
 portfolio state have been checked. Equity, BTC observations, trades, open
 positions, backups and signed releases are not deleted by this change.
+
+The 0.6.11 PAPER preflight checks already fetched Binance exchangeInfo filters
+for candidate quantity steps and minimum/maximum estimated MARKET notional.
+It **does not** change PAPER quantity, allow exchange orders, or certify that
+an order will be accepted. MARKET notional can depend on a reference or
+weighted average price unavailable to this check; account balances, latency,
+duplicate protection and fills still require separate Testnet work.
 
 ## Decision gates still open
 

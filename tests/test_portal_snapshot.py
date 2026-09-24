@@ -88,6 +88,30 @@ class PortalSnapshotTests(unittest.TestCase):
             self.assertAlmostEqual(report['benchmark']['net_difference_pp'],
                                    report['benchmark']['paper_return_pct']-report['benchmark']['btc_net_return_pct'],places=3)
 
+    def test_attribution_reconciles_all_assets_exits_and_research_coverage(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path=Path(folder)/'paper.db'
+            db=Database(path)
+            for index in range(55):
+                db.record_trade(f'COIN{index:02}USDT','SELL',1,100,0.1,
+                                -2.0 if index >= 50 else 1.0,
+                                'protective stop' if index >= 50 else 'take profit')
+            with closing(sqlite3.connect(path.resolve().as_uri()+'?mode=ro',uri=True)) as connection:
+                report=paper_scorecard(connection,research_symbols=('COIN00USDT','COIN54USDT'))
+            self.assertEqual(report['closed_trades'],55)
+            self.assertEqual(report['net_realized_pnl_usdt'],40)
+            self.assertEqual(len(report['by_asset']),50)
+            self.assertEqual(report['omitted_assets'],5)
+            self.assertEqual(report['attribution']['omitted_closed_trades'],5)
+            self.assertEqual(report['attribution']['omitted_net_realized_pnl_usdt'],-10)
+            self.assertAlmostEqual(sum(row['net_realized_pnl_usdt'] for row in report['by_asset'])+
+                                   report['attribution']['omitted_net_realized_pnl_usdt'],
+                                   report['net_realized_pnl_usdt'])
+            self.assertEqual(report['attribution']['research_closed_trades'],2)
+            self.assertEqual(sum(row['closed_trades'] for row in report['attribution']['exit_reasons']),55)
+            self.assertEqual(sum(row['net_realized_pnl_usdt'] for row in report['attribution']['exit_reasons']),40)
+
+
     def test_asset_breakdown_requires_fresh_price_for_open_estimate(self):
         with tempfile.TemporaryDirectory() as folder:
             path=Path(folder)/'paper.db'

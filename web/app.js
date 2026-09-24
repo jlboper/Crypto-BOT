@@ -103,13 +103,33 @@ function renderPaperEvidence(report, equity, trades) {
   const checklist=document.getElementById('readinessChecks');checklist.replaceChildren();
   for(const [ready,label] of checks){const item=document.createElement('li');item.textContent=`${ready?'✓':'○'} ${label}`;checklist.append(item);}
   const assets=complete&&Array.isArray(report.by_asset)?report.by_asset:[];
-  document.getElementById('paperAssetRows').innerHTML=assets.length?assets.map(asset=>`
+  const attribution=report?.attribution||{};
+  const preflight=attribution.market_preflight||{};
+  const latest=Array.isArray(preflight.recent_issues)?preflight.recent_issues:[];
+  document.getElementById('marketPreflight').textContent=Number(preflight.checked)>0?
+    `Compatibilidad aproximada de ${finite(preflight.checked).toFixed(0)} entradas PAPER candidatas: ${finite(preflight.estimated_compatible).toFixed(0)} pasan los filtros públicos comprobados, ${finite(preflight.incompatible).toFixed(0)} presentan incompatibilidades y ${finite(preflight.unknown).toFixed(0)} no tienen reglas suficientes. ${latest.length?`Ejemplos recientes: ${latest.map(row=>`${row.symbol} (${Array.isArray(row.reasons)?row.reasons.join(', '):'sin detalle'})`).join(' · ')}. `:''}El valor mínimo de una orden de mercado usa precios de referencia que pueden variar; faltan Testnet y conciliación de ejecuciones.`:
+    'Aún no se evaluaron candidatas con las reglas públicas de Binance Spot. El preflight se registra a partir de esta versión; no envía órdenes ni certifica ejecución.';
+  const shown=assets.map(asset=>`
     <tr><td>${esc(asset.symbol)}</td><td>${finite(asset.closed_trades).toFixed(0)}</td>
     <td class="${finite(asset.net_realized_pnl_usdt)>=0?'positive':'negative'}">${optionalMoney(asset.net_realized_pnl_usdt)}</td>
     <td>${asset.win_rate_pct==null?'—':`${finite(asset.win_rate_pct).toFixed(1)}%`}</td>
-    <td>${optionalMoney(asset.open_exposure_usdt)}</td><td>${optionalMoney(asset.estimated_open_pnl_usdt)}</td></tr>`).join(''):
+    <td>${optionalMoney(asset.open_exposure_usdt)}</td><td>${optionalMoney(asset.estimated_open_pnl_usdt)}</td></tr>`).join('');
+  const remaining=Number(report?.omitted_assets||0)>0?
+    `<tr><td>Otros ${finite(report.omitted_assets).toFixed(0)} activos</td><td>${finite(attribution.omitted_closed_trades).toFixed(0)}</td>
+    <td class="${finite(attribution.omitted_net_realized_pnl_usdt)>=0?'positive':'negative'}">${optionalMoney(attribution.omitted_net_realized_pnl_usdt)}</td><td>—</td><td>—</td><td>—</td></tr>`:'';
+  document.getElementById('paperAssetRows').innerHTML=shown||remaining?shown+remaining:
     emptyRow(6,complete?'Aún no hay posiciones ni cierres.':'Disponible al sincronizar el historial completo.');
-  if (report?.omitted_assets) note.textContent+=` Se muestran los 20 activos más relevantes; ${report.omitted_assets} adicionales omitidos.`;
+  const exitLabels={protective_stop:'Stop de protección',take_profit:'Objetivo de ganancia',trend_exit:'Salida por tendencia',other:'Otro motivo'};
+  const exits=complete&&Array.isArray(attribution.exit_reasons)?attribution.exit_reasons:[];
+  document.getElementById('paperExitRows').innerHTML=exits.length?exits.map(row=>
+    `<tr><td>${exitLabels[row.reason]||'Otro motivo'}</td><td>${finite(row.closed_trades).toFixed(0)}</td>
+    <td class="${finite(row.net_realized_pnl_usdt)>=0?'positive':'negative'}">${optionalMoney(row.net_realized_pnl_usdt)}</td></tr>`).join(''):
+    emptyRow(3,complete?'Aún no hay cierres.':'Disponible al sincronizar el historial completo.');
+  const covered=attribution.research_closed_trades;
+  document.getElementById('researchCoverage').textContent=complete&&covered!=null?
+    `Los cinco activos estudiados concentran ${finite(covered).toFixed(0)} de ${finite(report.closed_trades).toFixed(0)} cierres PAPER. El informe histórico no evalúa los demás pares operados por el bot.`:
+    'El informe histórico solo estudia cinco activos; esperando historial completo para medir su cobertura de las operaciones PAPER.';
+  if (report?.omitted_assets) note.textContent+=` ${report.omitted_assets} activos agrupados en «Otros»; su resultado y cierres están incluidos en el total.`;
 }
 
 function renderResearch(report, state) {

@@ -248,6 +248,14 @@ test('expanded dashboard remains authenticated and bounded',async t=>{
   assert.deepEqual((await f.request('/v1/status')).body.snapshot.dashboard,dashboard);
   assert.equal((await f.sync({snapshot:{...snapshot(),dashboard:{...dashboard,status:{mode:'LIVE'}}},acks:[]})).status,400);
   assert.equal((await f.sync({snapshot:{...snapshot(),dashboard:{...dashboard,equity:Array(301).fill({})}},acks:[]})).status,400);
+  const asset={symbol:'BTCUSDT',closed_trades:1,net_realized_pnl_usdt:1,win_rate_pct:100,
+    open_exposure_usdt:null,estimated_open_pnl_usdt:null};
+  const scorecard={mode:'PAPER',status:'INSUFFICIENT_EVIDENCE',by_asset:Array.from({length:24},(_,i)=>
+    ({...asset,symbol:`SYM${i}USDT`})),attribution:{research_symbols:['BTCUSDT'],exit_reasons:[]}};
+  assert.ok(JSON.stringify(scorecard).length>3500);
+  assert.equal((await f.sync({snapshot:{...snapshot(),dashboard:{...dashboard,paper_scorecard:scorecard}},acks:[]})).status,200);
+  assert.equal((await f.sync({snapshot:{...snapshot(),dashboard:{...dashboard,paper_scorecard:{...scorecard,by_asset:Array(51).fill(asset)}}},acks:[]})).status,400);
+  assert.equal((await f.sync({snapshot:{...snapshot(),dashboard:{...dashboard,paper_scorecard:{...scorecard,extra:'x'.repeat(13000)}}},acks:[]})).status,400);
 });
 
 test('update discovery requires an owner session and exposes no approval endpoint',async t=>{

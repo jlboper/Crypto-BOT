@@ -14,6 +14,7 @@ from .domain import Candle, Signal
 from .exchange import BinanceClient
 from .indicators import atr
 from .strategy import SwingStrategy
+from .spot_preflight import market_quantity_preflight
 
 
 class TradingEngine:
@@ -114,6 +115,9 @@ class TradingEngine:
                     continue
                 if self.killed():
                     break
+                status, reasons = market_quantity_preflight(
+                    self.exchange.cached_symbol_info(signal.symbol), quantity, signal.price)
+                self.db.record_order_preflight(signal.symbol, status, reasons)
                 self.broker.buy(signal, quantity, f"score={signal.score}; AI={review.verdict}: {review.reason}")
                 opened.append(signal.symbol)
 

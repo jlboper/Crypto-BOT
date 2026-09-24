@@ -119,6 +119,13 @@ class Database:
                     symbol TEXT NOT NULL, candle_time INTEGER NOT NULL,
                     PRIMARY KEY(symbol, candle_time)
                 );
+                CREATE TABLE IF NOT EXISTS order_preflight (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    symbol TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    reasons TEXT NOT NULL,
+                    created_at TEXT NOT NULL
+                );
                 """
             )
 
@@ -145,7 +152,7 @@ class Database:
     def prune_diagnostics(self, before: str) -> None:
         """Keep financial history; bound only expendable diagnostics."""
         with self.connect() as db:
-            for table in ("signals", "events", "ai_reviews"):
+            for table in ("signals", "events", "ai_reviews", "order_preflight"):
                 db.execute(f"DELETE FROM {table} WHERE created_at < ?", (before,))
             db.execute("DELETE FROM entry_attempts WHERE candle_time < ?",
                        (int(datetime.fromisoformat(before).timestamp() * 1000),))
@@ -213,6 +220,11 @@ class Database:
                 "INSERT INTO signals(symbol, action, score, price, payload, created_at) VALUES(?,?,?,?,?,?)",
                 (signal.symbol, signal.action, signal.score, signal.price, json.dumps(signal.to_dict()), signal.created_at),
             )
+
+    def record_order_preflight(self, symbol: str, status: str, reasons: list[str]) -> None:
+        with self.connect() as db:
+            db.execute('INSERT INTO order_preflight(symbol,status,reasons,created_at) VALUES(?,?,?,?)',
+                       (symbol, status, json.dumps(reasons), datetime.now(UTC).isoformat()))
 
     def record_ai_review(self, symbol: str, review: AIReview) -> None:
         with self.connect() as db:
