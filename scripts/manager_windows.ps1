@@ -17,7 +17,6 @@ public static class CryptoAITraderWindowsIdentity {
 $ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $DashboardUrl = "http://127.0.0.1:8765"
 $RemotePortalUrl = "https://crypto-paper-private-portal.jlboper.workers.dev/"
-$UpdateCenterUrl = $RemotePortalUrl + "#updates"
 $KillSwitchPath = Join-Path $ProjectRoot "data\KILL_SWITCH"
 $StartupFolder = [Environment]::GetFolderPath("Startup")
 $StartupShortcut = Join-Path $StartupFolder "Crypto AI Trader.lnk"
@@ -35,6 +34,79 @@ function Get-InstalledVersion {
     $match = Select-String -Path $projectFile -Pattern '^version\s*=\s*"([^"]+)"' | Select-Object -First 1
     if ($match) { return $match.Matches[0].Groups[1].Value }
     return "desconocida"
+}
+
+function Invoke-LocalSignedUpdate {
+    param([string]$Action, [string]$ApprovedRelease = '')
+    $task = Get-ScheduledTask -TaskName 'Crypto Paper Portal Agent' -ErrorAction Stop
+    if (-not $task.Actions -or -not $task.Actions[0].WorkingDirectory) {
+        throw 'Falta la carpeta del supervisor independiente de Windows.'
+    }
+    $agentRoot = (Resolve-Path -LiteralPath $task.Actions[0].WorkingDirectory).Path
+    if ($agentRoot -eq $ProjectRoot) { throw 'La instalación local requiere el supervisor independiente.' }
+    $scriptPath = Join-Path $ProjectRoot 'scripts\local_update.py'
+    if (-not (Test-Path -LiteralPath $scriptPath)) {
+        throw 'El bot instalado necesita el centro local de actualizaciones actualizado.'
+    }
+    $taskExecutable = [Environment]::ExpandEnvironmentVariables([string]$task.Actions[0].Execute)
+    $python = if ($taskExecutable -match '(?i)pythonw\.exe$') {
+        Join-Path (Split-Path -Parent $taskExecutable) 'python.exe'
+    } elseif ($taskExecutable -match '(?i)python\.exe$') { $taskExecutable } else { '' }
+    if ($python -and -not (Test-Path -LiteralPath $python)) { $python = '' }
+    if (-not $python) {
+        $launcher = Get-Command py.exe -ErrorAction SilentlyContinue
+        if ($launcher) { $python = $launcher.Source; $pythonFlags = @('-3') }
+        else { $python = (Get-Command python.exe -ErrorAction Stop).Source; $pythonFlags = @() }
+    } else { $pythonFlags = @() }
+    $arguments = @($pythonFlags) + @($scriptPath, '--source', $ProjectRoot, '--agent-root', $agentRoot, $Action)
+    if ($Action -eq '--install') { $arguments += $ApprovedRelease }
+    $result = & $python @arguments 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        throw 'La verificación o instalación supervisada falló. No se ha confirmado una versión nueva; revisa el supervisor local.'
+    }
+    return (($result | Out-String) | ConvertFrom-Json)
+}
+
+function Show-LocalUpdateCenter {
+    $choice = [System.Windows.Forms.MessageBox]::Show(
+        "Sí: buscar y verificar una versión firmada por Internet.`nNo: usar un paquete firmado ya descargado, sin conexión.`nCancelar: volver a la app.",
+        'Centro de actualizaciones local',
+        [System.Windows.Forms.MessageBoxButtons]::YesNoCancel,
+        [System.Windows.Forms.MessageBoxIcon]::Question
+    )
+    if ($choice -eq [System.Windows.Forms.DialogResult]::Cancel) { return }
+    $action = if ($choice -eq [System.Windows.Forms.DialogResult]::Yes) { '--check-online' } else { '--check-offline' }
+    $updateButton.Enabled = $false
+    try {
+        $verified = Invoke-LocalSignedUpdate -Action $action
+        $confirmation = [System.Windows.Forms.MessageBox]::Show(
+            "Paquete firmado verificado: versión $($verified.version).`nIdentificación: $($verified.release_id)`nRevisión: $($verified.commit)`n`n¿Instalar esta versión exacta? El supervisor comprobará el arranque del motor PAPER y conservará la recuperación automática.",
+            'Aprobar versión local exacta',
+            [System.Windows.Forms.MessageBoxButtons]::YesNo,
+            [System.Windows.Forms.MessageBoxIcon]::Warning
+        )
+        if ($confirmation -ne [System.Windows.Forms.DialogResult]::Yes) { return }
+        $result = Invoke-LocalSignedUpdate -Action '--install' -ApprovedRelease $verified.release_id
+        if ($result.status -ne 'installed_healthy' -or $result.release_id -ne $verified.release_id) {
+            throw 'El supervisor no confirmó la instalación exacta y saludable.'
+        }
+        Update-ManagerStatus
+        [System.Windows.Forms.MessageBox]::Show(
+            "Bot $($result.version) instalado y comprobado en PAPER. El agente remoto puede reconectarse después; no hizo falta abrir el portal web.",
+            'Actualización local completada',
+            [System.Windows.Forms.MessageBoxButtons]::OK,
+            [System.Windows.Forms.MessageBoxIcon]::Information
+        ) | Out-Null
+    }
+    catch {
+        [System.Windows.Forms.MessageBox]::Show(
+            "No se completó la actualización local. $($_.Exception.Message)",
+            'Revisar actualización',
+            [System.Windows.Forms.MessageBoxButtons]::OK,
+            [System.Windows.Forms.MessageBoxIcon]::Warning
+        ) | Out-Null
+    }
+    finally { $updateButton.Enabled = $true }
 }
 
 function Get-TradingProcesses {
@@ -358,8 +430,8 @@ $killButton.Add_Click({
 })
 $form.Controls.Add($killButton)
 
-$updateButton = New-AppButton "↗   Centro de actualizaciones" 28 477 330 "Accent"
-$updateButton.Add_Click({ Start-Process -FilePath $UpdateCenterUrl })
+$updateButton = New-AppButton "↻   Actualizar bot desde esta PC" 28 477 330 "Accent"
+$updateButton.Add_Click({ Show-LocalUpdateCenter })
 $form.Controls.Add($updateButton)
 
 $startupButton = New-AppButton "⚙   Activar inicio automático" 386 477
@@ -554,7 +626,7 @@ $showManagerItem.Add_Click({
 $openPortalItem = $notifyMenu.Items.Add("Abrir portal remoto")
 $openPortalItem.Add_Click({ Start-Process -FilePath $RemotePortalUrl })
 $checkUpdatesItem = $notifyMenu.Items.Add("Centro de actualizaciones")
-$checkUpdatesItem.Add_Click({ Start-Process -FilePath $UpdateCenterUrl })
+$checkUpdatesItem.Add_Click({ Show-LocalUpdateCenter })
 $notifyMenu.Items.Add("-") | Out-Null
 $exitItem = $notifyMenu.Items.Add("Salir del indicador")
 $script:AllowExit = $false

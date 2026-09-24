@@ -93,6 +93,7 @@
       <div class="readiness-note"><h3>Antes de usar capital real</h3><ul id="readinessChecks"></ul>
         <p>Después de la evidencia PAPER: probar órdenes en Testnet, validar reglas y mínimos de cada par, conciliar saldos y ejecuciones, y aprobar explícitamente un límite de capital. Esta versión permanece en PAPER.</p>
         <p id="marketPreflight">Las próximas entradas PAPER se contrastarán con reglas públicas de cantidad y valor mínimo de Binance Spot. Es un diagnóstico; no se envían órdenes.</p>
+        <p id="testnetReadiness"><strong>Testnet:</strong> planificador de filtros y simulador de conciliación listos en modo lectura. El bot no envía órdenes ni activa una cuenta de Testnet.</p>
       </div>
       <h3>Resultados por activo</h3>
       <div class="table-wrap"><table class="asset-table">
@@ -110,9 +111,9 @@
         <summary>Comparar estrategias y ver evaluación histórica</summary>
       <div class="research-heading">
         <div>
-          <p class="eyebrow">EVALUACIÓN HISTÓRICA · V0.6.11</p>
+          <p class="eyebrow">EVALUACIÓN HISTÓRICA · V0.6.12</p>
           <h2>Comparación multi-cripto</h2>
-          <p class="research-copy">Compara cinco estrategias por activo contra efectivo y comprar y mantener ese activo, con costos, walk-forward y ventana final. Ningún resultado se activa automáticamente.</p>
+          <p class="research-copy">Compara cinco estrategias por activo contra efectivo y comprar y mantener ese activo, con costos, walk-forward y ventana final. Solo una estrategia que supere todas las puertas y un forward test posterior puede proponerse para la siguiente fase; ninguna se activa automáticamente.</p>
           <p id="researchCoverage" class="research-copy">Calculando cuántos cierres PAPER corresponden a estos cinco activos.</p>
         </div>
         <div class="research-actions">
@@ -127,6 +128,7 @@
         <span>Fija vs. adaptativa</span>
         <span>Cash gate</span>
         <span>1,000 simulaciones</span>
+        <span>Puertas unificadas + forward test</span>
         <span>Solo investigación</span>
       </div>
       <div id="researchSummary" class="research-summary"></div>

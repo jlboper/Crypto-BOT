@@ -91,7 +91,7 @@ function validateSnapshot(snapshot) {
   if (snapshot.dashboard !== undefined) {
     const d = snapshot.dashboard;
     assert(object(d) && object(d.status) && d.status.mode === 'PAPER', 'Invalid dashboard');
-    assert(Object.keys(d).every(k=>['status','positions','equity','trades','reviews','events','risk','research','research_state','updates','paper_scorecard'].includes(k)), 'Unknown dashboard field');
+    assert(Object.keys(d).every(k=>['status','positions','equity','trades','reviews','events','risk','research','research_state','testnet','updates','paper_scorecard'].includes(k)), 'Unknown dashboard field');
     if(d.paper_scorecard!==undefined){
       const s=d.paper_scorecard;
       assert(object(s)&&s.mode==='PAPER'&&['INSUFFICIENT_EVIDENCE','REVIEW_REQUIRED'].includes(s.status),'Invalid PAPER scorecard');
@@ -103,6 +103,13 @@ function validateSnapshot(snapshot) {
     }
     for(const key of ['positions','equity','trades','reviews','events'])assert(Array.isArray(d[key]) && d[key].length<=300,'Dashboard rows exceeded');
     assert(object(d.research) && Array.isArray(d.research.assets) && d.research.assets.length<=30,'Invalid research report');
+    if(d.testnet!==undefined){
+      const t=d.testnet;
+      assert(object(t)&&Object.keys(t).every(k=>['mode','order_submission_enabled','planner','next_step'].includes(k))
+        &&t.mode==='READ_ONLY_DRY_RUN'&&t.order_submission_enabled===false
+        &&typeof t.planner==='string'&&t.planner.length<=120
+        &&typeof t.next_step==='string'&&t.next_step.length<=240,'Invalid Testnet status');
+    }
   }
   return snapshot;
 }

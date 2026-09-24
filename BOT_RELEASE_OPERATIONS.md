@@ -32,9 +32,12 @@ run, then review the protected `portal-production` job for that exact commit.
 Do not bypass the PR or environment review, reuse a PR run as a publication,
 or claim an installation from a workflow result alone.
 
-The Windows app and local portal open the same authenticated remote update
-center. They never need incoming PC ports, VPNs or tunnels. An online Windows
-agent is required for installation. A publication is not an installation.
+The Windows app uses the independent supervisor for a local signed update
+center, with an online check or offline installation of a previously staged,
+still-valid signed package. It requires exact local owner confirmation and
+does not need a portal heartbeat for an offline install. The local web portal
+retains its authenticated remote update link. Neither path needs incoming PC
+ports, VPNs or tunnels. A publication is not an installation.
 
 The installer retains the immediately previous code for automatic recovery.
 With an updated independent Windows supervisor, **Options → Restore previous

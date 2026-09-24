@@ -726,6 +726,13 @@ def build_research_report(
             "monte_carlo_simulations": 1_000,
             "cash_hurdle": "zero_percent_usdt",
             "adaptive_cash_gate": "positive_train_return_sharpe_and_minimum_trades",
+            "promotion_gate": {
+                "automatic_activation": False,
+                "requires_holdout_and_double_costs": True,
+                "requires_positive_oos_and_benchmark_advantage": True,
+                "requires_minimum_oos_trades": 20,
+                "requires_future_forward_test": True,
+            },
         },
         "summary": {
             "assets": len(assets),

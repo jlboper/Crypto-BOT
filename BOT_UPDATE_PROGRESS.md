@@ -23,9 +23,24 @@ Later the owner reported a read-only inspection of the supervised Windows
 process, local PAPER portal and installed 0.6.10 identity. The protected
 publication run for commit `bfdb89ece5673985351829676ad234cfbcde9989`
 completed successfully. This is owner-reported installation evidence, not
-direct access to the operating database from this source checkout. Version
-0.6.11 remains proposed until its own PR, protected publication and signed
-installation complete.
+direct access to the operating database from this source checkout. PR #15 for
+0.6.11 was subsequently merged and its protected publication reported as
+successful; its installation on Windows has not been verified in this copy.
+
+This branch prepares version 0.6.12. It keeps GPT-5.6 Luna as the API review
+model because no official `gpt-6-luna` API identifier is available, adds a
+read-only Testnet planner and synthetic order reconciliation, and exposes the
+unified research promotion gates in the portal. It is not published or
+installed until its PR and protected release complete.
+The owner's 24 September Windows screenshot shows the scheduled outbound agent
+running but `sync_ok: false` with `HTTPError:400`, so the portal cannot deliver
+update jobs. A separate manual supervisor refresh attempt ended with
+`FileNotFoundError`; the exact missing path was not captured. The newer agent
+now reports allowlisted server validation reasons and can retry one rejected
+optional dashboard projection without dropping the heartbeat. The app now
+supports direct signed local installation through the independent supervisor,
+including a previously staged package when offline. Neither change has yet
+been observed on the operating PC.
 
 ## Implemented and tested
 

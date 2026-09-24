@@ -6,6 +6,7 @@ import os
 import random
 import sqlite3
 import time
+import urllib.error
 import urllib.request
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -106,12 +107,33 @@ class RemoteAgent:
             payload["snapshot"]["dashboard"] = self.dashboard_provider()
         if self.jobs:
             payload["job_results"] = self.jobs.results()
-        request = urllib.request.Request(self.origin + "/v1/device/sync",
-            data=json.dumps(payload, allow_nan=False).encode(), method="POST",
-            headers={"Content-Type": "application/json", "Authorization": "Bearer " + self.token,
-                     "User-Agent": "CryptoPaperPortalAgent/0.6.2", "Accept": "application/json"})
-        with self.opener.open(request, timeout=15) as response:
-            raw = response.read(65537)
+        def send(body):
+            request = urllib.request.Request(self.origin + "/v1/device/sync",
+                data=json.dumps(body, allow_nan=False).encode(), method="POST",
+                headers={"Content-Type": "application/json", "Authorization": "Bearer " + self.token,
+                         "User-Agent": "CryptoPaperPortalAgent/0.6.2", "Accept": "application/json"})
+            with self.opener.open(request, timeout=15) as response:
+                return response.read(65537)
+        self.last_error = None
+        try:
+            raw = send(payload)
+        except urllib.error.HTTPError as error:
+            reason = self._known_rejection(error)
+            if reason not in {'Oversized PAPER scorecard', 'Unknown dashboard field',
+                              'Dashboard rows exceeded', 'Invalid research report',
+                              'Invalid dashboard', 'Invalid Testnet status'} or 'dashboard' not in payload['snapshot']:
+                self.last_error = f'HTTPError:{error.code}' + (f':{reason}' if reason else '')
+                raise
+            # Preserve a working heartbeat and update jobs when an optional
+            # dashboard projection is incompatible. Report the partial sync.
+            payload['snapshot'].pop('dashboard')
+            self.last_error = f'DASHBOARD_REJECTED:{reason}'
+            try:
+                raw = send(payload)
+            except urllib.error.HTTPError as retry_error:
+                detail = self._known_rejection(retry_error)
+                self.last_error = f'HTTPError:{retry_error.code}' + (f':{detail}' if detail else '')
+                raise
         if len(raw) > 65536:
             raise ValueError("Oversized response")
         decoded = json.loads(raw)
@@ -132,16 +154,17 @@ class RemoteAgent:
         with single_instance(self.state_directory / "remote.lock"):
             while not (stop and stop()):
                 try:
+                    self.last_error = None
                     if validate:
                         validate()
                     self.sync()
                     failures = 0
-                    self.last_error = None
                 except Exception as error:
                     failures = min(failures+1, 5)
-                    self.last_error = type(error).__name__
-                    if isinstance(error, urllib.error.HTTPError):
-                        self.last_error += ":" + str(error.code)
+                    if not self.last_error:
+                        self.last_error = type(error).__name__
+                        if isinstance(error, urllib.error.HTTPError):
+                            self.last_error += ':' + str(error.code)
                     # Never log response bodies, URLs with secrets, or credentials.
                 if report:
                     report(failures == 0)
@@ -150,6 +173,25 @@ class RemoteAgent:
                     if stop and stop():
                         return
                     time.sleep(min(1, max(0, deadline-time.monotonic())))
+
+    @staticmethod
+    def _known_rejection(error):
+        """Read only server-owned fixed validation labels; never surface raw bodies."""
+        if error.code not in {400, 413}:
+            return None
+        allowed = {'Unknown dashboard field', 'Oversized PAPER scorecard',
+                   'Dashboard rows exceeded', 'Invalid research report',
+                   'Invalid dashboard', 'Invalid Testnet status',
+                   'Invalid balance', 'Invalid position', 'Invalid position value',
+                   'Invalid bot release', 'Invalid restore offer',
+                   'Invalid model', 'Invalid cycle time', 'Invalid acknowledgements',
+                   'PAPER snapshot required', 'Body too large'}
+        try:
+            result = json.loads(error.read(1024))
+        except (OSError, ValueError):
+            return None
+        reason = result.get('error') if isinstance(result, dict) else None
+        return reason if reason in allowed else None
 
 
 if __name__ == "__main__":

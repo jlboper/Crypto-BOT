@@ -2,7 +2,7 @@
 
 En esta copia se aplican las correcciones descritas en `AUDIT_REPORT.md`: elección fija solo en entrenamiento inicial, ventana final reservada, costos duplicados, 14 puertas de evidencia en 0.6.10 y bootstrap circular por bloques. La agregación portfolio es una ilustración por ventanas alineadas, no ejecución conjunta. Las cifras y descripciones anteriores de v0.6.2 que difieran deben interpretarse como antecedentes. No se ha ejecutado aquí una investigación con datos reales nuevos.
 
-# Metodología del Research Lab 0.6
+# Metodología del Research Lab 0.6.12
 
 ## Objetivo
 
@@ -40,6 +40,8 @@ El efectivo en USDT se modela como un benchmark de 0% antes de intereses. Una es
 ## Puertas de promoción
 
 Un candidato solo obtiene la etiqueta `PROMISING_RESEARCH_ONLY` si simultáneamente supera efectivo fuera de muestra, Sharpe medio, 60% de folds positivos, estabilidad de ranking, Monte Carlo, Sharpe completo, sensibilidad de parámetros, límite de rotación y calidad de datos. Incluso esa etiqueta no autoriza su uso operativo: después requiere revisión y forward test independiente.
+
+El portal resume estas puertas en un criterio único: ventaja neta frente a efectivo y al activo, consistencia fuera de muestra, actividad mínima, costos duplicados en la ventana reservada y forward test con datos posteriores. La etiqueta nunca cambia la configuración del motor.
 
 Monte Carlo remuestrea los retornos de operaciones fuera de muestra 1,000 veces para estimar rango de resultados, drawdown adverso y probabilidad de terminar en pérdida. Es una prueba de incertidumbre, no una predicción.
 
