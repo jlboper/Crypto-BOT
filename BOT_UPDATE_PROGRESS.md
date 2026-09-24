@@ -16,9 +16,16 @@ for the owner workflow.
 Subsequently, 0.6.9 was published through the protected job for commit
 `1ccccbbe5605fb9111c728ea8c9ab33040a778cc`; the owner replied "listo" after
 the handoff, but no authenticated Windows version/health snapshot was captured
-here. Treat 0.6.9 installation as unverified. Version 0.6.10 is a proposed
-PAPER evidence and UI update until its PR, protected publication and signed
-Windows installation finish separately.
+here. At that point 0.6.9 installation was unverified and version 0.6.10 was
+only a proposed PAPER evidence and UI update; see the subsequent inspection below.
+
+Later the owner reported a read-only inspection of the supervised Windows
+process, local PAPER portal and installed 0.6.10 identity. The protected
+publication run for commit `bfdb89ece5673985351829676ad234cfbcde9989`
+completed successfully. This is owner-reported installation evidence, not
+direct access to the operating database from this source checkout. Version
+0.6.11 remains proposed until its own PR, protected publication and signed
+installation complete.
 
 ## Implemented and tested
 
@@ -46,7 +53,7 @@ Windows installation finish separately.
 - Cloudflare holds `BOT_SIGNING_KEY`; Windows and the repository use the public
   trust anchor. D1 migration `0004_bot_releases.sql` is active.
 - The trusted Windows channel points to the existing portal; the owner's latest
-  installation report shows 0.6.8 through the signed path in PAPER.
+  local read-only installation report shows 0.6.10 in PAPER.
 - The portal update center already uses one options menu and one combined search.
   The voluntary restoration action and full-history PAPER financial scorecard
   were included in the subsequent release. Restoration requires a retained,

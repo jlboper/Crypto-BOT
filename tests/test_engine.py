@@ -21,10 +21,14 @@ class EngineTests(unittest.TestCase):
             engine.db.record_trade('BTCUSDT','BUY',0.1,100,0.01,0,'paper')
             engine.db.upsert_position(Position('BTCUSDT',0.1,100,90,120,100,2,0.01,'now'))
             engine.db.event('INFO','obsolete diagnostic')
+            engine.db.record_order_preflight('BTCUSDT','incompatible',['LOT_SIZE_STEP'])
             with engine.db.connect() as db:
                 db.execute("UPDATE events SET created_at='2020-01-01T00:00:00+00:00'")
+                db.execute("UPDATE order_preflight SET created_at='2020-01-01T00:00:00+00:00'")
             engine._prune_diagnostics_if_due()
             self.assertFalse(engine.db.recent('events'))
+            with engine.db.connect() as db:
+                self.assertEqual(db.execute('SELECT COUNT(*) FROM order_preflight').fetchone()[0],0)
             self.assertEqual(len(engine.db.recent('equity')),1)
             self.assertEqual(len(engine.db.recent('trades')),1)
             self.assertEqual(len(engine.db.positions()),1)

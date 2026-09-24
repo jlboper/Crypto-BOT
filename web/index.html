@@ -92,11 +92,17 @@
       <div id="paperMoreMetrics" class="research-summary"></div>
       <div class="readiness-note"><h3>Antes de usar capital real</h3><ul id="readinessChecks"></ul>
         <p>Después de la evidencia PAPER: probar órdenes en Testnet, validar reglas y mínimos de cada par, conciliar saldos y ejecuciones, y aprobar explícitamente un límite de capital. Esta versión permanece en PAPER.</p>
+        <p id="marketPreflight">Las próximas entradas PAPER se contrastarán con reglas públicas de cantidad y valor mínimo de Binance Spot. Es un diagnóstico; no se envían órdenes.</p>
       </div>
       <h3>Resultados por activo</h3>
       <div class="table-wrap"><table class="asset-table">
         <thead><tr><th>Activo</th><th>Cierres</th><th>Resultado realizado neto</th><th>Ganadoras</th><th>Exposición abierta</th><th>P&amp;L abierto estimado</th></tr></thead>
         <tbody id="paperAssetRows"><tr><td colspan="6" class="empty">Esperando historial PAPER.</td></tr></tbody>
+      </table></div>
+      <h3>Cómo se cerraron las operaciones</h3>
+      <div class="table-wrap"><table class="exit-table">
+        <thead><tr><th>Motivo de salida</th><th>Cierres</th><th>P&amp;L realizado neto</th></tr></thead>
+        <tbody id="paperExitRows"><tr><td colspan="3" class="empty">Esperando historial PAPER.</td></tr></tbody>
       </table></div>
       <p class="research-updated">P&amp;L realizado neto de comisiones; P&amp;L abierto estimado solo con cotizaciones recientes, incluyendo salida simulada. Drawdown muestreado. Sin libro de aportes/retiros; la referencia BTC invierte el 100% y descuenta costos PAPER simulados.</p>
       </details>
@@ -104,9 +110,10 @@
         <summary>Comparar estrategias y ver evaluación histórica</summary>
       <div class="research-heading">
         <div>
-          <p class="eyebrow">EVALUACIÓN HISTÓRICA · V0.6.10</p>
+          <p class="eyebrow">EVALUACIÓN HISTÓRICA · V0.6.11</p>
           <h2>Comparación multi-cripto</h2>
           <p class="research-copy">Compara cinco estrategias por activo contra efectivo y comprar y mantener ese activo, con costos, walk-forward y ventana final. Ningún resultado se activa automáticamente.</p>
+          <p id="researchCoverage" class="research-copy">Calculando cuántos cierres PAPER corresponden a estos cinco activos.</p>
         </div>
         <div class="research-actions">
           <span id="researchState" class="state neutral">SIN EJECUTAR</span>

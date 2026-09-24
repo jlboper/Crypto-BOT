@@ -46,7 +46,7 @@ def dashboard_snapshot(config, report_path=None):
             'risk':asdict(config.risk),
             'paper_scorecard':paper_scorecard(connection, prices=prices,
                 prices_at=settings.get('market_prices_at'), cycle_seconds=config.bot.cycle_seconds,
-                paper=config.paper),
+                paper=config.paper, research_symbols=config.research.symbols),
             'research':{'mode':'RESEARCH_ONLY','status':'NOT_RUN','assets':[]},
             'research_state':{'running':False,'error':None},
             'updates':{'status':'not_configured','message':'Falta configurar el canal firmado y la recuperación supervisada.'},

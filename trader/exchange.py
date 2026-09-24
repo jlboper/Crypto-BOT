@@ -113,6 +113,13 @@ class BinanceClient:
             symbols.insert(0, "BTCUSDT")
         return symbols
 
+    def cached_symbol_info(self, symbol: str) -> dict | None:
+        """Use the exchangeInfo already fetched for universe selection; no new request."""
+        if not isinstance(self._info_cache, dict) or time.monotonic() >= self._info_until:
+            return None
+        return next((item for item in self._info_cache.get('symbols', [])
+                     if isinstance(item, dict) and item.get('symbol') == symbol), None)
+
     def candles(self, symbol: str, interval: str, limit: int = 250) -> list[Candle]:
         payload = self._request("GET", "/api/v3/klines", {"symbol": symbol, "interval": interval, "limit": limit})
         return self._parse_candles(payload)
