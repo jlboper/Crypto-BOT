@@ -17,3 +17,19 @@
 #portalLogout{color:#ff9baa}
 
 @media(max-width:600px){.options{flex:1}.options>#optionsButton{width:100%}.options-menu{left:0;right:auto;width:min(280px,88vw)}}
+
+.activity-strip{padding:16px 20px;margin:12px 0;border:1px solid #243149;border-radius:14px;background:#101827}
+.activity-strip h2{font-size:.95rem}.activity-strip small{display:inline-block;margin-left:12px;font-size:.73rem;font-weight:400;color:#9cacbf}
+.activity-list{list-style:none;padding:0;margin:12px 0 0;display:grid;gap:8px}
+.activity-list li{padding:10px 12px;border:1px solid #273850;border-radius:8px;background:#0c1320;font-size:.8rem;color:#d4deed;line-height:1.4;overflow-wrap:anywhere}
+.activity-list li small{display:block;color:#9cacbf;margin-top:3px}
+.activity-list li.failed{border-color:#683342;color:#ff9baa}
+#historyPanel p{color:#9cacbf;font-size:.85rem}
+#loadMoreHistory{margin-top:15px}
+.paper-scorecard .finance-strategy{color:#a8d9d0}
+.benchmark-note{padding:14px 16px;border:1px solid #35516b;border-radius:10px;background:#0c1a2a;font-size:.86rem;line-height:1.5;margin:14px 0}
+.research-lab{display:block;margin-top:22px;padding:18px;border:1px solid #27584f;border-radius:12px}
+.research-lab summary{cursor:pointer;font-weight:750;color:#a8d9d0}
+.research-lab[open] summary{margin-bottom:18px}
+.readiness-note{padding:14px 16px;margin:14px 0;background:#0c1320;border:1px solid #354663;border-radius:10px;font-size:.85rem;line-height:1.5}
+.readiness-note h3{margin:0 0 6px!important}.readiness-note ul{margin:0;padding-left:20px}.readiness-note li{margin:5px 0}.readiness-note p{color:#9cacbf;margin-bottom:0}

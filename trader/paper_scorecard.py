@@ -18,14 +18,18 @@ def _time(value):
 def paper_scorecard(connection, *, prices=None, prices_at=None, cycle_seconds=None, paper=None, now=None):
     """Summarize all recorded equity points and closed PAPER trades.
 
-    Existing accounting stores no external cash flows or historical benchmark
-    prices, so this report cannot claim a risk-adjusted edge or LIVE readiness.
+    Cash flows have no dedicated ledger, so the comparison cannot claim
+    a risk-adjusted edge or LIVE readiness.
     """
     start = end = None
     first_equity = last_equity = peak = 0.0
     max_drawdown = 0.0
     points = invalid = 0
-    for row in connection.execute('SELECT equity,created_at FROM equity ORDER BY id'):
+    benchmark_first = benchmark_last = None
+    benchmark_count = 0
+    benchmark_start = benchmark_end = None
+    for row in connection.execute('''SELECT e.equity,e.created_at,b.btc_usdt FROM equity e
+                                     LEFT JOIN equity_benchmark b ON b.equity_id=e.id ORDER BY e.id'''):
         value, instant = float(row[0]), _time(row[1])
         if not math.isfinite(value) or value <= 0 or instant is None or (end and instant < end):
             invalid += 1
@@ -36,6 +40,12 @@ def paper_scorecard(connection, *, prices=None, prices_at=None, cycle_seconds=No
         peak = max(peak, value)
         max_drawdown = max(max_drawdown, (peak-value)/peak)
         points += 1
+        quote = row[2]
+        if quote is not None and math.isfinite(float(quote)) and float(quote) > 0:
+            if benchmark_first is None:
+                benchmark_first, benchmark_start = (value, float(quote)), instant
+            benchmark_last, benchmark_end = (value, float(quote)), instant
+            benchmark_count += 1
     trades = connection.execute('''
         SELECT COUNT(*), COALESCE(SUM(realized_pnl),0),
                COALESCE(SUM(CASE WHEN realized_pnl>0 THEN 1 ELSE 0 END),0),
@@ -84,6 +94,9 @@ def paper_scorecard(connection, *, prices=None, prices_at=None, cycle_seconds=No
     open_symbols = {row['symbol'] for row in open_rows}
     selected = sorted(by_asset.values(), key=lambda item:
         (item['symbol'] not in open_symbols, -item['closed_trades'], item['symbol']))[:20]
+    comparable = benchmark_count >= 2 and benchmark_start < benchmark_end
+    paper_return = 100*(benchmark_last[0]/benchmark_first[0]-1) if comparable else None
+    btc_return = 100*(benchmark_last[1]/benchmark_first[1]-1) if comparable else None
     return {
         'mode': 'PAPER', 'status': 'REVIEW_REQUIRED' if observed_days >= 30 and closed >= 30 and invalid == 0 else 'INSUFFICIENT_EVIDENCE',
         'started_at': start.isoformat() if start else None,
@@ -103,6 +116,14 @@ def paper_scorecard(connection, *, prices=None, prices_at=None, cycle_seconds=No
         'by_asset': selected, 'omitted_assets': len(by_asset) - len(selected),
         'equity_change_pct': round(100*(last_equity/first_equity-1), 3) if points else None,
         'sampled_max_drawdown_pct': round(100*max_drawdown, 3) if points else None,
+        'benchmark': {
+            'symbol': 'BTCUSDT', 'matched_points': benchmark_count,
+            'started_at': benchmark_start.isoformat() if benchmark_start else None,
+            'observed_days': round((benchmark_end-benchmark_start).total_seconds()/86400, 2) if comparable else 0,
+            'paper_return_pct': round(paper_return, 3) if comparable else None,
+            'btc_return_pct': round(btc_return, 3) if comparable else None,
+            'difference_pp': round(paper_return-btc_return, 3) if comparable else None,
+        },
         'observation_gate': {'days': 30, 'closed_trades': 30},
-        'limitations': ['no_cashflow_ledger', 'no_historical_benchmark', 'sampled_equity_drawdown'],
+        'limitations': ['no_cashflow_ledger', 'benchmark_starts_with_new_samples', 'sampled_equity_drawdown'],
     }

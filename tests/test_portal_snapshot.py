@@ -62,7 +62,27 @@ class PortalSnapshotTests(unittest.TestCase):
             self.assertEqual(result['fees_usdt'],6.1)
             self.assertEqual(result['sampled_max_drawdown_pct'],10)
             self.assertEqual(result['observed_days'],31)
-            self.assertIn('no_historical_benchmark',result['limitations'])
+            self.assertIsNone(result['benchmark']['paper_return_pct'])
+            self.assertIn('benchmark_starts_with_new_samples',result['limitations'])
+
+    def test_forward_benchmark_only_compares_matched_new_samples(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path=Path(folder)/'paper.db'
+            database=Database(path)
+            database.record_equity(1000,1000,0)
+            database.record_equity(1050,1050,0,100)
+            database.record_equity(1100,1100,0,120)
+            with closing(sqlite3.connect(path)) as connection:
+                connection.execute("UPDATE equity SET created_at='2026-01-01T00:00:00+00:00' WHERE id=2")
+                connection.execute("UPDATE equity SET created_at='2026-01-02T00:00:00+00:00' WHERE id=3")
+                connection.execute("UPDATE equity SET created_at='2025-12-31T00:00:00+00:00' WHERE id=1")
+                connection.commit()
+                report=paper_scorecard(connection)
+            self.assertEqual(report['benchmark']['matched_points'],2)
+            self.assertEqual(report['benchmark']['observed_days'],1)
+            self.assertAlmostEqual(report['benchmark']['paper_return_pct'],4.762,places=3)
+            self.assertEqual(report['benchmark']['btc_return_pct'],20)
+            self.assertAlmostEqual(report['benchmark']['difference_pp'],-15.238,places=3)
 
     def test_asset_breakdown_requires_fresh_price_for_open_estimate(self):
         with tempfile.TemporaryDirectory() as folder:

@@ -55,6 +55,27 @@ test('owner login, secure cookie, status and logout revoke the session',async t=
   assert.equal((await f.request('/v1/status')).status,401);
 });
 
+test('activity combines jobs and commands, paginates privately, and rejects unbounded routes',async t=>{
+  const f=await fixture(t);
+  assert.equal((await f.request('/v1/activity/0')).status,401);
+  await f.login();await f.sync();
+  for(let i=0;i<29;i++){
+    const result=await f.request('/v1/commands',{action:'kill',request_id:`activity_${i.toString().padStart(14,'0')}`});
+    assert.equal(result.status,202);
+  }
+  const first=await f.request('/v1/activity/0');
+  assert.equal(first.body.items.length,25);
+  assert.equal(first.body.next_page,1);
+  assert.equal(first.body.retention_days,90);
+  const second=await f.request('/v1/activity/1');
+  assert.equal(second.body.items.length,4);
+  assert.equal(second.body.next_page,null);
+  const status=await f.request('/v1/status');
+  assert.equal(status.body.activity.length,3);
+  assert.equal((await f.request('/v1/activity/100')).status,404);
+  assert.equal((await f.request('/v1/activity/0?token=bad')).status,400);
+});
+
 test('password change requires current password and CSRF, revokes all sessions, preserves device access',async t=>{
   const f=await fixture(t);const first=await f.login();await f.login();
   const next='A long unique test passphrase 2026';

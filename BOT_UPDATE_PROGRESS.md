@@ -1,11 +1,11 @@
 # Bot updates: implementation and deployment status
 
-Last Windows baseline confirmed by the owner in the portal after the 0.6.7 update:
-**0.6.7** installed with startup and local PAPER portal checks completed. The
-voluntary restoration of 0.6.6 was offered but not executed. Version 0.6.8
-passed the PR #11 checks and was merged into `main`, but the merge did not
-produce a `portal-release.yml` push run. As of 23 September 2026 it is not
-confirmed published or installed.
+The owner's portal screenshot on 24 September 2026 shows **0.6.8** installed
+after request #15, with startup and local PAPER portal checks completed. Its
+signed package was published separately after the PR #11 merge. A subsequent
+documentation-only PR #12 does not change the installed bot. The voluntary
+restoration remains available only when Windows offers a previous verified
+version; it was not executed in that screenshot.
 The outgoing HTTPS agent was connected,
 and the local and remote portals use the shared `web/` interface. The first signed
 installation and a later end-to-end update initiated with the remote portal button
@@ -39,13 +39,16 @@ for the owner workflow.
 - Cloudflare holds `BOT_SIGNING_KEY`; Windows and the repository use the public
   trust anchor. D1 migration `0004_bot_releases.sql` is active.
 - The trusted Windows channel points to the existing portal; the owner's latest
-  verified installation report is 0.6.7 through the signed path in PAPER.
+  installation report shows 0.6.8 through the signed path in PAPER.
 - The portal update center already uses one options menu and one combined search.
   The voluntary restoration action and full-history PAPER financial scorecard
   were included in the subsequent release. Restoration requires a retained,
   verified previous code copy; do not count an offered restore as an executed one.
-  The 0.6.8 changes add per-asset diagnostics, quote freshness and development
-  research comparisons, subject to this version's review and publication gates.
+  The 0.6.8 installation includes per-asset diagnostics, quote freshness and
+  historical research comparisons. Version 0.6.9 proposes a three-item activity
+  summary, private 90-day paginated history, historical analysis within the
+  financial panel and forward synchronized BTC spot comparisons. Historical
+  equity is not backfilled; no Testnet or LIVE execution is implemented.
 
 ## Completion gates
 

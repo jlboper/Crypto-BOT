@@ -148,6 +148,8 @@ El panel resume operaciones cerradas, P&L realizado neto de comisiones, costos s
 
 En 0.6.8 el informe desglosa resultados realizados por activo, porcentaje de cierres ganadores, exposición y P&L abierto estimado con comisiones y slippage PAPER. Las estimaciones abiertas solo aparecen con precios de mercado recientes; una cotización ausente o vencida muestra «—» y bloquea decisiones de cierre basadas en velas antiguas. Las cifras por activo son diagnósticas, no recomendaciones para activar una estrategia ni permisos LIVE.
 
+En 0.6.9 el panel agrupa la evaluación histórica de estrategias dentro del seguimiento financiero; el motor PAPER sigue siendo uno solo y ninguna estrategia se activa automáticamente. Cada nuevo ciclo guarda juntos equity y BTCUSDT para comparar la variación en un período idéntico. No reconstruye BTC previo ni corrige aportes/retiros, y la referencia BTC spot no incluye comisiones. La lista de actividad muestra tres movimientos; el historial autenticado se consulta desde Opciones por páginas de 25 y se conserva hasta 90 días. El panel enumera umbrales PAPER y tareas manuales pendientes de Testnet y conciliación antes de considerar capital real; esta versión solo opera en PAPER.
+
 ## Centro de control de Windows
 
 Haz doble clic en `Crypto AI Trader.vbs` para abrir una aplicación gráfica sin consola. Desde allí puedes comprobar el estado, equity, rendimiento, efectivo, exposición, posiciones y último ciclo; abrir el portal local o el remoto; abrir el centro remoto de actualizaciones; reiniciar el motor; manejar el kill switch y configurar el inicio automático. Al minimizar o cerrar, el indicador continúa en el área de notificaciones de Windows y cambia de color según el estado.

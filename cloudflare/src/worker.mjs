@@ -95,7 +95,7 @@ function validateSnapshot(snapshot) {
     if(d.paper_scorecard!==undefined){
       const s=d.paper_scorecard;
       assert(object(s)&&s.mode==='PAPER'&&['INSUFFICIENT_EVIDENCE','REVIEW_REQUIRED'].includes(s.status),'Invalid PAPER scorecard');
-      assert(Object.keys(s).length<=20&&JSON.stringify(s).length<3000,'Oversized PAPER scorecard');
+      assert(Object.keys(s).length<=26&&JSON.stringify(s).length<3500,'Oversized PAPER scorecard');
     }
     for(const key of ['positions','equity','trades','reviews','events'])assert(Array.isArray(d[key]) && d[key].length<=300,'Dashboard rows exceeded');
     assert(object(d.research) && Array.isArray(d.research.assets) && d.research.assets.length<=30,'Invalid research report');
@@ -234,16 +234,36 @@ export async function handle(request, env, now = Math.floor(Date.now() / 1000)) 
     return json({ok:true},200,{'Set-Cookie':sessionCookie('',0)});
   }
   if(path==='/v1/updates' && method==='GET')return json(await githubUpdates(env).list());
+  const historyPage=path.match(/^\/v1\/activity\/(0|[1-9][0-9]{0,1})$/);
+  if(historyPage && method==='GET'){
+    const page=Number(historyPage[1]);
+    const rows=await statement(db,`SELECT id,kind,action,status,message,created FROM (
+      SELECT id,'command' AS kind,action,
+        CASE WHEN status='pending' AND expires<=? THEN 'expired' ELSE status END AS status,
+        '' AS message,created FROM commands
+      UNION ALL
+      SELECT id,'job' AS kind,${jobAction} AS action,status,message,created FROM jobs
+    ) ORDER BY created DESC,kind DESC,id DESC LIMIT 26 OFFSET ?`,now,page*25).all();
+    const items=rows.results||[];
+    return json({items:items.slice(0,25),next_page:items.length>25&&page<99?page+1:null,retention_days:90});
+  }
   if (path === '/v1/status' && method === 'GET') {
     const batch = await db.batch([
       statement(db, 'SELECT payload,received_at FROM snapshots WHERE id=1'),
       statement(db, "SELECT id,action,CASE WHEN status='pending' AND expires<=? THEN 'expired' ELSE status END AS status,expires FROM commands ORDER BY id DESC LIMIT 20", now),
       statement(db,`SELECT id,${jobAction} AS action,status,message FROM jobs ORDER BY id DESC LIMIT 20`),
+      statement(db,`SELECT id,kind,action,status,message,created FROM (
+        SELECT id,'command' AS kind,action,
+          CASE WHEN status='pending' AND expires<=? THEN 'expired' ELSE status END AS status,
+          '' AS message,created FROM commands
+        UNION ALL
+        SELECT id,'job' AS kind,${jobAction} AS action,status,message,created FROM jobs
+      ) ORDER BY created DESC,kind DESC,id DESC LIMIT 3`,now),
     ]);
     const snapshot = results(batch, 0)[0];
     return json({ csrf: session.csrf, snapshot: snapshot ? JSON.parse(snapshot.payload) : null,
       received_at: snapshot?.received_at ?? null, stale: !snapshot || now-snapshot.received_at > 120,
-      commands: results(batch, 1), jobs:results(batch,2) });
+      commands: results(batch, 1), jobs:results(batch,2), activity:results(batch,3) });
   }
   if(path==='/v1/jobs'&&method==='POST'){
     const body=await readBody(request);
