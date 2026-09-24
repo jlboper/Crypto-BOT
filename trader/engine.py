@@ -55,6 +55,7 @@ class TradingEngine:
             self._manage_positions(candle_map, prices)
             positions = self.db.positions()
             equity, cash, exposure = self.broker.equity(prices)
+            self._prune_diagnostics_if_due()
             if self.killed():
                 self.db.record_equity(equity, cash, exposure, prices["BTCUSDT"])
                 self.db.event("WARN", "Kill switch active: protections monitored, new entries blocked")
@@ -121,10 +122,6 @@ class TradingEngine:
             self.db.event("INFO", f"Cycle complete: {len(symbols)} symbols, {len(candidates)} buys, opened {len(opened)}")
             self._errors = 0
             self.db.set_setting("consecutive_errors", "0")
-            today = datetime.now(UTC).date().isoformat()
-            if self.db.setting("last_prune") != today:
-                self.db.prune_diagnostics((datetime.now(UTC) - timedelta(days=90)).isoformat())
-                self.db.set_setting("last_prune", today)
             return {
                 "status": "ok",
                 "symbols": len(symbols),
@@ -144,6 +141,14 @@ class TradingEngine:
                 self.config.bot.kill_switch_path.write_text("automatic halt after consecutive errors\n", encoding="utf-8")
                 self.db.event("CRITICAL", "Kill switch activated after consecutive errors")
             raise
+
+    def _prune_diagnostics_if_due(self) -> None:
+        """Bound diagnostic rows even during a long PAPER pause or risk halt."""
+        now = datetime.now(UTC)
+        today = now.date().isoformat()
+        if self.db.setting("last_prune") != today:
+            self.db.prune_diagnostics((now - timedelta(days=90)).isoformat())
+            self.db.set_setting("last_prune", today)
 
     def _fetch_candles(self, symbols: list[str]) -> dict[str, list[Candle]]:
         result: dict[str, list[Candle]] = {}

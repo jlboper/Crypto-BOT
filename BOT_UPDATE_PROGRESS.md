@@ -13,6 +13,13 @@ were verified. This document distinguishes
 implemented code, publication and installation. See `BOT_RELEASE_OPERATIONS.md`
 for the owner workflow.
 
+Subsequently, 0.6.9 was published through the protected job for commit
+`1ccccbbe5605fb9111c728ea8c9ab33040a778cc`; the owner replied "listo" after
+the handoff, but no authenticated Windows version/health snapshot was captured
+here. Treat 0.6.9 installation as unverified. Version 0.6.10 is a proposed
+PAPER evidence and UI update until its PR, protected publication and signed
+Windows installation finish separately.
+
 ## Implemented and tested
 
 - Shared portal buttons for finding a signed release and approving its exact
@@ -45,7 +52,7 @@ for the owner workflow.
   were included in the subsequent release. Restoration requires a retained,
   verified previous code copy; do not count an offered restore as an executed one.
   The 0.6.8 installation includes per-asset diagnostics, quote freshness and
-  historical research comparisons. Version 0.6.9 proposes a three-item activity
+  historical research comparisons. Published version 0.6.9 adds a three-item activity
   summary, private 90-day paginated history, historical analysis within the
   financial panel and forward synchronized BTC spot comparisons. Historical
   equity is not backfilled; no Testnet or LIVE execution is implemented.

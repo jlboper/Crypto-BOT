@@ -27,6 +27,9 @@
 #historyPanel p{color:#9cacbf;font-size:.85rem}
 #loadMoreHistory{margin-top:15px}
 .paper-scorecard .finance-strategy{color:#a8d9d0}
+.finance-details{margin:16px 0;padding:14px 16px;border:1px solid #354663;border-radius:10px;background:#0c1320}
+.finance-details summary{cursor:pointer;color:#b6d8f1;font-weight:700}
+.finance-details[open] summary{margin-bottom:14px}
 .benchmark-note{padding:14px 16px;border:1px solid #35516b;border-radius:10px;background:#0c1a2a;font-size:.86rem;line-height:1.5;margin:14px 0}
 .research-lab{display:block;margin-top:22px;padding:18px;border:1px solid #27584f;border-radius:12px}
 .research-lab summary{cursor:pointer;font-weight:750;color:#a8d9d0}

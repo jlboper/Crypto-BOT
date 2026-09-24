@@ -24,6 +24,7 @@ class PortalSnapshotTests(unittest.TestCase):
             before=path.read_bytes()
             payload=dashboard_snapshot(config,Path(folder)/'missing.json')
             self.assertEqual(payload['status']['mode'],'PAPER')
+            self.assertEqual(payload['status']['risk']['max_position_pct'],config.risk.max_position_pct)
             self.assertEqual(payload['research']['assets'],[])
             self.assertEqual(payload['paper_scorecard']['status'],'INSUFFICIENT_EVIDENCE')
             self.assertEqual(payload['paper_scorecard']['closed_trades'],0)
@@ -77,12 +78,15 @@ class PortalSnapshotTests(unittest.TestCase):
                 connection.execute("UPDATE equity SET created_at='2026-01-02T00:00:00+00:00' WHERE id=3")
                 connection.execute("UPDATE equity SET created_at='2025-12-31T00:00:00+00:00' WHERE id=1")
                 connection.commit()
-                report=paper_scorecard(connection)
+                report=paper_scorecard(connection,paper=load_config().paper)
             self.assertEqual(report['benchmark']['matched_points'],2)
             self.assertEqual(report['benchmark']['observed_days'],1)
             self.assertAlmostEqual(report['benchmark']['paper_return_pct'],4.762,places=3)
             self.assertEqual(report['benchmark']['btc_return_pct'],20)
             self.assertAlmostEqual(report['benchmark']['difference_pp'],-15.238,places=3)
+            self.assertLess(report['benchmark']['btc_net_return_pct'],20)
+            self.assertAlmostEqual(report['benchmark']['net_difference_pp'],
+                                   report['benchmark']['paper_return_pct']-report['benchmark']['btc_net_return_pct'],places=3)
 
     def test_asset_breakdown_requires_fresh_price_for_open_estimate(self):
         with tempfile.TemporaryDirectory() as folder:

@@ -37,7 +37,7 @@ def dashboard_snapshot(config, report_path=None):
             'status': {'mode':'PAPER','killed':config.bot.kill_switch_path.exists(),'ai_enabled':config.ai.enabled,
                        'ai_model':config.ai.model,'equity':current,'cash':latest.get('cash',float(settings.get('paper_cash',initial))),
                        'exposure':latest.get('exposure',0),'return_pct':(current/initial-1)*100,
-                       'positions':len(positions),'max_positions':config.risk.max_positions,'cycle_seconds':config.bot.cycle_seconds,
+                       'positions':len(positions),'max_positions':config.risk.max_positions,'risk':asdict(config.risk),'cycle_seconds':config.bot.cycle_seconds,
                        'activity':activity_status(latest.get('created_at'),config.bot.cycle_seconds)},
             'positions':positions, 'equity':list(reversed(equity)),
             'trades':rows('trades','id,symbol,side,quantity,price,fee,realized_pnl,reason,created_at',50),

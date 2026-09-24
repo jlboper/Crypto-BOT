@@ -75,21 +75,24 @@ function renderPaperEvidence(report, equity, trades) {
     'Se muestran solo los últimos 300 puntos de equity y 50 operaciones recibidos. El historial completo aparecerá cuando el agente de Windows incorpore esta medición.';
   const finite=value=>Number.isFinite(Number(value))?Number(value):0;
   const optionalMoney=value=>value==null?'—':`${finite(value).toFixed(2)} USDT`;
-  panel.innerHTML=[
+  const metrics=[
     ['Días observados',finite(values.days).toFixed(1)],
     ['Operaciones cerradas',finite(values.trades).toFixed(0)],
     ['P&amp;L realizado neto',`${finite(values.pnl).toFixed(2)} USDT`],
-    ['Comisiones simuladas',`${finite(values.fees).toFixed(2)} USDT`],
     ['Drawdown de equity muestreada',`${finite(values.drawdown).toFixed(2)}%`],
+    ['Comisiones simuladas',`${finite(values.fees).toFixed(2)} USDT`],
     ['Operaciones ganadoras',values.win===null?'—':`${finite(values.win).toFixed(1)}%`],
     ['Muestras de equity',finite(values.points).toFixed(0)],
     ['P&amp;L abierto estimado',complete?optionalMoney(report.estimated_open_pnl_usdt):'—'],
     ['Exposición abierta con precio reciente',complete?optionalMoney(report.open_exposure_usdt):'—'],
     ['Factor de beneficio realizado',complete&&report.profit_factor!=null?finite(report.profit_factor).toFixed(2):'—']
-  ].map(([label,value])=>`<article><span>${label}</span><strong>${value}</strong></article>`).join('');
+  ];
+  const cards=items=>items.map(([label,value])=>`<article><span>${label}</span><strong>${value}</strong></article>`).join('');
+  panel.innerHTML=cards(metrics.slice(0,4));
+  document.getElementById('paperMoreMetrics').innerHTML=cards(metrics.slice(4));
   const benchmark=report?.benchmark,comparison=document.getElementById('paperBenchmark');
-  comparison.textContent=benchmark?.paper_return_pct!=null&&benchmark?.btc_return_pct!=null?
-    `Mismo período desde ${shortTime(benchmark.started_at)} (${benchmark.observed_days} días, ${benchmark.matched_points} muestras): cambio de equity PAPER ${pct(benchmark.paper_return_pct)} · BTC spot ${pct(benchmark.btc_return_pct)} · diferencia ${pct(benchmark.difference_pp)} puntos. Sin libro de aportes/retiros ni comisiones en BTC; no es señal para operar con dinero real.`:
+  comparison.textContent=benchmark?.paper_return_pct!=null&&benchmark?.btc_net_return_pct!=null?
+    `Mismo período desde ${shortTime(benchmark.started_at)} (${benchmark.observed_days} días, ${benchmark.matched_points} muestras): equity PAPER ${pct(benchmark.paper_return_pct)} · BTC con costos PAPER ${pct(benchmark.btc_net_return_pct)} · diferencia ${pct(benchmark.net_difference_pp)} puntos. BTC usa el 100% del capital; no hay libro de aportes/retiros ni evidencia suficiente para operar con dinero real.`:
     'Comparación BTC: esperando al menos dos ciclos PAPER con cotización BTC y equity simultáneas. Los datos anteriores no se reconstruyen.';
   const checks=[
     [Number(report?.observed_days)>=30,`Seguimiento PAPER: ${finite(report?.observed_days).toFixed(1)} de 30 días`],
@@ -160,7 +163,7 @@ function renderResearchDetail(asset) {
   const sensitivity=asset.parameter_sensitivity||[];
   const holdout=asset.holdout;
   const candidates=asset.candidates||[];
-  const gateLabels={positive_vs_cash:'Supera efectivo',mean_fold_sharpe:'Sharpe OOS',positive_folds:'Consistencia',selection_stability:'Estabilidad de selección',monte_carlo_loss:'Monte Carlo',full_sample_sharpe:'Sharpe de desarrollo',parameter_stability:'Sensibilidad',turnover_control:'Rotación',data_quality:'Calidad de datos',holdout_positive:'Ventana final positiva',holdout_cost_stress:'Costos duplicados',minimum_oos_evidence:'Actividad OOS mínima'};
+  const gateLabels={positive_vs_cash:'Supera efectivo',beats_asset_hold_oos:'Supera mantener el activo OOS',mean_fold_sharpe:'Sharpe OOS',positive_folds:'Consistencia',selection_stability:'Estabilidad de selección',monte_carlo_loss:'Monte Carlo',full_sample_sharpe:'Sharpe de desarrollo',parameter_stability:'Sensibilidad',turnover_control:'Rotación',data_quality:'Calidad de datos',holdout_positive:'Ventana final positiva',holdout_beats_asset_hold:'Ventana final supera mantener el activo',holdout_cost_stress:'Costos duplicados',minimum_oos_evidence:'Actividad OOS mínima'};
   const gates=Object.entries(asset.qualification?.gates||{});
   panel.hidden=false;
   panel.innerHTML=`<div class="detail-heading"><div><p class="eyebrow">${esc(asset.symbol)} · DIAGNÓSTICO</p><h3>${esc(asset.champion_candidate)}</h3></div><button class="detail-close" aria-label="Cerrar detalle">×</button></div>
@@ -213,6 +216,11 @@ async function refresh() {
     document.getElementById('positionsCount').textContent=`${status.positions} de ${status.max_positions} posiciones`;
     document.getElementById('aiStatus').textContent=status.ai_enabled?'Activa':'Desactivada';
     document.getElementById('aiModel').textContent=status.ai_model;
+    const risk=status.risk||{};
+    for(const [id,key] of [['riskTrade','risk_per_trade_pct'],['riskPosition','max_position_pct'],['riskExposure','max_total_exposure_pct'],['riskDaily','daily_loss_limit_pct'],['riskWeekly','weekly_loss_limit_pct']]){
+      const value=Number(risk[key]);
+      document.getElementById(id).textContent=risk[key]!=null&&Number.isFinite(value)?`${(value*100).toFixed(2).replace(/\.00$/,'')}%`:'—';
+    }
 
     const state=document.getElementById('killState'), button=document.getElementById('killButton');
     state.textContent=status.killed?'DETENIDO':'Protecciones activas'; state.classList.toggle('killed',status.killed);

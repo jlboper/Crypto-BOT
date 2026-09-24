@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import asdict
 import hmac
 import mimetypes
 import os
@@ -200,6 +201,7 @@ class DashboardServer:
                         "return_pct": ((current / initial) - 1) * 100 if initial else 0,
                         "positions": len(outer.db.positions()),
                         "max_positions": outer.config.risk.max_positions,
+                        "risk": asdict(outer.config.risk),
                         "cycle_seconds": outer.config.bot.cycle_seconds,
                         "activity": activity,
                         "prices_at": prices_at,

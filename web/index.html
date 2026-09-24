@@ -88,6 +88,8 @@
       <p class="finance-strategy">Estrategia operativa: swing multi-activo en PAPER. La evaluación histórica es solo informativa.</p>
       <div id="paperEvidenceMetrics" class="research-summary"></div>
       <div id="paperBenchmark" class="benchmark-note">Comparación BTC: esperando muestras emparejadas.</div>
+      <details class="finance-details"><summary>Ver métricas, pasos pendientes y resultados por activo</summary>
+      <div id="paperMoreMetrics" class="research-summary"></div>
       <div class="readiness-note"><h3>Antes de usar capital real</h3><ul id="readinessChecks"></ul>
         <p>Después de la evidencia PAPER: probar órdenes en Testnet, validar reglas y mínimos de cada par, conciliar saldos y ejecuciones, y aprobar explícitamente un límite de capital. Esta versión permanece en PAPER.</p>
       </div>
@@ -96,14 +98,15 @@
         <thead><tr><th>Activo</th><th>Cierres</th><th>Resultado realizado neto</th><th>Ganadoras</th><th>Exposición abierta</th><th>P&amp;L abierto estimado</th></tr></thead>
         <tbody id="paperAssetRows"><tr><td colspan="6" class="empty">Esperando historial PAPER.</td></tr></tbody>
       </table></div>
-      <p class="research-updated">P&amp;L realizado neto de comisiones; P&amp;L abierto estimado solo con cotizaciones recientes, incluyendo salida simulada. Drawdown muestreado. Sin libro de aportes/retiros; BTC es referencia spot y no incluye comisiones.</p>
+      <p class="research-updated">P&amp;L realizado neto de comisiones; P&amp;L abierto estimado solo con cotizaciones recientes, incluyendo salida simulada. Drawdown muestreado. Sin libro de aportes/retiros; la referencia BTC invierte el 100% y descuenta costos PAPER simulados.</p>
+      </details>
       <details class="research-lab">
         <summary>Comparar estrategias y ver evaluación histórica</summary>
       <div class="research-heading">
         <div>
-          <p class="eyebrow">EVALUACIÓN HISTÓRICA · V0.6.9</p>
+          <p class="eyebrow">EVALUACIÓN HISTÓRICA · V0.6.10</p>
           <h2>Comparación multi-cripto</h2>
-          <p class="research-copy">Compara estrategias con ejecución en la vela siguiente, costos, walk-forward y Monte Carlo. Ningún resultado se activa automáticamente.</p>
+          <p class="research-copy">Compara cinco estrategias por activo contra efectivo y comprar y mantener ese activo, con costos, walk-forward y ventana final. Ningún resultado se activa automáticamente.</p>
         </div>
         <div class="research-actions">
           <span id="researchState" class="state neutral">SIN EJECUTAR</span>
@@ -122,7 +125,7 @@
       <div id="researchSummary" class="research-summary"></div>
       <div class="table-wrap">
         <table class="research-table">
-          <thead><tr><th>Activo</th><th>Estrategia fija</th><th>OOS fija</th><th>Selector adaptativo</th><th>Cash</th><th>Benchmark</th><th>Folds +</th><th>Puertas</th><th>Dictamen</th></tr></thead>
+          <thead><tr><th>Activo</th><th>Estrategia fija</th><th>OOS fija</th><th>Selector adaptativo</th><th>Cash</th><th>Mantener activo</th><th>Folds +</th><th>Puertas</th><th>Dictamen</th></tr></thead>
           <tbody id="researchAssets"><tr><td colspan="9" class="empty">Ejecuta el primer análisis desde este portal.</td></tr></tbody>
         </table>
       </div>
@@ -142,13 +145,13 @@
         <canvas id="equityChart" height="230" aria-label="Curva de equity"></canvas>
       </article>
       <article class="panel guardrail">
-        <div class="panel-title"><h2>Guardrails</h2><span id="killState" class="state">Comprobando</span></div>
+        <div class="panel-title"><h2>Límites PAPER</h2><span id="killState" class="state">Comprobando</span></div>
         <dl>
-          <div><dt>Riesgo / trade</dt><dd>0.75%</dd></div>
-          <div><dt>Máx. posición</dt><dd>15%</dd></div>
-          <div><dt>Máx. exposición</dt><dd>60%</dd></div>
-          <div><dt>Límite diario</dt><dd>−2%</dd></div>
-          <div><dt>Límite semanal</dt><dd>−5%</dd></div>
+          <div><dt>Riesgo / trade</dt><dd id="riskTrade">—</dd></div>
+          <div><dt>Máx. posición</dt><dd id="riskPosition">—</dd></div>
+          <div><dt>Máx. exposición</dt><dd id="riskExposure">—</dd></div>
+          <div><dt>Límite diario</dt><dd id="riskDaily">—</dd></div>
+          <div><dt>Límite semanal</dt><dd id="riskWeekly">—</dd></div>
           <div><dt>Apalancamiento</dt><dd>Desactivado</dd></div>
         </dl>
       </article>
