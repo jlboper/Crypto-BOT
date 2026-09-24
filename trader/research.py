@@ -558,6 +558,7 @@ def _research_development(
     trades_per_year = float((champion_summary or {}).get("trades", 0)) / years
     gates = {
         "positive_vs_cash": fixed_metrics["oos_compounded_return_pct"] > 0,
+        "beats_asset_hold_oos": fixed_metrics["oos_compounded_return_pct"] > fixed_metrics["oos_benchmark_return_pct"],
         "mean_fold_sharpe": fixed_metrics["mean_fold_sharpe"] >= 0.25,
         "positive_folds": fixed_metrics["positive_folds_pct"] >= 60,
         "selection_stability": fixed_metrics["selection_overfit_rate_pct"] <= 40,
@@ -614,6 +615,7 @@ def research_asset(symbol, candles, btc_candles, config, *, train_bars=600, test
         "warning": "Repeated inspection consumes this holdout; future data is needed after tuning."}
     gates = result["qualification"]["gates"]
     gates["holdout_positive"] = metrics[0]["return_pct"] > 0 and metrics[0]["trades"] >= 3
+    gates["holdout_beats_asset_hold"] = metrics[0]["return_pct"] > metrics[0]["benchmark_return_pct"]
     gates["holdout_cost_stress"] = metrics[1]["return_pct"] > 0
     gates["minimum_oos_evidence"] = result["fixed_strategy"]["folds"] >= 3 and result["fixed_strategy"]["trades"] >= 20
     result["qualification"]["passed"] = all(gates.values())

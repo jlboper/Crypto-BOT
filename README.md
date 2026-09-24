@@ -1,6 +1,6 @@
 # Crypto AI Trading Bot — Binance Spot
 
-> COPIA AISLADA DE AUDITORÍA de v0.6.2. El portal HTTPS y su agente PAPER están desplegados; el motor auditado todavía no sustituye la instancia operativa. Consulta `AUDIT_REPORT.md`, `DEPLOYMENT.md` y `GITHUB_RELEASES.md`. No contiene credenciales ni datos de la instancia operativa. No debe iniciarse como un segundo motor.
+> Copia de desarrollo aislada de la instalación Windows. El repositorio no contiene credenciales ni datos de la instancia operativa. No inicies un segundo motor. Consulta `BOT_UPDATE_PROGRESS.md` para distinguir versión preparada, publicada e instalada.
 
 Bot de capital para swing trading de varios días/semanas, **sin apalancamiento** y **solo en simulación**. Consume precios reales de Binance Spot, crea señales cuantitativas y utiliza OpenAI como una segunda barrera de riesgo. La versión 0.6 incorpora un laboratorio independiente para comparar activos y estrategias sin modificar el motor operativo.
 
@@ -128,11 +128,11 @@ Cada ejecución descarga hasta 5,000 velas cerradas por activo y aplica:
 - Separación explícita entre estrategia fija y selector adaptativo.
 - Benchmark de efectivo USDT al 0%: superar un mercado bajista no basta si la estrategia pierde dinero.
 - Cash gate: el selector adaptativo no opera cuando el periodo de entrenamiento no demuestra retorno, Sharpe y actividad mínimos.
-- Doce puertas de evidencia, incluyendo ventana final reservada, costos duplicados y mínimos de actividad.
+- Catorce puertas de evidencia en 0.6.10, incluyendo ventaja frente a comprar y mantener cada activo en desarrollo y ventana final, costos duplicados y mínimos de actividad.
 
 El cálculo se ejecuta en un proceso independiente para no bloquear el motor ni el portal. Pulsa una fila del informe para ver el diagnóstico del activo o utiliza `Exportar CSV` para conservar el resumen.
 
-Los resultados son `RESEARCH_ONLY`: ni el ganador ni sus parámetros se transfieren al motor automáticamente. La columna `OOS fija` pertenece siempre al candidato mostrado; `Selector adaptativo` representa una política distinta que puede cambiar de estrategia entre ventanas o conservar USDT. Un candidato debe superar las doce puertas y validaciones adicionales antes de entrar siquiera a paper trading. Consulta `RESEARCH_METHODOLOGY.md` para límites y criterios.
+Los resultados son `RESEARCH_ONLY`: ni el ganador ni sus parámetros se transfieren al motor automáticamente. La columna `OOS fija` pertenece siempre al candidato mostrado; `Selector adaptativo` representa una política distinta que puede cambiar de estrategia entre ventanas o conservar USDT. Un candidato debe superar las catorce puertas y validaciones adicionales antes de entrar siquiera a paper trading. Consulta `RESEARCH_METHODOLOGY.md` para límites y criterios.
 
 El portal local y el remoto distribuyen la misma interfaz. El remoto exige autenticación, no almacena datos privados en caché y puede solicitar Research al agente Windows sin modificar decisiones del motor.
 
@@ -149,6 +149,8 @@ El panel resume operaciones cerradas, P&L realizado neto de comisiones, costos s
 En 0.6.8 el informe desglosa resultados realizados por activo, porcentaje de cierres ganadores, exposición y P&L abierto estimado con comisiones y slippage PAPER. Las estimaciones abiertas solo aparecen con precios de mercado recientes; una cotización ausente o vencida muestra «—» y bloquea decisiones de cierre basadas en velas antiguas. Las cifras por activo son diagnósticas, no recomendaciones para activar una estrategia ni permisos LIVE.
 
 En 0.6.9 el panel agrupa la evaluación histórica de estrategias dentro del seguimiento financiero; el motor PAPER sigue siendo uno solo y ninguna estrategia se activa automáticamente. Cada nuevo ciclo guarda juntos equity y BTCUSDT para comparar la variación en un período idéntico. No reconstruye BTC previo ni corrige aportes/retiros, y la referencia BTC spot no incluye comisiones. La lista de actividad muestra tres movimientos; el historial autenticado se consulta desde Opciones por páginas de 25 y se conserva hasta 90 días. El panel enumera umbrales PAPER y tareas manuales pendientes de Testnet y conciliación antes de considerar capital real; esta versión solo opera en PAPER.
+
+En 0.6.10 el informe muestra también BTC con comisión y slippage PAPER en ambos extremos de la misma ventana; el laboratorio exige superar la compra y tenencia del activo evaluado fuera de muestra y en la ventana final para marcar un candidato como prometedor. La evaluación detallada queda plegada para limpiar el panel. Los límites PAPER se leen de la configuración efectiva. Los diagnósticos de más de 90 días se depuran diariamente incluso si el motor está pausado; operaciones, posiciones, equity y referencia BTC se conservan. Consulta `STRATEGY_EVIDENCE.md`. Estas mejoras no activan dinero real.
 
 ## Centro de control de Windows
 

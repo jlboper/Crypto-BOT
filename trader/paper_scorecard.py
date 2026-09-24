@@ -97,6 +97,14 @@ def paper_scorecard(connection, *, prices=None, prices_at=None, cycle_seconds=No
     comparable = benchmark_count >= 2 and benchmark_start < benchmark_end
     paper_return = 100*(benchmark_last[0]/benchmark_first[0]-1) if comparable else None
     btc_return = 100*(benchmark_last[1]/benchmark_first[1]-1) if comparable else None
+    # Buy at the first paired quote and sell at the last using the same
+    # simulated round-trip costs as PAPER. The 100% BTC allocation remains a
+    # reference, not a like-for-like comparison of portfolio risk.
+    btc_net_return = (100 * (
+        benchmark_last[1] / benchmark_first[1]
+        * (1 - paper.slippage_rate) / (1 + paper.slippage_rate)
+        * (1 - paper.fee_rate) / (1 + paper.fee_rate) - 1
+    )) if comparable and paper is not None else None
     return {
         'mode': 'PAPER', 'status': 'REVIEW_REQUIRED' if observed_days >= 30 and closed >= 30 and invalid == 0 else 'INSUFFICIENT_EVIDENCE',
         'started_at': start.isoformat() if start else None,
@@ -123,6 +131,8 @@ def paper_scorecard(connection, *, prices=None, prices_at=None, cycle_seconds=No
             'paper_return_pct': round(paper_return, 3) if comparable else None,
             'btc_return_pct': round(btc_return, 3) if comparable else None,
             'difference_pp': round(paper_return-btc_return, 3) if comparable else None,
+            'btc_net_return_pct': round(btc_net_return, 3) if btc_net_return is not None else None,
+            'net_difference_pp': round(paper_return-btc_net_return, 3) if btc_net_return is not None else None,
         },
         'observation_gate': {'days': 30, 'closed_trades': 30},
         'limitations': ['no_cashflow_ledger', 'benchmark_starts_with_new_samples', 'sampled_equity_drawdown'],

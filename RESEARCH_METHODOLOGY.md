@@ -1,6 +1,6 @@
 # Nota de auditoría de la copia aislada
 
-En esta copia se aplican las correcciones descritas en `AUDIT_REPORT.md`: elección fija solo en entrenamiento inicial, ventana final reservada, costos duplicados, 12 puertas de evidencia y bootstrap circular por bloques. La agregación portfolio es una ilustración por ventanas alineadas, no ejecución conjunta. Las cifras y descripciones anteriores de v0.6.2 que difieran deben interpretarse como antecedentes. No se ha ejecutado aquí una investigación con datos reales nuevos.
+En esta copia se aplican las correcciones descritas en `AUDIT_REPORT.md`: elección fija solo en entrenamiento inicial, ventana final reservada, costos duplicados, 14 puertas de evidencia en 0.6.10 y bootstrap circular por bloques. La agregación portfolio es una ilustración por ventanas alineadas, no ejecución conjunta. Las cifras y descripciones anteriores de v0.6.2 que difieran deben interpretarse como antecedentes. No se ha ejecutado aquí una investigación con datos reales nuevos.
 
 # Metodología del Research Lab 0.6
 
@@ -35,7 +35,7 @@ La estrategia fija usa el mismo candidato en todos los bloques fuera de muestra.
 
 El detalle por activo muestra también el retorno OOS acumulado, número de operaciones y proporción de bloques positivos de cada candidato *solo durante el desarrollo*. Son comparaciones descriptivas sujetas a selección múltiple: no se usa la ventana final reservada para ordenarlos, no cambia la elección del campeón ni se transfieren parámetros al motor PAPER.
 
-El efectivo en USDT se modela como un benchmark de 0% antes de intereses. Una estrategia no califica solo por perder menos que una criptomoneda: debe superar también el efectivo.
+El efectivo en USDT se modela como un benchmark de 0% antes de intereses. Una estrategia no califica solo por perder menos que una criptomoneda: debe superar también el efectivo. Desde 0.6.10, debe superar comprar y mantener **su propio activo** con comisión y slippage en ventanas fuera de muestra y en la ventana final reservada. La comparación BTC del portafolio PAPER es otra medición, con observaciones posteriores a 0.6.9.
 
 ## Puertas de promoción
 

@@ -46,7 +46,13 @@ class ResearchTests(unittest.TestCase):
         self.assertEqual(asset["walk_forward"], asset["fixed_strategy"])
         self.assertIn("adaptive_selector", asset)
         self.assertIn("cash_folds", asset["adaptive_selector"])
-        self.assertEqual(len(asset["qualification"]["gates"]), 12)
+        self.assertEqual(len(asset["qualification"]["gates"]), 14)
+        self.assertEqual(asset["qualification"]["gates"]["beats_asset_hold_oos"],
+                         asset["fixed_strategy"]["oos_compounded_return_pct"] >
+                         asset["fixed_strategy"]["oos_benchmark_return_pct"])
+        self.assertEqual(asset["qualification"]["gates"]["holdout_beats_asset_hold"],
+                         asset["holdout"]["base_costs"]["return_pct"] >
+                         asset["holdout"]["base_costs"]["benchmark_return_pct"])
         self.assertEqual(asset["holdout"]["bars"], 100)
         self.assertLess(asset["fixed_strategy"]["details"][-1]["end_at"], asset["holdout"]["start_at"])
         self.assertEqual(

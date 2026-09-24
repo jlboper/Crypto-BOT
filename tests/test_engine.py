@@ -10,6 +10,27 @@ from trader.engine import TradingEngine
 
 
 class EngineTests(unittest.TestCase):
+    def test_diagnostic_cleanup_keeps_financial_records_and_positions(self):
+        with tempfile.TemporaryDirectory() as folder:
+            config = load_config()
+            config = replace(config, bot=replace(config.bot, database_path=Path(folder)/'test.db',
+                                                kill_switch_path=Path(folder)/'KILL_SWITCH'))
+            engine = TradingEngine(config)
+            engine.db.initialize_cash(1000)
+            engine.db.record_equity(1000, 1000, 0, 100)
+            engine.db.record_trade('BTCUSDT','BUY',0.1,100,0.01,0,'paper')
+            engine.db.upsert_position(Position('BTCUSDT',0.1,100,90,120,100,2,0.01,'now'))
+            engine.db.event('INFO','obsolete diagnostic')
+            with engine.db.connect() as db:
+                db.execute("UPDATE events SET created_at='2020-01-01T00:00:00+00:00'")
+            engine._prune_diagnostics_if_due()
+            self.assertFalse(engine.db.recent('events'))
+            self.assertEqual(len(engine.db.recent('equity')),1)
+            self.assertEqual(len(engine.db.recent('trades')),1)
+            self.assertEqual(len(engine.db.positions()),1)
+            engine._prune_diagnostics_if_due()
+            self.assertEqual(len(engine.db.recent('trades')),1)
+
     def test_missing_or_invalid_spot_never_closes_held_position_at_candle_price(self):
         with tempfile.TemporaryDirectory() as folder:
             config = load_config()
