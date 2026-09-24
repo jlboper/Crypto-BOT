@@ -33,6 +33,7 @@
           <button id="optionsButton" class="secondary" aria-haspopup="menu" aria-expanded="false">Opciones</button>
           <div id="optionsMenu" class="options-menu" role="menu" hidden>
             <button id="updateButton" role="menuitem">Actualizaciones</button>
+            <button id="historyButton" role="menuitem">Historial de actividad</button>
             <button id="restoreBotVersion" role="menuitem" disabled>Restaurar versión anterior</button>
             <button id="portalPasswordButton" role="menuitem">Cambiar contraseña</button>
             <button id="portalLogout" role="menuitem" hidden>Cerrar sesión</button>
@@ -66,7 +67,13 @@
       <p id="botUpdateMessage">Busca una versión firmada. Windows verificará el paquete antes de permitir la instalación.</p>
       <button id="installBotUpdate" class="primary" disabled>Instalar versión verificada</button>
     </section>
-    <ul id="portalCommands" aria-label="Solicitudes remotas"></ul>
+    <section id="historyPanel" class="panel" hidden aria-label="Historial de actividad">
+      <div class="panel-title"><h2>Historial de actividad</h2><button id="closeHistory" class="secondary">Cerrar</button></div>
+      <p>Solicitudes del portal y sus resultados. Se conservan hasta 90 días.</p>
+      <ul id="historyRows" class="activity-list"></ul>
+      <button id="loadMoreHistory" class="secondary" hidden>Ver anteriores</button>
+      <p id="historyMessage" role="status"></p>
+    </section>
 
     <section class="metrics" aria-label="Resumen de cuenta">
       <article><span>Equity</span><strong id="equity">—</strong><small id="return">—</small></article>
@@ -78,20 +85,24 @@
     <section class="panel paper-scorecard" aria-label="Seguimiento financiero PAPER">
       <div class="panel-title"><h2>Seguimiento financiero PAPER</h2><span id="paperEvidenceState" class="state neutral">SIN DATOS</span></div>
       <p id="paperEvidenceNote">Los resultados observados no autorizan operar con dinero real.</p>
+      <p class="finance-strategy">Estrategia operativa: swing multi-activo en PAPER. La evaluación histórica es solo informativa.</p>
       <div id="paperEvidenceMetrics" class="research-summary"></div>
+      <div id="paperBenchmark" class="benchmark-note">Comparación BTC: esperando muestras emparejadas.</div>
+      <div class="readiness-note"><h3>Antes de usar capital real</h3><ul id="readinessChecks"></ul>
+        <p>Después de la evidencia PAPER: probar órdenes en Testnet, validar reglas y mínimos de cada par, conciliar saldos y ejecuciones, y aprobar explícitamente un límite de capital. Esta versión permanece en PAPER.</p>
+      </div>
       <h3>Resultados por activo</h3>
       <div class="table-wrap"><table class="asset-table">
         <thead><tr><th>Activo</th><th>Cierres</th><th>Resultado realizado neto</th><th>Ganadoras</th><th>Exposición abierta</th><th>P&amp;L abierto estimado</th></tr></thead>
         <tbody id="paperAssetRows"><tr><td colspan="6" class="empty">Esperando historial PAPER.</td></tr></tbody>
       </table></div>
-      <p class="research-updated">P&amp;L realizado neto de comisiones; P&amp;L abierto estimado solo con cotizaciones recientes, incluyendo salida simulada. Drawdown muestreado. Sin libro de aportes/retiros ni benchmark PAPER sincronizado.</p>
-    </section>
-
-    <section class="panel research-lab">
+      <p class="research-updated">P&amp;L realizado neto de comisiones; P&amp;L abierto estimado solo con cotizaciones recientes, incluyendo salida simulada. Drawdown muestreado. Sin libro de aportes/retiros; BTC es referencia spot y no incluye comisiones.</p>
+      <details class="research-lab">
+        <summary>Comparar estrategias y ver evaluación histórica</summary>
       <div class="research-heading">
         <div>
-          <p class="eyebrow">RESEARCH LAB · V0.6.8</p>
-          <h2>Validación multi-cripto</h2>
+          <p class="eyebrow">EVALUACIÓN HISTÓRICA · V0.6.9</p>
+          <h2>Comparación multi-cripto</h2>
           <p class="research-copy">Compara estrategias con ejecución en la vela siguiente, costos, walk-forward y Monte Carlo. Ningún resultado se activa automáticamente.</p>
         </div>
         <div class="research-actions">
@@ -117,6 +128,12 @@
       </div>
       <div id="researchDetail" class="research-detail" hidden></div>
       <p id="researchUpdated" class="research-updated">El estudio descarga aproximadamente 5,000 velas cerradas por activo y puede tardar varios minutos.</p>
+      </details>
+    </section>
+
+    <section class="activity-strip" aria-label="Actividad reciente">
+      <h2>Actividad reciente <small>Últimos 3 movimientos · historial en Opciones</small></h2>
+      <ul id="portalCommands" class="activity-list"><li>Esperando actividad del portal.</li></ul>
     </section>
 
     <section class="grid">

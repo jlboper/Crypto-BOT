@@ -104,6 +104,10 @@ class Database:
                     exposure REAL NOT NULL,
                     created_at TEXT NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS equity_benchmark (
+                    equity_id INTEGER PRIMARY KEY REFERENCES equity(id),
+                    btc_usdt REAL NOT NULL CHECK(btc_usdt > 0)
+                );
                 CREATE TABLE IF NOT EXISTS events (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     level TEXT NOT NULL,
@@ -217,12 +221,15 @@ class Database:
                 (symbol, review.verdict, review.confidence, review.risk_multiplier, review.reason, datetime.now(UTC).isoformat()),
             )
 
-    def record_equity(self, equity: float, cash: float, exposure: float) -> None:
+    def record_equity(self, equity: float, cash: float, exposure: float, btc_usdt: float | None = None) -> None:
         with self.connect() as db:
-            db.execute(
+            row = db.execute(
                 "INSERT INTO equity(equity, cash, exposure, created_at) VALUES(?,?,?,?)",
                 (equity, cash, exposure, datetime.now(UTC).isoformat()),
             )
+            if btc_usdt is not None:
+                db.execute("INSERT INTO equity_benchmark(equity_id, btc_usdt) VALUES(?,?)",
+                           (row.lastrowid, btc_usdt))
 
     def first_equity_since(self, iso_time: str) -> float | None:
         with self.connect() as db:

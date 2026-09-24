@@ -1,6 +1,6 @@
 [project]
 name = "crypto-ai-trading-bot"
-version = "0.6.8"
+version = "0.6.9"
 description = "Safety-first multi-asset Binance Spot bot with constrained AI review and research lab"
 requires-python = ">=3.11"
 dependencies = []

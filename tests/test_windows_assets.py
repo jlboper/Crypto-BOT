@@ -51,7 +51,7 @@ class WindowsAssetTests(unittest.TestCase):
         html = (PROJECT_ROOT / "web" / "index.html").read_text(encoding="utf-8")
         manifest = (PROJECT_ROOT / "web" / "manifest.webmanifest").read_text(encoding="utf-8")
         script = (PROJECT_ROOT / "web" / "app.js").read_text(encoding="utf-8")
-        self.assertIn("RESEARCH LAB · V0.6.8", html)
+        self.assertIn("EVALUACIÓN HISTÓRICA · V0.6.9", html)
         self.assertIn('"display": "standalone"', manifest)
         self.assertIn("/api/research/run", script)
         self.assertIn("serviceWorker", script)

@@ -48,7 +48,7 @@ class TradingEngine:
 
             try:
                 prices = self.exchange.latest_prices(set(monitored_symbols))
-                self._require_spot_prices(prices, held_symbols)
+                self._require_spot_prices(prices, [*held_symbols, "BTCUSDT"])
             except Exception as exc:
                 raise RuntimeError("Fresh prices unavailable; entries blocked") from exc
             self.db.record_market_snapshot(prices)
@@ -56,13 +56,13 @@ class TradingEngine:
             positions = self.db.positions()
             equity, cash, exposure = self.broker.equity(prices)
             if self.killed():
-                self.db.record_equity(equity, cash, exposure)
+                self.db.record_equity(equity, cash, exposure, prices["BTCUSDT"])
                 self.db.event("WARN", "Kill switch active: protections monitored, new entries blocked")
                 self._errors = 0
                 self.db.set_setting("consecutive_errors", "0")
                 return {"status": "killed", "equity": equity, "cash": cash, "exposure": exposure}
             if self._risk_halt(equity):
-                self.db.record_equity(equity, cash, exposure)
+                self.db.record_equity(equity, cash, exposure, prices["BTCUSDT"])
                 return {"status": "risk_halt", "equity": equity}
 
             held = {position.symbol for position in positions}
@@ -117,7 +117,7 @@ class TradingEngine:
                 opened.append(signal.symbol)
 
             equity, cash, exposure = self.broker.equity(prices)
-            self.db.record_equity(equity, cash, exposure)
+            self.db.record_equity(equity, cash, exposure, prices["BTCUSDT"])
             self.db.event("INFO", f"Cycle complete: {len(symbols)} symbols, {len(candidates)} buys, opened {len(opened)}")
             self._errors = 0
             self.db.set_setting("consecutive_errors", "0")

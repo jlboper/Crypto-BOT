@@ -87,6 +87,18 @@ function renderPaperEvidence(report, equity, trades) {
     ['Exposición abierta con precio reciente',complete?optionalMoney(report.open_exposure_usdt):'—'],
     ['Factor de beneficio realizado',complete&&report.profit_factor!=null?finite(report.profit_factor).toFixed(2):'—']
   ].map(([label,value])=>`<article><span>${label}</span><strong>${value}</strong></article>`).join('');
+  const benchmark=report?.benchmark,comparison=document.getElementById('paperBenchmark');
+  comparison.textContent=benchmark?.paper_return_pct!=null&&benchmark?.btc_return_pct!=null?
+    `Mismo período desde ${shortTime(benchmark.started_at)} (${benchmark.observed_days} días, ${benchmark.matched_points} muestras): cambio de equity PAPER ${pct(benchmark.paper_return_pct)} · BTC spot ${pct(benchmark.btc_return_pct)} · diferencia ${pct(benchmark.difference_pp)} puntos. Sin libro de aportes/retiros ni comisiones en BTC; no es señal para operar con dinero real.`:
+    'Comparación BTC: esperando al menos dos ciclos PAPER con cotización BTC y equity simultáneas. Los datos anteriores no se reconstruyen.';
+  const checks=[
+    [Number(report?.observed_days)>=30,`Seguimiento PAPER: ${finite(report?.observed_days).toFixed(1)} de 30 días`],
+    [Number(report?.closed_trades)>=30,`Operaciones cerradas: ${finite(report?.closed_trades).toFixed(0)} de 30`],
+    [Number(benchmark?.observed_days)>=30,`Comparación temporal BTC: ${finite(benchmark?.observed_days).toFixed(1)} de 30 días`],
+    [complete&&Number(report?.invalid_points)===0&&report?.price_status!=='stale_or_missing','Integridad de muestras y cotizaciones abiertas'],
+  ];
+  const checklist=document.getElementById('readinessChecks');checklist.replaceChildren();
+  for(const [ready,label] of checks){const item=document.createElement('li');item.textContent=`${ready?'✓':'○'} ${label}`;checklist.append(item);}
   const assets=complete&&Array.isArray(report.by_asset)?report.by_asset:[];
   document.getElementById('paperAssetRows').innerHTML=assets.length?assets.map(asset=>`
     <tr><td>${esc(asset.symbol)}</td><td>${finite(asset.closed_trades).toFixed(0)}</td>

@@ -18,6 +18,8 @@ function portalLocked(){
   document.getElementById('portalLogin').hidden=false;
   document.querySelector('.shell').hidden=true;
   document.getElementById('passwordPanel').hidden=true;
+  document.getElementById('historyPanel').hidden=true;
+  document.getElementById('historyRows').replaceChildren();
   for(const id of ['currentPassword','newPassword','confirmPassword'])document.getElementById(id).value='';
 }
 async function portalRequest(path,body){
@@ -29,6 +31,18 @@ async function portalRequest(path,body){
   if(!response.ok){if(response.status===401)portalLocked();throw new Error(data.error||'Error de conexión');}
   return data;
 }
+const activityActions={research:'Evaluar estrategias',update_check:'Buscar actualización',update_install:'Actualizar bot',update_restore:'Restaurar bot',kill:'Pausar bot',resume:'Reanudar bot'};
+const activityStatuses={pending:'Pendiente',applied:'Confirmado por Windows',expired:'Vencido',superseded:'Sustituido',running:'En curso',completed:'Completado',failed:'Falló'};
+function renderActivity(list,items){
+  for(const item of items){
+    const row=document.createElement('li');
+    row.className=item.status==='failed'?'failed':'';
+    row.textContent=`${activityActions[item.action]||item.action} · ${activityStatuses[item.status]||item.status}`;
+    if(item.message){const detail=document.createElement('small');detail.textContent=item.message;row.append(detail);}
+    if(item.created){const time=document.createElement('small');time.textContent=new Date(item.created*1000).toLocaleString('es-MX');row.append(time);}
+    list.append(row);
+  }
+}
 async function portalState(){
   if(portalCache && Date.now()-portalCacheAt<5000)return portalCache;
   const epoch=portalEpoch;
@@ -37,10 +51,9 @@ async function portalState(){
     portalCsrf=state.csrf;portalCache=state;portalCacheAt=Date.now();
     document.getElementById('portalConnection').textContent=state.stale?'Windows sin conexión reciente':'Windows conectado · sincronización HTTPS';
     const commands=document.getElementById('portalCommands');commands.replaceChildren();
-    const labels={pending:'Pendiente',applied:'Confirmado por Windows',expired:'Vencido',superseded:'Sustituido',running:'En curso',completed:'Completado',failed:'Falló'};
-    for(const item of state.commands||[]){const row=document.createElement('li');row.textContent=`#${item.id} ${item.action==='kill'?'Pausar':'Reanudar'} · ${labels[item.status]||item.status}`;commands.append(row);}
-    const actions={research:'Research Lab',update_check:'Verificar bot',update_install:'Actualizar bot',update_restore:'Restaurar bot'};
-    for(const item of state.jobs||[]){const row=document.createElement('li');row.textContent=`#${item.id} ${actions[item.action]||item.action} · ${labels[item.status]||item.status} · ${item.message||''}`;commands.append(row);}
+    const recent=(state.activity||[...(state.jobs||[]),...(state.commands||[])]).slice(0,3);
+    renderActivity(commands,recent);
+    if(!recent.length){const row=document.createElement('li');row.textContent='Sin solicitudes recientes.';commands.append(row);}
     const candidate=state.snapshot?.bot_update;
     const activeJob=(state.jobs||[]).some(j=>['pending','running'].includes(j.status));
     const usable=candidate&&!state.stale&&candidate.expires>Date.now()/1000;
@@ -93,10 +106,39 @@ document.addEventListener('DOMContentLoaded',()=>{
   document.getElementById('portalLogin').hidden=!remotePortal;
   document.querySelector('.shell').hidden=remotePortal;
   document.getElementById('portalLogout').hidden=!remotePortal;
+  if(!remotePortal)document.querySelector('.activity-strip').hidden=true;
   document.getElementById('portalConnection').textContent=remotePortal?'Conectando al portal':'Conexión local · datos directos de Windows';
   const optionsButton=document.getElementById('optionsButton'),optionsMenu=document.getElementById('optionsMenu');
   function showOptions(open){optionsMenu.hidden=!open;optionsButton.setAttribute('aria-expanded',String(open));}
   optionsButton.onclick=()=>showOptions(optionsMenu.hidden);
+  let nextHistoryPage=0,historyBusy=false;
+  async function loadHistory(reset=false){
+    if(historyBusy)return;
+    if(reset){nextHistoryPage=0;document.getElementById('historyRows').replaceChildren();}
+    if(nextHistoryPage===null)return;
+    historyBusy=true;
+    const more=document.getElementById('loadMoreHistory'),message=document.getElementById('historyMessage');
+    more.disabled=true;message.textContent='Cargando historial…';
+    try{
+      const page=nextHistoryPage,epoch=portalEpoch;
+      const data=await portalRequest(`/v1/activity/${page}`);
+      if(epoch!==portalEpoch)return;
+      renderActivity(document.getElementById('historyRows'),data.items);
+      nextHistoryPage=data.next_page;
+      more.hidden=nextHistoryPage===null;
+      message.textContent=page===0&&!data.items.length?'Aún no hay actividad.':`Historial disponible durante ${data.retention_days} días.`;
+    }catch(error){message.textContent=error.message;}
+    finally{historyBusy=false;more.disabled=false;}
+  }
+  document.getElementById('historyButton').onclick=async()=>{
+    showOptions(false);document.getElementById('passwordPanel').hidden=true;document.getElementById('updatePanel').hidden=true;
+    if(!remotePortal){window.open('https://crypto-paper-private-portal.jlboper.workers.dev/','_blank','noopener');return;}
+    document.getElementById('historyPanel').hidden=false;
+    document.getElementById('historyPanel').scrollIntoView({behavior:'smooth',block:'start'});
+    await loadHistory(true);
+  };
+  document.getElementById('loadMoreHistory').onclick=()=>loadHistory();
+  document.getElementById('closeHistory').onclick=()=>{document.getElementById('historyPanel').hidden=true;};
   document.getElementById('portalLogin').onsubmit=async e=>{
     e.preventDefault();const button=document.getElementById('portalLoginButton');button.disabled=true;
     try{const parameters=await portalRequest('/v1/auth-parameters');const proof=await portalPasswordProof(document.getElementById('portalPassword').value,parameters);const result=await portalRequest('/v1/login',{password:proof});portalCsrf=result.csrf;document.getElementById('portalPassword').value='';portalCacheAt=0;await portalState();window.dispatchEvent(new Event('portal-ready'));}
@@ -180,7 +222,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     finally{updatePending=false;button.disabled=false;}
   }
   function showUpdateCenter(){
-    showOptions(false);document.getElementById('passwordPanel').hidden=true;
+    showOptions(false);document.getElementById('passwordPanel').hidden=true;document.getElementById('historyPanel').hidden=true;
     const panel=document.getElementById('updatePanel');panel.hidden=false;
     if(remotePortal&&document.querySelector('.shell').hidden)document.getElementById('updateMessage').textContent='Inicia sesión para revisar las versiones disponibles.';
     if(!document.querySelector('.shell').hidden)panel.scrollIntoView({behavior:'smooth',block:'start'});

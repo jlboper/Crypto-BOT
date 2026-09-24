@@ -113,7 +113,26 @@ test('remote Research Lab exposes expiration and renders friendly action labels'
   const status=await instance.api('/api/research/status');
   assert.equal(status.running,false);
   assert.match(status.error,/venció/);
-  assert.match(instance.elements.get('portalCommands').children[0].textContent,/Research Lab/);
+  assert.match(instance.elements.get('portalCommands').children[0].textContent,/Evaluar estrategias/);
+});
+
+test('recent activity is capped at three and history loads authenticated pages from options',async()=>{
+  const jobs=Array.from({length:20},(_,index)=>({id:20-index,action:'update_check',status:'completed',message:`Resultado ${index}`}));
+  const instance=bridge('paper.example.workers.dev',[
+    {status:200,body:state({jobs,activity:jobs.slice(0,3)})},
+    {status:200,body:{items:jobs.slice(0,2),next_page:1,retention_days:90}},
+    {status:200,body:{items:jobs.slice(2,3),next_page:null,retention_days:90}},
+  ]);
+  instance.start();
+  await instance.api('/api/status');
+  assert.equal(instance.elements.get('portalCommands').children.length,3);
+  await instance.elements.get('historyButton').onclick();
+  assert.equal(instance.calls[1].path,'/v1/activity/0');
+  assert.equal(instance.elements.get('historyRows').children.length,2);
+  await instance.elements.get('loadMoreHistory').onclick();
+  assert.equal(instance.calls[2].path,'/v1/activity/1');
+  assert.equal(instance.elements.get('historyRows').children.length,3);
+  assert.equal(instance.elements.get('loadMoreHistory').hidden,true);
 });
 
 test('PAPER evidence is optional until the stable Windows agent is updated',async()=>{
