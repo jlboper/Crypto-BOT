@@ -1,4 +1,4 @@
-﻿param([Parameter(Mandatory = $true)][string]$SourcePath)
+﻿param([Parameter(Mandatory = $true)][string]$SourcePath, [switch]$Automatic)
 
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Windows.Forms
@@ -34,15 +34,24 @@ if ($offer.changes.Count -eq 0) {
     Write-Output 'El supervisor ya tiene los módulos firmados de la instalación actual.'
     return
 }
-$answer = [System.Windows.Forms.MessageBox]::Show(
-    "Versión PAPER $($offer.version) verificada.`nSolo se actualizarán los módulos del agente independiente indicados en el paquete firmado. Se guardará una copia anterior y se reiniciará la tarea existente. El motor de trading y sus datos no se detienen.`n`n¿Continuar?",
-    'Actualizar conexión del portal',
-    [System.Windows.Forms.MessageBoxButtons]::YesNo,
-    [System.Windows.Forms.MessageBoxIcon]::Question)
-if ($answer -ne [System.Windows.Forms.DialogResult]::Yes) { return }
+if (-not $Automatic) {
+    $answer = [System.Windows.Forms.MessageBox]::Show(
+        "Versión PAPER $($offer.version) verificada.`nSolo se actualizarán los módulos del agente independiente indicados en el paquete firmado. Se guardará una copia anterior y se reiniciará la tarea existente. El motor de trading y sus datos no se detienen.`n`n¿Continuar?",
+        'Actualizar conexión del portal',
+        [System.Windows.Forms.MessageBoxButtons]::YesNo,
+        [System.Windows.Forms.MessageBoxIcon]::Question)
+    if ($answer -ne [System.Windows.Forms.DialogResult]::Yes) { return }
+}
+
+# An automatic refresh is covered by the owner's approval of this exact signed
+# release. Never wake a deliberately stopped independent agent.
+if ((Get-ScheduledTask -TaskName 'Crypto Paper Portal Agent').State -ne 'Running') {
+    throw 'El agente está detenido; inicia su tarea antes de sincronizarlo.'
+}
 
 $state = Join-Path $agentRoot 'data'
 $stopMarker = Join-Path $state 'REMOTE_STOP'
+if (Test-Path -LiteralPath $stopMarker) { throw 'El agente ya tiene una orden de parada.' }
 Set-Content -LiteralPath $stopMarker -Value 'Stop outbound agent only' -Encoding utf8
 $statusFile = Join-Path $state 'remote-status.json'
 $previousSuccess = 0
@@ -50,16 +59,16 @@ if (Test-Path -LiteralPath $statusFile) {
     try { $previousSuccess = [double]((Get-Content -LiteralPath $statusFile -Raw | ConvertFrom-Json).last_success) }
     catch { $previousSuccess = 0 }
 }
-for ($attempt = 0; $attempt -lt 60; $attempt++) {
-    $current = Get-ScheduledTask -TaskName 'Crypto Paper Portal Agent'
-    if ($current.State -ne 'Running') { break }
-    Start-Sleep -Milliseconds 500
-}
-if ((Get-ScheduledTask -TaskName 'Crypto Paper Portal Agent').State -eq 'Running') {
-    throw 'El agente no se detuvo; no se copiaron archivos.'
-}
 $result = $null
 try {
+    for ($attempt = 0; $attempt -lt 60; $attempt++) {
+        $current = Get-ScheduledTask -TaskName 'Crypto Paper Portal Agent'
+        if ($current.State -ne 'Running') { break }
+        Start-Sleep -Milliseconds 500
+    }
+    if ((Get-ScheduledTask -TaskName 'Crypto Paper Portal Agent').State -eq 'Running') {
+        throw 'El agente no se detuvo; no se copiaron archivos.'
+    }
     $updated = & $python @args --apply
     if ($LASTEXITCODE -ne 0) { throw 'La copia verificada falló; revisa el respaldo del supervisor.' }
     $result = (($updated | Out-String) | ConvertFrom-Json)
@@ -67,7 +76,16 @@ try {
         throw 'El supervisor no confirmó la actualización de los módulos.'
     }
 } finally {
-    Start-ScheduledTask -TaskName 'Crypto Paper Portal Agent'
+    # If the task timed out and is still running, cancel our stop marker instead.
+    if ((Get-ScheduledTask -TaskName 'Crypto Paper Portal Agent').State -eq 'Running') {
+        Remove-Item -LiteralPath $stopMarker -ErrorAction SilentlyContinue
+    } else {
+        try { Start-ScheduledTask -TaskName 'Crypto Paper Portal Agent' }
+        catch {
+            Remove-Item -LiteralPath $stopMarker -ErrorAction SilentlyContinue
+            throw
+        }
+    }
 }
 for ($attempt = 0; $attempt -lt 60; $attempt++) {
     if (Test-Path -LiteralPath $statusFile) {

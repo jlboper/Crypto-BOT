@@ -1,5 +1,13 @@
 # Bot updates: implementation and deployment status
 
+Version 0.6.18 prepares automatic refresh of the independent Windows agent
+from a committed signed installation when the 0.6.18 app starts, following
+a local update, or when it detects a remote portal installation while running.
+An app process started before 0.6.18 was installed must be reopened once to
+load its new code. Automatic refresh does not change a stopped agent or the
+trading engine and retains a manual recovery button. Publication and Windows
+installation are separate and must be verified after the protected workflow.
+
 Version 0.6.17 is a proposed update under review. It adds model selection and
 cooperative PAPER restart from the shared portal, plus a separate, explicitly
 confirmed BTC/USDT Spot Testnet order pilot (25 fictional USDT per entry,

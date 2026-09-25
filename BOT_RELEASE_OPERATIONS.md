@@ -99,6 +99,19 @@ Testnet actions only after the upgraded agent reports its capability. The
 release and installation do not themselves submit any Testnet orders; an
 authenticated owner confirmation inside Opciones → Binance Testnet does.
 
+Starting with installed app 0.6.18, the Windows app checks the signed install
+on startup and after a local update, then checks for a new installed version
+every 15 seconds while it remains running. When the committed signed modules
+have changed, it verifies their hashes, stops only the running outbound agent,
+backs up its prior modules, refreshes them and starts the existing scheduled
+task. The same check covers updates installed through the remote portal while
+the 0.6.18 app is open. An intentionally stopped agent is left stopped. Failed
+checks retry after five minutes; **Reparar conexión del portal** remains a
+manual recovery option. A 0.6.17 app process already open while 0.6.18 is
+installed still runs its old code until the app is reopened once; reopening it
+enables the automatic check for future releases. No new trading process is
+started by agent refresh.
+
 ## One-time Windows transition
 
 The original v0.6.2 engine does not support cooperative maintenance. Preserve it
