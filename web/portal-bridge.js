@@ -1,7 +1,7 @@
 /* One UI, local APIs or authenticated remote snapshots. No credentials in URLs. */
 const remotePortal = !['127.0.0.1','localhost','[::1]','::1'].includes(location.hostname);
 let portalCsrf = '', portalPending, portalCache, portalCacheAt = 0, portalEpoch=0;
-const portalRoute = {'/api/status':'status','/api/positions':'positions','/api/trades':'trades','/api/ai-reviews':'reviews','/api/equity':'equity','/api/events':'events','/api/research':'research','/api/research/status':'research_state','/api/updates':'updates','/api/paper-scorecard':'paper_scorecard'};
+const portalRoute = {'/api/status':'status','/api/positions':'positions','/api/trades':'trades','/api/ai-reviews':'reviews','/api/equity':'equity','/api/events':'events','/api/research':'research','/api/research/status':'research_state','/api/updates':'updates','/api/paper-scorecard':'paper_scorecard','/api/testnet/execution':'testnet_execution'};
 async function portalPasswordProof(password,parameters){
   if(parameters.scheme==='initial-key')return password;
   if(parameters.scheme!=='pbkdf2-sha256'||parameters.iterations!==600000||!/^[A-Za-z0-9_-]{43}$/.test(parameters.salt||''))throw new Error('Parámetros de acceso inválidos');
@@ -31,7 +31,7 @@ async function portalRequest(path,body){
   if(!response.ok){if(response.status===401)portalLocked();throw new Error(data.error||'Error de conexión');}
   return data;
 }
-const activityActions={research:'Evaluar estrategias',update_check:'Buscar actualización',update_install:'Actualizar bot',update_restore:'Restaurar bot',kill:'Pausar bot',resume:'Reanudar bot',risk_profile:'Perfil de riesgo PAPER',paper_close:'Cerrar posición PAPER'};
+const activityActions={research:'Evaluar estrategias',update_check:'Buscar actualización',update_install:'Actualizar bot',update_restore:'Restaurar bot',kill:'Pausar bot',resume:'Reanudar bot',risk_profile:'Perfil de riesgo PAPER',paper_close:'Cerrar posición PAPER',ai_model:'Cambiar modelo IA',restart_engine:'Reiniciar motor',testnet_buy:'Comprar Testnet',testnet_close:'Cerrar Testnet',testnet_reconcile:'Conciliar Testnet'};
 const activityStatuses={pending:'Pendiente',applied:'Confirmado por Windows',expired:'Vencido',superseded:'Sustituido',running:'En curso',completed:'Completado',failed:'Falló'};
 function renderActivity(list,items){
   for(const item of items){
@@ -75,13 +75,19 @@ window.portalApi=async(path,options={})=>{
     return response.json();
   }
   if(options.method==='POST'){
-    if(path==='/api/paper/risk-profile'||path==='/api/paper/close-position'){
+    if(['/api/paper/risk-profile','/api/paper/close-position','/api/operations/model','/api/operations/restart','/api/testnet/buy','/api/testnet/close','/api/testnet/reconcile'].includes(path)){
       const state=await portalState();
       if(state.stale||state.snapshot?.paper_controls!==true)throw new Error('Controles PAPER pendientes de conexión de Windows');
+      if((path.startsWith('/api/operations/')||path.startsWith('/api/testnet/'))&&state.snapshot?.operations_controls!==true)throw new Error('Actualiza y repara el agente de Windows antes de usar esta opción');
       let payload;
       try{payload=JSON.parse(options.body);}catch{throw new Error('Solicitud PAPER inválida');}
       const result=await portalRequest('/v1/paper-controls',{
-        action:path==='/api/paper/risk-profile'?'risk_profile':'paper_close',payload,request_id:crypto.randomUUID()});
+        action:({
+          '/api/paper/risk-profile':'risk_profile','/api/paper/close-position':'paper_close',
+          '/api/operations/model':'ai_model','/api/operations/restart':'restart_engine',
+          '/api/testnet/buy':'testnet_buy','/api/testnet/close':'testnet_close',
+          '/api/testnet/reconcile':'testnet_reconcile'
+        })[path],payload,request_id:crypto.randomUUID()});
       portalCacheAt=0;return result;
     }
     if(path==='/api/research/run'){
@@ -127,6 +133,40 @@ document.addEventListener('DOMContentLoaded',()=>{
     panel.open=true;
     panel.scrollIntoView({behavior:'smooth',block:'start'});
   };
+  document.getElementById('modelSettingsButton').onclick=()=>{
+    showOptions(false);
+    const panel=document.getElementById('modelSettingsPanel');panel.hidden=false;
+    panel.scrollIntoView({behavior:'smooth',block:'start'});
+  };
+  document.getElementById('closeModelSettings').onclick=()=>document.getElementById('modelSettingsPanel').hidden=true;
+  document.getElementById('testnetOptionsButton').onclick=()=>{
+    showOptions(false);const panel=document.getElementById('testnetPanel');panel.hidden=false;
+    panel.scrollIntoView({behavior:'smooth',block:'start'});
+    window.dispatchEvent(new Event('testnet-open'));
+  };
+  document.getElementById('closeTestnetPanel').onclick=()=>document.getElementById('testnetPanel').hidden=true;
+  async function operationalAction(path,payload,question){
+    if(!confirm(question))return;
+    const startedAt=Date.now()/1000;
+    const button=document.getElementById(path.endsWith('model')?'applyAiModel':'restartMotor');
+    const message=document.getElementById('modelSettingsMessage');
+    button.disabled=true;message.textContent='Esperando la comprobación de Windows…';
+    try{
+      const result=await window.portalApi(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+      message.textContent=result.status==='pending'?'Solicitud enviada. Revisa el resultado en Actividad y el modelo efectivo en el panel.':'Windows confirmó la operación.';
+      if(!remotePortal)setTimeout(async()=>{
+        try{const state=await window.portalApi('/api/operations/last');
+          if(state.at&&state.at>startedAt)message.textContent=state.status==='completed'?'Windows confirmó la operación.':
+            `Windows no completó la acción (${state.reason||'revisar estado'}).`;}
+        catch{}
+      },4500);
+    }catch(error){message.textContent=error.message;}
+    finally{button.disabled=false;portalCacheAt=0;}
+  }
+  document.getElementById('applyAiModel').onclick=()=>operationalAction('/api/operations/model',
+    {model:document.getElementById('aiModelChoice').value},'¿Verificar el modelo seleccionado y reiniciar el motor PAPER?');
+  document.getElementById('restartMotor').onclick=()=>operationalAction('/api/operations/restart',{},
+    '¿Reiniciar el motor PAPER? Puede interrumpir la vigilancia durante unos segundos.');
   let nextHistoryPage=0,historyBusy=false;
   async function loadHistory(reset=false){
     if(historyBusy)return;

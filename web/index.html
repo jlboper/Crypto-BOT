@@ -35,6 +35,8 @@
             <button id="updateButton" role="menuitem">Actualizaciones</button>
             <button id="historyButton" role="menuitem">Historial de actividad</button>
             <button id="diagnosticsButton" role="menuitem">Diagnóstico y estrategias</button>
+            <button id="modelSettingsButton" role="menuitem">Modelo IA y motor</button>
+            <button id="testnetOptionsButton" role="menuitem">Binance Testnet</button>
             <button id="restoreBotVersion" role="menuitem" disabled>Restaurar versión anterior</button>
             <button id="portalPasswordButton" role="menuitem">Cambiar contraseña</button>
             <button id="portalLogout" role="menuitem" hidden>Cerrar sesión</button>
@@ -74,6 +76,24 @@
       <ul id="historyRows" class="activity-list"></ul>
       <button id="loadMoreHistory" class="secondary" hidden>Ver anteriores</button>
       <p id="historyMessage" role="status"></p>
+    </section>
+    <section id="modelSettingsPanel" class="panel" hidden aria-label="Modelo IA y motor">
+      <div class="panel-title"><h2>Modelo IA y motor</h2><button id="closeModelSettings" class="secondary">Cerrar</button></div>
+      <p>Windows verifica el modelo y reinicia el motor PAPER. Las claves permanecen en esta PC.</p>
+      <label for="aiModelChoice">Modelo de revisión</label>
+      <select id="aiModelChoice"><option value="gpt-6-luna">GPT-6 Luna</option><option value="gpt-5.6-luna">GPT-5.6 Luna</option></select>
+      <button id="applyAiModel" class="secondary" type="button">Aplicar modelo</button>
+      <button id="restartMotor" class="secondary" type="button">Reiniciar motor</button>
+      <p id="modelSettingsMessage" role="status">El cambio se confirmará al aparecer el nuevo modelo en Revisión IA.</p>
+    </section>
+    <section id="testnetPanel" class="panel" hidden aria-label="Binance Spot Testnet">
+      <div class="panel-title"><h2>Binance Spot Testnet</h2><button id="closeTestnetPanel" class="secondary">Cerrar</button></div>
+      <p>Ensayo de ejecución real en la red de prueba de Binance. La cuenta y el registro son independientes del motor PAPER. Solo BTC/USDT; máximo 25 USDT de prueba por entrada, una entrada al día.</p>
+      <p id="testnetStatus">Esperando el registro local de Testnet.</p>
+      <button id="testnetBuy" class="secondary" type="button">Comprar 25 USDT de prueba</button>
+      <button id="testnetClose" class="secondary" type="button">Cerrar posición de prueba</button>
+      <button id="testnetReconcile" class="secondary" type="button">Conciliar orden</button>
+      <p id="testnetMessage" role="status"></p>
     </section>
 
     <section class="operation-overview panel" aria-label="Estado de operaciones">
@@ -129,7 +149,7 @@
       <div class="readiness-note"><h3>Antes de usar capital real</h3><ul id="readinessChecks"></ul>
         <p>Después de la evidencia PAPER: probar órdenes en Testnet, validar reglas y mínimos de cada par, conciliar saldos y ejecuciones, y aprobar explícitamente un límite de capital. Esta versión permanece en PAPER.</p>
         <p id="marketPreflight">Las próximas entradas PAPER se contrastarán con reglas públicas de cantidad y valor mínimo de Binance Spot. Es un diagnóstico; no se envían órdenes.</p>
-        <p id="testnetReadiness"><strong>Testnet:</strong> filtros, conciliación simulada y validación local de parámetros disponibles. El portal no envía órdenes; la conexión autenticada debe verificarse en Windows.</p>
+        <p id="testnetReadiness"><strong>Testnet:</strong> prueba de órdenes separada del historial PAPER en Opciones. Ninguna orden se envía sin confirmación explícita del propietario.</p>
       </div>
       <h3>Resultados por activo</h3>
       <div class="table-wrap"><table class="asset-table">
@@ -167,7 +187,7 @@
         <summary>Comparar estrategias y ver evaluación histórica</summary>
       <div class="research-heading">
         <div>
-          <p class="eyebrow">EVALUACIÓN HISTÓRICA · V0.6.16</p>
+          <p class="eyebrow">EVALUACIÓN HISTÓRICA · V0.6.17</p>
           <h2>Comparación multi-cripto</h2>
           <p class="research-copy">Compara cinco estrategias por activo contra efectivo y comprar y mantener ese activo, con costos, walk-forward y ventana final. Solo una estrategia que supere todas las puertas y un forward test posterior puede proponerse para la siguiente fase; ninguna se activa automáticamente.</p>
           <p id="researchCoverage" class="research-copy">Calculando cuántos cierres PAPER corresponden a estos cinco activos.</p>

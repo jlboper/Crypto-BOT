@@ -89,11 +89,11 @@ python -m trader testnet-validate BTCUSDT --side BUY --quote-amount 25
 python -m trader testnet-simulate
 ```
 
-## Binance Testnet (preparado, no activado)
+## Binance Testnet: ensayos con fondos ficticios
 
-`BINANCE_API_KEY` y `BINANCE_API_SECRET` pueden añadirse a `.env.local`. El comando `check-testnet` consulta la cuenta de Testnet y no envía órdenes. `testnet-plan` consulta únicamente filtros y precio públicos para redondear una orden hipotética; `testnet-simulate` prueba la conciliación con datos sintéticos. `testnet-validate` solo hace POST a la ruta de validación de Testnet, que no envía órdenes al libro. No existe transporte que coloque órdenes; la activación requiere probar conciliación y límites con fondos de ensayo y una autorización separada.
+`BINANCE_API_KEY` y `BINANCE_API_SECRET` de **Spot Testnet** deben estar únicamente en `.env.local`. `check-testnet`, `testnet-plan`, `testnet-simulate` y `testnet-validate` siguen disponibles como diagnósticos sin ejecutar operaciones. Desde 0.6.17, Opciones → Binance Testnet permite una primera **compra manual real en Testnet** de BTC/USDT por 25 USDT ficticios, un cierre manual de esa posición y conciliación de una respuesta incierta. Cada escritura guarda primero un identificador y nunca reintenta automáticamente. Esto no conecta el motor de estrategias ni reemplaza la contabilidad PAPER. Binance de producción y los fondos reales permanecen deshabilitados.
 
-Las claves de Binance deben pertenecer a una subcuenta separada, permitir únicamente lectura/trading, tener retiros desactivados y estar restringidas a la IP fija del servidor.
+Usa únicamente claves dedicadas de Binance Spot Testnet, nunca claves de Binance de producción. Guárdalas en la PC con acceso limitado y no las envíes al portal ni al repositorio.
 
 ## Qué hace cada ciclo
 
@@ -172,7 +172,7 @@ El panel 0.6.15 prioriza estado, límites y posiciones; el diagnóstico históri
 
 La versión 0.6.16 añade tres perfiles **solo PAPER** desde el portal local de Windows: mínimo (25%), prudente (50%) y normal (100%) del límite de riesgo por entrada ya configurado. Ninguno aumenta el límite base de posición o exposición. Cerrar una posición concreta desde el portal local consulta primero una cotización nueva; si cambió más del 2% respecto al último precio mostrado, el cierre se rechaza. Un cierre completado registra comisiones simuladas y bloquea nuevas compras de ese par durante 24 horas. El portal remoto muestra estos controles en modo informativo hasta contar con la entrega segura y deduplicada de esas instrucciones. La ejecución de órdenes en Binance Spot Testnet y con dinero real permanece deshabilitada.
 
-Después de instalar la versión firmada, la app local ofrece en su menú del área de notificaciones **Reparar conexión del portal**. Esa acción comprueba el registro de instalación firmado y los hashes de dos módulos, solicita una confirmación, detiene solo el agente HTTPS, respalda los dos archivos anteriores, copia los módulos instalados y reinicia la misma tarea programada. No modifica credenciales, la base PAPER ni el motor. El mismo menú permite **Verificar GPT-6 Luna** y **Verificar Binance Testnet** desde la PC, sin mostrar claves y sin enviar órdenes. `OPENAI_MODEL` ya presente en `.env.local` prevalece: el diagnóstico de GPT-6 Luna comprueba acceso, pero no cambia el modelo efectivo ni reinicia el motor.
+Después de instalar la versión firmada, la app local ofrece en su menú del área de notificaciones **Reparar conexión del portal**. Comprueba el registro firmado, respalda los módulos del agente y reinicia solo su tarea. En 0.6.17 las dos comprobaciones antiguas del indicador se retiran: el portal local/remoto permite elegir el modelo, reiniciar el motor PAPER y ver el estado de ejecución de Testnet. `OPENAI_MODEL` presente en `.env.local` prevalece sobre `config.toml`; el nuevo control actualiza únicamente esa línea y comprueba el nuevo arranque.
 
 ## Centro de control de Windows
 

@@ -92,6 +92,13 @@ its previous two modules and restarts that same task. Run it once after the
 0.6.16 installation if the separate supervisor has not already been refreshed;
 there is no need to install an intermediate version solely for this step.
 
+After installing 0.6.17, run **Reparar conexión del portal** once more: the
+independent Windows agent must receive the newly signed control module and
+configuration refresh. The portal enables the model, restart and limited
+Testnet actions only after the upgraded agent reports its capability. The
+release and installation do not themselves submit any Testnet orders; an
+authenticated owner confirmation inside Opciones → Binance Testnet does.
+
 ## One-time Windows transition
 
 The original v0.6.2 engine does not support cooperative maintenance. Preserve it

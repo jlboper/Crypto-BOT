@@ -1,5 +1,15 @@
 # Bot updates: implementation and deployment status
 
+Version 0.6.17 is a proposed update under review. It adds model selection and
+cooperative PAPER restart from the shared portal, plus a separate, explicitly
+confirmed BTC/USDT Spot Testnet order pilot (25 fictional USDT per entry,
+one entry per UTC day, durable order identity and read-only reconciliation).
+This does not yet move the strategy engine or PAPER historical accounting to
+Testnet, nor enable production Binance trading. The owner must install the
+signed release and then refresh the independent Windows agent using the app's
+repair action before the remote controls become available. No Testnet order
+has been sent by development or CI.
+
 Version 0.6.13 was published and signed for commit
 `4df7ca199cd5148c205dcf499493c24ff7515a5b` after protected run
 `36079566679` succeeded on its second attempt. The owner subsequently reported

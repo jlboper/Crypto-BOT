@@ -73,6 +73,23 @@ test('PAPER controls require a current capable Windows snapshot, retain exact po
   assert.equal((await f.request('/v1/paper-controls',request,{'X-CSRF-Token':'bad'})).status,403);
 });
 
+test('Testnet execution and model controls require the upgraded Windows capability and exact allowlisted payload',async t=>{
+  const f=await fixture(t);await f.login();
+  await f.sync({snapshot:{...snapshot(),paper_controls:true},acks:[]});
+  const command=(action,payload,id)=>({action,payload,request_id:id});
+  assert.equal((await f.request('/v1/paper-controls',command('testnet_buy',{},'testnet-trade-0000001'))).status,409);
+  await f.sync({snapshot:{...snapshot(),paper_controls:true,operations_controls:true},acks:[]});
+  assert.equal((await f.request('/v1/paper-controls',command('ai_model',{model:'unknown'},'model-select-0000001'))).status,400);
+  assert.equal((await f.request('/v1/paper-controls',command('testnet_buy',{symbol:'ETHUSDT'},'testnet-trade-0000002'))).status,400);
+  const accepted=await f.request('/v1/paper-controls',command('testnet_buy',{},'testnet-trade-0000003'));
+  assert.equal(accepted.status,202);
+  const delivery=await f.sync({snapshot:{...snapshot(),paper_controls:true,operations_controls:true},acks:[]});
+  assert.equal(delivery.body.paper_controls[0].action,'testnet_buy');
+  assert.deepEqual(delivery.body.paper_controls[0].payload,{});
+  await f.sync({snapshot:{...snapshot(),paper_controls:true,operations_controls:true},acks:[],control_results:[{id:accepted.body.id,status:'completed',message:'Compra de prueba: FILLED'}]});
+  assert.equal((await f.request('/v1/status')).body.activity[0].action,'testnet_buy');
+});
+
 test('activity combines jobs and commands, paginates privately, and rejects unbounded routes',async t=>{
   const f=await fixture(t);
   assert.equal((await f.request('/v1/activity/0')).status,401);
