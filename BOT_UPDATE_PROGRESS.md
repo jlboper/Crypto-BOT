@@ -61,7 +61,9 @@ now documents `gpt-6-luna`; proposed 0.6.15 uses it in config, subject to an
 explicit `check-ai-model` probe on the Windows account. Existing `.env.local`
 overrides persist across signed updates and may still select 5.6 Luna. The
 0.6.15 portal emphasizes operational PAPER status and hides research in a
-diagnostics panel. No Testnet or live order submission is introduced.
+diagnostics panel. It adds a separate signed `/api/v3/order/test` request on the
+fixed Binance Spot Testnet host for local validation; this endpoint does not
+enter the matching engine. No Testnet or live order submission is introduced.
 The owner's 24 September Windows screenshot shows the scheduled outbound agent
 running but `sync_ok: false` with `HTTPError:400`, so the portal cannot deliver
 update jobs. A separate manual supervisor refresh attempt ended with

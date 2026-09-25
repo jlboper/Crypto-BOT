@@ -82,13 +82,16 @@ python -m trader check-ai-model --model gpt-6-luna
 # Preparar una orden hipotética con filtros públicos de Testnet (sin enviarla)
 python -m trader testnet-plan BTCUSDT --side BUY --quote-amount 25
 
+# Validar firma y parámetros en Binance Spot Testnet sin enviar una orden
+python -m trader testnet-validate BTCUSDT --side BUY --quote-amount 25
+
 # Simular conciliación NEW → PARTIALLY_FILLED → FILLED sin red ni credenciales
 python -m trader testnet-simulate
 ```
 
 ## Binance Testnet (preparado, no activado)
 
-`BINANCE_API_KEY` y `BINANCE_API_SECRET` pueden añadirse a `.env.local`. El comando `check-testnet` consulta la cuenta de Testnet y no envía órdenes. `testnet-plan` consulta únicamente filtros y precio públicos para redondear una orden hipotética; `testnet-simulate` prueba la conciliación con datos sintéticos. No existe transporte de escritura y la activación de órdenes se hará solo después de validar backtests, varias semanas de paper trading, pruebas de conciliación y una autorización separada.
+`BINANCE_API_KEY` y `BINANCE_API_SECRET` pueden añadirse a `.env.local`. El comando `check-testnet` consulta la cuenta de Testnet y no envía órdenes. `testnet-plan` consulta únicamente filtros y precio públicos para redondear una orden hipotética; `testnet-simulate` prueba la conciliación con datos sintéticos. `testnet-validate` solo hace POST a la ruta de validación de Testnet, que no envía órdenes al libro. No existe transporte que coloque órdenes; la activación requiere probar conciliación y límites con fondos de ensayo y una autorización separada.
 
 Las claves de Binance deben pertenecer a una subcuenta separada, permitir únicamente lectura/trading, tener retiros desactivados y estar restringidas a la IP fija del servidor.
 
@@ -165,7 +168,7 @@ En 0.6.11 el desglose muestra hasta 50 activos cerrados y concilia el resto en �
 
 En 0.6.12 el portal deja visibles las puertas unificadas de promoción: ventaja frente a efectivo y mantener el activo, consistencia OOS, costos duplicados en la ventana reservada, actividad mínima y un forward test futuro. Aunque un activo supere las puertas, permanece en `RESEARCH_ONLY` y no modifica el motor PAPER. Testnet añade un planificador de cantidad y notional basado en filtros públicos y una máquina de estados sintética para probar conciliación sin enviar órdenes. La versión 0.6.15 propone GPT-6 Luna para la revisión conservadora y permite comprobar acceso y salida estructurada con `python -m trader check-ai-model --model gpt-6-luna` en Windows. El modelo está documentado oficialmente; el acceso de la cuenta concreta requiere esta comprobación. Un `OPENAI_MODEL` existente en `.env.local` prevalece sobre `config.toml`, por lo que actualizar el paquete no cambia ese archivo local: verifícalo antes de decidir el cambio. Una revisión que falle bloquea la entrada por la política `fail_closed`.
 
-El panel 0.6.15 prioriza estado, límites y posiciones; el diagnóstico histórico queda plegado en Opciones. El control de pausa solo bloquea nuevas entradas; la vigilancia de posiciones continúa. No hay botones de cierre individual ni cambio dinámico de límites: necesitan órdenes autenticadas, confirmación, deduplicación y conciliación con Binance Spot Testnet antes de ofrecerse.
+El panel 0.6.15 prioriza estado, límites y posiciones; el diagnóstico histórico queda plegado en Opciones. El control de pausa solo bloquea nuevas entradas; la vigilancia de posiciones continúa. `testnet-validate` usa la ruta oficial `/api/v3/order/test`: comprueba parámetros y firma en Testnet sin entrar al motor de ejecución; puede requerir credenciales de Testnet con permiso de operaciones, pero no crea una orden. No hay botones de cierre individual ni cambio dinámico de límites: necesitan órdenes autenticadas, confirmación, deduplicación y conciliación con Binance Spot Testnet antes de ofrecerse.
 
 ## Centro de control de Windows
 

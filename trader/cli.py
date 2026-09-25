@@ -20,7 +20,7 @@ from .monitoring import activity_status, position_metrics
 from .research import execute_research, report_without_trades
 from .runtime import single_instance
 from .runtime_control import RuntimeControl
-from .testnet import demo_lifecycle, plan_order
+from .testnet import demo_lifecycle, plan_order, validate_test_order
 
 
 def parser() -> argparse.ArgumentParser:
@@ -44,14 +44,16 @@ def parser() -> argparse.ArgumentParser:
     commands.add_parser("check-testnet", help="Verify Binance Spot Testnet credentials without placing an order")
     ai_check = commands.add_parser("check-ai-model", help="Probe OpenAI model access without trading")
     ai_check.add_argument("--model", default="gpt-6-luna")
-    testnet_plan = commands.add_parser(
-        "testnet-plan", help="Build a read-only Testnet order plan from public filters"
-    )
-    testnet_plan.add_argument("symbol", nargs="?", default="BTCUSDT")
-    testnet_plan.add_argument("--side", choices=("BUY", "SELL"), default="BUY")
-    testnet_plan.add_argument("--quote-amount", type=float, default=None)
-    testnet_plan.add_argument("--quantity", type=float, default=None)
-    testnet_plan.add_argument("--price", type=float, default=None, help="Reference price; fetched from Testnet when omitted")
+    for command, help_text in (
+        ("testnet-plan", "Build a read-only Testnet order plan from public filters"),
+        ("testnet-validate", "Validate a planned order at Binance Testnet without submitting it"),
+    ):
+        testnet_plan = commands.add_parser(command, help=help_text)
+        testnet_plan.add_argument("symbol", nargs="?", default="BTCUSDT")
+        testnet_plan.add_argument("--side", choices=("BUY", "SELL"), default="BUY")
+        testnet_plan.add_argument("--quote-amount", type=float, default=None)
+        testnet_plan.add_argument("--quantity", type=float, default=None)
+        testnet_plan.add_argument("--price", type=float, default=None, help="Reference price; fetched from Testnet when omitted")
     commands.add_parser("testnet-simulate", help="Exercise synthetic Testnet reconciliation without network writes")
     return root
 
@@ -172,7 +174,7 @@ def main() -> None:
             print(f"OpenAI model {args.model}: check failed ({review.reason})", file=sys.stderr)
             raise SystemExit(1)
         print(json.dumps({"model": args.model, "schema_check": "ok", "order_submission_enabled": False}, indent=2))
-    elif args.command == "testnet-plan":
+    elif args.command in {"testnet-plan", "testnet-validate"}:
         if args.quote_amount is None and args.quantity is None:
             raise SystemExit("Provide --quote-amount or --quantity")
         try:
@@ -187,7 +189,10 @@ def main() -> None:
                 quote_amount=args.quote_amount,
                 quantity=args.quantity,
             )
-            print(json.dumps(plan.as_dict(), indent=2))
+            if args.command == "testnet-validate":
+                print(json.dumps(validate_test_order(plan), indent=2))
+            else:
+                print(json.dumps(plan.as_dict(), indent=2))
         except Exception as exc:
             print(f"Testnet plan failed: {exc}", file=sys.stderr)
             raise SystemExit(1) from exc
