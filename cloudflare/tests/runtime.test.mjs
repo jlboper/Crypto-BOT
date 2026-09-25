@@ -27,7 +27,7 @@ test('real workerd + local D1: browser session -> command -> Windows sync -> ack
   t.after(()=>mf.dispose());
   const db=await mf.getD1Database('DB');
   // D1 exec requires one statement per line; a single prepared batch keeps the migration atomic.
-  const sql=['0001_portal.sql','0002_jobs.sql','0003_owner_password.sql','0004_bot_releases.sql','0005_paper_controls.sql'].map(name=>readFileSync(new URL('../migrations/'+name,import.meta.url),'utf8')).join('\n');
+  const sql=['0001_portal.sql','0002_jobs.sql','0003_owner_password.sql','0004_bot_releases.sql'].map(name=>readFileSync(new URL('../migrations/'+name,import.meta.url),'utf8')).join('\n');
   await db.batch(sql.split(';').map(s=>s.trim()).filter(Boolean).map(s=>db.prepare(s)));
   let cookie='',csrf='';
   async function call(path,body,headers={}){
@@ -44,6 +44,15 @@ test('real workerd + local D1: browser session -> command -> Windows sync -> ack
   const acked=await call('/v1/device/sync',{snapshot:{...snapshot,killed:true},acks:[cmd.body.id]},{Authorization:`Bearer ${device}`});
   assert.equal(acked.status,200);assert.deepEqual(acked.body.commands,[]);
   const status=await call('/v1/status');assert.equal(status.body.commands[0].status,'applied');assert.equal(status.body.snapshot.killed,true);
+  const capable={...snapshot,killed:true,paper_controls:true};
+  assert.equal((await call('/v1/device/sync',{snapshot:capable,acks:[]},{Authorization:`Bearer ${device}`})).status,200);
+  const control=await call('/v1/paper-controls',{action:'risk_profile',request_id:'runtime-paper-risk-0001',payload:{profile:'prudente'}});
+  assert.equal(control.status,202,JSON.stringify(control.body));
+  const pending=await call('/v1/device/sync',{snapshot:capable,acks:[]},{Authorization:`Bearer ${device}`});
+  assert.equal(pending.status,200);assert.equal(pending.body.paper_controls[0].payload.profile,'prudente');
+  const completed=await call('/v1/device/sync',{snapshot:capable,acks:[],control_results:[{id:control.body.id,status:'completed',message:'Perfil PAPER aplicado: prudente'}]},{Authorization:`Bearer ${device}`});
+  assert.equal(completed.status,200);assert.deepEqual(completed.body.paper_controls,[]);
+  assert.equal((await call('/v1/status')).body.paper_controls[0].status,'completed');
   const password='Runtime test passphrase 2026';
   const salt='U'.repeat(43),proof=pbkdf2Sync(password,salt,600000,32,'sha256').toString('hex');
   assert.equal((await call('/v1/password',{current_password:owner,new_password:proof,salt})).status,200);

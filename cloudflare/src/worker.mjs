@@ -119,7 +119,12 @@ function statement(db, sql, ...args) { return db.prepare(sql).bind(...args); }
 // restoration distinctly in its existing release_id column, then expose the
 // original action and exact hash to both Windows and the authenticated owner.
 const restoreStored = "action='update_install' AND substr(release_id,1,8)='restore:'";
-const jobAction = `CASE WHEN ${restoreStored} THEN 'update_restore' ELSE action END`;
+// D1's existing jobs ledger also holds the two strictly validated PAPER actions.
+// Prefixes distinguish them from real research jobs without a schema change.
+const closeStored = "action='research' AND substr(COALESCE(release_id,''),1,12)='paper_close:'";
+const riskStored = "action='research' AND substr(COALESCE(release_id,''),1,13)='risk_profile:'";
+const paperStored = `(${closeStored} OR ${riskStored})`;
+const jobAction = `CASE WHEN ${closeStored} THEN 'paper_close' WHEN ${riskStored} THEN 'risk_profile' WHEN ${restoreStored} THEN 'update_restore' ELSE action END`;
 const jobRelease = `CASE WHEN ${restoreStored} THEN substr(release_id,9) ELSE release_id END`;
 function results(batch, index) { return batch[index]?.results || []; }
 function cookie(request) {
@@ -198,7 +203,7 @@ export async function handle(request, env, now = Math.floor(Date.now() / 1000)) 
     jq.push(statement(db,"UPDATE jobs SET status='expired' WHERE status='pending' AND expires<=?",now));
     jq.push(statement(db,"UPDATE jobs SET status='failed',message='Windows no confirmó el resultado dentro del límite' WHERE status='running' AND created<=?",now-JOB_MAX_SECONDS));
     jq.push(statement(db,"UPDATE jobs SET delivered_at=COALESCE(delivered_at,?) WHERE status='pending' AND expires>?",now,now));
-    jq.push(statement(db,`SELECT id,${jobAction} AS action,expires,${jobRelease} AS release_id FROM jobs WHERE status='pending' AND expires>? ORDER BY id LIMIT 1`,now));
+    jq.push(statement(db,`SELECT id,${jobAction} AS action,expires,${jobRelease} AS release_id FROM jobs WHERE status='pending' AND expires>? AND NOT ${paperStored} ORDER BY id LIMIT 1`,now));
     const controlResults=body.control_results||[];
     assert(Array.isArray(controlResults)&&controlResults.length<=20,'Invalid PAPER results');
     const cq=[];
@@ -206,11 +211,9 @@ export async function handle(request, env, now = Math.floor(Date.now() / 1000)) 
       assert(object(item)&&Object.keys(item).sort().join(',')==='id,message,status'&&
         Number.isSafeInteger(item.id)&&item.id>0&&['completed','failed'].includes(item.status)&&
         typeof item.message==='string'&&item.message.length<=300,'Invalid PAPER result');
-      cq.push(statement(db,"UPDATE paper_controls SET status=?,message=? WHERE id=? AND status='pending' AND delivered_at IS NOT NULL",item.status,item.message,item.id));
+      cq.push(statement(db,`UPDATE jobs SET status=?,message=? WHERE id=? AND ${paperStored} AND status='pending' AND delivered_at IS NOT NULL`,item.status,item.message,item.id));
     }
-    cq.push(statement(db,"UPDATE paper_controls SET status='expired' WHERE status='pending' AND expires<=?",now));
-    cq.push(statement(db,"UPDATE paper_controls SET delivered_at=COALESCE(delivered_at,?) WHERE status='pending' AND expires>?",now,now));
-    cq.push(statement(db,"SELECT id,action,payload,expires FROM paper_controls WHERE status='pending' AND expires>? ORDER BY id LIMIT 1",now));
+    cq.push(statement(db,`SELECT id,${jobAction} AS action,substr(release_id,instr(release_id,':')+1) AS payload,expires FROM jobs WHERE status='pending' AND expires>? AND ${paperStored} ORDER BY id LIMIT 1`,now));
     const batch=await db.batch([...queries,...jq,...cq]);
     const controls=results(batch,batch.length-1).map(row=>({...row,payload:JSON.parse(row.payload)}));
     return json({ commands: results(batch, commandIndex), jobs:results(batch,queries.length+jq.length-1), paper_controls:controls, poll_seconds: 30 });
@@ -267,9 +270,7 @@ export async function handle(request, env, now = Math.floor(Date.now() / 1000)) 
         CASE WHEN status='pending' AND expires<=? THEN 'expired' ELSE status END AS status,
         '' AS message,created FROM commands
       UNION ALL
-      SELECT id,'job' AS kind,${jobAction} AS action,status,message,created FROM jobs
-      UNION ALL
-      SELECT id,'paper' AS kind,action,status,message,created FROM paper_controls
+      SELECT id,CASE WHEN ${paperStored} THEN 'paper' ELSE 'job' END AS kind,${jobAction} AS action,status,message,created FROM jobs
     ) ORDER BY created DESC,kind DESC,id DESC LIMIT 26 OFFSET ?`,now,page*25).all();
     const items=rows.results||[];
     return json({items:items.slice(0,25),next_page:items.length>25&&page<99?page+1:null,retention_days:90});
@@ -278,16 +279,14 @@ export async function handle(request, env, now = Math.floor(Date.now() / 1000)) 
     const batch = await db.batch([
       statement(db, 'SELECT payload,received_at FROM snapshots WHERE id=1'),
       statement(db, "SELECT id,action,CASE WHEN status='pending' AND expires<=? THEN 'expired' ELSE status END AS status,expires FROM commands ORDER BY id DESC LIMIT 20", now),
-      statement(db,`SELECT id,${jobAction} AS action,status,message FROM jobs ORDER BY id DESC LIMIT 20`),
-      statement(db,"SELECT id,action,status,message FROM paper_controls ORDER BY id DESC LIMIT 20"),
+      statement(db,`SELECT id,${jobAction} AS action,status,message FROM jobs WHERE NOT ${paperStored} ORDER BY id DESC LIMIT 20`),
+      statement(db,`SELECT id,${jobAction} AS action,status,message FROM jobs WHERE ${paperStored} ORDER BY id DESC LIMIT 20`),
       statement(db,`SELECT id,kind,action,status,message,created FROM (
         SELECT id,'command' AS kind,action,
           CASE WHEN status='pending' AND expires<=? THEN 'expired' ELSE status END AS status,
           '' AS message,created FROM commands
         UNION ALL
-        SELECT id,'job' AS kind,${jobAction} AS action,status,message,created FROM jobs
-        UNION ALL
-        SELECT id,'paper' AS kind,action,status,message,created FROM paper_controls
+        SELECT id,CASE WHEN ${paperStored} THEN 'paper' ELSE 'job' END AS kind,${jobAction} AS action,status,message,created FROM jobs
       ) ORDER BY created DESC,kind DESC,id DESC LIMIT 3`,now),
     ]);
     const snapshot = results(batch, 0)[0];
@@ -310,7 +309,6 @@ export async function handle(request, env, now = Math.floor(Date.now() / 1000)) 
           (?!='update_install' OR (json_extract(payload,'$.bot_update.enabled')=1 AND json_extract(payload,'$.bot_update.release_id')=? AND json_extract(payload,'$.bot_update.expires')>?))
           AND (?!='update_restore' OR (json_extract(payload,'$.bot_restore.enabled')=1 AND json_extract(payload,'$.bot_restore.restore_id')=?)))
         AND NOT EXISTS(SELECT 1 FROM jobs WHERE status IN ('pending','running') OR created>?)
-        AND NOT EXISTS(SELECT 1 FROM paper_controls WHERE status='pending')
         ON CONFLICT(request_id) DO NOTHING`,body.request_id,storedAction,now,now+300,storedRelease,now-120,body.action,body.release_id??null,now,body.action,body.release_id??null,now-60),
       statement(db,`SELECT id,${jobAction} AS action,status,${jobRelease} AS release_id FROM jobs WHERE request_id=?`,body.request_id),
     ]);
@@ -353,23 +351,23 @@ export async function handle(request, env, now = Math.floor(Date.now() / 1000)) 
         'Invalid PAPER position');
     }
     const serialized=JSON.stringify(body.payload);
+    const storedRelease=body.action+':'+serialized;
     const batch=await db.batch([
-      statement(db,"UPDATE paper_controls SET status='expired' WHERE status='pending' AND expires<=?",now),
-      statement(db,`INSERT INTO paper_controls(request_id,action,payload,status,created,expires)
-        SELECT ?,?,?,'pending',?,? WHERE EXISTS(
+      statement(db,"UPDATE jobs SET status='expired' WHERE status='pending' AND expires<=?",now),
+      statement(db,`INSERT INTO jobs(request_id,action,release_id,status,created,expires)
+        SELECT ?,'research',?,'pending',?,? WHERE EXISTS(
           SELECT 1 FROM snapshots WHERE id=1 AND received_at>=? AND
           json_extract(payload,'$.paper_controls')=1 AND
           (?='risk_profile' OR EXISTS(SELECT 1 FROM json_each(payload,'$.dashboard.positions')
            WHERE json_extract(value,'$.symbol')=? AND json_extract(value,'$.opened_at')=?)))
-        AND NOT EXISTS(SELECT 1 FROM paper_controls WHERE status='pending')
         AND NOT EXISTS(SELECT 1 FROM jobs WHERE status IN ('pending','running'))
-        ON CONFLICT(request_id) DO NOTHING`,body.request_id,body.action,serialized,now,now+300,now-120,
+        ON CONFLICT(request_id) DO NOTHING`,body.request_id,storedRelease,now,now+300,now-120,
           body.action,body.payload.symbol??'',body.payload.opened_at??''),
-      statement(db,'SELECT id,action,payload,status FROM paper_controls WHERE request_id=?',body.request_id),
+      statement(db,`SELECT id,${jobAction} AS action,release_id,status FROM jobs WHERE request_id=?`,body.request_id),
     ]);
     const row=results(batch,2)[0];
     if(!row)return json({error:'Windows no disponible, posición distinta o solicitud PAPER pendiente'},409);
-    if(row.action!==body.action||row.payload!==serialized)return json({error:'Idempotency conflict'},409);
+    if(row.action!==body.action||row.release_id!==storedRelease)return json({error:'Idempotency conflict'},409);
     return json({id:row.id,action:row.action,status:row.status},202);
   }
   if (path === '/v1/logout' && method === 'POST') {
@@ -392,8 +390,6 @@ export default {
       statement(env.DB, "UPDATE commands SET status='expired' WHERE status='pending' AND expires<=?", now),
       statement(env.DB,"UPDATE jobs SET status='failed',message='Windows no confirmó el resultado dentro del límite' WHERE status='running' AND created<=?",now-JOB_MAX_SECONDS),
       statement(env.DB,"DELETE FROM jobs WHERE created<? AND status IN ('completed','failed','expired')",now-90*86400),
-      statement(env.DB,"UPDATE paper_controls SET status='expired' WHERE status='pending' AND expires<=?",now),
-      statement(env.DB,"DELETE FROM paper_controls WHERE created<? AND status!='pending'",now-90*86400),
     ]);
   },
 };
