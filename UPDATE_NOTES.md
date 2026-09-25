@@ -1,4 +1,10 @@
-# Actualización 0.6.17 — controles del motor y primera ejecución Spot Testnet
+# Actualización 0.6.18 — sincronización automática de la conexión del portal
+
+- La app comprueba la instalación firmada al abrirse, después de un update local y cuando detecta uno remoto mientras sigue abierta. Si los módulos del agente independiente cambiaron, los respalda y reinicia únicamente su tarea.
+- La actualización conserva «Reparar conexión del portal» como recuperación. Nunca reanuda un agente detenido intencionalmente ni reinicia el motor de trading por este motivo.
+- Después de instalar 0.6.18, cierra y abre una vez la app que ya estuviera ejecutándose para cargar la mejora. Desde entonces, las siguientes instalaciones se sincronizan automáticamente mientras la app permanezca abierta.
+
+## Actualización anterior 0.6.17 — controles del motor y primera ejecución Spot Testnet
 
 - Menú Opciones → Modelo IA y motor: selección limitada a GPT-6 Luna o GPT-5.6 Luna y reinicio supervisado del motor PAPER. Windows comprueba la respuesta de IA antes de escribir el override local. La configuración privada sigue en la PC; el portal recibe solo el resultado. Retirados los botones redundantes de comprobación del indicador de Windows.
 - Menú Opciones → Binance Testnet: compra manual BTC/USDT limitada a 25 USDT ficticios una vez al día; cierre manual de la posición registrada y conciliación por identificador de cliente. Ninguna orden va a Binance de producción. Una respuesta incierta bloquea nuevas órdenes hasta una consulta de conciliación y nunca dispara reintentos de escritura.

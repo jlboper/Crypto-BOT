@@ -27,6 +27,8 @@ $WarningIconPath = Join-Path $ProjectRoot "web\crypto-ai-trader-warning.ico"
 $OfflineIconPath = Join-Path $ProjectRoot "web\crypto-ai-trader-offline.ico"
 $HeaderLogoPath = Join-Path $ProjectRoot "web\crypto-ai-trader-icon.png"
 $script:RestartManager = $false
+$script:AgentRefreshCheckedVersion = ''
+$script:AgentRefreshNextAttempt = [DateTime]::MinValue
 
 function Get-InstalledVersion {
     $projectFile = Join-Path $ProjectRoot "pyproject.toml"
@@ -90,9 +92,11 @@ function Show-LocalUpdateCenter {
         if ($result.status -ne 'installed_healthy' -or $result.release_id -ne $verified.release_id) {
             throw 'El supervisor no confirmó la instalación exacta y saludable.'
         }
+        $script:AgentRefreshNextAttempt = [DateTime]::MinValue
+        Invoke-AutomaticAgentRefresh
         Update-ManagerStatus
         [System.Windows.Forms.MessageBox]::Show(
-            "Bot $($result.version) instalado y comprobado en PAPER. El agente remoto puede reconectarse después; no hizo falta abrir el portal web.",
+            "Bot $($result.version) instalado y comprobado en PAPER. La conexión del portal se sincroniza automáticamente; si su revisión queda pendiente, utiliza Reparar conexión del portal.",
             'Actualización local completada',
             [System.Windows.Forms.MessageBoxButtons]::OK,
             [System.Windows.Forms.MessageBoxIcon]::Information
@@ -123,6 +127,26 @@ function Show-AgentRefresh {
             "No se completó la revisión del agente. $($_.Exception.Message)", 'Revisar conexión del portal',
             [System.Windows.Forms.MessageBoxButtons]::OK,
             [System.Windows.Forms.MessageBoxIcon]::Warning) | Out-Null
+    }
+}
+
+function Invoke-AutomaticAgentRefresh {
+    $version = Get-InstalledVersion
+    if ($version -eq 'desconocida' -or $version -eq $script:AgentRefreshCheckedVersion -or
+        [DateTime]::UtcNow -lt $script:AgentRefreshNextAttempt) { return }
+    $script:AgentRefreshNextAttempt = [DateTime]::UtcNow.AddMinutes(5)
+    try {
+        $scriptPath = Join-Path $ProjectRoot 'scripts\refresh_windows_agent.ps1'
+        if (-not (Test-Path -LiteralPath $scriptPath)) { throw 'No se encontró la reparación firmada.' }
+        # The helper verifies the committed signed inventory, backs up only
+        # changed agent modules and restarts only the outbound agent task.
+        $result = & $scriptPath -SourcePath $ProjectRoot -Automatic
+        $script:AgentRefreshCheckedVersion = $version
+        $repairAgentItem.Text = 'Reparar conexión del portal'
+    } catch {
+        # Keep the menu recovery action and retry later. A refresh failure
+        # never reverses a healthy bot installation or stops the PAPER motor.
+        $repairAgentItem.Text = 'Revisar conexión del portal'
     }
 }
 
@@ -662,6 +686,7 @@ $timer = New-Object System.Windows.Forms.Timer
 $timer.Interval = 15000
 $timer.Add_Tick({
     Update-ManagerStatus
+    Invoke-AutomaticAgentRefresh
 })
 $form.Add_Shown({
     if (-not (Test-Path $StartupOptOutPath) -and -not (Test-CanonicalStartup)) {
@@ -672,6 +697,7 @@ $form.Add_Shown({
     }
     Update-ManagerStatus
     $timer.Start()
+    Invoke-AutomaticAgentRefresh
     if ($Minimized) { Hide-ManagerWindow }
 })
 $form.Add_Resize({
