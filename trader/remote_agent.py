@@ -35,6 +35,7 @@ class RemoteAgent:
         self.opener = urllib.request.build_opener(NoRedirect())
         self.last_error = None
         self.dashboard_provider = None
+        self.config_provider = None
         self.jobs = None
         self.update_provider = None
         self.restore_provider = None
@@ -98,6 +99,11 @@ class RemoteAgent:
 
     def sync(self):
         self.last_error = None
+        if self.config_provider:
+            refreshed = self.config_provider()
+            if refreshed.bot.mode != 'paper' or refreshed.bot.database_path != self.config.bot.database_path:
+                raise ValueError('PAPER installation changed unexpectedly')
+            self.config = refreshed
         dashboard_issue = None
         last = self._last_id()
         payload = {"snapshot": self.snapshot(), "acks": [last] if last else []}
@@ -117,6 +123,7 @@ class RemoteAgent:
             payload["job_results"] = self.jobs.results()
         if getattr(self, 'paper_controls', None) and self.paper_controls.available:
             payload['snapshot']['paper_controls'] = True
+            payload['snapshot']['operations_controls'] = True
             payload['control_results'] = self.paper_controls.results()
         def send(body):
             request = urllib.request.Request(self.origin + "/v1/device/sync",

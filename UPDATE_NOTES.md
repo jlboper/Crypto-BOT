@@ -1,3 +1,10 @@
+# Actualización 0.6.17 — controles del motor y primera ejecución Spot Testnet
+
+- Menú Opciones → Modelo IA y motor: selección limitada a GPT-6 Luna o GPT-5.6 Luna y reinicio supervisado del motor PAPER. Windows comprueba la respuesta de IA antes de escribir el override local. La configuración privada sigue en la PC; el portal recibe solo el resultado. Retirados los botones redundantes de comprobación del indicador de Windows.
+- Menú Opciones → Binance Testnet: compra manual BTC/USDT limitada a 25 USDT ficticios una vez al día; cierre manual de la posición registrada y conciliación por identificador de cliente. Ninguna orden va a Binance de producción. Una respuesta incierta bloquea nuevas órdenes hasta una consulta de conciliación y nunca dispara reintentos de escritura.
+- Testnet y PAPER guardan registros separados. Esta primera etapa prueba ejecución y conciliación reales en Testnet, no migra la estrategia automática ni convierte el historial PAPER en P&L de Binance. El motor permanece PAPER y el uso de dinero real está deshabilitado.
+- Después de instalar 0.6.17, usa Reparar conexión del portal en la PC para que el supervisor independiente reciba los nuevos controles. El estado de Testnet está disponible en el portal local y remoto, sin credenciales ni saldo privado en Cloudflare.
+
 # Actualización 0.6.16 — controles PAPER compartidos
 
 - El mismo panel local y remoto permite seleccionar mínimo, prudente o normal para nuevas entradas PAPER y solicitar el cierre de una posición PAPER concreta.

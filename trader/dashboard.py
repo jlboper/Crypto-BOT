@@ -128,6 +128,33 @@ class DashboardServer:
                 if not self._same_origin():
                     self._json({"error": "origin not allowed"}, HTTPStatus.FORBIDDEN)
                     return
+                testnet_routes = {'/api/testnet/buy':'testnet_buy', '/api/testnet/close':'testnet_close',
+                                  '/api/testnet/reconcile':'testnet_reconcile'}
+                if path in {"/api/operations/model", "/api/operations/restart", *testnet_routes}:
+                    try:
+                        if self.headers.get('Content-Type', '').split(';', 1)[0].strip() != 'application/json':
+                            raise ValueError('JSON required')
+                        length = int(self.headers.get('Content-Length', '0'))
+                        if not 0 < length <= 128:
+                            raise ValueError('Invalid request size')
+                        payload = json.loads(self.rfile.read(length))
+                        if not isinstance(payload, dict):
+                            raise ValueError('Invalid request')
+                        action = testnet_routes.get(path) or ('ai_model' if path.endswith('/model') else 'restart_engine')
+                        if (action == 'ai_model' and (set(payload) != {'model'} or payload['model'] not in {'gpt-5.6-luna','gpt-6-luna'})) or (action == 'restart_engine' and payload):
+                            raise ValueError('Invalid operational request')
+                        if action.startswith('testnet_') and payload:
+                            raise ValueError('Testnet request accepts no free-form parameters')
+                        script = PROJECT_ROOT / 'scripts/execute_paper_control.py'
+                        process = subprocess.Popen([sys.executable, '-I', '-B', str(script), str(PROJECT_ROOT)],
+                            cwd=PROJECT_ROOT, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL,
+                            stderr=subprocess.DEVNULL, creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+                        process.stdin.write(json.dumps({'action':action,'payload':payload}).encode('utf-8'))
+                        process.stdin.close()
+                        self._json({'status':'pending','message':'Windows está verificando el motor PAPER'}, HTTPStatus.ACCEPTED)
+                    except (ValueError, OSError):
+                        self._json({'error':'Acción no disponible'}, HTTPStatus.CONFLICT)
+                    return
                 if path in {"/api/paper/risk-profile", "/api/paper/close-position"}:
                     try:
                         if self.headers.get("Content-Type", "").split(";", 1)[0].strip() != "application/json":
@@ -205,6 +232,19 @@ class DashboardServer:
                     self._json({"error": "not found"}, HTTPStatus.NOT_FOUND)
 
             def _api(self, path: str) -> None:
+                if path == '/api/operations/last':
+                    record = PROJECT_ROOT / 'data/operation-last.json'
+                    try:
+                        if record.stat().st_size > 2000:
+                            raise ValueError('Oversized operation status')
+                        self._json(json.loads(record.read_text(encoding='utf-8')))
+                    except (OSError, ValueError):
+                        self._json({'status':'unavailable'})
+                    return
+                if path == '/api/testnet/execution':
+                    from .testnet_execution import public_status
+                    self._json(public_status(PROJECT_ROOT))
+                    return
                 if path == "/api/status":
                     equity_rows = outer.db.recent("equity", 1)
                     latest = equity_rows[0] if equity_rows else {}

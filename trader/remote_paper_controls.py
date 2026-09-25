@@ -36,7 +36,7 @@ class RemotePaperControls:
         payload = item.get('payload')
         expires = item.get('expires')
         if (not self.available or type(identifier) is not int or identifier <= 0 or
-                action not in {'risk_profile', 'paper_close'} or not isinstance(payload, dict) or
+                action not in {'risk_profile', 'paper_close', 'ai_model', 'restart_engine', 'testnet_buy', 'testnet_close', 'testnet_reconcile'} or not isinstance(payload, dict) or
                 type(expires) not in (int, float) or not now < expires <= now + 305):
             raise ValueError('Invalid or unavailable PAPER control')
         expected = {'action': action, 'payload': payload}
@@ -61,7 +61,7 @@ class RemotePaperControls:
                 python = python.with_name('python.exe')
             result = subprocess.run([str(python), '-I', '-B', str(self.script), str(self.source)],
                 input=encoded, text=True, cwd=self.source, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-                timeout=20, check=False, creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+                timeout=145, check=False, creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
             if result.returncode != 0 or len(result.stdout) > 1000:
                 message = 'Windows rechazó la acción PAPER; revisa la posición y vuelve a cargar'
                 status = 'failed'
@@ -69,8 +69,13 @@ class RemotePaperControls:
                 response = json.loads(result.stdout)
                 if response.get('ok') is not True:
                     raise ValueError('Unconfirmed PAPER response')
-                message = ('Perfil PAPER aplicado: ' + response['profile'] if action == 'risk_profile'
-                           else 'Posición PAPER cerrada: ' + response['symbol'])
+                message = ({'risk_profile': 'Perfil PAPER aplicado: ' + response.get('profile',''),
+                            'paper_close': 'Posición PAPER cerrada: ' + response.get('symbol',''),
+                            'ai_model': 'Modelo activo: ' + response.get('model',''),
+                            'restart_engine': 'Motor PAPER reiniciado y verificado',
+                            'testnet_buy': 'Compra de prueba: ' + response.get('status','incierta'),
+                            'testnet_close': 'Cierre de prueba: ' + response.get('status','incierto'),
+                            'testnet_reconcile': 'Orden Testnet conciliada: ' + response.get('status','incierta')}[action])
                 status = 'completed'
             temp = record.with_suffix('.tmp')
             with temp.open('w', encoding='utf-8') as handle:

@@ -145,7 +145,8 @@ def main():
         raise ValueError("Device destination differs from the deployed portal")
     state = ROOT / "data"
     agent = RemoteAgent(config, values["PORTAL_ORIGIN"], values["PORTAL_DEVICE_TOKEN"], state_directory=state)
-    agent.dashboard_provider = lambda: dashboard_from_source(args.source, config)
+    agent.config_provider = lambda: source_settings(args.source)
+    agent.dashboard_provider = lambda: dashboard_from_source(args.source, agent.config)
     agent.jobs = RemoteJobs(ROOT,args.source)
     agent.paper_controls = RemotePaperControls(ROOT,args.source)
     agent.update_provider = lambda: update_candidate(args.source)

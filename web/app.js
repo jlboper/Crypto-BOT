@@ -14,6 +14,49 @@ let lastResearchReport = null;
 let lastPositions = [];
 const paperControlsAvailable = () => typeof window.paperControlsAvailable === 'function' ? window.paperControlsAvailable() : true;
 
+async function refreshTestnet(){
+  if(document.getElementById('testnetPanel').hidden)return;
+  const label=document.getElementById('testnetStatus');
+  try{
+    const state=await api('/api/testnet/execution');
+    const last=state.orders?.at(-1);
+    label.textContent=last?`Última orden ${last.side==='BUY'?'compra':'venta'} ${last.symbol}: ${last.status} · ejecutado ${last.executed_qty??'pendiente'} BTC · ${last.created_day}.`:
+      'Sin operaciones de Testnet registradas. La primera entrada se realizará solo tras tu confirmación.';
+    const uncertain=state.orders?.some(row=>!['FILLED','CANCELED','REJECTED','EXPIRED','EXPIRED_IN_MATCH'].includes(row.status));
+    document.getElementById('testnetBuy').disabled=!!uncertain;
+    document.getElementById('testnetClose').disabled=!!uncertain||!state.orders?.some(row=>row.side==='BUY'&&Number(row.executed_qty)>0);
+    document.getElementById('testnetReconcile').disabled=!uncertain;
+  }catch(error){label.textContent='Testnet pendiente de sincronización: '+error.message;}
+}
+window.addEventListener('testnet-open',refreshTestnet);
+for(const [id,path,question] of [
+  ['testnetBuy','/api/testnet/buy','¿Enviar una compra de BTC/USDT por exactamente 25 USDT de prueba a Binance Spot Testnet? Esta orden sí se ejecutará con fondos ficticios de Testnet.'],
+  ['testnetClose','/api/testnet/close','¿Vender en Binance Spot Testnet el BTC adquirido en la última compra de prueba?'],
+  ['testnetReconcile','/api/testnet/reconcile','¿Consultar a Binance Spot Testnet el resultado de la orden pendiente? No reenviará la orden.']]){
+  document.getElementById(id).addEventListener('click',async event=>{
+    if(!confirm(question))return;
+    const startedAt=Date.now()/1000;
+    const button=event.currentTarget,message=document.getElementById('testnetMessage');
+    button.disabled=true;message.textContent='Windows está procesando la solicitud…';
+    try{
+      const result=await api(path,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+      message.textContent=result.status==='pending'?'Solicitud aceptada. Espera la confirmación en Actividad y vuelve a consultar el registro.':
+        'Windows confirmó el resultado. Comprueba el registro de la orden.';
+    }catch(error){message.textContent=error.message;}
+    finally{
+      setTimeout(refreshTestnet,1500);
+      if(['127.0.0.1','localhost','::1'].includes(location.hostname))setTimeout(async()=>{
+        try{const state=await api('/api/operations/last');
+          if(state.at>startedAt)message.textContent=state.status==='completed'?
+            `Windows confirmó ${state.result?.status||'la solicitud'} en Testnet.`:
+            `Windows no completó la solicitud (${state.reason||'revisar estado'}). Concíliala si figura como incierta.`;
+          refreshTestnet();
+        }catch{}
+      },3500);
+    }
+  });
+}
+
 async function api(path, options={}) {
   if(window.portalApi)return window.portalApi(path,{...options,headers:{...headers,...(options.headers||{})}});
   const response = await fetch(path, {...options, headers:{...headers,...(options.headers||{})}});
@@ -231,6 +274,7 @@ async function refresh() {
     const [status,positions,trades,reviews,equity,events,research,researchState,paperReport] = await Promise.all([
       api('/api/status'),api('/api/positions'),api('/api/trades'),api('/api/ai-reviews'),api('/api/equity'),api('/api/events'),api('/api/research'),api('/api/research/status'),api('/api/paper-scorecard')
     ]);
+    refreshTestnet();
     document.getElementById('equity').textContent=money(status.equity);
     document.getElementById('cash').textContent=money(status.cash);
     document.getElementById('exposure').textContent=money(status.exposure);
@@ -238,6 +282,8 @@ async function refresh() {
     document.getElementById('positionsCount').textContent=`${status.positions} de ${status.max_positions} posiciones`;
     document.getElementById('aiStatus').textContent=status.ai_enabled?'Activa':'Desactivada';
     document.getElementById('aiModel').textContent=status.ai_model;
+    const chosen=document.getElementById('aiModelChoice');
+    if(['gpt-5.6-luna','gpt-6-luna'].includes(status.ai_model))chosen.value=status.ai_model;
     const risk=status.risk||{};
     const riskName=status.paper_risk_profile||'normal';
     const profileSelect=document.getElementById('riskProfile');
