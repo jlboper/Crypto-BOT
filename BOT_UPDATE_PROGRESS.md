@@ -53,11 +53,17 @@ direct access to the operating database from this source checkout. PR #15 for
 0.6.11 was subsequently merged and its protected publication reported as
 successful; its installation on Windows has not been verified in this copy.
 
-This branch prepares version 0.6.12. It keeps GPT-5.6 Luna as the API review
-model because no official `gpt-6-luna` API identifier is available, adds a
+Version 0.6.12 kept GPT-5.6 Luna as the API review model at that time, adds a
 read-only Testnet planner and synthetic order reconciliation, and exposes the
 unified research promotion gates in the portal. It is not published or
-installed until its PR and protected release complete.
+installed until its PR and protected release complete. The official OpenAI API
+now documents `gpt-6-luna`; proposed 0.6.15 uses it in config, subject to an
+explicit `check-ai-model` probe on the Windows account. Existing `.env.local`
+overrides persist across signed updates and may still select 5.6 Luna. The
+0.6.15 portal emphasizes operational PAPER status and hides research in a
+diagnostics panel. It adds a separate signed `/api/v3/order/test` request on the
+fixed Binance Spot Testnet host for local validation; this endpoint does not
+enter the matching engine. No Testnet or live order submission is introduced.
 The owner's 24 September Windows screenshot shows the scheduled outbound agent
 running but `sync_ok: false` with `HTTPError:400`, so the portal cannot deliver
 update jobs. A separate manual supervisor refresh attempt ended with

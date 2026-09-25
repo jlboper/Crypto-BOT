@@ -111,6 +111,12 @@ document.addEventListener('DOMContentLoaded',()=>{
   const optionsButton=document.getElementById('optionsButton'),optionsMenu=document.getElementById('optionsMenu');
   function showOptions(open){optionsMenu.hidden=!open;optionsButton.setAttribute('aria-expanded',String(open));}
   optionsButton.onclick=()=>showOptions(optionsMenu.hidden);
+  document.getElementById('diagnosticsButton').onclick=()=>{
+    showOptions(false);
+    const panel=document.getElementById('diagnosticsPanel');
+    panel.open=true;
+    panel.scrollIntoView({behavior:'smooth',block:'start'});
+  };
   let nextHistoryPage=0,historyBusy=false;
   async function loadHistory(reset=false){
     if(historyBusy)return;

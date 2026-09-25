@@ -20,7 +20,7 @@
       <div class="brand">
         <img class="brand-mark" src="/crypto-ai-trader-icon.png" alt="">
         <div class="brand-copy">
-          <p class="eyebrow">BINANCE SPOT · MULTI-ASSET ENGINE</p>
+          <p class="eyebrow">BINANCE SPOT · PANEL DE OPERACIONES</p>
           <h1>Crypto AI Trader</h1>
           <p id="portalConnection"></p>
         </div>
@@ -28,12 +28,13 @@
       <div class="header-actions">
         <span id="botState" class="state">COMPROBANDO</span>
         <span id="mode" class="badge">PAPER</span>
-        <button id="killButton" class="danger">Activar kill switch</button>
+        <button id="killButton" class="danger">Pausar nuevas entradas</button>
         <div class="options">
           <button id="optionsButton" class="secondary" aria-haspopup="menu" aria-expanded="false">Opciones</button>
           <div id="optionsMenu" class="options-menu" role="menu" hidden>
             <button id="updateButton" role="menuitem">Actualizaciones</button>
             <button id="historyButton" role="menuitem">Historial de actividad</button>
+            <button id="diagnosticsButton" role="menuitem">Diagnóstico y estrategias</button>
             <button id="restoreBotVersion" role="menuitem" disabled>Restaurar versión anterior</button>
             <button id="portalPasswordButton" role="menuitem">Cambiar contraseña</button>
             <button id="portalLogout" role="menuitem" hidden>Cerrar sesión</button>
@@ -75,6 +76,11 @@
       <p id="historyMessage" role="status"></p>
     </section>
 
+    <section class="operation-overview panel" aria-label="Estado de operaciones">
+      <div><p class="eyebrow">CENTRO DE OPERACIONES</p><h2>Cuenta de prueba · PAPER</h2>
+        <p id="operationSummary">Esperando el estado del motor de Windows.</p></div>
+      <div class="operation-next"><strong>Siguiente etapa</strong><span>Ensayar órdenes y conciliación en Binance Spot Testnet. Las operaciones con fondos reales siguen deshabilitadas.</span></div>
+    </section>
     <section class="metrics" aria-label="Resumen de cuenta">
       <article><span>Equity</span><strong id="equity">—</strong><small id="return">—</small></article>
       <article><span>Efectivo</span><strong id="cash">—</strong><small>USDT disponible</small></article>
@@ -82,10 +88,33 @@
       <article><span>Revisión IA</span><strong id="aiStatus">—</strong><small id="aiModel">—</small></article>
     </section>
 
+    <section class="grid">
+      <article class="panel chart-panel">
+        <div class="panel-title"><h2>Curva de equity</h2><span id="updated">Esperando primer ciclo</span></div>
+        <canvas id="equityChart" height="230" aria-label="Curva de equity"></canvas>
+      </article>
+      <article class="panel guardrail">
+        <div class="panel-title"><h2>Límites PAPER</h2><span id="killState" class="state">Comprobando</span></div>
+        <dl>
+          <div><dt>Riesgo / trade</dt><dd id="riskTrade">—</dd></div>
+          <div><dt>Máx. posición</dt><dd id="riskPosition">—</dd></div>
+          <div><dt>Máx. exposición</dt><dd id="riskExposure">—</dd></div>
+          <div><dt>Límite diario</dt><dd id="riskDaily">—</dd></div>
+          <div><dt>Límite semanal</dt><dd id="riskWeekly">—</dd></div>
+          <div><dt>Apalancamiento</dt><dd>Desactivado</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="panel">
+      <div class="panel-title"><h2>Posiciones abiertas</h2><span>Protección ATR activa</span></div>
+      <div class="table-wrap"><table><thead><tr><th>Par</th><th>Cantidad</th><th>Entrada</th><th>Precio actual</th><th>P&amp;L</th><th>P&amp;L %</th><th>Stop</th><th>Objetivo</th><th>Máximo</th></tr></thead><tbody id="positions"></tbody></table></div>
+    </section>
+
     <section class="panel paper-scorecard" aria-label="Seguimiento financiero PAPER">
       <div class="panel-title"><h2>Seguimiento financiero PAPER</h2><span id="paperEvidenceState" class="state neutral">SIN DATOS</span></div>
       <p id="paperEvidenceNote">Los resultados observados no autorizan operar con dinero real.</p>
-      <p class="finance-strategy">Estrategia operativa: swing multi-activo en PAPER. La evaluación histórica es solo informativa.</p>
+      <p class="finance-strategy">Estrategia actual: swing multi-activo con límites fijos, paradas de protección y revisión IA. Las pruebas históricas no cambian sus decisiones.</p>
       <div id="paperEvidenceMetrics" class="research-summary"></div>
       <div id="paperBenchmark" class="benchmark-note">Comparación BTC: esperando muestras emparejadas.</div>
       <details class="finance-details"><summary>Ver métricas, pasos pendientes y resultados por activo</summary>
@@ -93,7 +122,7 @@
       <div class="readiness-note"><h3>Antes de usar capital real</h3><ul id="readinessChecks"></ul>
         <p>Después de la evidencia PAPER: probar órdenes en Testnet, validar reglas y mínimos de cada par, conciliar saldos y ejecuciones, y aprobar explícitamente un límite de capital. Esta versión permanece en PAPER.</p>
         <p id="marketPreflight">Las próximas entradas PAPER se contrastarán con reglas públicas de cantidad y valor mínimo de Binance Spot. Es un diagnóstico; no se envían órdenes.</p>
-        <p id="testnetReadiness"><strong>Testnet:</strong> planificador de filtros y simulador de conciliación listos en modo lectura. El bot no envía órdenes ni activa una cuenta de Testnet.</p>
+        <p id="testnetReadiness"><strong>Testnet:</strong> filtros, conciliación simulada y validación local de parámetros disponibles. El portal no envía órdenes; la conexión autenticada debe verificarse en Windows.</p>
       </div>
       <h3>Resultados por activo</h3>
       <div class="table-wrap"><table class="asset-table">
@@ -107,11 +136,31 @@
       </table></div>
       <p class="research-updated">P&amp;L realizado neto de comisiones; P&amp;L abierto estimado solo con cotizaciones recientes, incluyendo salida simulada. Drawdown muestreado. Sin libro de aportes/retiros; la referencia BTC invierte el 100% y descuenta costos PAPER simulados.</p>
       </details>
+
+    </section>
+
+
+
+
+
+
+
+
+
+
+    <section class="activity-strip" aria-label="Actividad reciente">
+      <h2>Actividad reciente <small>Últimos 3 movimientos · historial en Opciones</small></h2>
+      <ul id="portalCommands" class="activity-list"><li>Esperando actividad del portal.</li></ul>
+    </section>
+
+    <details id="diagnosticsPanel" class="advanced-details panel">
+      <summary>Diagnóstico y estrategias <span>Investigación, decisiones IA y alertas</span></summary>
+      <p>El motor PAPER sigue una estrategia fija. El estudio histórico sirve para evaluar cambios futuros y no activa estrategias automáticamente.</p>
       <details class="research-lab">
         <summary>Comparar estrategias y ver evaluación histórica</summary>
       <div class="research-heading">
         <div>
-          <p class="eyebrow">EVALUACIÓN HISTÓRICA · V0.6.14</p>
+          <p class="eyebrow">EVALUACIÓN HISTÓRICA · V0.6.15</p>
           <h2>Comparación multi-cripto</h2>
           <p class="research-copy">Compara cinco estrategias por activo contra efectivo y comprar y mantener ese activo, con costos, walk-forward y ventana final. Solo una estrategia que supere todas las puertas y un forward test posterior puede proponerse para la siguiente fase; ninguna se activa automáticamente.</p>
           <p id="researchCoverage" class="research-copy">Calculando cuántos cierres PAPER corresponden a estos cinco activos.</p>
@@ -141,36 +190,6 @@
       <div id="researchDetail" class="research-detail" hidden></div>
       <p id="researchUpdated" class="research-updated">El estudio descarga aproximadamente 5,000 velas cerradas por activo y puede tardar varios minutos.</p>
       </details>
-    </section>
-
-    <section class="activity-strip" aria-label="Actividad reciente">
-      <h2>Actividad reciente <small>Últimos 3 movimientos · historial en Opciones</small></h2>
-      <ul id="portalCommands" class="activity-list"><li>Esperando actividad del portal.</li></ul>
-    </section>
-
-    <section class="grid">
-      <article class="panel chart-panel">
-        <div class="panel-title"><h2>Curva de equity</h2><span id="updated">Esperando primer ciclo</span></div>
-        <canvas id="equityChart" height="230" aria-label="Curva de equity"></canvas>
-      </article>
-      <article class="panel guardrail">
-        <div class="panel-title"><h2>Límites PAPER</h2><span id="killState" class="state">Comprobando</span></div>
-        <dl>
-          <div><dt>Riesgo / trade</dt><dd id="riskTrade">—</dd></div>
-          <div><dt>Máx. posición</dt><dd id="riskPosition">—</dd></div>
-          <div><dt>Máx. exposición</dt><dd id="riskExposure">—</dd></div>
-          <div><dt>Límite diario</dt><dd id="riskDaily">—</dd></div>
-          <div><dt>Límite semanal</dt><dd id="riskWeekly">—</dd></div>
-          <div><dt>Apalancamiento</dt><dd>Desactivado</dd></div>
-        </dl>
-      </article>
-    </section>
-
-    <section class="panel">
-      <div class="panel-title"><h2>Posiciones abiertas</h2><span>Protección ATR activa</span></div>
-      <div class="table-wrap"><table><thead><tr><th>Par</th><th>Cantidad</th><th>Entrada</th><th>Precio actual</th><th>P&amp;L</th><th>P&amp;L %</th><th>Stop</th><th>Objetivo</th><th>Máximo</th></tr></thead><tbody id="positions"></tbody></table></div>
-    </section>
-
     <section class="split">
       <article class="panel">
         <div class="panel-title"><h2>Últimas operaciones</h2><span>Incluye costos simulados</span></div>
@@ -181,11 +200,11 @@
         <div id="reviews" class="feed"></div>
       </article>
     </section>
-
     <section class="panel">
       <div class="panel-title"><h2>Actividad del motor</h2><span>Errores y advertencias recientes</span></div>
       <div id="events" class="feed"></div>
     </section>
+    </details>
   </main>
   <script src="/app.js"></script>
 </body>

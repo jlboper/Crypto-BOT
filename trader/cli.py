@@ -5,19 +5,22 @@ import json
 import os
 import sys
 import tomllib
+from dataclasses import replace
 from pathlib import Path
 
 from .backtest import run_backtest
+from .ai_advisor import AIAdvisor
 from .config import load_config
 from .dashboard import DashboardServer
 from .database import Database
+from .domain import Signal
 from .engine import TradingEngine
 from .exchange import BinanceClient
 from .monitoring import activity_status, position_metrics
 from .research import execute_research, report_without_trades
 from .runtime import single_instance
 from .runtime_control import RuntimeControl
-from .testnet import demo_lifecycle, plan_order
+from .testnet import demo_lifecycle, plan_order, validate_test_order
 
 
 def parser() -> argparse.ArgumentParser:
@@ -39,14 +42,18 @@ def parser() -> argparse.ArgumentParser:
     commands.add_parser("kill", help="Activate the emergency kill switch")
     commands.add_parser("resume", help="Clear the emergency kill switch")
     commands.add_parser("check-testnet", help="Verify Binance Spot Testnet credentials without placing an order")
-    testnet_plan = commands.add_parser(
-        "testnet-plan", help="Build a read-only Testnet order plan from public filters"
-    )
-    testnet_plan.add_argument("symbol", nargs="?", default="BTCUSDT")
-    testnet_plan.add_argument("--side", choices=("BUY", "SELL"), default="BUY")
-    testnet_plan.add_argument("--quote-amount", type=float, default=None)
-    testnet_plan.add_argument("--quantity", type=float, default=None)
-    testnet_plan.add_argument("--price", type=float, default=None, help="Reference price; fetched from Testnet when omitted")
+    ai_check = commands.add_parser("check-ai-model", help="Probe OpenAI model access without trading")
+    ai_check.add_argument("--model", default="gpt-6-luna")
+    for command, help_text in (
+        ("testnet-plan", "Build a read-only Testnet order plan from public filters"),
+        ("testnet-validate", "Validate a planned order at Binance Testnet without submitting it"),
+    ):
+        testnet_plan = commands.add_parser(command, help=help_text)
+        testnet_plan.add_argument("symbol", nargs="?", default="BTCUSDT")
+        testnet_plan.add_argument("--side", choices=("BUY", "SELL"), default="BUY")
+        testnet_plan.add_argument("--quote-amount", type=float, default=None)
+        testnet_plan.add_argument("--quantity", type=float, default=None)
+        testnet_plan.add_argument("--price", type=float, default=None, help="Reference price; fetched from Testnet when omitted")
     commands.add_parser("testnet-simulate", help="Exercise synthetic Testnet reconciliation without network writes")
     return root
 
@@ -152,7 +159,22 @@ def main() -> None:
         except Exception as exc:
             print(f"Testnet verification failed: {exc}", file=sys.stderr)
             raise SystemExit(1) from exc
-    elif args.command == "testnet-plan":
+    elif args.command == "check-ai-model":
+        if not args.model.startswith("gpt-") or len(args.model) > 80:
+            raise SystemExit("Invalid model identifier")
+        settings = replace(config.ai, model=args.model, enabled=True, fail_closed=True)
+        advisor = AIAdvisor(settings)
+        if not advisor.api_key:
+            raise SystemExit("OPENAI_API_KEY is unavailable on this machine")
+        signal = Signal("BTCUSDT", "BUY", 80, 100.0, 95.0, 110.0, 2.0, 60.0, 101.0, 99.0, 1.3,
+                        "synthetic model access check; no order", "synthetic")
+        review = advisor.review(signal, True, {"equity_usdt": 1000.0, "cash_usdt": 1000.0,
+                                                "exposure_pct": 0.0, "open_positions": 0.0})
+        if review.reason.startswith("AI review failed safely:"):
+            print(f"OpenAI model {args.model}: check failed ({review.reason})", file=sys.stderr)
+            raise SystemExit(1)
+        print(json.dumps({"model": args.model, "schema_check": "ok", "order_submission_enabled": False}, indent=2))
+    elif args.command in {"testnet-plan", "testnet-validate"}:
         if args.quote_amount is None and args.quantity is None:
             raise SystemExit("Provide --quote-amount or --quantity")
         try:
@@ -167,7 +189,10 @@ def main() -> None:
                 quote_amount=args.quote_amount,
                 quantity=args.quantity,
             )
-            print(json.dumps(plan.as_dict(), indent=2))
+            if args.command == "testnet-validate":
+                print(json.dumps(validate_test_order(plan), indent=2))
+            else:
+                print(json.dumps(plan.as_dict(), indent=2))
         except Exception as exc:
             print(f"Testnet plan failed: {exc}", file=sys.stderr)
             raise SystemExit(1) from exc

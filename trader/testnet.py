@@ -8,7 +8,13 @@ without credentials, network writes, or exchange side effects.
 from __future__ import annotations
 
 import hashlib
+import hmac
+import json
+import os
 import time
+import urllib.error
+import urllib.parse
+import urllib.request
 from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation, ROUND_DOWN
 from typing import Any
@@ -16,6 +22,49 @@ from typing import Any
 
 class TestnetPlanError(ValueError):
     """The proposed order cannot be normalized safely from public filters."""
+
+
+def validate_test_order(plan: TestnetOrderPlan, *, api_key: str | None = None,
+                        api_secret: str | None = None) -> dict[str, Any]:
+    """Validate an exact Testnet MARKET plan without entering the matching engine.
+
+    No caller-supplied URL or route is accepted. This operation never submits
+    /api/v3/order and never retries an uncertain response.
+    """
+    if not isinstance(plan, TestnetOrderPlan) or plan.status != "READY_FOR_MANUAL_REVIEW":
+        raise TestnetPlanError("Only a ready Testnet plan may be validated")
+    if plan.side not in {"BUY", "SELL"} or not plan.symbol.isalnum() or not plan.symbol.endswith("USDT"):
+        raise TestnetPlanError("Invalid Testnet order identity")
+    quantity = _decimal(plan.quantity, "quantity")
+    key = api_key if api_key is not None else os.getenv("BINANCE_API_KEY", "")
+    secret = api_secret if api_secret is not None else os.getenv("BINANCE_API_SECRET", "")
+    if not key or not secret:
+        raise TestnetPlanError("Testnet API credentials unavailable")
+    fields = {
+        "symbol": plan.symbol, "side": plan.side, "type": "MARKET", "quantity": _fmt(quantity),
+        "newClientOrderId": plan.client_order_id, "recvWindow": 5000,
+        "timestamp": int(time.time() * 1000),
+    }
+    query = urllib.parse.urlencode(fields)
+    signature = hmac.new(secret.encode(), query.encode(), hashlib.sha256).hexdigest()
+    request = urllib.request.Request(
+        "https://testnet.binance.vision/api/v3/order/test",
+        data=f"{query}&signature={signature}".encode(),
+        headers={"X-MBX-APIKEY": key, "Content-Type": "application/x-www-form-urlencoded"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=10) as response:
+            result = json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        raise TestnetPlanError(f"Testnet validation rejected: HTTP {exc.code}") from exc
+    except (urllib.error.URLError, TimeoutError, ValueError) as exc:
+        raise TestnetPlanError("Testnet validation unavailable; no order sent") from exc
+    if not isinstance(result, dict):
+        raise TestnetPlanError("Unexpected Testnet validation response")
+    return {"validation": "accepted", "symbol": plan.symbol, "side": plan.side,
+            "quantity": plan.quantity, "execution_mode": "TESTNET_VALIDATE_ONLY",
+            "order_submission_enabled": False}
 
 
 def _decimal(value: Any, name: str) -> Decimal:
