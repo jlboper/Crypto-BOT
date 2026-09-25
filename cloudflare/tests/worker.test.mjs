@@ -7,7 +7,7 @@ import worker, { sha256 } from '../src/worker.mjs';
 
 // Real SQLite executes the same parameterized SQL; workerd/D1 is tested separately.
 class LocalD1 {
-  constructor(){this.sqlite=new DatabaseSync(':memory:');for(const name of ['0001_portal.sql','0002_jobs.sql','0003_owner_password.sql','0004_bot_releases.sql'])this.sqlite.exec(readFileSync(new URL('../migrations/'+name,import.meta.url),'utf8'));}
+  constructor(){this.sqlite=new DatabaseSync(':memory:');for(const name of ['0001_portal.sql','0002_jobs.sql','0003_owner_password.sql','0004_bot_releases.sql','0005_paper_controls.sql'])this.sqlite.exec(readFileSync(new URL('../migrations/'+name,import.meta.url),'utf8'));}
   prepare(sql){
     const db=this;
     const make=args=>({
@@ -53,6 +53,24 @@ test('owner login, secure cookie, status and logout revoke the session',async t=
   const initial=await f.request('/v1/status');assert.equal(initial.body.stale,true);assert.equal(initial.body.snapshot,null);
   assert.equal((await f.request('/v1/logout',{})).status,200);
   assert.equal((await f.request('/v1/status')).status,401);
+});
+
+test('PAPER controls require a current capable Windows snapshot, retain exact position and report result',async t=>{
+  const f=await fixture(t);await f.login();
+  const request={action:'paper_close',request_id:'paper-close-request-0001',payload:{symbol:'BTCUSDT',opened_at:'2026-01-01T00:00:00Z',reference_price:101}};
+  assert.equal((await f.request('/v1/paper-controls',request)).status,409);
+  await f.sync({snapshot:{...snapshot(),paper_controls:true,dashboard:{status:{mode:'PAPER'},positions:[{symbol:'BTCUSDT',opened_at:request.payload.opened_at}],equity:[],trades:[],reviews:[],events:[],research:{assets:[]}}},acks:[],control_results:[]});
+  assert.equal((await f.request('/v1/paper-controls',{...request,payload:{...request.payload,opened_at:'wrong'}})).status,409);
+  const created=await f.request('/v1/paper-controls',request);assert.equal(created.status,202);
+  assert.equal((await f.request('/v1/paper-controls',{...request,payload:{...request.payload,reference_price:102}})).status,409);
+  const delivered=await f.sync({snapshot:{...snapshot(),paper_controls:true},acks:[]});
+  assert.deepEqual(delivered.body.paper_controls[0].payload,request.payload);
+  await f.sync({snapshot:{...snapshot(),paper_controls:true},acks:[],control_results:[{id:created.body.id,status:'completed',message:'Posición PAPER cerrada: BTCUSDT'}]});
+  const status=await f.request('/v1/status');
+  assert.equal(status.body.paper_controls[0].status,'completed');
+  assert.equal(status.body.activity[0].action,'paper_close');
+  assert.equal((await f.request('/v1/paper-controls',{action:'risk_profile',request_id:'risk-profile-request-0001',payload:{profile:'infinito'}})).status,400);
+  assert.equal((await f.request('/v1/paper-controls',request,{'X-CSRF-Token':'bad'})).status,403);
 });
 
 test('activity combines jobs and commands, paginates privately, and rejects unbounded routes',async t=>{

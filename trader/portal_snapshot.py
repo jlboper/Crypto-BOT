@@ -7,6 +7,7 @@ from pathlib import Path
 from .domain import Position
 from .monitoring import activity_status, position_metrics, usable_price
 from .paper_scorecard import paper_scorecard
+from .risk_control import PROFILES
 
 
 def public_text(value):
@@ -26,7 +27,7 @@ def dashboard_snapshot(config, report_path=None):
             return [dict(row) for row in connection.execute(f'SELECT {columns} FROM {table} ORDER BY id DESC LIMIT ?', (limit,))]
         equity = rows('equity','equity,cash,exposure,created_at',300)
         latest = equity[0] if equity else {}
-        settings = dict(connection.execute("SELECT key,value FROM settings WHERE key IN ('market_prices','market_prices_at','paper_cash')"))
+        settings = dict(connection.execute("SELECT key,value FROM settings WHERE key IN ('market_prices','market_prices_at','paper_cash','paper_risk_profile')"))
         prices = json.loads(settings.get('market_prices','{}'))
         positions = [position_metrics(Position(**dict(p)),
                      usable_price(prices.get(p['symbol']), settings.get('market_prices_at'), config.bot.cycle_seconds), config.paper)
@@ -37,7 +38,9 @@ def dashboard_snapshot(config, report_path=None):
             'status': {'mode':'PAPER','killed':config.bot.kill_switch_path.exists(),'ai_enabled':config.ai.enabled,
                        'ai_model':config.ai.model,'equity':current,'cash':latest.get('cash',float(settings.get('paper_cash',initial))),
                        'exposure':latest.get('exposure',0),'return_pct':(current/initial-1)*100,
-                       'positions':len(positions),'max_positions':config.risk.max_positions,'risk':asdict(config.risk),'cycle_seconds':config.bot.cycle_seconds,
+                       'positions':len(positions),'max_positions':config.risk.max_positions,'risk':asdict(config.risk),
+                       'paper_risk_profile':settings.get('paper_risk_profile','normal') if settings.get('paper_risk_profile','normal') in PROFILES else 'invalid',
+                       'cycle_seconds':config.bot.cycle_seconds,
                        'activity':activity_status(latest.get('created_at'),config.bot.cycle_seconds)},
             'positions':positions, 'equity':list(reversed(equity)),
             'trades':rows('trades','id,symbol,side,quantity,price,fee,realized_pnl,reason,created_at',50),

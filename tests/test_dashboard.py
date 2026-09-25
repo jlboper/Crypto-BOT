@@ -9,14 +9,66 @@ from dataclasses import replace
 from http.server import ThreadingHTTPServer
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
 from trader.config import load_config
 from trader.dashboard import DashboardServer
 from trader.database import Database
+from trader.broker import PaperBroker
+from trader.domain import Signal
 from trader.update_supervisor import ProcessRuntime
 
 
 class DashboardTests(unittest.TestCase):
+    def test_local_paper_close_uses_fresh_quote_and_blocks_reentry(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            config = load_config()
+            config = replace(config, bot=replace(config.bot, database_path=root/'paper.db', kill_switch_path=root/'kill'))
+            db = Database(config.bot.database_path)
+            dashboard = DashboardServer(config, db)
+            broker = PaperBroker(db, config.paper, config.risk)
+            signal = Signal('BTCUSDT','BUY',80,100,95,110,2,60,101,99,1.3,'synthetic','now')
+            position = broker.buy(signal, 1, 'synthetic')
+            server = ThreadingHTTPServer(('127.0.0.1',0), dashboard._handler())
+            thread = threading.Thread(target=server.serve_forever,daemon=True)
+            thread.start()
+            def post(route, value, origin=None):
+                headers={'Content-Type':'application/json'}
+                if origin: headers['Origin']=origin
+                request=urllib.request.Request(f'http://127.0.0.1:{server.server_port}{route}',
+                    data=json.dumps(value).encode(),headers=headers,method='POST')
+                return urllib.request.urlopen(request)
+            try:
+                with patch('trader.exchange.BinanceClient.latest_prices',return_value={'BTCUSDT':104}):
+                    with self.assertRaises(urllib.error.HTTPError) as moved:
+                        post('/api/paper/close-position',{'symbol':'BTCUSDT','opened_at':position.opened_at,
+                                                           'reference_price':100})
+                self.assertEqual(moved.exception.code,409)
+                self.assertIsNotNone(db.position('BTCUSDT'))
+                with patch('trader.exchange.BinanceClient.latest_prices', return_value={'BTCUSDT':101}) as prices:
+                    with post('/api/paper/close-position',{'symbol':'BTCUSDT','opened_at':position.opened_at,
+                                                           'reference_price':100}) as response:
+                        self.assertTrue(json.load(response)['ok'])
+                prices.assert_called_once_with({'BTCUSDT'})
+                self.assertIsNone(db.position('BTCUSDT'))
+                with self.assertRaisesRegex(ValueError,'cooldown'):
+                    broker.buy(signal,1,'synthetic')
+                with self.assertRaises(urllib.error.HTTPError) as stale:
+                    post('/api/paper/close-position',{'symbol':'BTCUSDT','opened_at':position.opened_at,
+                                                       'reference_price':100})
+                self.assertEqual(stale.exception.code,409)
+                with post('/api/paper/risk-profile',{'profile':'prudente'}) as response:
+                    self.assertEqual(json.load(response)['profile'],'prudente')
+                other=replace(signal,symbol='ETHUSDT')
+                with self.assertRaisesRegex(ValueError,'risk limit'):
+                    broker.buy(other,1,'synthetic')
+                with self.assertRaises(urllib.error.HTTPError) as cross_origin:
+                    post('/api/paper/risk-profile',{'profile':'normal'},'https://evil.example')
+                self.assertEqual(cross_origin.exception.code,403)
+            finally:
+                server.shutdown();server.server_close();thread.join(timeout=2)
+
     def test_runtime_health_binds_port_and_identifies_exact_candidate(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

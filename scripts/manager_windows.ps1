@@ -109,6 +109,56 @@ function Show-LocalUpdateCenter {
     finally { $updateButton.Enabled = $true }
 }
 
+function Show-AgentRefresh {
+    $scriptPath = Join-Path $ProjectRoot 'scripts\refresh_windows_agent.ps1'
+    try {
+        if (-not (Test-Path -LiteralPath $scriptPath)) { throw 'Actualiza el bot antes de reparar la conexión.' }
+        $result = & $scriptPath -SourcePath $ProjectRoot
+        [System.Windows.Forms.MessageBox]::Show(
+            ($result | Out-String), 'Conexión del portal',
+            [System.Windows.Forms.MessageBoxButtons]::OK,
+            [System.Windows.Forms.MessageBoxIcon]::Information) | Out-Null
+    } catch {
+        [System.Windows.Forms.MessageBox]::Show(
+            "No se completó la revisión del agente. $($_.Exception.Message)", 'Revisar conexión del portal',
+            [System.Windows.Forms.MessageBoxButtons]::OK,
+            [System.Windows.Forms.MessageBoxIcon]::Warning) | Out-Null
+    }
+}
+
+function Show-ReadinessCheck {
+    param([ValidateSet('ai','testnet')][string]$Kind)
+    try {
+        $task = Get-ScheduledTask -TaskName 'Crypto Paper Portal Agent' -ErrorAction Stop
+        $executable = [Environment]::ExpandEnvironmentVariables([string]$task.Actions[0].Execute)
+        $python = if ($executable -match '(?i)pythonw\.exe$') {
+            Join-Path (Split-Path -Parent $executable) 'python.exe'
+        } elseif ($executable -match '(?i)python\.exe$') { $executable } else { '' }
+        if (-not $python -or -not (Test-Path -LiteralPath $python)) { throw 'No se encontró el Python del agente.' }
+        Push-Location $ProjectRoot
+        try {
+            if ($Kind -eq 'ai') {
+                $output = & $python -m trader --config (Join-Path $ProjectRoot 'config.toml') check-ai-model --model gpt-6-luna 2>&1
+                if ($LASTEXITCODE -ne 0) { throw 'GPT-6 Luna no respondió correctamente con la clave de esta PC. Nuevas entradas siguen protegidas.' }
+                $message = 'GPT-6 Luna y el formato de revisión respondieron correctamente. Comprueba en el portal qué modelo está activo.'
+            } else {
+                $output = & $python -m trader --config (Join-Path $ProjectRoot 'config.toml') check-testnet 2>&1
+                if ($LASTEXITCODE -ne 0) { throw 'Las credenciales de Binance Spot Testnet no pasaron la comprobación.' }
+                $output = & $python -m trader --config (Join-Path $ProjectRoot 'config.toml') testnet-validate BTCUSDT --side BUY --quote-amount 25 2>&1
+                if ($LASTEXITCODE -ne 0) { throw 'La validación de orden de ensayo en Testnet falló; no se envió ninguna orden.' }
+                $message = 'Conexión y validación de BTCUSDT en Testnet correctas. No se envió ninguna orden ni se movió dinero.'
+            }
+        } finally { Pop-Location }
+        [System.Windows.Forms.MessageBox]::Show($message, 'Comprobación local',
+            [System.Windows.Forms.MessageBoxButtons]::OK,
+            [System.Windows.Forms.MessageBoxIcon]::Information) | Out-Null
+    } catch {
+        [System.Windows.Forms.MessageBox]::Show($_.Exception.Message, 'Revisar comprobación',
+            [System.Windows.Forms.MessageBoxButtons]::OK,
+            [System.Windows.Forms.MessageBoxIcon]::Warning) | Out-Null
+    }
+}
+
 function Get-TradingProcesses {
     return @(
         Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
@@ -627,6 +677,12 @@ $openPortalItem = $notifyMenu.Items.Add("Abrir portal remoto")
 $openPortalItem.Add_Click({ Start-Process -FilePath $RemotePortalUrl })
 $checkUpdatesItem = $notifyMenu.Items.Add("Centro de actualizaciones")
 $checkUpdatesItem.Add_Click({ Show-LocalUpdateCenter })
+$repairAgentItem = $notifyMenu.Items.Add("Reparar conexión del portal")
+$repairAgentItem.Add_Click({ Show-AgentRefresh })
+$checkAiItem = $notifyMenu.Items.Add("Verificar GPT-6 Luna")
+$checkAiItem.Add_Click({ Show-ReadinessCheck -Kind 'ai' })
+$checkTestnetItem = $notifyMenu.Items.Add("Verificar Binance Testnet")
+$checkTestnetItem.Add_Click({ Show-ReadinessCheck -Kind 'testnet' })
 $notifyMenu.Items.Add("-") | Out-Null
 $exitItem = $notifyMenu.Items.Add("Salir del indicador")
 $script:AllowExit = $false

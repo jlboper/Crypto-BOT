@@ -27,7 +27,7 @@ test('real workerd + local D1: browser session -> command -> Windows sync -> ack
   t.after(()=>mf.dispose());
   const db=await mf.getD1Database('DB');
   // D1 exec requires one statement per line; a single prepared batch keeps the migration atomic.
-  const sql=['0001_portal.sql','0002_jobs.sql','0003_owner_password.sql','0004_bot_releases.sql'].map(name=>readFileSync(new URL('../migrations/'+name,import.meta.url),'utf8')).join('\n');
+  const sql=['0001_portal.sql','0002_jobs.sql','0003_owner_password.sql','0004_bot_releases.sql','0005_paper_controls.sql'].map(name=>readFileSync(new URL('../migrations/'+name,import.meta.url),'utf8')).join('\n');
   await db.batch(sql.split(';').map(s=>s.trim()).filter(Boolean).map(s=>db.prepare(s)));
   let cookie='',csrf='';
   async function call(path,body,headers={}){

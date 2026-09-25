@@ -15,6 +15,7 @@ from .exchange import BinanceClient
 from .indicators import atr
 from .strategy import SwingStrategy
 from .spot_preflight import market_quantity_preflight
+from .risk_control import profile_multiplier
 
 
 class TradingEngine:
@@ -242,7 +243,7 @@ class TradingEngine:
         fill = signal.price * (1 + self.config.paper.slippage_rate)
         stop_fill = signal.stop_price * (1 - self.config.paper.slippage_rate)
         loss_per_unit = fill - stop_fill + self.config.paper.fee_rate * (fill + stop_fill)
-        risk_budget = equity * self.config.risk.risk_per_trade_pct * multiplier
+        risk_budget = equity * self.config.risk.risk_per_trade_pct * multiplier * profile_multiplier(self.db)
         by_risk = risk_budget / loss_per_unit
         by_position_cap = (equity * self.config.risk.max_position_pct) / fill
         remaining_exposure = max(0.0, equity * self.config.risk.max_total_exposure_pct - exposure)

@@ -31,7 +31,7 @@ async function portalRequest(path,body){
   if(!response.ok){if(response.status===401)portalLocked();throw new Error(data.error||'Error de conexión');}
   return data;
 }
-const activityActions={research:'Evaluar estrategias',update_check:'Buscar actualización',update_install:'Actualizar bot',update_restore:'Restaurar bot',kill:'Pausar bot',resume:'Reanudar bot'};
+const activityActions={research:'Evaluar estrategias',update_check:'Buscar actualización',update_install:'Actualizar bot',update_restore:'Restaurar bot',kill:'Pausar bot',resume:'Reanudar bot',risk_profile:'Perfil de riesgo PAPER',paper_close:'Cerrar posición PAPER'};
 const activityStatuses={pending:'Pendiente',applied:'Confirmado por Windows',expired:'Vencido',superseded:'Sustituido',running:'En curso',completed:'Completado',failed:'Falló'};
 function renderActivity(list,items){
   for(const item of items){
@@ -51,7 +51,7 @@ async function portalState(){
     portalCsrf=state.csrf;portalCache=state;portalCacheAt=Date.now();
     document.getElementById('portalConnection').textContent=state.stale?'Windows sin conexión reciente':'Windows conectado · sincronización HTTPS';
     const commands=document.getElementById('portalCommands');commands.replaceChildren();
-    const recent=(state.activity||[...(state.jobs||[]),...(state.commands||[])]).slice(0,3);
+    const recent=(state.activity||[...(state.jobs||[]),...(state.paper_controls||[]),...(state.commands||[])]).slice(0,3);
     renderActivity(commands,recent);
     if(!recent.length){const row=document.createElement('li');row.textContent='Sin solicitudes recientes.';commands.append(row);}
     const candidate=state.snapshot?.bot_update;
@@ -75,6 +75,15 @@ window.portalApi=async(path,options={})=>{
     return response.json();
   }
   if(options.method==='POST'){
+    if(path==='/api/paper/risk-profile'||path==='/api/paper/close-position'){
+      const state=await portalState();
+      if(state.stale||state.snapshot?.paper_controls!==true)throw new Error('Controles PAPER pendientes de conexión de Windows');
+      let payload;
+      try{payload=JSON.parse(options.body);}catch{throw new Error('Solicitud PAPER inválida');}
+      const result=await portalRequest('/v1/paper-controls',{
+        action:path==='/api/paper/risk-profile'?'risk_profile':'paper_close',payload,request_id:crypto.randomUUID()});
+      portalCacheAt=0;return result;
+    }
     if(path==='/api/research/run'){
       const state=await portalState();
       if(state.stale)throw new Error('Windows sin conexión reciente');
@@ -100,6 +109,7 @@ window.portalApi=async(path,options={})=>{
   if(!portalRoute[path])throw new Error('Ruta no disponible');
   return structuredClone(data[portalRoute[path]]??{});
 };
+window.paperControlsAvailable=()=>!remotePortal || !!(portalCache&&!portalCache.stale&&portalCache.snapshot?.paper_controls===true);
 document.addEventListener('DOMContentLoaded',()=>{
   if(!remotePortal)document.getElementById('installBotUpdate').disabled=false;
   if(!remotePortal)document.getElementById('restoreBotVersion').disabled=false;

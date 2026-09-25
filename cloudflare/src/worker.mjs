@@ -64,8 +64,9 @@ async function readBody(request, maximum = 65536) {
 }
 function validateSnapshot(snapshot) {
   assert(object(snapshot) && snapshot.mode === 'PAPER', 'PAPER snapshot required');
-  const allowed = ['mode','equity','cash','exposure','positions','killed','last_cycle_at','ai_model','update_state','dashboard','bot_update','bot_restore'];
+  const allowed = ['mode','equity','cash','exposure','positions','killed','last_cycle_at','ai_model','update_state','dashboard','bot_update','bot_restore','paper_controls'];
   assert(Object.keys(snapshot).every(k => allowed.includes(k)), 'Unknown snapshot field');
+  if(snapshot.paper_controls!==undefined)assert(snapshot.paper_controls===true,'Invalid PAPER capability');
   for (const key of ['equity', 'cash', 'exposure']) {
     assert(snapshot[key] === null || (typeof snapshot[key] === 'number' && Number.isFinite(snapshot[key]) && snapshot[key] >= 0), 'Invalid balance');
   }
@@ -174,7 +175,7 @@ export async function handle(request, env, now = Math.floor(Date.now() / 1000)) 
     const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
     if (!TOKEN.test(token) || !same(await sha256(token), env.DEVICE_KEY_HASH)) return json({ error: 'Unauthorized device' }, 401);
     const body = await readBody(request, LIMIT);
-    assert(Object.keys(body).every(k => ['snapshot','acks','job_results'].includes(k)), 'Unknown field');
+    assert(Object.keys(body).every(k => ['snapshot','acks','job_results','control_results'].includes(k)), 'Unknown field');
     const snapshot = validateSnapshot(body.snapshot);
     const acks = body.acks || [];
     assert(Array.isArray(acks) && acks.length <= 50 && acks.every(id => Number.isSafeInteger(id) && id > 0), 'Invalid acknowledgements');
@@ -198,8 +199,21 @@ export async function handle(request, env, now = Math.floor(Date.now() / 1000)) 
     jq.push(statement(db,"UPDATE jobs SET status='failed',message='Windows no confirmó el resultado dentro del límite' WHERE status='running' AND created<=?",now-JOB_MAX_SECONDS));
     jq.push(statement(db,"UPDATE jobs SET delivered_at=COALESCE(delivered_at,?) WHERE status='pending' AND expires>?",now,now));
     jq.push(statement(db,`SELECT id,${jobAction} AS action,expires,${jobRelease} AS release_id FROM jobs WHERE status='pending' AND expires>? ORDER BY id LIMIT 1`,now));
-    const batch=await db.batch([...queries,...jq]);
-    return json({ commands: results(batch, commandIndex), jobs:results(batch,batch.length-1), poll_seconds: 30 });
+    const controlResults=body.control_results||[];
+    assert(Array.isArray(controlResults)&&controlResults.length<=20,'Invalid PAPER results');
+    const cq=[];
+    for(const item of controlResults){
+      assert(object(item)&&Object.keys(item).sort().join(',')==='id,message,status'&&
+        Number.isSafeInteger(item.id)&&item.id>0&&['completed','failed'].includes(item.status)&&
+        typeof item.message==='string'&&item.message.length<=300,'Invalid PAPER result');
+      cq.push(statement(db,"UPDATE paper_controls SET status=?,message=? WHERE id=? AND status='pending' AND delivered_at IS NOT NULL",item.status,item.message,item.id));
+    }
+    cq.push(statement(db,"UPDATE paper_controls SET status='expired' WHERE status='pending' AND expires<=?",now));
+    cq.push(statement(db,"UPDATE paper_controls SET delivered_at=COALESCE(delivered_at,?) WHERE status='pending' AND expires>?",now,now));
+    cq.push(statement(db,"SELECT id,action,payload,expires FROM paper_controls WHERE status='pending' AND expires>? ORDER BY id LIMIT 1",now));
+    const batch=await db.batch([...queries,...jq,...cq]);
+    const controls=results(batch,batch.length-1).map(row=>({...row,payload:JSON.parse(row.payload)}));
+    return json({ commands: results(batch, commandIndex), jobs:results(batch,queries.length+jq.length-1), paper_controls:controls, poll_seconds: 30 });
   }
   if (method === 'POST' && request.headers.get('origin') !== env.PORTAL_ORIGIN) return json({ error: 'Origin not allowed' }, 403);
   const credential=await statement(db,'SELECT version,salt,digest,iterations FROM owner_password WHERE id=1 AND bootstrap_hash=?',env.OWNER_KEY_HASH).first();
@@ -254,6 +268,8 @@ export async function handle(request, env, now = Math.floor(Date.now() / 1000)) 
         '' AS message,created FROM commands
       UNION ALL
       SELECT id,'job' AS kind,${jobAction} AS action,status,message,created FROM jobs
+      UNION ALL
+      SELECT id,'paper' AS kind,action,status,message,created FROM paper_controls
     ) ORDER BY created DESC,kind DESC,id DESC LIMIT 26 OFFSET ?`,now,page*25).all();
     const items=rows.results||[];
     return json({items:items.slice(0,25),next_page:items.length>25&&page<99?page+1:null,retention_days:90});
@@ -263,18 +279,21 @@ export async function handle(request, env, now = Math.floor(Date.now() / 1000)) 
       statement(db, 'SELECT payload,received_at FROM snapshots WHERE id=1'),
       statement(db, "SELECT id,action,CASE WHEN status='pending' AND expires<=? THEN 'expired' ELSE status END AS status,expires FROM commands ORDER BY id DESC LIMIT 20", now),
       statement(db,`SELECT id,${jobAction} AS action,status,message FROM jobs ORDER BY id DESC LIMIT 20`),
+      statement(db,"SELECT id,action,status,message FROM paper_controls ORDER BY id DESC LIMIT 20"),
       statement(db,`SELECT id,kind,action,status,message,created FROM (
         SELECT id,'command' AS kind,action,
           CASE WHEN status='pending' AND expires<=? THEN 'expired' ELSE status END AS status,
           '' AS message,created FROM commands
         UNION ALL
         SELECT id,'job' AS kind,${jobAction} AS action,status,message,created FROM jobs
+        UNION ALL
+        SELECT id,'paper' AS kind,action,status,message,created FROM paper_controls
       ) ORDER BY created DESC,kind DESC,id DESC LIMIT 3`,now),
     ]);
     const snapshot = results(batch, 0)[0];
     return json({ csrf: session.csrf, snapshot: snapshot ? JSON.parse(snapshot.payload) : null,
       received_at: snapshot?.received_at ?? null, stale: !snapshot || now-snapshot.received_at > 120,
-      commands: results(batch, 1), jobs:results(batch,2), activity:results(batch,3) });
+      commands: results(batch, 1), jobs:results(batch,2), paper_controls:results(batch,3), activity:results(batch,4) });
   }
   if(path==='/v1/jobs'&&method==='POST'){
     const body=await readBody(request);
@@ -290,7 +309,9 @@ export async function handle(request, env, now = Math.floor(Date.now() / 1000)) 
         WHERE EXISTS(SELECT 1 FROM snapshots WHERE received_at>=? AND
           (?!='update_install' OR (json_extract(payload,'$.bot_update.enabled')=1 AND json_extract(payload,'$.bot_update.release_id')=? AND json_extract(payload,'$.bot_update.expires')>?))
           AND (?!='update_restore' OR (json_extract(payload,'$.bot_restore.enabled')=1 AND json_extract(payload,'$.bot_restore.restore_id')=?)))
-        AND NOT EXISTS(SELECT 1 FROM jobs WHERE status IN ('pending','running') OR created>?) ON CONFLICT(request_id) DO NOTHING`,body.request_id,storedAction,now,now+300,storedRelease,now-120,body.action,body.release_id??null,now,body.action,body.release_id??null,now-60),
+        AND NOT EXISTS(SELECT 1 FROM jobs WHERE status IN ('pending','running') OR created>?)
+        AND NOT EXISTS(SELECT 1 FROM paper_controls WHERE status='pending')
+        ON CONFLICT(request_id) DO NOTHING`,body.request_id,storedAction,now,now+300,storedRelease,now-120,body.action,body.release_id??null,now,body.action,body.release_id??null,now-60),
       statement(db,`SELECT id,${jobAction} AS action,status,${jobRelease} AS release_id FROM jobs WHERE request_id=?`,body.request_id),
     ]);
     const job=results(batch,3)[0];
@@ -315,6 +336,42 @@ export async function handle(request, env, now = Math.floor(Date.now() / 1000)) 
     if (command.action !== body.action) return json({ error: 'Idempotency conflict' }, 409);
     return json({ id: command.id, status: command.expires<=now && command.status==='pending' ? 'expired' : command.status }, 202);
   }
+  if(path==='/v1/paper-controls'&&method==='POST'){
+    const body=await readBody(request,1024);
+    assert(Object.keys(body).sort().join(',')==='action,payload,request_id'&&
+      ['risk_profile','paper_close'].includes(body.action)&&
+      typeof body.request_id==='string'&&/^[A-Za-z0-9_-]{16,100}$/.test(body.request_id)&&object(body.payload),'Invalid PAPER request');
+    if(body.action==='risk_profile'){
+      assert(Object.keys(body.payload).join(',')==='profile'&&
+        ['minimo','prudente','normal'].includes(body.payload.profile),'Invalid risk profile');
+    }else{
+      const p=body.payload;
+      assert(Object.keys(p).sort().join(',')==='opened_at,reference_price,symbol'&&
+        typeof p.symbol==='string'&&/^[A-Z0-9]{2,24}USDT$/.test(p.symbol)&&
+        typeof p.opened_at==='string'&&p.opened_at.length>0&&p.opened_at.length<=64&&
+        typeof p.reference_price==='number'&&Number.isFinite(p.reference_price)&&p.reference_price>0,
+        'Invalid PAPER position');
+    }
+    const serialized=JSON.stringify(body.payload);
+    const batch=await db.batch([
+      statement(db,"UPDATE paper_controls SET status='expired' WHERE status='pending' AND expires<=?",now),
+      statement(db,`INSERT INTO paper_controls(request_id,action,payload,status,created,expires)
+        SELECT ?,?,?,'pending',?,? WHERE EXISTS(
+          SELECT 1 FROM snapshots WHERE id=1 AND received_at>=? AND
+          json_extract(payload,'$.paper_controls')=1 AND
+          (?='risk_profile' OR EXISTS(SELECT 1 FROM json_each(payload,'$.dashboard.positions')
+           WHERE json_extract(value,'$.symbol')=? AND json_extract(value,'$.opened_at')=?)))
+        AND NOT EXISTS(SELECT 1 FROM paper_controls WHERE status='pending')
+        AND NOT EXISTS(SELECT 1 FROM jobs WHERE status IN ('pending','running'))
+        ON CONFLICT(request_id) DO NOTHING`,body.request_id,body.action,serialized,now,now+300,now-120,
+          body.action,body.payload.symbol??'',body.payload.opened_at??''),
+      statement(db,'SELECT id,action,payload,status FROM paper_controls WHERE request_id=?',body.request_id),
+    ]);
+    const row=results(batch,2)[0];
+    if(!row)return json({error:'Windows no disponible, posición distinta o solicitud PAPER pendiente'},409);
+    if(row.action!==body.action||row.payload!==serialized)return json({error:'Idempotency conflict'},409);
+    return json({id:row.id,action:row.action,status:row.status},202);
+  }
   if (path === '/v1/logout' && method === 'POST') {
     await statement(db, 'DELETE FROM sessions WHERE token=?', session.token).run();
     return json({ ok: true }, 200, { 'Set-Cookie': sessionCookie('', 0) });
@@ -335,6 +392,8 @@ export default {
       statement(env.DB, "UPDATE commands SET status='expired' WHERE status='pending' AND expires<=?", now),
       statement(env.DB,"UPDATE jobs SET status='failed',message='Windows no confirmó el resultado dentro del límite' WHERE status='running' AND created<=?",now-JOB_MAX_SECONDS),
       statement(env.DB,"DELETE FROM jobs WHERE created<? AND status IN ('completed','failed','expired')",now-90*86400),
+      statement(env.DB,"UPDATE paper_controls SET status='expired' WHERE status='pending' AND expires<=?",now),
+      statement(env.DB,"DELETE FROM paper_controls WHERE created<? AND status!='pending'",now-90*86400),
     ]);
   },
 };

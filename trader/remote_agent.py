@@ -115,6 +115,9 @@ class RemoteAgent:
                 dashboard_issue = f'DASHBOARD_UNAVAILABLE:{type(error).__name__}'
         if self.jobs:
             payload["job_results"] = self.jobs.results()
+        if getattr(self, 'paper_controls', None) and self.paper_controls.available:
+            payload['snapshot']['paper_controls'] = True
+            payload['control_results'] = self.paper_controls.results()
         def send(body):
             request = urllib.request.Request(self.origin + "/v1/device/sync",
                 data=json.dumps(body, allow_nan=False).encode(), method="POST",
@@ -155,6 +158,13 @@ class RemoteAgent:
         if self.jobs:
             for job in jobs:
                 self.jobs.accept(job)
+        controls = decoded.get('paper_controls', [])
+        if not isinstance(controls, list) or len(controls) > 1:
+            raise ValueError('Invalid PAPER controls')
+        if controls and not getattr(self, 'paper_controls', None):
+            raise ValueError('PAPER controls unavailable')
+        for item in controls:
+            self.paper_controls.apply(item)
         if self.last_error is None:
             self.last_error = dashboard_issue
 

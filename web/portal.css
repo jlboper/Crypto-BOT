@@ -41,4 +41,5 @@
 .operation-next{display:grid;gap:8px;padding:15px;border:1px solid #35516b;border-radius:10px;background:#0d1b2a;font-size:.86rem;line-height:1.5}.operation-next span{color:#b7c7dc}
 .advanced-details>summary{cursor:pointer;font-size:1.05rem;font-weight:750}.advanced-details>summary span{display:block;color:var(--muted);font-size:.78rem;font-weight:400;margin:5px 0 0}.advanced-details>p{color:var(--muted);font-size:.87rem;line-height:1.5}
 .advanced-details .research-lab{margin:18px 0}.advanced-details .split{margin:12px 0}.advanced-details .panel{box-shadow:none}
+.paper-controls{display:grid;gap:9px;margin-top:16px}.paper-controls label{font-size:.82rem;font-weight:700}.paper-controls select{width:100%;padding:10px;border:1px solid #354663;border-radius:8px;background:#0c1320;color:#ecf2ff}.paper-controls small,.paper-action-note{font-size:.78rem;color:var(--muted);line-height:1.5}.paper-controls button{width:100%}.paper-close{padding:7px 10px;white-space:nowrap}
 @media(max-width:900px){.operation-overview{grid-template-columns:1fr}}

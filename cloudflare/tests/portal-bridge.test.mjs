@@ -50,6 +50,18 @@ test('bot install approval carries the exact verified release and CSRF token',as
   assert.equal(instance.elements.get('installBotUpdate').disabled,true);
 });
 
+test('remote PAPER close sends the exact confirmed position through CSRF and waits for Windows',async()=>{
+  const payload={symbol:'BTCUSDT',opened_at:'2026-01-01T00:00:00Z',reference_price:101};
+  const instance=bridge('paper.example.workers.dev',[
+    {status:200,body:state({snapshot:{dashboard:{},paper_controls:true}})},
+    {status:202,body:{id:31,action:'paper_close',status:'pending'}}]);
+  const result=await instance.api('/api/paper/close-position',{method:'POST',body:JSON.stringify(payload)});
+  assert.equal(result.status,'pending');
+  assert.equal(instance.calls[1].path,'/v1/paper-controls');
+  assert.equal(JSON.parse(instance.calls[1].options.body).payload.opened_at,payload.opened_at);
+  assert.equal(instance.calls[1].options.headers['X-CSRF-Token'],'csrf-token');
+});
+
 test('restore in options submits the exact previous version and keeps CSRF',async()=>{
   const offer={restore_id:'a'.repeat(64),current_release_id:'b'.repeat(64),version:'0.6.2',current_version:'0.6.3',enabled:true};
   const instance=bridge('paper.example.workers.dev',[{status:200,body:state({snapshot:{bot_restore:offer}})},

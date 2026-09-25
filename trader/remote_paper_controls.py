@@ -1,0 +1,83 @@
+"""Persist owner-requested PAPER controls before acknowledging their result."""
+import json
+import os
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+
+class RemotePaperControls:
+    def __init__(self, supervisor, source):
+        self.directory = Path(supervisor).resolve() / 'data/paper-controls'
+        self.source = Path(source).resolve()
+        self.script = self.source / 'scripts/execute_paper_control.py'
+        self.directory.mkdir(parents=True, exist_ok=True)
+
+    @property
+    def available(self):
+        return self.script.is_file() and self.script.resolve().is_relative_to(self.source)
+
+    def results(self):
+        rows = []
+        for path in sorted(self.directory.glob('*.json'), key=lambda p: int(p.stem) if p.stem.isdecimal() else -1)[-20:]:
+            try:
+                data = json.loads(path.read_text(encoding='utf-8'))
+                if type(data['id']) is int and data['status'] in {'completed', 'failed'}:
+                    rows.append({key: data[key] for key in ('id', 'status', 'message')})
+            except (OSError, ValueError, KeyError):
+                continue
+        return rows
+
+    def apply(self, item):
+        now = time.time()
+        identifier = item.get('id')
+        action = item.get('action')
+        payload = item.get('payload')
+        expires = item.get('expires')
+        if (not self.available or type(identifier) is not int or identifier <= 0 or
+                action not in {'risk_profile', 'paper_close'} or not isinstance(payload, dict) or
+                type(expires) not in (int, float) or not now < expires <= now + 305):
+            raise ValueError('Invalid or unavailable PAPER control')
+        expected = {'action': action, 'payload': payload}
+        encoded = json.dumps(expected, sort_keys=True, separators=(',', ':'), allow_nan=False)
+        if len(encoded) > 450:
+            raise ValueError('Oversized PAPER control')
+        record = self.directory / (str(identifier) + '.json')
+        if record.exists():
+            prior = json.loads(record.read_text(encoding='utf-8'))
+            if prior.get('request') != encoded:
+                raise ValueError('PAPER control identifier conflict')
+            return
+        # A durable receipt prevents an uncertain retry from selling a replacement position.
+        with record.open('x', encoding='utf-8') as handle:
+            json.dump({'id': identifier, 'request': encoded, 'status': 'failed',
+                       'message': 'Resultado incierto; comprobar posición en Windows antes de repetir'}, handle)
+            handle.flush()
+            os.fsync(handle.fileno())
+        try:
+            python = Path(sys.executable)
+            if python.name.lower() == 'pythonw.exe':
+                python = python.with_name('python.exe')
+            result = subprocess.run([str(python), '-I', '-B', str(self.script), str(self.source)],
+                input=encoded, text=True, cwd=self.source, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                timeout=20, check=False, creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+            if result.returncode != 0 or len(result.stdout) > 1000:
+                message = 'Windows rechazó la acción PAPER; revisa la posición y vuelve a cargar'
+                status = 'failed'
+            else:
+                response = json.loads(result.stdout)
+                if response.get('ok') is not True:
+                    raise ValueError('Unconfirmed PAPER response')
+                message = ('Perfil PAPER aplicado: ' + response['profile'] if action == 'risk_profile'
+                           else 'Posición PAPER cerrada: ' + response['symbol'])
+                status = 'completed'
+            temp = record.with_suffix('.tmp')
+            with temp.open('w', encoding='utf-8') as handle:
+                json.dump({'id': identifier, 'request': encoded, 'status': status, 'message': message}, handle)
+                handle.flush()
+                os.fsync(handle.fileno())
+            temp.replace(record)
+        except (OSError, ValueError, subprocess.TimeoutExpired):
+            # The initial receipt remains failed; never claim a sale was completed.
+            return

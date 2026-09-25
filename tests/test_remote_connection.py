@@ -104,6 +104,21 @@ class RemoteConnectionTests(unittest.TestCase):
         self.assertEqual(self.agent.last_error, 'DASHBOARD_UNAVAILABLE:RuntimeError')
         self.assertNotIn('private credential', self.agent.last_error)
 
+    def test_remote_paper_control_executes_after_authenticated_device_sync_and_reports_result(self):
+        Database(self.config.bot.database_path)
+        self.agent.paper_controls = Mock(available=True)
+        self.agent.paper_controls.results.return_value = [{'id': 10, 'status': 'completed', 'message': 'Perfil PAPER aplicado: prudente'}]
+        control = {'id': 11, 'action': 'risk_profile', 'payload': {'profile': 'prudente'}, 'expires': 1800000000}
+        requests = []
+        def send(request, timeout):
+            requests.append(json.loads(request.data))
+            return io.BytesIO(json.dumps({'commands': [], 'jobs': [], 'paper_controls': [control]}).encode())
+        with patch.object(self.agent.opener, 'open', side_effect=send):
+            self.agent.sync()
+        self.assertTrue(requests[0]['snapshot']['paper_controls'])
+        self.assertEqual(requests[0]['control_results'][0]['id'], 10)
+        self.agent.paper_controls.apply.assert_called_once_with(control)
+
     def test_dashboard_failure_does_not_hide_core_job_failure(self):
         Database(self.config.bot.database_path)
         self.agent.dashboard_provider = lambda: 1 / 0
