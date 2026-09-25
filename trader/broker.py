@@ -2,10 +2,12 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 import math
+import time
 
 from .config import PaperSettings, RiskSettings
 from .database import Database
 from .domain import Position, Signal
+from .risk_control import profile_multiplier
 
 
 class PaperBroker:
@@ -34,6 +36,8 @@ class PaperBroker:
             raise ValueError("invalid protection levels")
         if self.db.position(signal.symbol):
             raise ValueError(f"position already exists for {signal.symbol}")
+        if float(self.db.setting("manual_close_until_" + signal.symbol, "0")) > time.time():
+            raise ValueError("manual close cooldown active")
         fill_price = signal.price * (1.0 + self.settings.slippage_rate)
         if fill_price >= signal.take_profit:
             raise ValueError("fill exceeds target")
@@ -48,7 +52,8 @@ class PaperBroker:
             raise ValueError("exposure limit")
         stop_fill = signal.stop_price * (1 - self.settings.slippage_rate)
         loss = quantity * (fill_price - stop_fill + self.settings.fee_rate * (fill_price + stop_fill))
-        if loss > equity * self.risk.risk_per_trade_pct + 1e-8:
+        risk_factor = profile_multiplier(self.db)
+        if risk_factor <= 0 or loss > equity * self.risk.risk_per_trade_pct * risk_factor + 1e-8:
             raise ValueError("per-trade risk limit")
         if gross + fee > cash:
             raise ValueError("insufficient paper cash")
@@ -70,14 +75,19 @@ class PaperBroker:
         self.db.record_trade(signal.symbol, "BUY", quantity, fill_price, fee, 0.0, reason)
         return position
 
-    def sell(self, position: Position, market_price: float, reason: str) -> float:
+    def sell(self, position: Position, market_price: float, reason: str, *, manual_cooldown_until: float | None = None) -> float:
         with self.db.transaction():
             current = self.db.position(position.symbol)
             if current != position:
                 raise ValueError("position absent or stale; duplicate sell blocked")
             if not math.isfinite(market_price) or market_price <= 0:
                 raise ValueError("invalid market price")
-            return self._sell(position, market_price, reason)
+            pnl = self._sell(position, market_price, reason)
+            if manual_cooldown_until is not None:
+                if reason != "manual PAPER close" or not math.isfinite(manual_cooldown_until) or manual_cooldown_until <= time.time():
+                    raise ValueError("invalid manual close cooldown")
+                self.db.set_setting("manual_close_until_" + position.symbol, str(manual_cooldown_until))
+            return pnl
 
     def _sell(self, position: Position, market_price: float, reason: str) -> float:
         fill_price = market_price * (1.0 - self.settings.slippage_rate)

@@ -9,6 +9,7 @@ import socket
 import subprocess
 import sys
 import threading
+import time
 from datetime import UTC, datetime
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -18,6 +19,7 @@ from urllib.parse import parse_qs, urlparse
 from .config import AppConfig, PROJECT_ROOT
 from .database import Database
 from .monitoring import activity_status, position_metrics, usable_price
+from .risk_control import profile_name
 
 
 WEB_ROOT = PROJECT_ROOT / "web"
@@ -126,6 +128,26 @@ class DashboardServer:
                 if not self._same_origin():
                     self._json({"error": "origin not allowed"}, HTTPStatus.FORBIDDEN)
                     return
+                if path in {"/api/paper/risk-profile", "/api/paper/close-position"}:
+                    try:
+                        if self.headers.get("Content-Type", "").split(";", 1)[0].strip() != "application/json":
+                            raise ValueError("JSON required")
+                        length = int(self.headers.get("Content-Length", "0"))
+                        if not 0 < length <= 512:
+                            raise ValueError("invalid body size")
+                        data = json.loads(self.rfile.read(length))
+                        if not isinstance(data, dict):
+                            raise ValueError("object required")
+                        from .paper_controls import execute
+                        self._json(execute(outer.config, outer.db,
+                            "risk_profile" if path == "/api/paper/risk-profile" else "paper_close", data))
+                        return
+                    except ValueError:
+                        self._json({"error": "invalid or stale PAPER request"}, HTTPStatus.CONFLICT)
+                        return
+                    except Exception:
+                        self._json({"error": "PAPER action unavailable; no confirmation"}, HTTPStatus.SERVICE_UNAVAILABLE)
+                        return
                 if path == "/api/kill":
                     outer.config.bot.kill_switch_path.parent.mkdir(parents=True, exist_ok=True)
                     outer.config.bot.kill_switch_path.write_text("manual kill switch\n", encoding="utf-8")
@@ -202,6 +224,7 @@ class DashboardServer:
                         "positions": len(outer.db.positions()),
                         "max_positions": outer.config.risk.max_positions,
                         "risk": asdict(outer.config.risk),
+                        "paper_risk_profile": profile_name(outer.db),
                         "cycle_seconds": outer.config.bot.cycle_seconds,
                         "activity": activity,
                         "prices_at": prices_at,

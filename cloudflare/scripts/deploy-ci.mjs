@@ -16,8 +16,17 @@ async function wrangler(args,{capture=false}={}){
   await new Promise((resolve,reject)=>{child.once('error',reject);child.once('exit',code=>code===0?resolve():reject(Error('Deployment command failed')));});
   return output;
 }
-await checkMigrations({accountId:config.account_id,databaseId:config.d1_databases[0].database_id,
-  token:process.env.CLOUDFLARE_API_TOKEN,expected:(await readdir('migrations')).filter(name=>name.endsWith('.sql')).sort()});
+const migrationNames=(await readdir('migrations')).filter(name=>name.endsWith('.sql')).sort();
+const migrationOptions={accountId:config.account_id,databaseId:config.d1_databases[0].database_id,
+  token:process.env.CLOUDFLARE_API_TOKEN,expected:migrationNames};
+const addPaperControls='0005_paper_controls.sql';
+const applied=await checkMigrations({...migrationOptions,allowPending:[addPaperControls]});
+if(!applied.includes(addPaperControls)){
+  // Additive table only. The protected publication gate covers the schema and
+  // code together; Wrangler captures a D1 backup before applying the migration.
+  await wrangler(['d1','migrations','apply',config.d1_databases[0].database_name,'--remote']);
+}
+await checkMigrations(migrationOptions);
 await wrangler(['deploy','--dry-run']);
 let deployed=false;
 try{

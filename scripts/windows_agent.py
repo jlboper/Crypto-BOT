@@ -15,6 +15,7 @@ from trader.config import load_config
 from trader.remote_agent import RemoteAgent
 from trader.portal_snapshot import dashboard_snapshot
 from trader.remote_jobs import RemoteJobs
+from trader.remote_paper_controls import RemotePaperControls
 
 
 def source_settings(source):
@@ -146,6 +147,7 @@ def main():
     agent = RemoteAgent(config, values["PORTAL_ORIGIN"], values["PORTAL_DEVICE_TOKEN"], state_directory=state)
     agent.dashboard_provider = lambda: dashboard_from_source(args.source, config)
     agent.jobs = RemoteJobs(ROOT,args.source)
+    agent.paper_controls = RemotePaperControls(ROOT,args.source)
     agent.update_provider = lambda: update_candidate(args.source)
     agent.restore_provider = lambda: restore_candidate(args.source)
     snapshot = agent.snapshot()

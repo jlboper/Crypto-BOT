@@ -5,11 +5,28 @@ from pathlib import Path
 from unittest.mock import patch
 
 from trader.config import load_config
-from trader.domain import Candle, Position
+from trader.domain import Candle, Position, Signal
 from trader.engine import TradingEngine
 
 
 class EngineTests(unittest.TestCase):
+    def test_paper_profile_reduces_risk_and_cannot_raise_base_cap(self):
+        with tempfile.TemporaryDirectory() as folder:
+            config = load_config()
+            config = replace(config, bot=replace(config.bot, database_path=Path(folder)/'risk.db',
+                                                kill_switch_path=Path(folder)/'kill'))
+            engine = TradingEngine(config)
+            signal = Signal('BTCUSDT','BUY',80,100,95,110,2,60,101,99,1.3,'synthetic','now')
+            normal = engine._position_size(signal,1000,1000,0,1)
+            engine.db.set_setting('paper_risk_profile','prudente')
+            cautious = engine._position_size(signal,1000,1000,0,1)
+            engine.db.set_setting('paper_risk_profile','minimo')
+            minimum = engine._position_size(signal,1000,1000,0,1)
+            self.assertLess(minimum,cautious)
+            self.assertLess(cautious,normal)
+            engine.db.set_setting('paper_risk_profile','unexpected')
+            self.assertEqual(engine._position_size(signal,1000,1000,0,1),0)
+
     def test_diagnostic_cleanup_keeps_financial_records_and_positions(self):
         with tempfile.TemporaryDirectory() as folder:
             config = load_config()

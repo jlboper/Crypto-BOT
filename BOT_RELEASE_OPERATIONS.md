@@ -84,6 +84,14 @@ the PAPER heartbeat and update jobs and records `DASHBOARD_UNAVAILABLE`.
 Do not copy agent files from an unverified checkout or overwrite the independent
 supervisor's keys, runtime data, job journal or task definition.
 
+Starting with signed 0.6.16, the installed Windows app exposes **Reparar
+conexión del portal** in its tray menu. It checks that the independent agent's
+two replacement modules exactly match the committed signed installation,
+requests owner confirmation, waits for only that agent task to stop, backs up
+its previous two modules and restarts that same task. Run it once after the
+0.6.16 installation if the separate supervisor has not already been refreshed;
+there is no need to install an intermediate version solely for this step.
+
 ## One-time Windows transition
 
 The original v0.6.2 engine does not support cooperative maintenance. Preserve it

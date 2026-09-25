@@ -7,7 +7,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 class WindowsAssetTests(unittest.TestCase):
     def test_windows_scripts_keep_utf8_bom(self):
-        for relative in ("scripts/manager_windows.ps1", "scripts/update_windows.ps1"):
+        for relative in ("scripts/manager_windows.ps1", "scripts/update_windows.ps1", "scripts/refresh_windows_agent.ps1"):
             with self.subTest(relative=relative):
                 self.assertTrue((PROJECT_ROOT / relative).read_bytes().startswith(b"\xef\xbb\xbf"))
 
@@ -37,6 +37,13 @@ class WindowsAssetTests(unittest.TestCase):
         self.assertNotIn('Start-Process -FilePath $UpdateCenterUrl', source)
         self.assertIn('$notifyMenu.Items.Add("Abrir portal remoto")', source)
         self.assertIn('$notifyMenu.Items.Add("Centro de actualizaciones")', source)
+        self.assertIn('$notifyMenu.Items.Add("Reparar conexión del portal")', source)
+        self.assertIn('$notifyMenu.Items.Add("Verificar GPT-6 Luna")', source)
+        self.assertIn('$notifyMenu.Items.Add("Verificar Binance Testnet")', source)
+        refresh = (PROJECT_ROOT / "scripts" / "refresh_windows_agent.ps1").read_text(encoding="utf-8-sig")
+        self.assertIn("'REMOTE_STOP'", refresh)
+        self.assertIn("Start-ScheduledTask -TaskName 'Crypto Paper Portal Agent'", refresh)
+        self.assertNotIn('Stop-TradingBot', refresh)
 
     def test_manager_retires_sha_only_update_installer(self):
         source = (PROJECT_ROOT / "scripts" / "manager_windows.ps1").read_text(encoding="utf-8-sig")
@@ -55,7 +62,7 @@ class WindowsAssetTests(unittest.TestCase):
         html = (PROJECT_ROOT / "web" / "index.html").read_text(encoding="utf-8")
         manifest = (PROJECT_ROOT / "web" / "manifest.webmanifest").read_text(encoding="utf-8")
         script = (PROJECT_ROOT / "web" / "app.js").read_text(encoding="utf-8")
-        self.assertIn("EVALUACIÓN HISTÓRICA · V0.6.15", html)
+        self.assertIn("EVALUACIÓN HISTÓRICA · V0.6.16", html)
         self.assertIn('"display": "standalone"', manifest)
         self.assertIn("/api/research/run", script)
         self.assertIn("serviceWorker", script)

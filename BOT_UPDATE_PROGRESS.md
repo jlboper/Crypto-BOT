@@ -19,6 +19,20 @@ process. Refreshing the independent agent's `scripts/windows_agent.py` and
 one-time Windows step after 0.6.14 is installed; upgrading the bot alone cannot
 replace files in the separate supervisor directory.
 
+The protected main release run for 0.6.15 succeeded at commit
+`f6921b7f3247fcb54b983bf7c9f9ee019d36928c`; the owner reports completing
+its Windows update. Independent Windows identity, effective OpenAI model and
+supervisor module hashes are not available in this source checkout. Version
+0.6.16 prepares a one-time assisted independent-agent refresh from a committed
+signed installation. The local and remote portals expose the same PAPER position
+closing and risk fractions. The remote portal requires a fresh Windows heartbeat,
+queues a single exact request and reports its confirmed or failed result; the
+local portal executes the same validation immediately. A protected additive D1
+migration creates the request ledger before publication. The signed Windows
+installation must be followed by the assisted independent-agent refresh before
+the remote controls become available. It introduces no Testnet or production
+order placement; publication and Windows installation remain pending.
+
 Version 0.6.13 is a minimal signed update exercise: only the packaged version
 and the shared portal's visible version label change. The owner confirmed the
 previous 0.6.12 Windows installation and a healthy outbound sync after repairing

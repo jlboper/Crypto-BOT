@@ -103,12 +103,19 @@
           <div><dt>Límite semanal</dt><dd id="riskWeekly">—</dd></div>
           <div><dt>Apalancamiento</dt><dd>Desactivado</dd></div>
         </dl>
+        <div class="paper-controls">
+          <label for="riskProfile">Tamaño de riesgo para nuevas entradas</label>
+          <select id="riskProfile"><option value="minimo">Mínimo · 25% del límite</option><option value="prudente">Prudente · 50% del límite</option><option value="normal">Normal · límite actual</option></select>
+          <button id="saveRiskProfile" class="secondary" type="button">Aplicar en PAPER</button>
+          <small id="riskProfileNote">Los topes originales no aumentan. Solo disponible desde esta PC.</small>
+        </div>
       </article>
     </section>
 
     <section class="panel">
       <div class="panel-title"><h2>Posiciones abiertas</h2><span>Protección ATR activa</span></div>
-      <div class="table-wrap"><table><thead><tr><th>Par</th><th>Cantidad</th><th>Entrada</th><th>Precio actual</th><th>P&amp;L</th><th>P&amp;L %</th><th>Stop</th><th>Objetivo</th><th>Máximo</th></tr></thead><tbody id="positions"></tbody></table></div>
+      <div class="table-wrap"><table><thead><tr><th>Par</th><th>Cantidad</th><th>Entrada</th><th>Precio actual</th><th>P&amp;L</th><th>P&amp;L %</th><th>Stop</th><th>Objetivo</th><th>Máximo</th><th>Acción PAPER</th></tr></thead><tbody id="positions"></tbody></table></div>
+      <p class="paper-action-note">Cerrar una posición usa una cotización nueva y simula comisiones; bloquea nuevas entradas en ese par durante 24 horas. Disponible solo en el portal local de Windows.</p>
     </section>
 
     <section class="panel paper-scorecard" aria-label="Seguimiento financiero PAPER">
@@ -160,7 +167,7 @@
         <summary>Comparar estrategias y ver evaluación histórica</summary>
       <div class="research-heading">
         <div>
-          <p class="eyebrow">EVALUACIÓN HISTÓRICA · V0.6.15</p>
+          <p class="eyebrow">EVALUACIÓN HISTÓRICA · V0.6.16</p>
           <h2>Comparación multi-cripto</h2>
           <p class="research-copy">Compara cinco estrategias por activo contra efectivo y comprar y mantener ese activo, con costos, walk-forward y ventana final. Solo una estrategia que supere todas las puertas y un forward test posterior puede proponerse para la siguiente fase; ninguna se activa automáticamente.</p>
           <p id="researchCoverage" class="research-copy">Calculando cuántos cierres PAPER corresponden a estos cinco activos.</p>

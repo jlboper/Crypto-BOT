@@ -19,3 +19,9 @@ test('pending, unknown and malformed migration histories block publication',asyn
   await assert.rejects(checkMigrations(settings,async()=>new Response('{}')));
   await assert.rejects(checkMigrations(settings,async()=>new Response('',{status:403})),/verification failed/);
 });
+
+test('reviewed additive migration may be pending only when explicitly allowed',async()=>{
+  const transport=async()=>({ok:true,json:async()=>({success:true,result:[{success:true,results:[{name:'0001.sql'}]}]})});
+  const seen=await checkMigrations({...settings,allowPending:['0002.sql']},transport);
+  assert.deepEqual(seen,['0001.sql']);
+});

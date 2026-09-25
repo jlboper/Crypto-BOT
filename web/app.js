@@ -11,6 +11,8 @@ const token = queryToken || sessionStorage.getItem('dashboard_token') || '';
 const headers = token ? {'X-Dashboard-Token': token} : {};
 const esc = value => String(value ?? '').replace(/[&<>'"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
 let lastResearchReport = null;
+let lastPositions = [];
+const paperControlsAvailable = () => typeof window.paperControlsAvailable === 'function' ? window.paperControlsAvailable() : true;
 
 async function api(path, options={}) {
   if(window.portalApi)return window.portalApi(path,{...options,headers:{...headers,...(options.headers||{})}});
@@ -237,9 +239,17 @@ async function refresh() {
     document.getElementById('aiStatus').textContent=status.ai_enabled?'Activa':'Desactivada';
     document.getElementById('aiModel').textContent=status.ai_model;
     const risk=status.risk||{};
+    const riskName=status.paper_risk_profile||'normal';
+    const profileSelect=document.getElementById('riskProfile');
+    if(['minimo','prudente','normal'].includes(riskName))profileSelect.value=riskName;
+    document.getElementById('saveRiskProfile').disabled=!paperControlsAvailable();
+    document.getElementById('riskProfileNote').textContent=paperControlsAvailable()?
+      `Actual: ${riskName}. El cambio afecta nuevas entradas PAPER; los topes de posición y exposición no aumentan.`:
+      'Esperando conexión y controles PAPER de Windows.';
+    const effectiveRisk={...risk,risk_per_trade_pct:Number(risk.risk_per_trade_pct)*({minimo:.25,prudente:.5,normal:1}[riskName]??0)};
     for(const [id,key] of [['riskTrade','risk_per_trade_pct'],['riskPosition','max_position_pct'],['riskExposure','max_total_exposure_pct'],['riskDaily','daily_loss_limit_pct'],['riskWeekly','weekly_loss_limit_pct']]){
-      const value=Number(risk[key]);
-      document.getElementById(id).textContent=risk[key]!=null&&Number.isFinite(value)?`${(value*100).toFixed(2).replace(/\.00$/,'')}%`:'—';
+      const value=Number(effectiveRisk[key]);
+      document.getElementById(id).textContent=effectiveRisk[key]!=null&&Number.isFinite(value)?`${(value*100).toFixed(2).replace(/\.00$/,'')}%`:'—';
     }
 
     const state=document.getElementById('killState'), button=document.getElementById('killButton');
@@ -255,7 +265,8 @@ async function refresh() {
     botState.classList.toggle('warning',activity.state==='delayed');
     botState.classList.toggle('offline',activity.state==='offline');
 
-    document.getElementById('positions').innerHTML=positions.length?positions.map(p=>`<tr><td><strong>${esc(p.symbol)}</strong></td><td>${num(p.quantity)}</td><td>${num(p.entry_price,4)}</td><td>${p.market_price==null?'—':num(p.market_price,4)}</td><td class="${p.unrealized_pnl==null?'':p.unrealized_pnl>=0?'positive':'negative'}">${p.unrealized_pnl==null?'—':`${p.unrealized_pnl>=0?'+':''}${num(p.unrealized_pnl,2)}`}</td><td class="${p.unrealized_pct==null?'':p.unrealized_pct>=0?'positive':'negative'}">${p.unrealized_pct==null?'—':`${p.unrealized_pct>=0?'+':''}${num(p.unrealized_pct,2)}%`}</td><td>${num(p.stop_price,4)}</td><td>${num(p.take_profit,4)}</td><td>${num(p.high_water,4)}</td></tr>`).join(''):emptyRow(9,'Sin posiciones abiertas');
+    lastPositions=positions;
+    document.getElementById('positions').innerHTML=positions.length?positions.map(p=>`<tr><td><strong>${esc(p.symbol)}</strong></td><td>${num(p.quantity)}</td><td>${num(p.entry_price,4)}</td><td>${p.market_price==null?'—':num(p.market_price,4)}</td><td class="${p.unrealized_pnl==null?'':p.unrealized_pnl>=0?'positive':'negative'}">${p.unrealized_pnl==null?'—':`${p.unrealized_pnl>=0?'+':''}${num(p.unrealized_pnl,2)}`}</td><td class="${p.unrealized_pct==null?'':p.unrealized_pct>=0?'positive':'negative'}">${p.unrealized_pct==null?'—':`${p.unrealized_pct>=0?'+':''}${num(p.unrealized_pct,2)}%`}</td><td>${num(p.stop_price,4)}</td><td>${num(p.take_profit,4)}</td><td>${num(p.high_water,4)}</td><td><button class="secondary paper-close" data-symbol="${esc(p.symbol)}" ${p.market_price==null||!paperControlsAvailable()?'disabled':''}>Cerrar PAPER</button></td></tr>`).join(''):emptyRow(10,'Sin posiciones abiertas');
     document.getElementById('trades').innerHTML=trades.length?trades.slice(0,8).map(t=>`<div class="feed-item"><strong class="${esc(t.side.toLowerCase())}">${esc(t.side)}</strong><div><strong>${esc(t.symbol)} · ${num(t.quantity)}</strong><p>${esc(t.reason)}</p></div><time>${shortTime(t.created_at)}</time></div>`).join(''):feedEmpty('Aún no hay operaciones');
     document.getElementById('reviews').innerHTML=reviews.length?reviews.slice(0,8).map(r=>`<div class="feed-item"><strong class="${esc(r.verdict.toLowerCase())}">${esc(r.verdict)}</strong><div><strong>${esc(r.symbol)} · ${(r.confidence*100).toFixed(0)}%</strong><p>${esc(r.reason)}</p></div><time>${shortTime(r.created_at)}</time></div>`).join(''):feedEmpty('Aún no hay revisiones');
     const important=events.filter(e=>['WARN','ERROR','CRITICAL'].includes(e.level)).slice(0,10);
@@ -277,6 +288,30 @@ document.getElementById('killButton').addEventListener('click', async event => {
   const message=killed?'¿Solicitar reanudar nuevas entradas PAPER? Las pausas locales requieren liberación local.':'¿Solicitar pausa de nuevas entradas? El motor la aplicará al comprobar el interruptor; no cierra posiciones.';
   if (!confirm(message)) return;
   await api(killed?'/api/resume':'/api/kill',{method:'POST'}); await refresh();
+});
+document.getElementById('saveRiskProfile').addEventListener('click', async event=>{
+  if(!paperControlsAvailable())return;
+  const profile=document.getElementById('riskProfile').value;
+  if(!confirm(`¿Aplicar ${profile} a las próximas entradas PAPER? El límite base no aumenta.`))return;
+  event.currentTarget.disabled=true;
+  try{
+    const result=await api('/api/paper/risk-profile',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({profile})});
+    if(result.status==='pending')alert('Solicitud enviada a Windows. El perfil cambiará cuando aparezca como completada en Actividad.');
+    await refresh();
+  }catch(error){alert(`No se cambió el perfil: ${error.message}`);event.currentTarget.disabled=false;}
+});
+document.getElementById('positions').addEventListener('click',async event=>{
+  const button=event.target.closest('.paper-close');
+  if(!button||!paperControlsAvailable())return;
+  const position=lastPositions.find(row=>row.symbol===button.dataset.symbol);
+  if(!position||!Number.isFinite(Number(position.market_price))||Number(position.market_price)<=0)return;
+  if(!confirm(`¿Cerrar ${position.symbol} en PAPER? Se consultará un precio nuevo; si cambió más del 2%, vuelve a cargar. Nuevas entradas en este par se bloquearán 24 horas.`))return;
+  button.disabled=true;
+  try{
+    const result=await api('/api/paper/close-position',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({symbol:position.symbol,opened_at:position.opened_at,reference_price:position.market_price})});
+    if(result.status==='pending')alert('Solicitud enviada a Windows. Comprueba que el cierre figure como completado antes de repetir.');
+    await refresh();
+  }catch(error){alert(`No se confirmó el cierre: ${error.message}`);button.disabled=false;}
 });
 document.getElementById('researchButton').addEventListener('click', async event => {
   if (!confirm('¿Ejecutar el análisis histórico de cinco activos? No modifica las operaciones del bot.')) return;
