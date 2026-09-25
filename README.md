@@ -76,6 +76,9 @@ python -m trader resume
 # Verificar credenciales Binance Spot Testnet sin operar
 python -m trader check-testnet
 
+# Verificar acceso a GPT-6 Luna y salida estructurada, sin iniciar operaciones
+python -m trader check-ai-model --model gpt-6-luna
+
 # Preparar una orden hipotética con filtros públicos de Testnet (sin enviarla)
 python -m trader testnet-plan BTCUSDT --side BUY --quote-amount 25
 
@@ -160,7 +163,9 @@ En 0.6.10 el informe muestra también BTC con comisión y slippage PAPER en ambo
 
 En 0.6.11 el desglose muestra hasta 50 activos cerrados y concilia el resto en «Otros»; agrupa P&L neto por motivo de salida y muestra cuántas operaciones PAPER pertenecen realmente a los cinco activos del estudio. La proyección HTTPS admite este historial acotado. Antes de cada nueva compra PAPER, un diagnóstico usa las reglas públicas ya descargadas de Binance Spot para estimar si la cantidad y el valor mínimo de una hipotética orden MARKET serían compatibles. La operación simulada sigue igual: el resultado solo sirve para investigar incompatibilidades; no se envía ninguna orden. El precio spot no sustituye al precio medio que Binance puede usar para el filtro de notional, ni valida balances o ejecución Testnet. Los diagnósticos nuevos se conservan hasta 90 días; no se alteran las operaciones ni el historial financiero previo.
 
-En 0.6.12 el portal deja visibles las puertas unificadas de promoción: ventaja frente a efectivo y mantener el activo, consistencia OOS, costos duplicados en la ventana reservada, actividad mínima y un forward test futuro. Aunque un activo supere las puertas, permanece en `RESEARCH_ONLY` y no modifica el motor PAPER. Testnet añade un planificador de cantidad y notional basado en filtros públicos y una máquina de estados sintética para probar conciliación sin enviar órdenes. La revisión de IA sigue en GPT-5.6 Luna porque es el identificador disponible en la API; `OPENAI_MODEL` permite seleccionar un modelo API confirmado en una instalación autorizada. `gpt-6-luna` no se configura sin un identificador oficial.
+En 0.6.12 el portal deja visibles las puertas unificadas de promoción: ventaja frente a efectivo y mantener el activo, consistencia OOS, costos duplicados en la ventana reservada, actividad mínima y un forward test futuro. Aunque un activo supere las puertas, permanece en `RESEARCH_ONLY` y no modifica el motor PAPER. Testnet añade un planificador de cantidad y notional basado en filtros públicos y una máquina de estados sintética para probar conciliación sin enviar órdenes. La versión 0.6.15 propone GPT-6 Luna para la revisión conservadora y permite comprobar acceso y salida estructurada con `python -m trader check-ai-model --model gpt-6-luna` en Windows. El modelo está documentado oficialmente; el acceso de la cuenta concreta requiere esta comprobación. Un `OPENAI_MODEL` existente en `.env.local` prevalece sobre `config.toml`, por lo que actualizar el paquete no cambia ese archivo local: verifícalo antes de decidir el cambio. Una revisión que falle bloquea la entrada por la política `fail_closed`.
+
+El panel 0.6.15 prioriza estado, límites y posiciones; el diagnóstico histórico queda plegado en Opciones. El control de pausa solo bloquea nuevas entradas; la vigilancia de posiciones continúa. No hay botones de cierre individual ni cambio dinámico de límites: necesitan órdenes autenticadas, confirmación, deduplicación y conciliación con Binance Spot Testnet antes de ofrecerse.
 
 ## Centro de control de Windows
 

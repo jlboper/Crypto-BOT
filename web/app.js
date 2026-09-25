@@ -244,9 +244,12 @@ async function refresh() {
 
     const state=document.getElementById('killState'), button=document.getElementById('killButton');
     state.textContent=status.killed?'DETENIDO':'Protecciones activas'; state.classList.toggle('killed',status.killed);
-    button.textContent=status.killed?'Reanudar bot':'Activar kill switch'; button.dataset.killed=String(status.killed);
+    button.textContent=status.killed?'Reanudar nuevas entradas':'Pausar nuevas entradas'; button.dataset.killed=String(status.killed);
 
     const activity=status.activity || {state:'starting',age_seconds:null};
+    document.getElementById('operationSummary').textContent=activity.state==='operational'?
+      `Motor PAPER activo. ${status.positions} posiciones abiertas de ${status.max_positions}; ${status.killed?'nuevas entradas pausadas y protecciones vigentes':'nuevas entradas sujetas a límites y revisión IA'}. Último ciclo ${ageLabel(activity.age_seconds)}.`:
+      `Motor ${activityLabel(activity.state).toLowerCase()}. ${status.killed?'Nuevas entradas pausadas. ':'Comprueba la conexión de Windows antes de dar instrucciones. '}Último ciclo ${ageLabel(activity.age_seconds)}.`;
     const botState=document.getElementById('botState');
     botState.textContent=activityLabel(activity.state);
     botState.classList.toggle('warning',activity.state==='delayed');
@@ -264,6 +267,7 @@ async function refresh() {
   } catch(error) {
     const botState=document.getElementById('botState');
     botState.textContent='PORTAL SIN CONEXIÓN'; botState.classList.add('offline');
+    document.getElementById('operationSummary').textContent='No se pudo consultar el motor. Comprueba la conexión con Windows antes de operar.';
     document.getElementById('updated').textContent='No fue posible consultar el motor';
   }
 }

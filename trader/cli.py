@@ -5,12 +5,15 @@ import json
 import os
 import sys
 import tomllib
+from dataclasses import replace
 from pathlib import Path
 
 from .backtest import run_backtest
+from .ai_advisor import AIAdvisor
 from .config import load_config
 from .dashboard import DashboardServer
 from .database import Database
+from .domain import Signal
 from .engine import TradingEngine
 from .exchange import BinanceClient
 from .monitoring import activity_status, position_metrics
@@ -39,6 +42,8 @@ def parser() -> argparse.ArgumentParser:
     commands.add_parser("kill", help="Activate the emergency kill switch")
     commands.add_parser("resume", help="Clear the emergency kill switch")
     commands.add_parser("check-testnet", help="Verify Binance Spot Testnet credentials without placing an order")
+    ai_check = commands.add_parser("check-ai-model", help="Probe OpenAI model access without trading")
+    ai_check.add_argument("--model", default="gpt-6-luna")
     testnet_plan = commands.add_parser(
         "testnet-plan", help="Build a read-only Testnet order plan from public filters"
     )
@@ -152,6 +157,21 @@ def main() -> None:
         except Exception as exc:
             print(f"Testnet verification failed: {exc}", file=sys.stderr)
             raise SystemExit(1) from exc
+    elif args.command == "check-ai-model":
+        if not args.model.startswith("gpt-") or len(args.model) > 80:
+            raise SystemExit("Invalid model identifier")
+        settings = replace(config.ai, model=args.model, enabled=True, fail_closed=True)
+        advisor = AIAdvisor(settings)
+        if not advisor.api_key:
+            raise SystemExit("OPENAI_API_KEY is unavailable on this machine")
+        signal = Signal("BTCUSDT", "BUY", 80, 100.0, 95.0, 110.0, 2.0, 60.0, 101.0, 99.0, 1.3,
+                        "synthetic model access check; no order", "synthetic")
+        review = advisor.review(signal, True, {"equity_usdt": 1000.0, "cash_usdt": 1000.0,
+                                                "exposure_pct": 0.0, "open_positions": 0.0})
+        if review.reason.startswith("AI review failed safely:"):
+            print(f"OpenAI model {args.model}: check failed ({review.reason})", file=sys.stderr)
+            raise SystemExit(1)
+        print(json.dumps({"model": args.model, "schema_check": "ok", "order_submission_enabled": False}, indent=2))
     elif args.command == "testnet-plan":
         if args.quote_amount is None and args.quantity is None:
             raise SystemExit("Provide --quote-amount or --quantity")
