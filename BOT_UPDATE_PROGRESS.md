@@ -26,9 +26,9 @@ supervisor module hashes are not available in this source checkout. Version
 0.6.16 prepares a one-time assisted independent-agent refresh from a committed
 signed installation. The local and remote portals expose the same PAPER position
 closing and risk fractions. The remote portal requires a fresh Windows heartbeat,
-queues a single exact request and reports its confirmed or failed result; the
-local portal executes the same validation immediately. A protected additive D1
-migration creates the request ledger before publication. The signed Windows
+queues a single exact request in the existing D1 jobs ledger and reports its
+confirmed or failed result; the local portal executes the same validation
+immediately. No new D1 migration or expanded CI credential is required. The signed Windows
 installation must be followed by the assisted independent-agent refresh before
 the remote controls become available. It introduces no Testnet or production
 order placement; publication and Windows installation remain pending.

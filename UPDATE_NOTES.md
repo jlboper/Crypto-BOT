@@ -4,7 +4,7 @@
 - El cierre exige posición idéntica, cotización nueva dentro del 2% de la vista y bloqueo de reentrada de 24 horas. No envía órdenes a Binance.
 - Desde el portal remoto la solicitud permanece pendiente hasta que el supervisor de Windows confirme el resultado. El historial muestra completada, fallida o vencida.
 - Después de instalar la versión firmada, el menú del indicador de Windows permite actualizar una vez los módulos verificados del supervisor independiente. El portal remoto habilita los controles cuando detecta la nueva capacidad.
-- El despliegue protegido aplica una migración aditiva de D1 antes de publicar el portal y comprueba su historial.
+- Las solicitudes remotas se guardan en la tabla de trabajos existente de D1, sin migración ni nuevos permisos para la credencial de publicación.
 
 # Actualización 0.6.2 — estrategia fija, selector adaptativo y cash gate
 

@@ -7,7 +7,7 @@ import worker, { sha256 } from '../src/worker.mjs';
 
 // Real SQLite executes the same parameterized SQL; workerd/D1 is tested separately.
 class LocalD1 {
-  constructor(){this.sqlite=new DatabaseSync(':memory:');for(const name of ['0001_portal.sql','0002_jobs.sql','0003_owner_password.sql','0004_bot_releases.sql','0005_paper_controls.sql'])this.sqlite.exec(readFileSync(new URL('../migrations/'+name,import.meta.url),'utf8'));}
+  constructor(){this.sqlite=new DatabaseSync(':memory:');for(const name of ['0001_portal.sql','0002_jobs.sql','0003_owner_password.sql','0004_bot_releases.sql'])this.sqlite.exec(readFileSync(new URL('../migrations/'+name,import.meta.url),'utf8'));}
   prepare(sql){
     const db=this;
     const make=args=>({
