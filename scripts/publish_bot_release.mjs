@@ -1,6 +1,7 @@
 // Runs only in the protected GitHub environment. Never logs credentials/OIDC.
 import {readFile,writeFile} from 'node:fs/promises';
 import {spawnSync} from 'node:child_process';
+import {requestReleaseSignature} from './retry_release_signature.mjs';
 const origin='https://crypto-paper-private-portal.jlboper.workers.dev';
 const repo='jlboper/Crypto-BOT';
 const sha=process.env.GITHUB_SHA;
@@ -43,13 +44,7 @@ oidcURL.searchParams.set('audience',origin+'/bot-releases');
 const oidcResponse=await fetch(oidcURL,{headers:{Authorization:`Bearer ${process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN}`},redirect:'error'});
 if(!oidcResponse.ok)throw Error('Publisher identity unavailable');
 const oidc=await oidcResponse.json();
-const response=await fetch(origin+'/v1/releases/sign',{method:'POST',redirect:'error',headers:{Authorization:`Bearer ${oidc.value}`,'Content-Type':'application/json'},body:JSON.stringify(manifest),signal:AbortSignal.timeout(30000)});
-if(!response.ok){
-  const failure=await response.json().catch(()=>({}));
-  const code=/^[a-z_]{1,80}$/.test(failure.code||'')?failure.code:'unclassified';
-  throw Error(`Signed publication rejected (${response.status}; ${code})`);
-}
-const envelope=await response.json();
+const envelope=await requestReleaseSignature(origin,oidc.value,manifest);
 await writeFile('dist/bot.zip.manifest.json',JSON.stringify(envelope));
 const verified=spawnSync('python',['-m','trader.update_manager','verify','--root','.', '--public-key','release-signing.pub','--package','dist/bot.zip','--manifest','dist/bot.zip.manifest.json'],{stdio:'inherit'});
 if(verified.status!==0)throw Error('Published signature verification failed');
