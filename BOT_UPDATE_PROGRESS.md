@@ -1,11 +1,30 @@
 # Bot updates: implementation and deployment status
 
+Version 0.6.13 was published and signed for commit
+`4df7ca199cd5148c205dcf499493c24ff7515a5b` after protected run
+`36079566679` succeeded on its second attempt. The owner subsequently reported
+a successful 0.6.13 installation from the authenticated portal. An independent
+Windows version/health capture was not available in this source checkout. The
+first protected attempt deployed a healthy portal but failed at signing with
+`portal_and_bot_revision_must_match`: different
+Cloudflare edges briefly served different deployed revisions. Version 0.6.14
+prepares a bounded retry for only that exact fixed rejection, in the same
+protected run and with the same OIDC identity, signed manifest and package.
+The retry does not change signer validation or skip the owner environment gate.
+It also keeps the core HTTPS heartbeat and update jobs alive when the optional
+financial projection raises locally, and lets a refreshed independent agent
+read the current installed bot's PAPER projection in a separate, short-lived
+process. Refreshing the independent agent's `scripts/windows_agent.py` and
+`trader/remote_agent.py` from the verified signed installation remains a
+one-time Windows step after 0.6.14 is installed; upgrading the bot alone cannot
+replace files in the separate supervisor directory.
+
 Version 0.6.13 is a minimal signed update exercise: only the packaged version
 and the shared portal's visible version label change. The owner confirmed the
 previous 0.6.12 Windows installation and a healthy outbound sync after repairing
-the independent agent's dashboard projection. Publishing 0.6.13 still requires
-the protected release approval; installation requires a separate exact release
-approval through the authenticated portal and a Windows health check.
+the independent agent's dashboard projection. Installation required separate
+approval of the exact release through the authenticated portal and a Windows
+health check.
 
 The owner's portal screenshot on 24 September 2026 shows **0.6.8** installed
 after request #15, with startup and local PAPER portal checks completed. Its

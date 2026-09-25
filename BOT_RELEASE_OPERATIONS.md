@@ -32,6 +32,17 @@ run, then review the protected `portal-production` job for that exact commit.
 Do not bypass the PR or environment review, reuse a PR run as a publication,
 or claim an installation from a workflow result alone.
 
+The portal may pass its post-deployment health check at one Cloudflare edge
+before the signer request reaches an edge with the same revision. When the
+signer reports only `portal_and_bot_revision_must_match`, the protected
+publisher retries that exact manifest and OIDC identity for a bounded period.
+Other rejections fail immediately; successful signing still requires matching
+deployed and bot commits. Before claiming publication, confirm the protected
+job succeeded and `/v1/releases/latest` returns the expected signed version
+and commit. A failed run can have deployed portal assets and uploaded an
+unsigned ZIP; neither is an installable bot release. Rerunning a GitHub job
+requires a new `portal-production` owner approval.
+
 The Windows app uses the independent supervisor for a local signed update
 center, with an online check or offline installation of a previously staged,
 still-valid signed package. It requires exact local owner confirmation and
@@ -61,6 +72,17 @@ Keep `data/`, `cloudflare/.secrets/`, the trusted public key and task definition
 intact. Restart the existing task and verify the portal heartbeat before requesting
 the signed installation. Do not assume the PC was refreshed because this PR was
 merged or the portal was published.
+
+After installing signed 0.6.14, refresh the independent agent's
+`scripts/windows_agent.py` and `trader/remote_agent.py` once from that verified
+installation, with the outbound agent stopped and the originals backed up.
+The signed bot's `scripts/export_paper_snapshot.py` then serves the current
+PAPER dashboard from a read-only, isolated process on each sync. Subsequent
+bot releases no longer require copying financial projection modules into the
+supervisor. If the optional dashboard fails, the refreshed agent still sends
+the PAPER heartbeat and update jobs and records `DASHBOARD_UNAVAILABLE`.
+Do not copy agent files from an unverified checkout or overwrite the independent
+supervisor's keys, runtime data, job journal or task definition.
 
 ## One-time Windows transition
 

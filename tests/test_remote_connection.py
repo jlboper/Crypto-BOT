@@ -5,7 +5,7 @@ import json
 import urllib.error
 from pathlib import Path
 from dataclasses import replace
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 from trader.config import load_config
 from trader.database import Database
 from trader.remote_agent import RemoteAgent
@@ -82,6 +82,36 @@ class RemoteConnectionTests(unittest.TestCase):
         self.assertIn('dashboard', calls[0]['snapshot'])
         self.assertNotIn('dashboard', calls[1]['snapshot'])
         self.assertEqual(self.agent.last_error, 'DASHBOARD_REJECTED:Oversized PAPER scorecard')
+
+    def test_broken_local_dashboard_still_sends_heartbeat_and_update_jobs(self):
+        Database(self.config.bot.database_path)
+        def unavailable():
+            raise RuntimeError('private credential must never appear in status')
+        self.agent.dashboard_provider = unavailable
+        self.agent.update_provider = lambda: {
+            'version': '0.6.14', 'release_id': 'a'*64, 'sequence': 123,
+            'expires': 1800000000, 'commit': 'b'*40, 'enabled': True}
+        received = []
+        def send(request, timeout):
+            received.append(json.loads(request.data))
+            return io.BytesIO(b'{"commands":[],"jobs":[]}')
+        with patch.object(self.agent.opener, 'open', side_effect=send):
+            self.agent.sync()
+        self.assertEqual(len(received), 1)
+        self.assertEqual(received[0]['snapshot']['mode'], 'PAPER')
+        self.assertEqual(received[0]['snapshot']['bot_update']['version'], '0.6.14')
+        self.assertNotIn('dashboard', received[0]['snapshot'])
+        self.assertEqual(self.agent.last_error, 'DASHBOARD_UNAVAILABLE:RuntimeError')
+        self.assertNotIn('private credential', self.agent.last_error)
+
+    def test_dashboard_failure_does_not_hide_core_job_failure(self):
+        Database(self.config.bot.database_path)
+        self.agent.dashboard_provider = lambda: 1 / 0
+        self.agent.jobs = Mock()
+        self.agent.jobs.results.side_effect = ValueError('invalid job state')
+        with self.assertRaisesRegex(ValueError, 'invalid job state'):
+            self.agent.sync()
+        self.assertIsNone(self.agent.last_error)
 
     def test_unknown_or_core_rejection_never_retries_or_surfaces_raw_body(self):
         Database(self.config.bot.database_path)

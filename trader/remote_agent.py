@@ -97,6 +97,8 @@ class RemoteAgent:
         return identifier
 
     def sync(self):
+        self.last_error = None
+        dashboard_issue = None
         last = self._last_id()
         payload = {"snapshot": self.snapshot(), "acks": [last] if last else []}
         if self.update_provider:
@@ -104,7 +106,13 @@ class RemoteAgent:
         if self.restore_provider:
             payload['snapshot']['bot_restore'] = self.restore_provider()
         if self.dashboard_provider:
-            payload["snapshot"]["dashboard"] = self.dashboard_provider()
+            try:
+                payload["snapshot"]["dashboard"] = self.dashboard_provider()
+            except Exception as error:
+                # The financial projection is optional. A stale independent
+                # supervisor must still send PAPER heartbeats and update jobs.
+                # Never expose exception text, which can include private data.
+                dashboard_issue = f'DASHBOARD_UNAVAILABLE:{type(error).__name__}'
         if self.jobs:
             payload["job_results"] = self.jobs.results()
         def send(body):
@@ -114,7 +122,6 @@ class RemoteAgent:
                          "User-Agent": "CryptoPaperPortalAgent/0.6.2", "Accept": "application/json"})
             with self.opener.open(request, timeout=15) as response:
                 return response.read(65537)
-        self.last_error = None
         try:
             raw = send(payload)
         except urllib.error.HTTPError as error:
@@ -148,6 +155,8 @@ class RemoteAgent:
         if self.jobs:
             for job in jobs:
                 self.jobs.accept(job)
+        if self.last_error is None:
+            self.last_error = dashboard_issue
 
     def run(self, *, stop=None, validate=None, report=None):
         failures = 0
