@@ -1,5 +1,12 @@
 # Bot updates: implementation and deployment status
 
+Version 0.6.13 is a minimal signed update exercise: only the packaged version
+and the shared portal's visible version label change. The owner confirmed the
+previous 0.6.12 Windows installation and a healthy outbound sync after repairing
+the independent agent's dashboard projection. Publishing 0.6.13 still requires
+the protected release approval; installation requires a separate exact release
+approval through the authenticated portal and a Windows health check.
+
 The owner's portal screenshot on 24 September 2026 shows **0.6.8** installed
 after request #15, with startup and local PAPER portal checks completed. Its
 signed package was published separately after the PR #11 merge. A subsequent
