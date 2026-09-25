@@ -70,7 +70,7 @@ class AgentRefreshTests(unittest.TestCase):
         old = (self.agent / MODULES[0]).read_bytes()
         original_copy = __import__("shutil").copyfile
         def fail_second(source, destination, **kwargs):
-            if str(source).endswith(MODULES[1]):
+            if Path(source).name == Path(MODULES[1]).name:
                 raise OSError("copy failed")
             return original_copy(source, destination, **kwargs)
         with patch("scripts.refresh_independent_agent.shutil.copyfile", side_effect=fail_second):
