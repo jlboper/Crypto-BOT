@@ -43,6 +43,26 @@ function renderActivity(list,items){
     list.append(row);
   }
 }
+function setUpdateCenterState(kind,headline,message,candidate=null){
+  const hero=document.getElementById('updateHero');
+  const icon=document.getElementById('updateHeroIcon');
+  const title=document.getElementById('updateHeadline');
+  const check=document.getElementById('checkAllUpdates');
+  const install=document.getElementById('installBotUpdate');
+  hero.classList.remove('is-searching','has-update','has-warning');
+  if(kind==='searching'){hero.classList.add('is-searching');icon.textContent='…';}
+  else if(kind==='update'){hero.classList.add('has-update');icon.textContent='↓';}
+  else if(kind==='warning'){hero.classList.add('has-warning');icon.textContent='!';}
+  else {icon.textContent='✓';}
+  title.textContent=headline;
+  document.getElementById('botUpdateMessage').textContent=message;
+  const canInstall=kind==='update'&&candidate?.enabled===true;
+  install.hidden=!canInstall;
+  install.disabled=!canInstall;
+  install.textContent=canInstall?`Instalar v${candidate.version}`:'Instalar actualización';
+  check.hidden=canInstall;
+  check.textContent=kind==='current'?'Comprobar de nuevo':'Comprobar ahora';
+}
 async function portalState(){
   if(portalCache && Date.now()-portalCacheAt<5000)return portalCache;
   const epoch=portalEpoch;
@@ -57,19 +77,24 @@ async function portalState(){
     const candidate=state.snapshot?.bot_update;
     const activeJob=(state.jobs||[]).some(j=>['pending','running'].includes(j.status));
     const usable=candidate&&!state.stale&&candidate.expires>Date.now()/1000;
-    document.getElementById('installBotUpdate').disabled=!(usable&&candidate.enabled&&!activeJob);
     const restore=state.snapshot?.bot_restore;
     document.getElementById('restoreBotVersion').disabled=!(restore?.enabled&&!state.stale&&!activeJob);
     const latestUpdateCheck=(state.jobs||[]).find(job=>job.action==='update_check');
-    document.getElementById('botUpdateMessage').textContent=usable?
-      (candidate.enabled?
-        `Versión ${candidate.version} verificada y lista para instalar.`:
-        `Versión ${candidate.version} verificada, pero Windows debe sincronizar o reparar el supervisor antes de instalar.`):
-      (latestUpdateCheck?.status==='completed'&&latestUpdateCheck.message?
-        latestUpdateCheck.message:
-        latestUpdateCheck?.status==='failed'?
-          'La última comprobación no terminó correctamente. Puedes volver a intentarlo.':
-          'Listo para buscar una versión firmada.');
+    if(state.stale){
+      setUpdateCenterState('warning','Windows sin conexión','Reconecta Windows para verificar o instalar una actualización.');
+    }else if(usable&&candidate.enabled&&!activeJob){
+      setUpdateCenterState('update',`Nueva versión disponible · v${candidate.version}`,
+        'Paquete firmado y supervisor verificados. Puedes instalarlo de forma supervisada.',candidate);
+    }else if(usable&&!candidate.enabled){
+      setUpdateCenterState('warning','Actualización pendiente de reparación',
+        `La versión ${candidate.version} está firmada, pero el supervisor de Windows debe sincronizarse antes de instalar.`);
+    }else if(latestUpdateCheck?.status==='completed'){
+      setUpdateCenterState('current','Estás actualizado',latestUpdateCheck.message||'La versión instalada coincide con la última release firmada.');
+    }else if(latestUpdateCheck?.status==='failed'){
+      setUpdateCenterState('warning','No se pudo comprobar','La última comprobación no terminó correctamente. Puedes volver a intentarlo.');
+    }else{
+      setUpdateCenterState('idle','Listo para comprobar','Windows verificará firma, versión y supervisor antes de ofrecer una instalación.');
+    }
     document.getElementById('portalLogin').hidden=true;document.querySelector('.shell').hidden=false;
     return state;
   }).finally(()=>{portalPending=null;});
@@ -247,7 +272,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     updatePending=true;const button=document.getElementById('checkAllUpdates');button.disabled=true;
     const output=document.getElementById('updateMessage'),releases=document.getElementById('updateReleases'),botOutput=document.getElementById('botUpdateMessage');
     releases.replaceChildren();output.textContent='';
-    botOutput.textContent='Verificando publicación, firma y supervisor de Windows…';
+    setUpdateCenterState('searching','Buscando actualizaciones','Verificando publicación, firma y supervisor de Windows…');
     const epoch=portalEpoch;
     try{
       const state=await portalState();
@@ -278,8 +303,8 @@ document.addEventListener('DOMContentLoaded',()=>{
         'No se pudieron consultar temporalmente los detalles de publicación en GitHub; Windows continúa verificando el bot.':
         portalResult.reason.message;
       if(botResult.status==='fulfilled'){
-        portalCacheAt=0;botOutput.textContent='Windows está verificando el paquete firmado. El estado se actualizará automáticamente.';
-      }else botOutput.textContent=botResult.reason.message;
+        portalCacheAt=0;setUpdateCenterState('searching','Verificando en Windows','La firma y el supervisor se están comprobando. El estado se actualizará automáticamente.');
+      }else setUpdateCenterState('warning','No se pudo comprobar',botResult.reason.message);
       if(portalResult.status==='fulfilled'||botResult.status==='fulfilled')lastUpdatesAt=Date.now();
     }catch(error){output.textContent=error.message;}
     finally{updatePending=false;button.disabled=false;}
@@ -307,7 +332,8 @@ document.addEventListener('DOMContentLoaded',()=>{
       if(!confirm(`¿Instalar el bot ${candidate.version}, revisión ${candidate.commit}? El motor activo se reiniciará y se recuperará la versión anterior si falla el arranque.`))return;
       const body={action:'update_install',request_id:crypto.randomUUID(),release_id:candidate.release_id};
       await portalRequest('/v1/jobs',body);submitted=true;portalCacheAt=0;
-      output.textContent='Instalación solicitada. Windows detendrá y reiniciará el motor de forma supervisada.';
+      output.textContent='';
+      setUpdateCenterState('searching','Instalando actualización','Windows detendrá y reiniciará el motor de forma supervisada.');
       document.getElementById('updateDetails').open=false;
     }catch(error){output.textContent=error.message;}
     finally{if(!submitted)button.disabled=false;}
