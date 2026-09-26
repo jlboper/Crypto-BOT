@@ -99,7 +99,7 @@ function Show-LocalUpdateCenter {
     try {
         $verified = Invoke-LocalSignedUpdate -Action $action
         $confirmation = [System.Windows.Forms.MessageBox]::Show(
-            "Paquete firmado verificado: versión $($verified.version).`nIdentificación: $($verified.release_id)`nRevisión: $($verified.commit)`n`n¿Instalar esta versión exacta? El supervisor comprobará el arranque del motor PAPER y conservará la recuperación automática.",
+            "Paquete firmado verificado: versión $($verified.version).`nIdentificación: $($verified.release_id)`nRevisión: $($verified.commit)`n`n¿Instalar esta versión exacta? El supervisor comprobará el arranque del motor activo y conservará la recuperación automática.",
             'Aprobar versión local exacta',
             [System.Windows.Forms.MessageBoxButtons]::YesNo,
             [System.Windows.Forms.MessageBoxIcon]::Warning
@@ -113,7 +113,7 @@ function Show-LocalUpdateCenter {
         Invoke-AutomaticAgentRefresh
         Update-ManagerStatus
         [System.Windows.Forms.MessageBox]::Show(
-            "Bot $($result.version) instalado y comprobado en PAPER. La conexión del portal se sincroniza automáticamente; si su revisión queda pendiente, utiliza Reparar conexión del portal.",
+            "Bot $($result.version) instalado y comprobado. La conexión del portal se sincroniza automáticamente; si su revisión queda pendiente, utiliza Reparar conexión del portal.",
             'Actualización local completada',
             [System.Windows.Forms.MessageBoxButtons]::OK,
             [System.Windows.Forms.MessageBoxIcon]::Information
@@ -162,7 +162,7 @@ function Invoke-AutomaticAgentRefresh {
         $repairAgentItem.Text = 'Reparar conexión del portal'
     } catch {
         # Keep the menu recovery action and retry later. A refresh failure
-        # never reverses a healthy bot installation or stops the PAPER motor.
+        # never reverses a healthy bot installation or stops the trading motor.
         $repairAgentItem.Text = 'Revisar conexión del portal'
     }
 }
@@ -596,6 +596,10 @@ function Update-ManagerStatus {
     $processCount = (Get-TradingProcesses).Count
     try {
         $status = Invoke-RestMethod -Uri ($DashboardUrl + "/api/status") -TimeoutSec 3
+        $activeMode = ([string]$status.mode).ToUpperInvariant()
+        if ($activeMode -in @('PAPER','TESTNET')) {
+            $modeBadge.Text = $activeMode
+        }
         $state = [string]$status.activity.state
         if ($state -eq "operational") {
             $statusLabel.Text = "Motor operativo"
@@ -690,7 +694,8 @@ function Update-ManagerStatus {
         $killButton.BackColor = [System.Drawing.Color]::FromArgb(55, 24, 35)
         $killButton.ForeColor = [System.Drawing.Color]::FromArgb(255, 147, 164)
         $killButton.FlatAppearance.BorderColor = [System.Drawing.Color]::FromArgb(120, 48, 66)
-        $protectionLabel.Text = "✓  Protecciones activas  ·  Simulación sin dinero real"
+        $shownMode = if ($modeBadge.Text -in @('PAPER','TESTNET')) { $modeBadge.Text } else { 'PRUEBA' }
+        $protectionLabel.Text = "✓  Protecciones activas  ·  $shownMode sin dinero real"
         $protectionLabel.ForeColor = [System.Drawing.Color]::FromArgb(92, 215, 171)
     }
     if (Test-CanonicalStartup) {
