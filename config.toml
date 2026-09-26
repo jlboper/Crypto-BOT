@@ -63,7 +63,7 @@ smoke_margin_usdt = 10.0
 
 # Persistent forward-test pilot. Installation leaves it off until the owner
 # explicitly starts it from the portal.
-forward_enabled = false
+forward_enabled = true
 forward_symbol = "BTCUSDT"
 forward_leverage = 1
 forward_margin_usdt = 10.0
