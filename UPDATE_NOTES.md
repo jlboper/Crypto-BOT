@@ -1,3 +1,11 @@
+# Actualización 0.7.7 — diagnóstico privado independiente de datos públicos
+
+- **Verificar Futures** ya no depende de ticker, funding ni exchangeInfo públicos. Usa directamente `POST /fapi/v1/order/test` con BTCUSDT y cantidad `0.001`, que valida permiso TRADE sin ejecutar una orden.
+- Las lecturas públicas de Futures usan la configuración de red/proxy normal de Windows; las llamadas firmadas mantienen el transporte sin proxy y el host fijo de Testnet.
+- Esto separa claramente un problema de conectividad pública de un problema de credenciales o permiso Futures.
+- El smoke real conserva datos públicos para dimensionar una orden válida; si ese paso falla, el mensaje ya permite distinguirlo de la verificación privada.
+- LIVE continúa bloqueado para cualquier llamada firmada o escritura.
+
 # Actualización 0.7.6 — Futures Demo resiliente a fallos públicos
 
 - El preflight de permiso TRADE deja de consultar funding; para construir `order/test` solo usa ticker y filtros del contrato.
