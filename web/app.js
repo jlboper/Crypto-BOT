@@ -158,7 +158,7 @@ function renderResearch(report, state) {
     <article><span>Activos</span><strong>${Number(summary.assets)}</strong></article>
     <article><span>Estrategias evaluadas</span><strong>${Number(summary.assets)*Number(summary.strategies_per_asset)}</strong></article>
     <article><span>Folds fuera de muestra</span><strong>${Number(summary.total_walk_forward_folds)}</strong></article>
-    <article><span>Prometedores</span><strong>${Number(summary.promising_assets)}</strong></article>
+    <article><span>Candidatos a forward test</span><strong>${Number(summary.forward_test_ready||summary.promotion_candidates||0)}</strong></article>
     <article><span>Portafolio fijo OOS</span><strong class="${Number(portfolio.oos_compounded_return_pct)>=0?'positive':'negative'}">${pct(portfolio.oos_compounded_return_pct)}</strong></article>
     <article><span>Selector + cash gate</span><strong class="${Number(adaptivePortfolio.oos_compounded_return_pct)>=0?'positive':'negative'}">${pct(adaptivePortfolio.oos_compounded_return_pct)}</strong></article>
     <article><span>Efectivo USDT</span><strong>0.00%</strong></article>
@@ -169,8 +169,11 @@ function renderResearch(report, state) {
     const adaptive=asset.adaptive_selector||asset.walk_forward||{};
     const gates=Object.values(asset.qualification?.gates||{});
     const passed=gates.filter(Boolean).length;
-    const promising=asset.status==='PROMISING_RESEARCH_ONLY';
-    return `<tr class="research-row" data-symbol="${esc(asset.symbol)}"><td><strong>${esc(asset.symbol.replace('USDT',''))}</strong><small>/USDT · ver detalle</small></td><td>${esc(asset.champion_candidate)}<small>${esc(asset.champion_family)}</small></td><td class="${Number(fixed.oos_compounded_return_pct)>=0?'positive':'negative'}">${pct(fixed.oos_compounded_return_pct)}</td><td class="${Number(adaptive.oos_compounded_return_pct)>=0?'positive':'negative'}">${pct(adaptive.oos_compounded_return_pct)}<small>${Number(adaptive.cash_folds||0)} folds en cash</small></td><td>0.00%</td><td>${pct(fixed.oos_benchmark_return_pct)}</td><td>${Number(fixed.positive_folds_pct||0).toFixed(0)}%</td><td>${gates.length?`${passed}/${gates.length}`:'—'}</td><td><span class="verdict ${promising?'promising':'insufficient'}">${promising?'PROMETEDOR':'EVIDENCIA INSUFICIENTE'}</span></td></tr>`;
+    const promotion=asset.promotion||{};
+    const stage=promotion.stage||'RESEARCH';
+    const candidate=stage==='CANDIDATE';
+    const label=({RESEARCH:'INVESTIGANDO',CANDIDATE:'CANDIDATO',FORWARD_TEST:'FORWARD TEST',TESTNET:'LISTO TESTNET',APPROVED:'APROBADO',RETIRED:'RETIRADO'})[stage]||stage;
+    return `<tr class="research-row" data-symbol="${esc(asset.symbol)}"><td><strong>${esc(asset.symbol.replace('USDT',''))}</strong><small>/USDT · ver detalle</small></td><td>${esc(asset.champion_candidate)}<small>${esc(asset.champion_family)}</small></td><td class="${Number(fixed.oos_compounded_return_pct)>=0?'positive':'negative'}">${pct(fixed.oos_compounded_return_pct)}</td><td class="${Number(adaptive.oos_compounded_return_pct)>=0?'positive':'negative'}">${pct(adaptive.oos_compounded_return_pct)}<small>${Number(adaptive.cash_folds||0)} folds en cash</small></td><td>0.00%</td><td>${pct(fixed.oos_benchmark_return_pct)}</td><td>${Number(fixed.positive_folds_pct||0).toFixed(0)}%</td><td>${gates.length?`${passed}/${gates.length}`:'—'}</td><td><span class="verdict ${candidate?'promising':'insufficient'}">${esc(label)}</span></td></tr>`;
   }).join(''):emptyRow(9,state.running?'El análisis está trabajando en segundo plano…':'Ejecuta el primer análisis desde este portal.');
   const detail=state.error?`Último error: ${state.error}`:(report.generated_at?`Informe generado ${shortTime(report.generated_at)} · Los candidatos siguen bloqueados para operación automática.`:'El estudio descarga aproximadamente 5,000 velas cerradas por activo y puede tardar varios minutos.');
   document.getElementById('researchUpdated').textContent=detail;
@@ -188,6 +191,11 @@ function renderResearchDetail(asset) {
   const candidates=asset.candidates||[];
   const gateLabels={positive_vs_cash:'Supera efectivo',beats_asset_hold_oos:'Supera mantener el activo OOS',mean_fold_sharpe:'Sharpe OOS',positive_folds:'Consistencia',selection_stability:'Estabilidad de selección',monte_carlo_loss:'Monte Carlo',full_sample_sharpe:'Sharpe de desarrollo',parameter_stability:'Sensibilidad',turnover_control:'Rotación',data_quality:'Calidad de datos',holdout_positive:'Ventana final positiva',holdout_beats_asset_hold:'Ventana final supera mantener el activo',holdout_cost_stress:'Costos duplicados',minimum_oos_evidence:'Actividad OOS mínima'};
   const gates=Object.entries(asset.qualification?.gates||{});
+  const promotion=asset.promotion||{};
+  const stages=['RESEARCH','CANDIDATE','FORWARD_TEST','TESTNET','APPROVED'];
+  const currentStage=promotion.stage||'RESEARCH';
+  const currentIndex=Math.max(0,stages.indexOf(currentStage));
+  const stageLabels={RESEARCH:'Investigación',CANDIDATE:'Candidato',FORWARD_TEST:'Forward test',TESTNET:'Listo para Testnet',APPROVED:'Aprobado'};
   panel.hidden=false;
   panel.innerHTML=`<div class="detail-heading"><div><p class="eyebrow">${esc(asset.symbol)} · DIAGNÓSTICO</p><h3>${esc(asset.champion_candidate)}</h3></div><button class="detail-close" aria-label="Cerrar detalle">×</button></div>
     <div class="detail-metrics">
@@ -202,7 +210,11 @@ function renderResearchDetail(asset) {
       <article><span>Monte Carlo P05</span><strong>${pct(mc.p05_return_pct)}</strong></article>
       <article><span>Drawdown P95</span><strong>${Number(mc.p95_drawdown_pct||0).toFixed(2)}%</strong></article>
     </div>
-    <div class="qualification"><h4>Puertas de promoción</h4><div>${gates.map(([name,ok])=>`<span class="gate ${ok?'gate-pass':'gate-fail'}">${ok?'✓':'×'} ${esc(gateLabels[name]||name)}</span>`).join('')||'<span class="gate">Informe anterior: vuelve a ejecutar el análisis.</span>'}</div></div>
+    <div class="qualification"><h4>Pipeline de promoción</h4><div>${stages.map((stage,index)=>`<span class="gate ${index<currentIndex?'gate-pass':index===currentIndex?'gate-pass':'gate'}">${index<currentIndex?'✓':index===currentIndex?'●':'○'} ${esc(stageLabels[stage])}</span>`).join('')}</div>
+      <p class="research-updated"><strong>Siguiente acción:</strong> ${esc(promotion.recommended_action||'Mantener en investigación')} · ${esc(promotion.reason||'Sin decisión de promoción')}. Toda promoción requiere aprobación del propietario; LIVE nunca se activa desde el laboratorio.</p>
+      ${promotion.forward_test?.required?`<p class="research-updated">Forward test mínimo previsto: ${Number(promotion.forward_test.minimum_observed_days||30)} días y ${Number(promotion.forward_test.minimum_closed_trades||30)} cierres, con retorno neto positivo y ventaja frente al benchmark.</p>`:''}
+    </div>
+    <div class="qualification"><h4>Puertas de investigación</h4><div>${gates.map(([name,ok])=>`<span class="gate ${ok?'gate-pass':'gate-fail'}">${ok?'✓':'×'} ${esc(gateLabels[name]||name)}</span>`).join('')||'<span class="gate">Informe anterior: vuelve a ejecutar el análisis.</span>'}</div></div>
     <h4>Comparación entre estrategias · solo desarrollo OOS</h4>
     <div class="table-wrap"><table class="research-table"><thead><tr><th>Estrategia</th><th>Retorno OOS</th><th>Cierres OOS</th><th>Ventanas +</th><th>Selección</th></tr></thead>
     <tbody>${candidates.map(candidate=>`<tr><td>${esc(candidate.strategy)}</td><td>${candidate.development_oos_return_pct==null?'—':pct(candidate.development_oos_return_pct)}</td><td>${candidate.development_oos_trades==null?'—':Number(candidate.development_oos_trades)}</td><td>${candidate.development_positive_folds_pct==null?'—':pct(candidate.development_positive_folds_pct)}</td><td>${candidate.strategy===asset.champion_candidate?'Fijada en entrenamiento inicial':'Comparación retrospectiva'}</td></tr>`).join('')}</tbody></table></div>
