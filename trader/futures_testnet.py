@@ -57,15 +57,34 @@ class FuturesTestnetLab:
             raise FuturesTestnetExecutionError("Invalid Futures Testnet account response")
         return payload
 
+    def _trade_probe(self, symbol: str = "BTCUSDT") -> bool:
+        """Validate TRADE permission without creating an order."""
+        price, _ = self._reference(symbol)
+        info = self._symbol_info(symbol)
+        quantity = self._quantity(info, price, Decimal("10"))
+        result = signed_request("POST", "/fapi/v1/order/test", {
+            "symbol": symbol,
+            "side": "BUY",
+            "type": "MARKET",
+            "quantity": format(quantity, "f"),
+        })
+        if result not in ({}, None):
+            if not isinstance(result, dict):
+                raise FuturesTestnetExecutionError("Invalid Futures Demo test-order response")
+        return True
+
     def check(self) -> dict:
         account = self._account()
         positions = self._position_rows()
         balance = _decimal(account.get("totalWalletBalance", "0"))
         available = _decimal(account.get("availableBalance", "0"))
+        trade_probe = self._trade_probe()
         return {
             "ok": True,
-            "environment": "USD-M FUTURES TESTNET",
-            "can_trade": bool(account.get("canTrade", False)),
+            "environment": "USD-M FUTURES DEMO",
+            "can_trade": trade_probe,
+            "reported_can_trade": bool(account.get("canTrade", False)),
+            "trade_probe": trade_probe,
             "wallet_balance": float(balance),
             "available_balance": float(available),
             "open_positions": len(positions),
@@ -257,8 +276,8 @@ class FuturesTestnetLab:
             raise FuturesTestnetExecutionError("Futures Testnet recovery required")
 
         account = self._account()
-        if not bool(account.get("canTrade", False)):
-            raise FuturesTestnetExecutionError("Futures Testnet account cannot trade")
+        if not self._trade_probe():
+            raise FuturesTestnetExecutionError("Futures Demo trade permission probe failed")
         available = _decimal(account.get("availableBalance", "0"))
         margin = Decimal(str(self.settings.smoke_margin_usdt))
         if available < margin * Decimal("1.25"):
