@@ -207,10 +207,9 @@ def load_config(path: str | Path | None = None) -> AppConfig:
     futures_margin = str(futures_testnet.get("margin_type", "ISOLATED")).upper()
     futures_position_mode = str(futures_testnet.get("position_mode", "ONE_WAY")).upper()
     futures_smoke_margin = float(futures_testnet.get("smoke_margin_usdt", 10.0))
-    futures_forward_enabled = os.getenv(
-        "FUTURES_FORWARD_ENABLED",
-        str(futures_testnet.get("forward_enabled", False)),
-    ).strip().lower() in {"1","true","yes","on"}
+    # Forward-test enablement is configuration-owned. Runtime pause/resume uses
+    # the dedicated Futures kill switch; legacy environment overrides are ignored.
+    futures_forward_enabled = bool(futures_testnet.get("forward_enabled", False))
     futures_forward_symbol = str(futures_testnet.get("forward_symbol", "BTCUSDT")).upper()
     futures_forward_leverage = int(futures_testnet.get("forward_leverage", 1))
     futures_forward_margin = float(futures_testnet.get("forward_margin_usdt", 10.0))
