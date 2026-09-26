@@ -126,10 +126,10 @@ class FuturesTestnetLabTests(unittest.TestCase):
 
 
     def test_close_price_falls_back_to_cumquote_without_resubmitting(self):
-        order = {"clientOrderId": "close-1", "avgPrice": "0", "executedQty": "0.001", "cumQuote": "101.25"}
+        order = {"clientOrderId": "close-1", "avgPrice": "0", "executedQty": "0.001", "cumQuote": "0.10125"}
         with patch("trader.futures_testnet.signed_request", side_effect=AssertionError("no query needed")):
             price = self.lab._execution_price(order, "BTCUSDT")
-        self.assertEqual(price, Decimal("101250"))
+        self.assertEqual(price, Decimal("101.25"))
 
     def test_close_price_queries_filled_order_when_immediate_result_has_no_price(self):
         order = {"clientOrderId": "close-2", "avgPrice": "0", "executedQty": "0", "cumQuote": "0"}
