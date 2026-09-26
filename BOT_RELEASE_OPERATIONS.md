@@ -48,7 +48,7 @@ center, with an online check or offline installation of a previously staged,
 still-valid signed package. It requires exact local owner confirmation and
 does not need a portal heartbeat for an offline install. The local web portal
 retains its authenticated remote update link. Neither path needs incoming PC
-ports, VPNs or tunnels. A publication is not an installation.
+ports, VPNs or tunnels. Starting with 0.8.5, publication is the rollout trigger for agents that advertise signed rollout support. The remote agent reports the installed version, and the portal automatically queues the exact signed release when a newer version exists. Manual installation remains a fallback.
 
 The installer retains the immediately previous code for automatic recovery.
 With an updated independent Windows supervisor, **Options → Restore previous
@@ -148,3 +148,12 @@ The private key and pre-migration database backups are only in the restricted
 local `.secrets` directory. Do not publish them. Key rotation requires updating
 the local trust anchor deliberately; changing the portal password does not
 rotate signing or provider credentials.
+
+
+## Unified rollout (0.8.5+)
+
+A capable Windows agent reports `installed_version` and `update_state=signed_rollout` on every authenticated device sync. The Worker compares that version only against the latest release already present in the signed `bot_releases` ledger. If and only if the signed release is newer, it queues an `update_install` job bound to that exact release id.
+
+The Windows supervisor still verifies Ed25519, sequence monotonicity, package hashes, running-engine ownership and post-install health. A failed install is not automatically retried in a loop. If the PC was offline, no job is created until its next sync, so the five-minute job lease is always fresh when the device returns.
+
+The first 0.8.5 installation is the transition to this behavior: install it using the existing signed updater and refresh the independent agent once. Subsequent signed releases roll out automatically.
