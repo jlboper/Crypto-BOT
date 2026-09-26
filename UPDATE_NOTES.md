@@ -1,3 +1,12 @@
+# Actualización 0.7.2 — Binance Futures Demo correcto
+
+- Corrige el endpoint del laboratorio de derivados para usar el entorno que corresponde a las claves creadas en Binance Demo Trading: `https://demo-fapi.binance.com`.
+- La v0.7.1 apuntaba al antiguo host `testnet.binancefuture.com`; por eso una clave válida de Demo podía devolver un estado de cuenta incompatible como `canTrade=false`.
+- Mantiene credenciales, ledger y controles de Futures separados de Spot.
+- Conserva margen `ISOLATED`, modo One-way, leverage 1x/2x/3x, cierre `reduceOnly`, journal durable y recuperación explícita.
+- El portal pasa a nombrar este entorno como **Futures Demo** para coincidir con Binance.
+- Binance LIVE sigue sin host, selector ni ruta de escritura.
+
 # Actualización 0.7.1 — hardening de Futures Testnet
 
 - Mantiene la arquitectura 0.7.0: Spot Testnet como motor principal, PAPER como respaldo/CI y Futures Testnet como laboratorio separado.
