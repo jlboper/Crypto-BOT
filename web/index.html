@@ -58,16 +58,35 @@
         <p id="passwordMessage" role="status"></p>
       </form>
     </section>
-    <section id="updatePanel" class="panel" hidden>
-      <h2>Actualizaciones del portal y del bot</h2>
-      <p>Una sola búsqueda revisa la publicación del portal y solicita a Windows que verifique el paquete firmado del bot.</p>
-      <button id="checkAllUpdates" class="secondary">Buscar actualizaciones</button>
-      <button id="closeUpdatePanel" class="secondary">Cerrar</button>
-      <p id="updateMessage" role="status"></p>
-      <div id="updateReleases"></div>
-      <h3>Bot de Windows</h3>
-      <p id="botUpdateMessage">Busca una versión firmada. Windows verificará el paquete antes de permitir la instalación.</p>
-      <button id="installBotUpdate" class="primary" disabled>Instalar versión verificada</button>
+    <section id="updatePanel" class="panel update-center" hidden>
+      <div class="panel-title update-center-title">
+        <div>
+          <p class="eyebrow">MANTENIMIENTO SEGURO</p>
+          <h2>Centro de actualizaciones</h2>
+        </div>
+        <button id="closeUpdatePanel" class="secondary">Cerrar</button>
+      </div>
+      <p class="update-center-copy">Revisa en un solo paso el portal, la versión firmada del bot y la capacidad del supervisor de Windows antes de instalar.</p>
+
+      <div class="update-status-card">
+        <div class="update-status-heading">
+          <span class="update-status-dot" aria-hidden="true"></span>
+          <div>
+            <strong>Estado de actualización</strong>
+            <p id="botUpdateMessage" role="status">Listo para buscar una versión firmada.</p>
+          </div>
+        </div>
+        <div class="update-actions">
+          <button id="checkAllUpdates" class="secondary">Buscar actualizaciones</button>
+          <button id="installBotUpdate" class="primary" disabled>Instalar versión verificada</button>
+        </div>
+      </div>
+
+      <p id="updateMessage" class="update-summary" role="status"></p>
+      <details id="updateDetails" class="update-details">
+        <summary>Ver detalles de publicación y pruebas</summary>
+        <div id="updateReleases"></div>
+      </details>
     </section>
     <section id="historyPanel" class="panel" hidden aria-label="Historial de actividad">
       <div class="panel-title"><h2>Historial de actividad</h2><button id="closeHistory" class="secondary">Cerrar</button></div>
