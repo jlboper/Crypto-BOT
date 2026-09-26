@@ -89,11 +89,15 @@ python -m trader testnet-validate BTCUSDT --side BUY --quote-amount 25
 python -m trader testnet-simulate
 ```
 
-## Binance Testnet: ensayos con fondos ficticios
+## Binance Testnet: entorno principal y laboratorio Futures
 
-`BINANCE_API_KEY` y `BINANCE_API_SECRET` de **Spot Testnet** deben estar únicamente en `.env.local`. `check-testnet`, `testnet-plan`, `testnet-simulate` y `testnet-validate` siguen disponibles como diagnósticos sin ejecutar operaciones. El TradingEngine unificado puede operar en `PAPER` o `TESTNET`; en Testnet usa `BinanceTestnetBroker`, un ledger separado y un journal durable antes de cada escritura. No existe host ni modo Binance LIVE.
+`BINANCE_API_KEY` y `BINANCE_API_SECRET` de **Spot Testnet** deben estar únicamente en `.env.local`. `check-testnet`, `testnet-plan`, `testnet-simulate` y `testnet-validate` siguen disponibles como diagnósticos sin ejecutar operaciones. El TradingEngine principal puede operar en `PAPER` o `TESTNET`; Spot Testnet usa `BinanceTestnetBroker`, un ledger separado y un journal durable antes de cada escritura. No existe host ni modo Binance LIVE.
 
-Usa únicamente claves dedicadas de Binance Spot Testnet, nunca claves de Binance de producción. Guárdalas en la PC con acceso limitado y no las envíes al portal ni al repositorio. Las entradas automáticas TESTNET pasan por las mismas señales, revisión IA y límites de riesgo del motor. Opciones incluye una prueba técnica supervisada de ida y vuelta BTCUSDT: detiene el motor cooperativamente, usa el mismo broker Testnet para BUY y SELL, exige conciliación y vuelve a arrancar el motor. Esa prueba valida infraestructura, no rentabilidad.
+A partir de 0.7.0, PAPER queda como entorno de respaldo/CI: se mantiene para regresiones, diagnóstico y fallback, pero las capacidades nuevas se desarrollan sobre Testnet salvo cambios de seguridad necesarios.
+
+El laboratorio paralelo de **USDⓈ-M Futures Testnet** usa credenciales distintas: `BINANCE_FUTURES_TESTNET_API_KEY` y `BINANCE_FUTURES_TESTNET_API_SECRET`. Sus datos se guardan en `data/futures-testnet.db`, separados del ledger Spot. Solo permite margen `ISOLATED`, modo `ONE_WAY` y leverage 1x/2x/3x. La primera fase ofrece verificación de cuenta, smoke LONG/SHORT y reconciliación explícita con cierre `reduceOnly`; todavía no convierte el motor automático Spot en un motor de Futures.
+
+Usa únicamente claves dedicadas de entornos Testnet, nunca claves de Binance de producción. Guárdalas en la PC con acceso limitado y no las envíes al portal ni al repositorio. Las pruebas de Spot y Futures validan infraestructura, no rentabilidad.
 
 ## Qué hace cada ciclo
 
@@ -182,7 +186,7 @@ Haz doble clic en `Crypto AI Trader.vbs` para abrir una aplicación gráfica sin
 
 - El dashboard escucha solo en `127.0.0.1`; no abras el puerto 8765 en el router.
 - Si cambias el host para acceder remotamente, define `DASHBOARD_TOKEN` y usa una VPN privada.
-- Los únicos entornos permitidos son `paper` y `testnet`; cualquier valor LIVE o desconocido se rechaza. Binance LIVE no está implementado.
+- El motor principal solo permite `paper` y `testnet`; PAPER queda como respaldo/CI. Futures Testnet funciona como laboratorio paralelo con credenciales y ledger separados. Cualquier modo LIVE o desconocido se rechaza y Binance LIVE no está implementado.
 - Una simulación favorable no garantiza resultados reales: existen slippage, gaps, cambios de régimen, fallas de conectividad y riesgo de contraparte del exchange.
 
 ## Pruebas locales
