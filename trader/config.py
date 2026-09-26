@@ -139,7 +139,7 @@ def load_config(path: str | Path | None = None) -> AppConfig:
     dashboard = raw["dashboard"]
     research = raw.get("research", {})
 
-    mode = str(bot.get("mode", "paper")).lower()
+    mode = os.getenv("EXECUTION_MODE", str(bot.get("mode", "paper"))).lower()
     if mode not in {"paper", "testnet"}:
         raise ValueError("Execution mode must be paper or testnet. Binance LIVE is not implemented.")
     for section in (paper, risk, strategy):
