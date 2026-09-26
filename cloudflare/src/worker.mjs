@@ -351,7 +351,7 @@ export async function handle(request, env, now = Math.floor(Date.now() / 1000)) 
   if(path==='/v1/paper-controls'&&method==='POST'){
     const body=await readBody(request,1024);
     assert(Object.keys(body).sort().join(',')==='action,payload,request_id'&&
-      ['risk_profile','paper_close','ai_model','restart_engine','execution_mode','testnet_buy','testnet_close','testnet_reconcile','testnet_audit'].includes(body.action)&&
+      ['risk_profile','paper_close','ai_model','restart_engine','execution_mode'].includes(body.action)&&
       typeof body.request_id==='string'&&/^[A-Za-z0-9_-]{16,100}$/.test(body.request_id)&&object(body.payload),'Invalid PAPER request');
     if(body.action==='risk_profile'){
       assert(Object.keys(body.payload).join(',')==='profile'&&
@@ -361,7 +361,7 @@ export async function handle(request, env, now = Math.floor(Date.now() / 1000)) 
         ['gpt-5.6-luna','gpt-6-luna'].includes(body.payload.model),'Invalid model selection');
     }else if(body.action==='execution_mode'){
       assert(Object.keys(body.payload).join(',')==='mode'&&['paper','testnet'].includes(body.payload.mode),'Invalid execution mode');
-    }else if(['restart_engine','testnet_buy','testnet_close','testnet_reconcile','testnet_audit'].includes(body.action)){
+    }else if(body.action==='restart_engine'){
       assert(Object.keys(body.payload).length===0,'Invalid restart request');
     }else{
       const p=body.payload;
@@ -380,7 +380,7 @@ export async function handle(request, env, now = Math.floor(Date.now() / 1000)) 
           SELECT 1 FROM snapshots WHERE id=1 AND received_at>=? AND
           json_extract(payload,'$.paper_controls')=1 AND
           (? IN ('risk_profile','paper_close') OR json_extract(payload,'$.operations_controls')=1) AND
-          (? NOT IN ('paper_close','testnet_buy','testnet_close','testnet_reconcile','testnet_audit') OR json_extract(payload,'$.mode')='PAPER') AND
+          (?!='paper_close' OR json_extract(payload,'$.mode') IN ('PAPER','TESTNET')) AND
           (?!='paper_close' OR EXISTS(SELECT 1 FROM json_each(payload,'$.dashboard.positions')
            WHERE json_extract(value,'$.symbol')=? AND json_extract(value,'$.opened_at')=?)))
         AND NOT EXISTS(SELECT 1 FROM jobs WHERE status IN ('pending','running'))
