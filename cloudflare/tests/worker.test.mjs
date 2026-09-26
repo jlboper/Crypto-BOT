@@ -30,7 +30,7 @@ class LocalD1 {
 const origin='https://paper.example.workers.dev';
 const owner='A'.repeat(43), device='B'.repeat(43);
 const proof=(password,salt)=>pbkdf2Sync(password,salt,600000,32,'sha256').toString('hex');
-const snapshot=()=>({mode:'PAPER',equity:1000,cash:900,exposure:100,positions:[{symbol:'BTCUSDT',quantity:1,entry_price:100,stop_price:95,take_profit:110}],killed:false,last_cycle_at:new Date().toISOString(),ai_model:'gpt-5.6-luna',update_state:'manual_signed_install_only'});
+const snapshot=()=>({mode:'PAPER',equity:1000,cash:900,exposure:100,positions:[{symbol:'BTCUSDT',quantity:1,entry_price:100,stop_price:95,take_profit:110}],killed:false,last_cycle_at:new Date().toISOString(),ai_model:'gpt-5.6-luna',installed_version:'0.8.5',update_state:'signed_rollout'});
 
 async function fixture(t){
   const env={DB:new LocalD1(),PORTAL_ORIGIN:origin,OWNER_KEY_HASH:await sha256(owner),DEVICE_KEY_HASH:await sha256(device),ASSETS:{fetch:async()=>new Response('<html>Portal shell</html>',{headers:{'Content-Type':'text/html'}})}};
@@ -44,6 +44,41 @@ async function fixture(t){
   const sync=async(body={snapshot:snapshot(),acks:[]})=>request('/v1/device/sync',body,{Authorization:`Bearer ${device}`});
   return {env,request,login,sync};
 }
+
+test('signed rollout automatically queues a newer bot release and does not downgrade',async t=>{
+  const f=await fixture(t);
+  const releaseId='a'.repeat(64);
+  const envelope={manifest:{version:'0.8.6'},signature:'test'};
+  f.env.DB.sqlite.prepare('INSERT INTO bot_releases(sequence,release_id,commit_sha,envelope,created) VALUES(?,?,?,?,?)')
+    .run(10,releaseId,'b'.repeat(40),JSON.stringify(envelope),1);
+  const update=await f.sync({snapshot:{...snapshot(),installed_version:'0.8.5'},acks:[]});
+  assert.equal(update.status,200);
+  assert.equal(update.body.jobs.length,1);
+  assert.equal(update.body.jobs[0].action,'update_install');
+  assert.equal(update.body.jobs[0].release_id,releaseId);
+
+  f.env.DB.sqlite.prepare("UPDATE jobs SET status='completed'").run();
+  const current=await f.sync({snapshot:{...snapshot(),installed_version:'0.8.6'},acks:[]});
+  assert.equal(current.body.jobs.length,0);
+  const newerLocal=await f.sync({snapshot:{...snapshot(),installed_version:'0.9.0'},acks:[]});
+  assert.equal(newerLocal.body.jobs.length,0);
+});
+
+test('failed automatic rollout is not retried in a loop',async t=>{
+  const f=await fixture(t);
+  const releaseId='c'.repeat(64);
+  const envelope={manifest:{version:'0.8.6'},signature:'test'};
+  f.env.DB.sqlite.prepare('INSERT INTO bot_releases(sequence,release_id,commit_sha,envelope,created) VALUES(?,?,?,?,?)')
+    .run(11,releaseId,'d'.repeat(40),JSON.stringify(envelope),1);
+  const first=await f.sync({snapshot:{...snapshot(),installed_version:'0.8.5'},acks:[]});
+  const id=first.body.jobs[0].id;
+  await f.sync({snapshot:{...snapshot(),installed_version:'0.8.5'},acks:[],
+    job_results:[{id,action:'update_install',status:'failed',message:'supervisor rejected candidate'}]});
+  const again=await f.sync({snapshot:{...snapshot(),installed_version:'0.8.5'},acks:[]});
+  assert.equal(again.body.jobs.length,0);
+  const row=f.env.DB.sqlite.prepare('SELECT status FROM jobs WHERE id=?').get(id);
+  assert.equal(row.status,'failed');
+});
 
 test('owner login, secure cookie, status and logout revoke the session',async t=>{
   const f=await fixture(t);
