@@ -52,16 +52,8 @@ def dashboard_snapshot(config, report_path=None):
                 paper=config.paper, research_symbols=config.research.symbols, mode=config.bot.mode),
             'research':{'mode':'RESEARCH_ONLY','status':'NOT_RUN','assets':[]},
             'research_state':{'running':False,'error':None},
-            'testnet':{
-                'mode':'READ_ONLY_DRY_RUN',
-                'order_submission_enabled':False,
-                'planner':'public_filters_and_synthetic_reconciliation',
-                'next_step':'Testnet execution is separate; inspect the execution ledger before any trade',
-            },
             'updates':{'status':'not_configured','message':'Falta configurar el canal firmado y la recuperación supervisada.'},
         }
-        from .testnet_execution import public_status
-        payload['testnet_execution'] = public_status(config.bot.database_path.parent.parent)
         for key in ('trades','reviews','events'):
             for row in payload[key]:
                 for field in ('reason','message'):
