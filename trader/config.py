@@ -140,8 +140,8 @@ def load_config(path: str | Path | None = None) -> AppConfig:
     research = raw.get("research", {})
 
     mode = str(bot.get("mode", "paper")).lower()
-    if mode != "paper":
-        raise ValueError("Phase 1 is locked to paper mode. Testnet/live execution is not enabled yet.")
+    if mode not in {"paper", "testnet"}:
+        raise ValueError("Execution mode must be paper or testnet. Binance LIVE is not implemented.")
     for section in (paper, risk, strategy):
         for key, value in section.items():
             if type(value) not in (int, float) or not math.isfinite(value) or value < 0:
