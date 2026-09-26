@@ -1,38 +1,39 @@
-# Crypto AI Trader — contexto para ChatGPT Work
+# Work Context — Crypto AI Trader
 
-Lee este documento y el código de la rama de trabajo antes de proponer cambios. No asumas que una conversación de Codex se comparte automáticamente con Work. No actives LIVE ni prometas rentabilidad.
+## Estado actual
 
-## Estado del proyecto
+La rama estable trabaja con un único proceso supervisado y dos motores de prueba en paralelo:
 
-El canal estable de `jlboper/Crypto-BOT` publica ZIP y latest.json; su versión estable es 0.6.2. La auditoría local partió de ese paquete: 54 archivos coincidieron, y config.toml contiene ajustes locales que no deben sobrescribirse. La instalación Windows mantiene su motor original; las mejoras auditadas del motor todavía requieren una migración controlada.
+- **Spot Testnet**: motor principal multi-activo, sin margen ni cortos, con estrategia swing, límites de riesgo y revisión IA final.
+- **Futures Demo**: forward test separado de BTCUSDT, LONG/SHORT, 1x automático, ISOLATED, ONE_WAY y máximo una posición. Usa ledger, journal y kill switch propios.
+- **PAPER**: respaldo técnico, CI, regresiones y recuperación. No es el entorno diario predeterminado.
+- **LIVE**: no implementado. Ninguna métrica o estado habilita capital real automáticamente.
 
-Windows ejecuta el motor PAPER y un agente independiente. El portal remoto usa Cloudflare Workers Free y D1; el agente conecta hacia fuera por HTTPS cada unos 30 segundos, sin VPN, túneles ni puertos públicos en la PC. Una tarea de Windows inicia el agente 30 segundos después del login. No inicia otra instancia del motor.
+## Arquitectura operativa
 
-## Código y responsabilidades
+- `web/`: interfaz única compartida por localhost y Cloudflare. El portal local y remoto deben conservar la misma estructura, nomenclatura y métricas.
+- `scripts/manager_windows.ps1`: centro de control compacto de Windows; abre portal local/remoto, reinicia el motor, gestiona inicio automático, kill switch y actualizaciones firmadas.
+- `trader/engine.py`: ciclo principal Spot y llamada al forward engine Futures durante TESTNET.
+- `trader/futures_forward.py`: señal, revisión IA final, ejecución/recovery y protección del forward test Futures Demo.
+- `trader/update_manager.py` + `trader/update_supervisor.py`: actualización firmada, parada cooperativa, health-check, commit/rollback y restauración de código anterior.
+- `scripts/windows_agent.py`: agente saliente HTTPS para portal remoto; no crea un segundo motor.
+- `data/trader.db`, `data/testnet-trader.db`, `data/futures-testnet.db`: ledgers separados. Nunca fusionarlos.
 
-- trader/engine.py, broker.py, database.py: estrategia, riesgo, contabilidad y persistencia.
-- trader/ai_advisor.py: IA limitada a validar/reducir/vetar entradas; modelo configurado gpt-5.6-luna, susceptible de override OPENAI_MODEL. No entregar control arbitrario de órdenes a la IA.
-- trader/research.py: comparación multi-activo, selección sobre entrenamiento, walk-forward, holdout final reservado y estrés de costos. No promover estrategias automáticamente.
-- web/: frontend compartido por localhost y Cloudflare. portal-bridge.js adapta autenticación y consultas; build_unified_portal.py copia assets al Worker.
-- trader/remote_agent.py y scripts/windows_agent.py: telemetría, pausa/reanudación con expiración y checkpoint. La BD operativa se abre en modo de solo lectura. Una pausa local/automática no se libera remotamente.
-- trader/portal_snapshot.py: proyección acotada de operaciones, métricas, IA e informe Research; nunca exportar settings completos, entornos ni registros crudos.
-- cloudflare/src/worker.mjs: sesión con cookie segura, CSRF, origen exacto, clave de propietario y token de agente independientes, cola idempotente y D1.
-- trader/update_manager.py: verificación Ed25519, límites y rutas permitidas, protección contra downgrade, backups y recuperación con journal. No detiene/arranca procesos por sí mismo.
+## Reglas permanentes
 
-## Implementado y comprobado a 2026-09-15
+1. Nunca introducir una ruta Binance LIVE sin una fase explícita y separada de diseño/revisión.
+2. Las claves y `.env.local` permanecen fuera del repositorio y del portal.
+3. Spot y Futures deben conservar identidad, ledger, riesgo y kill switch separados.
+4. La IA es una última compuerta para nuevas entradas; nunca bloquea un cierre protector, stop, reconciliación o recovery.
+5. No borrar históricos, bases financieras, paquetes de rollback o mecanismos de recuperación durante limpiezas visuales.
+6. Mantener portal local y remoto sobre los mismos assets web; evitar dos UIs divergentes.
+7. Los tests deben declarar explícitamente PAPER/TESTNET cuando el comportamiento depende del entorno.
+8. Antes de merge: `python scripts/test_offline.py` en Linux y Windows, parse de PowerShell y tests del Worker/frontend.
 
-Portal privado publicado, autenticación y telemetría PAPER en funcionamiento. Interfaz compartida distribuida al panel local y remoto. Pantallas de posiciones, operaciones, revisiones IA, equity y Research Lab. El portal puede solicitar Research mediante una cola idempotente y Windows lo ejecuta como proceso separado. La aplicación Windows abre el portal remoto y el mismo centro de actualizaciones. La validación vigente comprende 66 pruebas Python offline y 32 pruebas del Worker/frontend. Iconos del escritorio y del acceso directo dentro de la carpeta apuntan al mismo ICO de la aplicación.
+## Flujo de releases
 
-## Pendiente; no presentar como terminado
+Work prepara una rama/PR. GitHub ejecuta validaciones. Al integrar en `main`, el workflow protegido publica el portal y construye el paquete firmado cuando cambia la versión. Windows instala únicamente paquetes verificados mediante el supervisor. El centro local de actualizaciones puede verificar e instalar sin depender del portal remoto.
 
-El centro de actualizaciones puede descubrir el commit actual y llevar al propietario a la aprobación protegida de GitHub para publicar el portal. No instala el bot Windows. Para el motor faltan el canal firmado, la custodia de firma y el supervisor de parada/reinicio con verificación real de salud. El latest.json antiguo tiene SHA-256, pero no firma Ed25519; nunca rebajar verificación para instalarlo remotamente. La interfaz local conserva las APIs del proceso original hasta una migración controlada. No hay integración MCP de control desde Work ni app Android/notificaciones push activa.
+## Fase actual
 
-## Cómo trabajar desde Work
-
-En una tarea de Work, conectar GitHub y pedir explícitamente leer este archivo y la rama de desarrollo del proyecto. Revisar cambios, trabajar en una rama y preparar PR. No sobrescribir paquetes estables ni latest.json hasta validar la release. Después del merge, revisar el commit y sus pruebas desde el centro de actualizaciones; la aprobación final ocurre en el entorno protegido de GitHub. El acceso al repositorio aporta código/documentos, no acceso implícito a la PC ni a sus claves. Consulta `GITHUB_RELEASES.md` y la documentación oficial de Work y plugins en https://learn.chatgpt.com/docs/get-started-with-work y https://learn.chatgpt.com/docs/plugins.
-
-## Reglas de publicación
-
-No subir .env*, data/, bases SQLite, posiciones, registros, respaldos, .secrets/, claves privadas, configuraciones de producción, credenciales OAuth ni archivos de estado de la PC. No guardar secretos en prompts, argumentos CLI ni salidas de tests. Conservar configuración y datos operativos al actualizar. No arrancar un segundo motor; no matar procesos Python por nombre. Una release debe indicar exactamente qué se probó y qué sigue pendiente.
-
-Validación: Python 3.11+; `python scripts/test_offline.py`. Para actualizaciones instalar la dependencia opcional cryptography indicada por pyproject.toml. Portal: Node 24, pnpm install --frozen-lockfile, node --test tests/*.test.mjs desde cloudflare. No usar claves de producción en tests. No publicar desde Work si no se ha configurado expresamente una identidad de despliegue con permisos limitados.
+La prioridad es **observación**, no añadir estrategia por ruido de pocos días. Spot y Futures acumulan métricas separadas (días, cierres, P&L/retorno, drawdown, calidad y errores). Cambios de estrategia o riesgo deben basarse en evidencia suficiente; correcciones de seguridad/operación sí pueden hacerse antes.
