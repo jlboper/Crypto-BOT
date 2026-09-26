@@ -195,13 +195,50 @@ class FuturesTestnetLedger:
                 "SELECT * FROM forward_trades ORDER BY id DESC LIMIT 20"
             )]
             equity = [dict(row) for row in db.execute(
-                "SELECT * FROM forward_equity ORDER BY id DESC LIMIT 120"
+                "SELECT * FROM forward_equity ORDER BY id DESC LIMIT 1000"
             )]
+            aggregate = db.execute(
+                """SELECT COUNT(*) AS closed,
+                          COALESCE(SUM(gross_pnl),0) AS pnl,
+                          COALESCE(SUM(CASE WHEN gross_pnl>0 THEN 1 ELSE 0 END),0) AS wins,
+                          MIN(closed_at) AS first_close
+                   FROM forward_trades"""
+            ).fetchone()
+            first_equity = db.execute(
+                "SELECT created_at FROM forward_equity ORDER BY id ASC LIMIT 1"
+            ).fetchone()
+        chronological = list(reversed(equity))
+        peak = None
+        max_drawdown = 0.0
+        for row in chronological:
+            value = float(row["wallet_balance"]) + float(row["unrealized_pnl"])
+            peak = value if peak is None else max(peak, value)
+            if peak and peak > 0:
+                max_drawdown = min(max_drawdown, (value / peak - 1.0) * 100.0)
+        closed = int(aggregate["closed"])
+        first_at = (first_equity["created_at"] if first_equity else aggregate["first_close"])
+        observed_days = 0.0
+        if first_at:
+            try:
+                observed_days = max(0.0, (datetime.now(UTC) - datetime.fromisoformat(first_at)).total_seconds() / 86400.0)
+            except (TypeError, ValueError):
+                observed_days = 0.0
         return {
             "position": dict(position) if position else None,
             "trades": trades,
-            "equity": list(reversed(equity)),
-            "closed_trades": len(trades),
-            "gross_pnl": sum(float(row["gross_pnl"]) for row in trades),
+            "equity": chronological[-120:],
+            "closed_trades": closed,
+            "gross_pnl": float(aggregate["pnl"]),
+            "winning_trades": int(aggregate["wins"]),
+            "win_rate_pct": (100.0 * int(aggregate["wins"]) / closed) if closed else None,
+            "max_drawdown_pct": max_drawdown,
+            "observed_days": observed_days,
+            "first_observed_at": first_at,
+            "cycles": int(self.setting("forward_cycles") or 0),
+            "consecutive_errors": int(self.setting("forward_consecutive_errors") or 0),
+            "last_cycle": self.setting("forward_last_cycle"),
+            "latest_signal": self.setting("forward_last_signal"),
+            "last_ai_review": self.setting("forward_last_ai_review"),
+            "last_error": self.setting("forward_last_error"),
         }
 
