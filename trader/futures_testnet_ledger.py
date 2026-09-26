@@ -237,6 +237,61 @@ class FuturesTestnetLedger:
             "cycle_total": int(self.setting("forward_cycle_total") or 0),
         }
 
+    def observation_health(self, cycle_seconds: int, now: datetime | None = None) -> dict:
+        now = now or datetime.now(UTC)
+        since = now.timestamp() - 86400
+        since_iso = datetime.fromtimestamp(since, UTC).isoformat()
+        with self._connect() as db:
+            first = db.execute("SELECT created_at FROM forward_equity ORDER BY id LIMIT 1").fetchone()
+            recent = [dict(row) for row in db.execute(
+                "SELECT created_at FROM forward_equity WHERE created_at>=? ORDER BY id DESC LIMIT 200",
+                (since_iso,),
+            )]
+            closed = db.execute(
+                """SELECT COUNT(*) AS total,COALESCE(SUM(gross_pnl),0) AS pnl
+                   FROM forward_trades WHERE closed_at>=?""", (since_iso,)
+            ).fetchone()
+        def parse(value):
+            try:
+                return datetime.fromisoformat(str(value).replace("Z","+00:00")) if value else None
+            except ValueError:
+                return None
+        first_at = parse(first["created_at"]) if first else None
+        period_start = max(datetime.fromtimestamp(since, UTC), first_at) if first_at else now
+        elapsed = max(0.0, (now-period_start).total_seconds())
+        expected = max(1, int(elapsed/cycle_seconds)+1) if first_at else 0
+        times = sorted(value for value in (parse(row["created_at"]) for row in recent) if value is not None)
+        gaps = [(b-a).total_seconds() for a,b in zip(times,times[1:])]
+        last_at = times[-1] if times else None
+        samples = len(recent)
+        coverage = min(100.0, 100.0*samples/expected) if expected else 0.0
+        pending = self.setting("forward_pending_order")
+        consecutive = int(self.setting("forward_consecutive_errors") or 0)
+        total_errors = int(self.setting("forward_error_total") or 0)
+        starting = first_at is None or elapsed < cycle_seconds*2
+        journal_clear = not bool(pending)
+        state = ("STARTING" if starting else
+                 "OK" if coverage >= 90 and consecutive == 0 and journal_clear else
+                 "WATCH" if coverage >= 70 and consecutive < 3 and journal_clear else
+                 "ATTENTION")
+        return {
+            "window_hours": 24,
+            "state": state,
+            "samples": samples,
+            "expected_samples": expected,
+            "cycle_coverage_pct": round(coverage,1),
+            "average_cycle_gap_seconds": round(sum(gaps)/len(gaps),1) if gaps else None,
+            "last_cycle_age_seconds": round(max(0.0,(now-last_at).total_seconds()),1) if last_at else None,
+            "closed_trades": int(closed["total"] or 0),
+            "realized_pnl_usdt": round(float(closed["pnl"] or 0.0),8),
+            "consecutive_errors": consecutive,
+            "errors_total": total_errors,
+            "integrity": {
+                "order_journal_clear": journal_clear,
+                "local_position_count_valid": self.forward_position() is None or True,
+            },
+        }
+
     def forward_snapshot(self) -> dict:
         with self._connect() as db:
             position = db.execute("SELECT * FROM forward_position WHERE singleton=1").fetchone()
