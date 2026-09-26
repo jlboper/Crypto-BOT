@@ -1,3 +1,13 @@
+# Actualización 0.8.5 — Unified Rollout portal + Windows
+
+- Una release aprobada y firmada pasa a ser una actualización integral: el portal se publica y el agente Windows detecta automáticamente si la PC sigue en una versión anterior.
+- Windows recibe automáticamente un trabajo `update_install` para la release exacta. El supervisor conserva parada cooperativa, firma Ed25519, health-check y rollback.
+- Si la PC estaba apagada o desconectada, el rollout se genera al volver a sincronizar.
+- Una instalación que falla no se reintenta en bucle; queda registrada para revisión. Una nueva release puede volver a intentarse normalmente.
+- El botón manual de instalación permanece como recuperación/fallback, pero deja de ser el paso normal.
+- Esta versión es la transición: debe instalarse y refrescar el agente independiente una vez para activar el rollout automático de las versiones siguientes.
+- No cambia estrategia, riesgo, leverage, credenciales, ledgers ni rutas LIVE.
+
 # Actualización 0.8.4 — corrección de activación Futures
 
 - Corrige el caso en que una variable local antigua `FUTURES_FORWARD_ENABLED=false` podía seguir deshabilitando el forward test aunque la configuración firmada tuviera `forward_enabled=true`.

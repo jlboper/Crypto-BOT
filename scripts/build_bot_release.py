@@ -30,7 +30,7 @@ def build(root, paths, output, commit, sequence, expires):
         if name.endswith('.py'):
             compile(content, name, 'exec')
         files[name] = content
-    if not {'trader/__main__.py','trader/runtime_control.py','pyproject.toml'} <= files.keys():
+    if not {'trader/__main__.py','trader/runtime_control.py','pyproject.toml','config.toml'} <= files.keys():
         raise ValueError('Incomplete supervised release')
     if len(files)>2000 or sum(map(len,files.values()))>MAX_EXPANDED:
         raise ValueError('Release size limit')
@@ -44,8 +44,8 @@ def build(root, paths, output, commit, sequence, expires):
     version = tomllib.loads(files['pyproject.toml'].decode())['project']['version']
     if not re.fullmatch(r'\d+\.\d+\.\d+', version) or output.stat().st_size>MAX_PACKAGE:
         raise ValueError('Invalid release metadata')
-    release_config = tomllib.loads(files['config.toml'].decode()) if 'config.toml' in files else {}
-    release_mode = str(release_config.get('bot', {}).get('mode', 'paper')).lower()
+    release_config = tomllib.loads(files['config.toml'].decode())
+    release_mode = str(release_config.get('bot', {}).get('mode', '')).lower()
     if release_mode not in {'paper', 'testnet'}:
         raise ValueError('Invalid release execution mode')
     manifest={'app':'crypto-ai-trading-bot','mode':release_mode,'version':version,'runtime_protocol':1,

@@ -37,3 +37,8 @@ Work prepara una rama/PR. GitHub ejecuta validaciones. Al integrar en `main`, el
 ## Fase actual
 
 La prioridad es **observación**, no añadir estrategia por ruido de pocos días. Spot y Futures acumulan métricas separadas (días, cierres, P&L/retorno, drawdown, calidad y errores). Cambios de estrategia o riesgo deben basarse en evidencia suficiente; correcciones de seguridad/operación sí pueden hacerse antes.
+
+
+## Unified signed rollout
+
+Desde 0.8.5, un agente actualizado reporta su versión instalada al portal. Si el ledger de releases firmadas contiene una versión superior, el Worker crea automáticamente un `update_install` para esa release exacta. El supervisor Windows valida firma, secuencia, health-check y rollback. Un fallo real queda detenido y no se reintenta en bucle. La instalación manual permanece solo como fallback.
