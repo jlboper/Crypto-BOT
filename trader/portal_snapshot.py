@@ -59,6 +59,17 @@ def dashboard_snapshot(config, report_path=None):
                 'killed': config.futures_testnet.kill_switch_path.exists(),
                 'symbol': config.futures_testnet.forward_symbol,
                 'automatic_leverage': config.futures_testnet.forward_leverage,
+                'ai_model': config.ai.model,
+                'recovery': {
+                    'durable_order_journal': True,
+                    'separate_kill_switch': True,
+                    'startup_position_reconciliation': True,
+                    'native_exchange_stop_orders': False,
+                },
+                'live_readiness': {
+                    'enabled': False,
+                    'reason': 'Demo observation required; exchange-native protective orders are not yet validated.',
+                },
                 **FuturesTestnetLedger(config.futures_testnet.database_path).forward_snapshot(),
             },
         }
