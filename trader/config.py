@@ -195,7 +195,7 @@ def load_config(path: str | Path | None = None) -> AppConfig:
     # Forward-test enablement is part of the signed release configuration.
     # Runtime pausing uses the dedicated Futures kill switch. A stale local
     # FUTURES_FORWARD_ENABLED override must not silently disable the motor.
-    futures_forward_enabled = bool(futures_testnet.get("forward_enabled", False))
+    futures_forward_enabled = mode == "testnet" or bool(futures_testnet.get("forward_enabled", False))
     futures_forward_symbol = str(futures_testnet.get("forward_symbol", "BTCUSDT")).upper()
     futures_forward_leverage = int(futures_testnet.get("forward_leverage", 1))
     futures_forward_margin = float(futures_testnet.get("forward_margin_usdt", 10.0))
