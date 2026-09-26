@@ -79,11 +79,11 @@ class FuturesTestnetLab:
     def _configure(self, symbol: str, leverage: int) -> None:
         if leverage not in {1, 2, 3} or leverage > self.settings.max_leverage:
             raise ValueError("Futures Testnet leverage must be 1x, 2x or 3x")
-        try:
+        mode = signed_request("GET", "/fapi/v1/positionSide/dual", {})
+        if not isinstance(mode, dict) or "dualSidePosition" not in mode:
+            raise FuturesTestnetExecutionError("Futures Testnet position mode unavailable")
+        if bool(mode["dualSidePosition"]):
             signed_request("POST", "/fapi/v1/positionSide/dual", {"dualSidePosition": "false"})
-        except FuturesTestnetExecutionError as exc:
-            if exc.code != -4059:
-                raise
         try:
             signed_request("POST", "/fapi/v1/marginType", {"symbol": symbol, "marginType": "ISOLATED"})
         except FuturesTestnetExecutionError as exc:
