@@ -78,7 +78,7 @@ class RemotePaperControls:
                         'ENGINE_START_HEALTH_FAILED': 'El nuevo entorno no superó la comprobación de arranque',
                         'LOCAL_ENV_UNAVAILABLE': 'Windows no pudo actualizar la configuración local privada',
                         'TESTNET_SMOKE_REQUIRES_TESTNET': 'Activa Binance Spot Testnet antes de ejecutar la prueba',
-                        'TESTNET_SMOKE_POSITIONS_OPEN': 'La prueba Testnet requiere no tener posiciones abiertas',
+                        'TESTNET_SMOKE_NO_ISOLATED_SYMBOL': 'No hay un símbolo Testnet libre y válido para ejecutar la prueba aislada',
                         'TESTNET_SMOKE_PENDING_ORDER': 'Hay una orden Testnet pendiente de conciliación',
                         'TESTNET_SMOKE_ALLOCATION_TOO_SMALL': 'El ledger Testnet no tiene asignación suficiente para la prueba',
                         'TESTNET_SMOKE_RECONCILIATION_INCOMPLETE': 'La prueba terminó con una conciliación pendiente; revisa el ledger antes de repetir',
