@@ -29,6 +29,8 @@ $HeaderLogoPath = Join-Path $ProjectRoot "web\crypto-ai-trader-icon.png"
 $script:RestartManager = $false
 $script:AgentRefreshCheckedVersion = ''
 $script:AgentRefreshNextAttempt = [DateTime]::MinValue
+$script:AgentHealthFailures = 0
+$script:AgentRestartNextAttempt = [DateTime]::MinValue
 
 function Get-InstalledVersion {
     $projectFile = Join-Path $ProjectRoot "pyproject.toml"
@@ -161,6 +163,50 @@ function Invoke-AutomaticAgentRefresh {
     } catch {
         # Keep the menu recovery action and retry later. A refresh failure
         # never reverses a healthy bot installation or stops the PAPER motor.
+        $repairAgentItem.Text = 'Revisar conexión del portal'
+    }
+}
+
+function Invoke-PortalAgentWatchdog {
+    # The outbound agent is disposable. Repairing it must never stop or restart
+    # the trading engine, alter a ledger, or change credentials.
+    try {
+        $runtimePath = Join-Path $ProjectRoot 'data\engine-runtime.json'
+        if (-not (Test-Path -LiteralPath $runtimePath)) { return }
+        $runtime = Get-Content -LiteralPath $runtimePath -Raw | ConvertFrom-Json
+        $engineMode = ([string]$runtime.mode).ToUpperInvariant()
+        if ($runtime.phase -ne 'running' -or $engineMode -notin @('PAPER','TESTNET')) { return }
+
+        $task = Get-ScheduledTask -TaskName 'Crypto Paper Portal Agent' -ErrorAction Stop
+        if (-not $task.Actions -or -not $task.Actions[0].WorkingDirectory) { return }
+        $agentRoot = (Resolve-Path -LiteralPath $task.Actions[0].WorkingDirectory).Path
+        if ($agentRoot -eq $ProjectRoot) { return }
+        $statusPath = Join-Path $agentRoot 'data\remote-status.json'
+        $healthy = $false
+        if (Test-Path -LiteralPath $statusPath) {
+            try {
+                $remote = Get-Content -LiteralPath $statusPath -Raw | ConvertFrom-Json
+                $fresh = ([double]$remote.at) -gt ([DateTimeOffset]::UtcNow.ToUnixTimeSeconds() - 90)
+                $healthy = ($remote.sync_ok -eq $true -and ([string]$remote.mode).ToUpperInvariant() -eq $engineMode -and $fresh)
+            } catch { $healthy = $false }
+        }
+        if ($healthy) {
+            $script:AgentHealthFailures = 0
+            return
+        }
+        $script:AgentHealthFailures++
+        if ($script:AgentHealthFailures -lt 2 -or [DateTime]::UtcNow -lt $script:AgentRestartNextAttempt) { return }
+        $script:AgentRestartNextAttempt = [DateTime]::UtcNow.AddMinutes(2)
+        $script:AgentHealthFailures = 0
+
+        if ($task.State -eq 'Running') {
+            Stop-ScheduledTask -TaskName 'Crypto Paper Portal Agent' -ErrorAction Stop
+            Start-Sleep -Seconds 2
+        }
+        Start-ScheduledTask -TaskName 'Crypto Paper Portal Agent' -ErrorAction Stop
+        $repairAgentItem.Text = 'Reparar conexión del portal'
+    } catch {
+        # A watchdog failure degrades only remote visibility. Never touch motor state.
         $repairAgentItem.Text = 'Revisar conexión del portal'
     }
 }
@@ -702,6 +748,7 @@ $timer.Interval = 15000
 $timer.Add_Tick({
     Update-ManagerStatus
     Invoke-AutomaticAgentRefresh
+    Invoke-PortalAgentWatchdog
 })
 $form.Add_Shown({
     if (-not (Test-Path $StartupOptOutPath) -and -not (Test-CanonicalStartup)) {
@@ -713,6 +760,7 @@ $form.Add_Shown({
     Update-ManagerStatus
     $timer.Start()
     Invoke-AutomaticAgentRefresh
+    Invoke-PortalAgentWatchdog
     if ($Minimized) { Hide-ManagerWindow }
 })
 $form.Add_Resize({
