@@ -193,15 +193,55 @@ class FuturesTestnetLab:
         self.ledger.set_setting("pending_order", None)
         return {"resolved": True, "status": status, "phase": pending["phase"]}
 
+    def recover(self) -> dict:
+        """Resolve a prior smoke write and flatten only its recorded symbol."""
+        pending = self.ledger.setting("pending_order")
+        pending_result = self.reconcile_pending() if pending else None
+        if pending_result and not pending_result["resolved"]:
+            return {"ok": False, "pending": True, **pending_result, "live_enabled": False}
+
+        latest = self.ledger.latest()
+        if not latest or latest.get("status") == "COMPLETED":
+            return {"ok": True, "pending": False, "position_closed": True, "message": "No Futures recovery required", "live_enabled": False}
+        symbol = str(latest["symbol"])
+        rows = self._position_rows(symbol)
+        if not rows:
+            self.ledger.set_status(int(latest["id"]), "RECOVERED_FLAT")
+            return {"ok": True, "pending": False, "position_closed": True, "symbol": symbol, "live_enabled": False}
+        if len(rows) != 1:
+            raise FuturesTestnetExecutionError("Futures recovery found ambiguous positions")
+        amount = _decimal(rows[0].get("positionAmt", "0"))
+        if amount == 0:
+            self.ledger.set_status(int(latest["id"]), "RECOVERED_FLAT")
+            return {"ok": True, "pending": False, "position_closed": True, "symbol": symbol, "live_enabled": False}
+        side = "SELL" if amount > 0 else "BUY"
+        result = self._submit(
+            run_id=int(latest["id"]), phase="RECOVERY_CLOSE", symbol=symbol, side=side,
+            quantity=abs(amount), reduce_only=True,
+        )
+        if self._position_rows(symbol):
+            raise FuturesTestnetExecutionError("Futures recovery close left an open position")
+        self.ledger.set_status(int(latest["id"]), "RECOVERED")
+        return {
+            "ok": True,
+            "pending": False,
+            "position_closed": True,
+            "symbol": symbol,
+            "close_order_id": result.get("orderId"),
+            "live_enabled": False,
+        }
+
     def smoke(self, *, direction: str, leverage: int) -> dict:
         direction = direction.upper()
         if direction not in {"LONG", "SHORT"}:
             raise ValueError("Futures Testnet direction must be LONG or SHORT")
         if not self.settings.enabled:
             raise ValueError("Futures Testnet lab is disabled")
-        pending = self.reconcile_pending()
-        if pending and not pending["resolved"]:
-            raise FuturesTestnetExecutionError("Futures Testnet order still pending")
+        if self.ledger.setting("pending_order"):
+            raise FuturesTestnetExecutionError("Futures Testnet recovery required")
+        latest = self.ledger.latest()
+        if latest and latest.get("status") not in {"COMPLETED", "RECOVERED", "RECOVERED_FLAT"}:
+            raise FuturesTestnetExecutionError("Futures Testnet recovery required")
 
         account = self._account()
         if not bool(account.get("canTrade", False)):
