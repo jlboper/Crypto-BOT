@@ -221,6 +221,17 @@ test('PAPER evidence is optional until the stable Windows agent is updated',asyn
   assert.equal(instance.calls.length,1);
 });
 
+
+test('localhost update center checks the signed package without redirecting remote',async()=>{
+  const candidate={status:'verified_local_package',version:'0.8.2',release_id:'a'.repeat(64),commit:'b'.repeat(40),enabled:true};
+  const instance=bridge('localhost',[{status:200,body:candidate}]);
+  instance.start();
+  await instance.elements.get('checkAllUpdates').onclick();
+  assert.equal(instance.calls[0].path,'/api/local-update/check');
+  assert.equal(instance.calls[0].options.method,'POST');
+  assert.match(instance.elements.get('botUpdateMessage').textContent,/127\.0\.0\.1/);
+});
+
 test('localhost keeps the existing local Research endpoint',async()=>{
   const instance=bridge('localhost',[{status:202,body:{ok:true}}]);
   assert.deepEqual(await instance.api('/api/research/run',{method:'POST'}),{ok:true});
