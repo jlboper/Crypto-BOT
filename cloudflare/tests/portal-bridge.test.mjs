@@ -21,7 +21,7 @@ function bridge(hostname,responses){
   const elements=new Map(),listeners=new Map(),calls=[];
   const get=id=>{if(!elements.has(id))elements.set(id,node());return elements.get(id);};
   for(const id of ['currentPassword','newPassword','confirmPassword','passwordPanel','passwordMessage','portalLoginMessage','savePassword'])get(id);
-  const document={getElementById:get,querySelector:selector=>selector==='.shell'?get('shell'):null,
+  const document={getElementById:get,querySelector:selector=>selector==='.shell'?get('shell'):selector==='.activity-strip'?get('activityStrip'):null,
     createElement:()=>node(),addEventListener:(name,callback)=>listeners.set(name,callback)};
   const window={addEventListener(){},dispatchEvent(){}};
   const fetch=async(path,options)=>{
