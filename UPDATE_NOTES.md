@@ -1,3 +1,13 @@
+# Actualización 0.7.4 — diagnóstico Futures Demo + acciones de un solo clic
+
+- **Verificar Futures** construye ahora una orden de prueba con una cantidad compatible con `minQty`, `stepSize` y `MIN_NOTIONAL`; deja de asumir que 10 USDT siempre producen una cantidad válida para BTCUSDT.
+- Los rechazos HTTP de Binance conservan de forma acotada el código y mensaje de API y los muestran en Actividad, sin exponer credenciales.
+- El portal ya no recomienda reconciliar de forma genérica cuando el fallo ocurrió antes de una escritura; solo el estado de recovery pendiente exige **Reconciliar Futures**.
+- Las acciones manuales consultan estado fresco de Windows antes de ejecutarse, evitando depender de una caché de hasta cinco segundos.
+- **Buscar actualizaciones** deja de ignorar silenciosamente un clic por el throttle usado para comprobaciones automáticas; un clic manual siempre inicia una comprobación nueva o informa que ya hay una en curso.
+- **Instalar**, **Verificar Futures**, Research y otros controles remotos usan el mismo patrón de estado fresco para mejorar la respuesta al primer clic.
+- Mantiene Binance Futures Demo, fondos ficticios, ISOLATED, One-way, 1x/2x/3x, reduceOnly, journal durable y LIVE bloqueado.
+
 # Actualización 0.7.3 — verificación real de permiso Futures Demo
 
 - Deja de bloquear Futures Demo únicamente por el campo `canTrade` de `/fapi/v3/account`.

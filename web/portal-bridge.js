@@ -63,8 +63,12 @@ function setUpdateCenterState(kind,headline,message,candidate=null){
   check.hidden=canInstall;
   check.textContent=kind==='current'?'Comprobar de nuevo':'Comprobar ahora';
 }
-async function portalState(){
-  if(portalCache && Date.now()-portalCacheAt<5000)return portalCache;
+async function portalState(force=false){
+  if(force){
+    portalCacheAt=0;
+    if(portalPending){try{await portalPending;}catch{}}
+  }
+  if(!force && portalCache && Date.now()-portalCacheAt<5000)return portalCache;
   const epoch=portalEpoch;
   if(!portalPending)portalPending=portalRequest('/v1/status').then(state=>{
     if(epoch!==portalEpoch)throw new Error('Sesión finalizada');
@@ -108,7 +112,7 @@ window.portalApi=async(path,options={})=>{
   }
   if(options.method==='POST'){
     if(['/api/paper/risk-profile','/api/paper/close-position','/api/operations/model','/api/operations/restart','/api/operations/execution-mode','/api/operations/testnet-smoke','/api/operations/futures-check','/api/operations/futures-smoke','/api/operations/futures-reconcile'].includes(path)){
-      const state=await portalState();
+      const state=await portalState(true);
       if(state.stale||state.snapshot?.paper_controls!==true)throw new Error('Controles del motor pendientes de conexión de Windows');
       if((path.startsWith('/api/operations/'))&&state.snapshot?.operations_controls!==true)throw new Error('Actualiza y repara el agente de Windows antes de usar esta opción');
       let payload;
@@ -121,7 +125,7 @@ window.portalApi=async(path,options={})=>{
       portalCacheAt=0;return result;
     }
     if(path==='/api/research/run'){
-      const state=await portalState();
+      const state=await portalState(true);
       if(state.stale)throw new Error('Windows sin conexión reciente');
       const result=await portalRequest('/v1/jobs',{action:'research',request_id:crypto.randomUUID()});
       portalCacheAt=0;return result;
@@ -286,23 +290,28 @@ document.addEventListener('DOMContentLoaded',()=>{
     }catch(error){message.textContent=error.message;}
     finally{current.value='';next.value='';confirmation.value='';button.disabled=false;}
   };
-  window.addEventListener('portal-ready',()=>{if(location.hash==='#password')document.getElementById('passwordPanel').hidden=false;if(location.hash==='#updates')checkAllUpdates();});
+  window.addEventListener('portal-ready',()=>{if(location.hash==='#password')document.getElementById('passwordPanel').hidden=false;if(location.hash==='#updates')checkAllUpdates(false);});
   let updatePending=false,lastUpdatesAt=0;
-  async function checkAllUpdates(){
+  async function checkAllUpdates(force=true){
     if(!remotePortal){
       const output=document.getElementById('updateMessage');output.replaceChildren();
       const link=document.createElement('a');link.href='https://crypto-paper-private-portal.jlboper.workers.dev/#updates';
       link.textContent='Abrir el portal privado para revisar y autorizar con tu sesión segura';
       link.rel='noopener';link.target='_blank';output.append(link);return;
     }
-    if(updatePending || Date.now()-lastUpdatesAt<30000)return;
+    const output=document.getElementById('updateMessage');
+    if(updatePending){
+      output.textContent='La comprobación ya está en curso; no necesitas pulsar de nuevo.';
+      return;
+    }
+    if(!force && Date.now()-lastUpdatesAt<30000)return;
     updatePending=true;const button=document.getElementById('checkAllUpdates');button.disabled=true;
-    const output=document.getElementById('updateMessage'),releases=document.getElementById('updateReleases'),botOutput=document.getElementById('botUpdateMessage');
+    const releases=document.getElementById('updateReleases'),botOutput=document.getElementById('botUpdateMessage');
     releases.replaceChildren();output.textContent='';
     setUpdateCenterState('searching','Buscando actualizaciones','Verificando publicación, firma y supervisor de Windows…');
     const epoch=portalEpoch;
     try{
-      const state=await portalState();
+      const state=await portalState(true);
       const [portalResult,botResult]=await Promise.allSettled([
         portalRequest('/v1/updates'),
         state.stale?Promise.reject(new Error('Windows debe estar conectado')):
@@ -343,7 +352,7 @@ document.addEventListener('DOMContentLoaded',()=>{
       document.getElementById('updateMessage').textContent='Inicia sesión para revisar las versiones disponibles.';
     }else{
       panel.scrollIntoView({behavior:'smooth',block:'start'});
-      checkAllUpdates();
+      checkAllUpdates(false);
     }
   }
   async function installBotUpdate(){
@@ -352,7 +361,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     const button=document.getElementById('installBotUpdate');
     let submitted=false;button.disabled=true;
     try{
-      const state=await portalState();if(state.stale)throw new Error('Windows debe estar conectado');
+      const state=await portalState(true);if(state.stale)throw new Error('Windows debe estar conectado');
       button.disabled=true;
       const candidate=state.snapshot?.bot_update;
       if(!candidate?.enabled||candidate.expires<=Date.now()/1000)throw new Error('Primero verifica una versión disponible');
@@ -383,7 +392,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     }catch(error){document.getElementById('botUpdateMessage').textContent=error.message;}
     finally{portalCacheAt=0;if(!submitted)button.disabled=false;}
   }
-  document.getElementById('checkAllUpdates').onclick=checkAllUpdates;
+  document.getElementById('checkAllUpdates').onclick=()=>checkAllUpdates(true);
   document.getElementById('installBotUpdate').onclick=installBotUpdate;
   document.getElementById('restoreBotVersion').onclick=restoreBotVersion;
   document.getElementById('updateButton').onclick=showUpdateCenter;

@@ -105,6 +105,23 @@ test('one update search checks GitHub and asks Windows to verify the bot',async(
   assert.match(instance.elements.get('botUpdateMessage').textContent,/firma y el supervisor se están comprobando/);
 });
 
+
+test('manual update click performs a fresh check instead of being silently throttled',async()=>{
+  const instance=bridge('paper.example.workers.dev',[
+    {status:200,body:state()},
+    {status:200,body:{message:'Primera',runs:[]}},
+    {status:202,body:{id:31,action:'update_check',status:'pending'}},
+    {status:200,body:state()},
+    {status:200,body:{message:'Segunda',runs:[]}},
+    {status:202,body:{id:32,action:'update_check',status:'pending'}},
+  ]);
+  instance.start();
+  await instance.elements.get('checkAllUpdates').onclick();
+  await instance.elements.get('checkAllUpdates').onclick();
+  assert.equal(instance.calls.filter(call=>call.path==='/v1/jobs').length,2);
+  assert.equal(instance.elements.get('updateMessage').textContent,'Segunda');
+});
+
 test('remote Testnet smoke uses the supervised operations control',async()=>{
   const instance=bridge('paper.example.workers.dev',[
     {status:200,body:state({snapshot:{mode:'TESTNET',dashboard:{},paper_controls:true,operations_controls:true}})},

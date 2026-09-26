@@ -6,7 +6,7 @@ readiness checks and a small reversible LONG/SHORT smoke round trip using
 """
 from __future__ import annotations
 
-from decimal import Decimal, ROUND_DOWN
+from decimal import Decimal, ROUND_CEILING, ROUND_DOWN
 import math
 import secrets
 
@@ -61,7 +61,7 @@ class FuturesTestnetLab:
         """Validate TRADE permission without creating an order."""
         price, _ = self._reference(symbol)
         info = self._symbol_info(symbol)
-        quantity = self._quantity(info, price, Decimal("10"))
+        quantity = self._probe_quantity(info, price, Decimal("10"))
         result = signed_request("POST", "/fapi/v1/order/test", {
             "symbol": symbol,
             "side": "BUY",
@@ -137,6 +137,22 @@ class FuturesTestnetLab:
             except (TypeError, ValueError):
                 pass
         return price, funding
+
+    @staticmethod
+    def _probe_quantity(info: dict, price: Decimal, target_notional: Decimal) -> Decimal:
+        """Smallest valid MARKET quantity for /order/test; this order is never executed."""
+        filters = {row.get("filterType"): row for row in info.get("filters", []) if isinstance(row, dict)}
+        lot = filters.get("MARKET_LOT_SIZE") or filters.get("LOT_SIZE") or {}
+        step = _decimal(lot.get("stepSize", "0"))
+        minimum = _decimal(lot.get("minQty", "0"))
+        if step <= 0 or minimum <= 0:
+            raise FuturesTestnetExecutionError("Futures Demo quantity filters unavailable")
+        notional_filter = filters.get("MIN_NOTIONAL") or {}
+        minimum_notional = _decimal(notional_filter.get("notional", "0"))
+        required_notional = max(target_notional, minimum_notional)
+        by_notional = (required_notional / price / step).to_integral_value(rounding=ROUND_CEILING) * step
+        quantity = max(minimum, by_notional)
+        return (quantity / step).to_integral_value(rounding=ROUND_CEILING) * step
 
     @staticmethod
     def _quantity(info: dict, price: Decimal, notional: Decimal) -> Decimal:

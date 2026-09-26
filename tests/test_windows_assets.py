@@ -104,8 +104,8 @@ class WindowsAssetTests(unittest.TestCase):
         bridge = (PROJECT_ROOT / "web" / "portal-bridge.js").read_text(encoding="utf-8")
         self.assertIn("Nueva versión disponible", bridge)
         self.assertIn("Estás actualizado", bridge)
-        self.assertIn("checkAllUpdates();", bridge)
-        self.assertIn("if(location.hash==='#updates')checkAllUpdates()", bridge)
+        self.assertIn("checkAllUpdates(false);", bridge)
+        self.assertIn("if(location.hash==='#updates')checkAllUpdates(false)", bridge)
         self.assertIn("Instalar v${candidate.version}", bridge)
 
     def test_remote_update_deep_link_opens_the_shared_center(self):

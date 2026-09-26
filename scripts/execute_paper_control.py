@@ -32,6 +32,13 @@ def main():
     print(json.dumps(result, allow_nan=False))
 
 
+def _safe_detail(error: Exception) -> str | None:
+    if type(error).__name__ != 'FuturesTestnetExecutionError':
+        return None
+    message = " ".join(str(error).split())
+    return message[:220] if message else None
+
+
 def _safe_failure(error: Exception) -> str:
     message = str(error)
     if message == 'Binance Spot Testnet credentials cannot trade':
@@ -80,10 +87,16 @@ if __name__ == '__main__':
         main()
     except Exception as error:
         code = _safe_failure(error)
+        detail = _safe_detail(error)
         try:
-            atomic_json(ROOT / 'data/operation-last.json', {'status':'failed',
-                         'at':time.time(), 'reason':code})
+            payload = {'status':'failed','at':time.time(),'reason':code}
+            if detail:
+                payload['detail'] = detail
+            atomic_json(ROOT / 'data/operation-last.json', payload)
         except (OSError, ValueError):
             pass
-        print(json.dumps({'ok': False, 'reason': code}, separators=(',', ':')))
+        response = {'ok': False, 'reason': code}
+        if detail:
+            response['detail'] = detail
+        print(json.dumps(response, separators=(',', ':')))
         raise SystemExit(1) from None
