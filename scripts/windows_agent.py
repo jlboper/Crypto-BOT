@@ -21,8 +21,8 @@ from trader.remote_paper_controls import RemotePaperControls
 def source_settings(source):
     source = Path(source).resolve(strict=True)
     raw = tomllib.loads((source / "config.toml").read_text(encoding="utf-8"))
-    if raw["bot"]["mode"].lower() != "paper":
-        raise ValueError("Source must remain PAPER")
+    if raw["bot"]["mode"].lower() not in {"paper", "testnet"}:
+        raise ValueError("Source mode is unsupported")
     def confined(value):
         path = (source / value).resolve()
         if not path.is_relative_to(source) or path == source:
@@ -34,16 +34,27 @@ def source_settings(source):
         raise ValueError("Existing database required; no database will be created")
     config = load_config(source / "config.toml")
     model = str(raw["ai"]["model"])
-    # Read only the non-secret model override; never import source API credentials.
+    execution_mode = str(raw["bot"]["mode"]).lower()
+    # Read only non-secret overrides; never import source API credentials.
     for name in (".env.local", ".env"):
         file = source / name
-        if file.is_file():
-            found = next((line.split("=", 1)[1].strip().strip('"\'') for line in file.read_text(encoding="utf-8").splitlines()
-                          if line.split("=", 1)[0].strip() == "OPENAI_MODEL" and "=" in line), None)
-            if found:
-                model = found
-                break
-    return replace(config, bot=replace(config.bot, database_path=database, kill_switch_path=kill), ai=replace(config.ai, model=model))
+        if not file.is_file():
+            continue
+        rows = file.read_text(encoding="utf-8").splitlines()
+        found_model = next((line.split("=", 1)[1].strip().strip('"\'') for line in rows
+                            if line.split("=", 1)[0].strip() == "OPENAI_MODEL" and "=" in line), None)
+        found_mode = next((line.split("=", 1)[1].strip().strip('"\'').lower() for line in rows
+                           if line.split("=", 1)[0].strip() == "EXECUTION_MODE" and "=" in line), None)
+        if found_model:
+            model = found_model
+        if found_mode:
+            execution_mode = found_mode
+        if found_model or found_mode:
+            break
+    if execution_mode not in {"paper", "testnet"}:
+        raise ValueError("Unsupported execution override")
+    return replace(config, bot=replace(config.bot, mode=execution_mode, database_path=database, kill_switch_path=kill),
+                   ai=replace(config.ai, model=model))
 
 
 def dashboard_from_source(source, config):
@@ -72,8 +83,9 @@ def dashboard_from_source(source, config):
     if result.returncode != 0 or len(result.stdout) > 480_000:
         raise RuntimeError('PAPER projection unavailable')
     payload = json.loads(result.stdout)
-    if not isinstance(payload, dict) or not isinstance(payload.get('status'), dict) or payload['status'].get('mode') != 'PAPER':
-        raise ValueError('PAPER projection invalid')
+    if (not isinstance(payload, dict) or not isinstance(payload.get('status'), dict)
+            or payload['status'].get('mode') not in {'PAPER', 'TESTNET'}):
+        raise ValueError('Trading projection invalid')
     return payload
 
 
@@ -161,9 +173,9 @@ def main():
         (state / "REMOTE_STOP").unlink(missing_ok=True)
     def validate():
         raw = tomllib.loads((args.source / "config.toml").read_text(encoding="utf-8"))
-        if str(raw["bot"]["mode"]).lower() != "paper":
-            raise ValueError("Source must remain PAPER")
-        if (args.source / raw["bot"]["database_path"]).resolve() != config.bot.database_path or (args.source / raw["bot"]["kill_switch_path"]).resolve() != config.bot.kill_switch_path:
+        refreshed = source_settings(args.source)
+        if ((args.source / raw["bot"]["database_path"]).resolve() != refreshed.bot.database_path
+                or (args.source / raw["bot"]["kill_switch_path"]).resolve() != refreshed.bot.kill_switch_path):
             raise ValueError("Source paths changed; restart after review")
     last_success = None
     def report(ok):
@@ -172,7 +184,7 @@ def main():
             last_success = time.time()
         temporary = state / "remote-status.tmp"
         temporary.write_text(json.dumps({"pid": os.getpid(), "at": time.time(), "last_success": last_success,
-                                         "sync_ok": ok, "error_type": agent.last_error, "mode": "PAPER", "engine_started": False}))
+                                         "sync_ok": ok, "error_type": agent.last_error, "mode": agent.config.bot.mode.upper(), "engine_started": False}))
         temporary.replace(state / "remote-status.json")
     agent.run(stop=lambda: (state / "REMOTE_STOP").exists(), validate=validate, report=report)
 
