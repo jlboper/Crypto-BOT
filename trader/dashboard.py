@@ -128,6 +128,61 @@ class DashboardServer:
                 if not self._same_origin():
                     self._json({"error": "origin not allowed"}, HTTPStatus.FORBIDDEN)
                     return
+                if path in {"/api/local-update/check", "/api/local-update/install"}:
+                    try:
+                        if self.client_address[0] not in {"127.0.0.1", "::1"}:
+                            raise ValueError("loopback only")
+                        if self.headers.get("Content-Type", "").split(";", 1)[0].strip() != "application/json":
+                            raise ValueError("JSON required")
+                        length = int(self.headers.get("Content-Length", "0"))
+                        if not 0 < length <= 512:
+                            raise ValueError("Invalid request size")
+                        payload = json.loads(self.rfile.read(length))
+                        if not isinstance(payload, dict):
+                            raise ValueError("Invalid request")
+                        script = PROJECT_ROOT / "scripts" / "local_update.py"
+                        python = Path(sys.executable)
+                        if python.name.lower() == "pythonw.exe":
+                            python = python.with_name("python.exe")
+                        if path.endswith("/check"):
+                            if payload:
+                                raise ValueError("Check accepts no parameters")
+                            result = subprocess.run(
+                                [str(python), "-I", "-B", str(script), "--source", str(PROJECT_ROOT), "--check-online"],
+                                cwd=PROJECT_ROOT, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                                stderr=subprocess.DEVNULL, timeout=60, check=False,
+                                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                            )
+                            if result.returncode != 0 or len(result.stdout) > 8192:
+                                raise RuntimeError("Local update verification failed")
+                            verified = json.loads(result.stdout)
+                            if verified.get("status") != "verified_local_package":
+                                raise RuntimeError("Local update verification failed")
+                            self._json({**verified, "enabled": True})
+                        else:
+                            release_id = payload.get("release_id")
+                            if set(payload) != {"release_id"} or not isinstance(release_id, str) or len(release_id) != 64 or any(ch not in "0123456789abcdef" for ch in release_id):
+                                raise ValueError("Invalid release approval")
+                            log = PROJECT_ROOT / "data" / "local-update-http.log"
+                            log.parent.mkdir(parents=True, exist_ok=True)
+                            handle = log.open("ab")
+                            try:
+                                subprocess.Popen(
+                                    [str(python), "-I", "-B", str(script), "--source", str(PROJECT_ROOT),
+                                     "--delay-seconds", "1", "--install", release_id],
+                                    cwd=PROJECT_ROOT, stdin=subprocess.DEVNULL, stdout=handle, stderr=subprocess.STDOUT,
+                                    creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                                    close_fds=True,
+                                )
+                            finally:
+                                handle.close()
+                            self._json({"status": "pending", "release_id": release_id,
+                                        "message": "Instalación local supervisada iniciada"}, HTTPStatus.ACCEPTED)
+                    except ValueError:
+                        self._json({"error": "Solicitud de actualización local inválida"}, HTTPStatus.CONFLICT)
+                    except Exception:
+                        self._json({"error": "No fue posible iniciar la actualización local"}, HTTPStatus.SERVICE_UNAVAILABLE)
+                    return
                 if path in {"/api/operations/model", "/api/operations/restart", "/api/operations/execution-mode", "/api/operations/testnet-smoke", "/api/operations/futures-check", "/api/operations/futures-smoke", "/api/operations/futures-reconcile", "/api/operations/futures-forward-pause", "/api/operations/futures-forward-resume"}:
                     try:
                         if self.headers.get('Content-Type', '').split(';', 1)[0].strip() != 'application/json':
@@ -303,6 +358,18 @@ class DashboardServer:
                         "killed": outer.config.futures_testnet.kill_switch_path.exists(),
                         "symbol": outer.config.futures_testnet.forward_symbol,
                         "automatic_leverage": outer.config.futures_testnet.forward_leverage,
+                        "ai_model": outer.config.ai.model,
+                        "last_ai_review": FuturesTestnetLedger(outer.config.futures_testnet.database_path).setting("forward_last_ai_review"),
+                        "recovery": {
+                            "durable_order_journal": True,
+                            "startup_position_reconciliation": True,
+                            "separate_kill_switch": True,
+                            "native_exchange_stop_orders": False,
+                        },
+                        "live_readiness": {
+                            "enabled": False,
+                            "reason": "Demo observation and exchange-native protective orders are required before LIVE.",
+                        },
                         **snapshot,
                     })
                 elif path == "/api/paper-scorecard":

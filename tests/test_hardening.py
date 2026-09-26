@@ -148,6 +148,28 @@ class AIValidationTests(unittest.TestCase):
             self.assertEqual(sent["max_output_tokens"], 800)
 
 
+
+    def test_futures_review_uses_same_model_and_fails_closed(self):
+        config = load_config()
+        proposal = {"direction": "LONG", "score": 82, "price": 100000.0, "atr": 2000.0,
+                    "rsi": 61.0, "ema_fast": 99000.0, "ema_slow": 97000.0, "volume_ratio": 1.4}
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "fake-for-tests"}), patch("urllib.request.urlopen") as call:
+            call.return_value.__enter__.return_value.read.return_value = json.dumps({
+                "output_text": json.dumps({"verdict": "ALLOW", "confidence": .91, "reason": "coherent"})
+            }).encode()
+            review = AIAdvisor(config.ai).review_futures(proposal, {"wallet_balance": 5000.0})
+            self.assertEqual(review.verdict, "ALLOW")
+            sent = json.loads(call.call_args.args[0].data)
+            self.assertEqual(sent["model"], config.ai.model)
+            self.assertIn("1x isolated leverage", sent["instructions"])
+            self.assertFalse(sent["store"])
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "fake-for-tests"}), patch("urllib.request.urlopen") as call:
+            call.return_value.__enter__.return_value.read.return_value = json.dumps({
+                "output_text": json.dumps({"verdict": "ALLOW", "confidence": .2, "reason": "weak"})
+            }).encode()
+            self.assertEqual(AIAdvisor(config.ai).review_futures(proposal, {}).verdict, "REJECT")
+
+
 class PortalTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()

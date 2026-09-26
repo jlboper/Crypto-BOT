@@ -269,7 +269,9 @@ class FuturesTestnetLab:
             raise FuturesTestnetExecutionError("Futures forward order identity mismatch")
         if result.get("status") != "FILLED":
             raise FuturesTestnetExecutionError("Futures forward MARKET order requires reconciliation")
-        self.ledger.set_setting("forward_pending_order", None)
+        # The caller clears the journal only after the corresponding local
+        # position/trade commit. This closes the power-loss window between a
+        # confirmed Binance fill and durable local accounting.
         return result
 
     def reconcile_forward_pending(self) -> dict | None:
@@ -287,7 +289,8 @@ class FuturesTestnetLab:
             return {"resolved": False, "status": status, "pending": pending}
         if status not in {"FILLED", "CANCELED", "EXPIRED", "REJECTED", "EXPIRED_IN_MATCH"}:
             raise FuturesTestnetExecutionError("Unknown Futures forward order state")
-        self.ledger.set_setting("forward_pending_order", None)
+        if status != "FILLED":
+            self.ledger.set_setting("forward_pending_order", None)
         return {"resolved": True, "status": status, "pending": pending, "order": result}
 
     def _execution_price(self, order: dict, symbol: str) -> Decimal:

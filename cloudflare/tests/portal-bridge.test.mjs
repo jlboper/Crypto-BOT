@@ -21,7 +21,7 @@ function bridge(hostname,responses){
   const elements=new Map(),listeners=new Map(),calls=[];
   const get=id=>{if(!elements.has(id))elements.set(id,node());return elements.get(id);};
   for(const id of ['currentPassword','newPassword','confirmPassword','passwordPanel','passwordMessage','portalLoginMessage','savePassword'])get(id);
-  const document={getElementById:get,querySelector:selector=>selector==='.shell'?get('shell'):null,
+  const document={getElementById:get,querySelector:selector=>selector==='.shell'?get('shell'):selector==='.activity-strip'?get('activityStrip'):null,
     createElement:()=>node(),addEventListener:(name,callback)=>listeners.set(name,callback)};
   const window={addEventListener(){},dispatchEvent(){}};
   const fetch=async(path,options)=>{
@@ -219,6 +219,17 @@ test('PAPER evidence is optional until the stable Windows agent is updated',asyn
   assert.equal(report.status,'INSUFFICIENT_EVIDENCE');
   assert.deepEqual(await instance.api('/api/paper-scorecard'),report);
   assert.equal(instance.calls.length,1);
+});
+
+
+test('localhost update center checks the signed package without redirecting remote',async()=>{
+  const candidate={status:'verified_local_package',version:'0.8.2',release_id:'a'.repeat(64),commit:'b'.repeat(40),enabled:true};
+  const instance=bridge('localhost',[{status:200,body:candidate}]);
+  instance.start();
+  await instance.elements.get('checkAllUpdates').onclick();
+  assert.equal(instance.calls[0].path,'/api/local-update/check');
+  assert.equal(instance.calls[0].options.method,'POST');
+  assert.match(instance.elements.get('botUpdateMessage').textContent,/127\.0\.0\.1/);
 });
 
 test('localhost keeps the existing local Research endpoint',async()=>{

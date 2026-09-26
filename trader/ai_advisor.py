@@ -92,6 +92,67 @@ class AIAdvisor:
                 return AIReview("REJECT", 1.0, 0.0, f"AI review failed safely: {type(exc).__name__}")
             return AIReview("ALLOW", 0.0, 1.0, f"AI review unavailable: {type(exc).__name__}")
 
+
+    def review_futures(self, signal: dict, account_context: dict[str, float]) -> AIReview:
+        """Fail-closed final confirmation for a deterministic Futures Demo entry."""
+        if not self.available:
+            if self.settings.fail_closed:
+                return AIReview("REJECT", 1.0, 0.0, "AI unavailable; fail-closed policy")
+            return AIReview("ALLOW", 0.0, 1.0, "AI unavailable; quantitative signal used")
+
+        schema = {
+            "type": "object",
+            "properties": {
+                "verdict": {"type": "string", "enum": ["ALLOW", "REJECT"]},
+                "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+                "reason": {"type": "string", "maxLength": 240},
+            },
+            "required": ["verdict", "confidence", "reason"],
+            "additionalProperties": False,
+        }
+        payload = {
+            "model": self.settings.model,
+            "store": False,
+            "max_output_tokens": self.settings.max_output_tokens,
+            "reasoning": {"effort": "low"},
+            "instructions": (
+                "You are the final conservative risk confirmation layer for a Binance Futures Demo forward test. "
+                "A deterministic engine already proposed exactly one BTCUSDT entry at 1x isolated leverage. "
+                "You may only ALLOW or REJECT that exact proposal. Never create a trade, reverse direction, "
+                "increase size or leverage, remove protection, or infer missing market data. "
+                "Reject inconsistent, overextended, ambiguous, or weakly supported setups."
+            ),
+            "input": json.dumps({"signal": signal, "account": account_context}, separators=(",", ":")),
+            "text": {"format": {"type": "json_schema", "name": "futures_trade_confirmation",
+                                "strict": True, "schema": schema}},
+        }
+        request = urllib.request.Request(
+            "https://api.openai.com/v1/responses",
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=self.settings.timeout_seconds) as response:
+                body = json.loads(response.read().decode("utf-8"))
+            text = body.get("output_text") or self._extract_output_text(body)
+            parsed = json.loads(text)
+            if body.get("status", "completed") != "completed" or not isinstance(parsed, dict):
+                raise ValueError("incomplete response")
+            verdict = parsed["verdict"]
+            confidence = parsed["confidence"]
+            if verdict not in {"ALLOW", "REJECT"} or not isinstance(parsed["reason"], str):
+                raise ValueError("invalid review")
+            if type(confidence) not in (int, float) or not math.isfinite(confidence) or not 0 <= confidence <= 1:
+                raise ValueError("invalid review number")
+            if confidence < self.settings.minimum_confidence:
+                return AIReview("REJECT", confidence, 0.0, "AI confidence below configured minimum")
+            return AIReview(verdict, confidence, 1.0 if verdict == "ALLOW" else 0.0, str(parsed["reason"])[:240])
+        except (urllib.error.URLError, TimeoutError, ValueError, KeyError, TypeError, AttributeError) as exc:
+            if self.settings.fail_closed:
+                return AIReview("REJECT", 1.0, 0.0, f"AI review failed safely: {type(exc).__name__}")
+            return AIReview("ALLOW", 0.0, 1.0, f"AI review unavailable: {type(exc).__name__}")
+
     @staticmethod
     def _extract_output_text(body: dict) -> str:
         texts: list[str] = []

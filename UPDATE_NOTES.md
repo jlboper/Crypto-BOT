@@ -1,3 +1,15 @@
+# Actualización 0.8.2 — cierre operativo para observación dual
+
+- **Futures Demo usa el mismo modelo IA que Spot** como confirmación final fail-closed antes de una entrada automática. La IA solo puede `ALLOW` o `REJECT`; no crea la operación, no cambia LONG/SHORT, no aumenta tamaño/leverage y no elimina protecciones.
+- Las escrituras Futures inciertas ahora se recuperan desde el journal durable después de fallas de Internet, proceso o energía. Una apertura confirmada puede reconstruirse desde Binance + el plan persistido; un cierre confirmado se concilia sin reenviar la orden.
+- Se mantiene un **kill switch separado de Futures** y tres errores consecutivos pausan ese motor sin detener Spot.
+- El portal normal se limpia alrededor de **Spot Testnet + Futures Demo**; PAPER queda plegado como respaldo técnico/CI.
+- El estado Futures distingue **ACTIVO · ESPERANDO SEÑAL**, posición abierta, pausado e inactivo. El panel muestra además la última confirmación IA y el estado de recuperación.
+- El centro de control de Windows refleja los dos motores y añade un watchdog con backoff que recupera el proceso del motor si desaparece inesperadamente, sin interferir con mantenimiento/updates firmados.
+- Desde **http://127.0.0.1:8765** se puede buscar, verificar e iniciar directamente una actualización firmada usando el supervisor independiente de Windows; ya no hace falta abrir el portal remoto para instalar.
+- La observación comparativa de 0.8.1 se conserva: días, cierres, P&L, retorno, drawdown, win rate, profit factor, LONG/SHORT, ciclos y errores.
+- **LIVE sigue bloqueado.** Los stops/targets nativos persistentes en el exchange todavía no forman parte del forward test; mientras la PC esté completamente sin Internet o energía, la protección local no puede actuar. Esa capacidad queda como puerta obligatoria antes de considerar capital real.
+
 # Actualización 0.8.1 — observabilidad comparativa Spot + Futures
 
 - Añade un scorecard persistente del forward test Futures Demo: días observados, cierres, P&L realizado bruto, retorno observado de la cuenta, win rate, profit factor, drawdown muestreado y desglose LONG/SHORT.

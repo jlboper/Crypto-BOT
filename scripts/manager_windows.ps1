@@ -31,6 +31,7 @@ $script:AgentRefreshCheckedVersion = ''
 $script:AgentRefreshNextAttempt = [DateTime]::MinValue
 $script:AgentHealthFailures = 0
 $script:AgentRestartNextAttempt = [DateTime]::MinValue
+$script:EngineRestartNextAttempt = [DateTime]::MinValue
 
 function Get-InstalledVersion {
     $projectFile = Join-Path $ProjectRoot "pyproject.toml"
@@ -224,6 +225,15 @@ function Get-TradingProcesses {
     )
 }
 
+function Invoke-TradingEngineWatchdog {
+    if (Test-Path (Join-Path $ProjectRoot 'data\UPDATE_MAINTENANCE.json')) { return }
+    if (Test-Path $StartupOptOutPath) { return }
+    if ((Get-TradingProcesses).Count -gt 0) { return }
+    if ([DateTime]::UtcNow -lt $script:EngineRestartNextAttempt) { return }
+    $script:EngineRestartNextAttempt = [DateTime]::UtcNow.AddMinutes(1)
+    try { Start-TradingBot } catch { }
+}
+
 function Start-TradingBot {
     if ((Get-TradingProcesses).Count -gt 0) { return }
     $launcher = (Get-Command py -ErrorAction Stop).Source
@@ -414,7 +424,7 @@ $title.ForeColor = [System.Drawing.Color]::FromArgb(236, 242, 255)
 $form.Controls.Add($title)
 
 $subtitle = New-Object System.Windows.Forms.Label
-$subtitle.Text = "Centro de control local y monitor de inversión"
+$subtitle.Text = "Spot Testnet + Futures Demo · centro de control"
 $subtitle.Location = New-Object System.Drawing.Point(103, 59)
 $subtitle.Size = New-Object System.Drawing.Size(460, 22)
 $subtitle.ForeColor = [System.Drawing.Color]::FromArgb(132, 153, 184)
@@ -575,7 +585,7 @@ $footerPanel.BackColor = [System.Drawing.Color]::FromArgb(11, 20, 34)
 $form.Controls.Add($footerPanel)
 
 $protectionLabel = New-Object System.Windows.Forms.Label
-$protectionLabel.Text = "✓  Protecciones activas  ·  Simulación sin dinero real"
+$protectionLabel.Text = "✓  Dos motores de prueba  ·  Fondos ficticios  ·  LIVE bloqueado"
 $protectionLabel.Location = New-Object System.Drawing.Point(16, 12)
 $protectionLabel.Size = New-Object System.Drawing.Size(470, 22)
 $protectionLabel.ForeColor = [System.Drawing.Color]::FromArgb(92, 215, 171)
@@ -603,16 +613,22 @@ function Update-ManagerStatus {
     try {
         $status = Invoke-RestMethod -Uri ($DashboardUrl + "/api/status") -TimeoutSec 3
         $activeMode = ([string]$status.mode).ToUpperInvariant()
-        if ($activeMode -in @('PAPER','TESTNET')) {
-            $modeBadge.Text = $activeMode
-        }
+        if ($activeMode -eq 'TESTNET') { $modeBadge.Text = "SPOT" }
+        elseif ($activeMode -eq 'PAPER') { $modeBadge.Text = "BACKUP" }
+        $futures = $null
+        try { $futures = Invoke-RestMethod -Uri ($DashboardUrl + "/api/futures-forward") -TimeoutSec 3 } catch { }
         $state = [string]$status.activity.state
         if ($state -eq "operational") {
             $statusLabel.Text = "Motor operativo"
             $statusLabel.ForeColor = [System.Drawing.Color]::FromArgb(45, 226, 166)
             $statusDot.ForeColor = [System.Drawing.Color]::FromArgb(45, 226, 166)
             $statusPanel.BackColor = [System.Drawing.Color]::FromArgb(14, 38, 42)
-            $statusDescription.Text = "Todos los servicios responden correctamente."
+            $futuresText = if ($futures -and $futures.enabled) {
+                if ($futures.killed) { "Futures Demo pausado" }
+                elseif ($futures.position) { "Futures Demo con posición abierta" }
+                else { "Futures Demo activo, esperando señal" }
+            } else { "Futures Demo inactivo" }
+            $statusDescription.Text = "Spot responde · $futuresText."
             $notifyIcon.Icon = $script:OperationalIcon
             $trayStatusItem.Text = "● Motor operativo"
             $trayStatusItem.ForeColor = [System.Drawing.Color]::FromArgb(45, 226, 166)
@@ -706,11 +722,10 @@ function Update-ManagerStatus {
         $killButton.BackColor = [System.Drawing.Color]::FromArgb(55, 24, 35)
         $killButton.ForeColor = [System.Drawing.Color]::FromArgb(255, 147, 164)
         $killButton.FlatAppearance.BorderColor = [System.Drawing.Color]::FromArgb(120, 48, 66)
-        $shownMode = if ($modeBadge.Text -in @('PAPER','TESTNET')) { $modeBadge.Text } else { 'PRUEBA' }
-        $protectionLabel.Text = if ($shownMode -eq 'TESTNET') {
-            "✓  Binance Spot Testnet  ·  Fondos ficticios  ·  LIVE bloqueado"
+        $protectionLabel.Text = if ($activeMode -eq 'TESTNET') {
+            "✓  Spot Testnet + Futures Demo  ·  Fondos ficticios  ·  LIVE bloqueado"
         } else {
-            "✓  PAPER  ·  Simulación interna  ·  LIVE bloqueado"
+            "✓  Respaldo técnico PAPER  ·  LIVE bloqueado"
         }
         $protectionLabel.ForeColor = [System.Drawing.Color]::FromArgb(92, 215, 171)
     }
@@ -770,6 +785,7 @@ $timer.Add_Tick({
     Update-ManagerStatus
     Invoke-AutomaticAgentRefresh
     Invoke-PortalAgentWatchdog
+    Invoke-TradingEngineWatchdog
 })
 $form.Add_Shown({
     if (-not (Test-Path $StartupOptOutPath) -and -not (Test-CanonicalStartup)) {
