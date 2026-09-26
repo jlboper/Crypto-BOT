@@ -18,6 +18,44 @@ from trader.remote_jobs import RemoteJobs
 from trader.remote_paper_controls import RemotePaperControls
 
 
+SUPERVISOR_MODULES = (
+    "scripts/windows_agent.py",
+    "scripts/remote_job.py",
+    "trader/remote_agent.py",
+    "trader/remote_jobs.py",
+    "trader/remote_paper_controls.py",
+    "trader/update_manager.py",
+    "trader/update_supervisor.py",
+    "trader/runtime.py",
+    "trader/runtime_control.py",
+)
+
+
+def supervisor_modules_current(source):
+    """Require the independent supervisor to match signed installed modules."""
+    journal = ROOT / 'data/remote-updates/journal.json'
+    if not journal.is_file():
+        return False
+    try:
+        record = json.loads(journal.read_text(encoding='utf-8'))
+        files = record.get('files') or {}
+        version = tomllib.loads((source/'pyproject.toml').read_text(encoding='utf-8'))['project']['version']
+        if record.get('phase') != 'committed' or record.get('version') != version:
+            return False
+        import hashlib
+        for name in SUPERVISOR_MODULES:
+            expected = files.get(name)
+            local = ROOT / name
+            source_file = source / name
+            if (not isinstance(expected, str) or not local.is_file() or not source_file.is_file()
+                    or hashlib.sha256(source_file.read_bytes()).hexdigest() != expected
+                    or hashlib.sha256(local.read_bytes()).hexdigest() != expected):
+                return False
+        return True
+    except (OSError, ValueError, KeyError, json.JSONDecodeError, tomllib.TOMLDecodeError):
+        return False
+
+
 def source_settings(source):
     source = Path(source).resolve(strict=True)
     raw = tomllib.loads((source / "config.toml").read_text(encoding="utf-8"))
@@ -128,7 +166,8 @@ def update_candidate(source):
     if value['expires'] <= time.time() or (sequence.exists() and value['sequence'] <= json.loads(sequence.read_text())['sequence']):
         return None
     value['enabled'] = (json.loads(channel.read_text()).get('supervised_install_enabled') is True
-                        and (source/'trader/runtime_control.py').is_file())
+                        and (source/'trader/runtime_control.py').is_file()
+                        and supervisor_modules_current(source))
     return value
 
 

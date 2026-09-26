@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from scripts.windows_agent import dashboard_from_source, source_settings
+from scripts.windows_agent import SUPERVISOR_MODULES, dashboard_from_source, source_settings, supervisor_modules_current
 from trader.database import Database
 
 
@@ -30,6 +30,33 @@ class IndependentProjectionTests(unittest.TestCase):
             self.assertEqual(report['status']['mode'], 'PAPER')
             self.assertIsInstance(report['paper_scorecard']['by_asset'], list)
             self.assertEqual(config.bot.database_path.read_bytes(), before)
+
+    def test_stale_supervisor_blocks_remote_install_capability(self):
+        import hashlib
+        import json
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source, agent = root / 'source', root / 'agent'
+            source.mkdir(); agent.mkdir()
+            (source / 'pyproject.toml').write_text('[project]\nversion="0.6.23"\n', encoding='utf-8')
+            files = {}
+            for name in SUPERVISOR_MODULES:
+                src, dst = source / name, agent / name
+                src.parent.mkdir(parents=True, exist_ok=True)
+                dst.parent.mkdir(parents=True, exist_ok=True)
+                payload = ('signed-' + name).encode()
+                src.write_bytes(payload); dst.write_bytes(payload)
+                files[name] = hashlib.sha256(payload).hexdigest()
+            state = agent / 'data/remote-updates'
+            state.mkdir(parents=True)
+            (state / 'journal.json').write_text(json.dumps({
+                'phase':'committed','version':'0.6.23','files':files
+            }), encoding='utf-8')
+            with patch('scripts.windows_agent.ROOT', agent):
+                self.assertTrue(supervisor_modules_current(source))
+                (agent / SUPERVISOR_MODULES[-1]).write_text('stale', encoding='utf-8')
+                self.assertFalse(supervisor_modules_current(source))
 
     def test_older_installation_keeps_existing_projection(self):
         with tempfile.TemporaryDirectory() as directory:

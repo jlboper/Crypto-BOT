@@ -1,3 +1,12 @@
+# Actualización 0.6.23 — supervisor independiente actualizable en TESTNET
+
+- Corrige una deuda de arquitectura detectada al intentar instalar 0.6.22 desde el portal con el motor en TESTNET: el supervisor independiente sincronizaba el heartbeat y controles, pero conservaba copias antiguas de sus módulos de instalación.
+- La reparación firmada sincroniza ahora también `scripts/remote_job.py`, `trader/remote_jobs.py`, `trader/update_manager.py`, `trader/update_supervisor.py`, `trader/runtime.py` y `trader/runtime_control.py`.
+- Antes de ofrecer una instalación remota, Windows verifica que todos esos módulos del supervisor independiente coincidan byte a byte con los hashes firmados de la versión instalada. Si están stale, el portal bloquea la instalación y exige reparación en vez de fallar a mitad del update.
+- El refresh firmado del supervisor acepta tanto PAPER como TESTNET, siempre que la versión instalada esté comprometida en el journal firmado y cada módulo coincida con su hash.
+- La clave pública de confianza, secretos, bases financieras y definición de la tarea de Windows permanecen fuera de esta sincronización.
+- Mantiene el único escritor Binance Spot Testnet en el TradingEngine unificado y LIVE bloqueado.
+
 # Actualización 0.6.22 — auto-recuperación, limpieza y pipeline de promoción
 
 - Añade un watchdog local que compara el modo real del motor con el agente del portal y reinicia únicamente el agente saliente cuando queda desincronizado o su heartbeat se estanca. Un error HTTPS reciente no provoca bucles de reinicio.
