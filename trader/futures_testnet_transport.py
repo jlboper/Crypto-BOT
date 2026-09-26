@@ -46,9 +46,16 @@ class FuturesTestnetExecutionError(ValueError):
         self.uncertain = uncertain
 
 
-def _opener():
+def _signed_opener():
     return urllib.request.build_opener(
         urllib.request.ProxyHandler({}),
+        type("NoRedirect", (urllib.request.HTTPRedirectHandler,),
+             {"redirect_request": lambda *args: None})(),
+    )
+
+
+def _public_opener():
+    return urllib.request.build_opener(
         type("NoRedirect", (urllib.request.HTTPRedirectHandler,),
              {"redirect_request": lambda *args: None})(),
     )
@@ -71,7 +78,7 @@ def public_request(method: str, endpoint: str, fields: dict | None = None) -> An
         url = host + endpoint + (("?" + query) if query else "")
         request = urllib.request.Request(url, method=method)
         try:
-            with _opener().open(request, timeout=10) as response:
+            with _public_opener().open(request, timeout=10) as response:
                 return _decode(response)
         except urllib.error.HTTPError as error:
             last_error = FuturesTestnetExecutionError(
@@ -103,7 +110,7 @@ def signed_request(method: str, endpoint: str, fields: dict | None = None) -> An
         headers={"X-MBX-APIKEY": key, "Content-Type": "application/x-www-form-urlencoded"},
     )
     try:
-        with _opener().open(request, timeout=10) as response:
+        with _signed_opener().open(request, timeout=10) as response:
             return _decode(response)
     except urllib.error.HTTPError as error:
         code = None
