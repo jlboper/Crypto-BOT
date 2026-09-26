@@ -188,6 +188,55 @@ class FuturesTestnetLedger:
             )
             db.commit()
 
+    def forward_scorecard(self) -> dict:
+        with self._connect() as db:
+            trades = [dict(row) for row in db.execute(
+                "SELECT direction,gross_pnl,opened_at,closed_at FROM forward_trades ORDER BY id"
+            )]
+            equity = [dict(row) for row in db.execute(
+                "SELECT wallet_balance,available_balance,unrealized_pnl,created_at FROM forward_equity ORDER BY id"
+            )]
+        values = [float(row["wallet_balance"]) + float(row["unrealized_pnl"]) for row in equity]
+        peak = 0.0
+        max_drawdown = 0.0
+        for value in values:
+            peak = max(peak, value)
+            if peak > 0:
+                max_drawdown = max(max_drawdown, (peak - value) / peak * 100.0)
+        observed_days = 0.0
+        if len(equity) >= 2:
+            try:
+                first = datetime.fromisoformat(str(equity[0]["created_at"]).replace("Z", "+00:00"))
+                last = datetime.fromisoformat(str(equity[-1]["created_at"]).replace("Z", "+00:00"))
+                observed_days = max(0.0, (last - first).total_seconds() / 86400.0)
+            except ValueError:
+                observed_days = 0.0
+        gross = sum(float(row["gross_pnl"]) for row in trades)
+        winners = [float(row["gross_pnl"]) for row in trades if float(row["gross_pnl"]) > 0]
+        losers = [float(row["gross_pnl"]) for row in trades if float(row["gross_pnl"]) < 0]
+        long_rows = [row for row in trades if row["direction"] == "LONG"]
+        short_rows = [row for row in trades if row["direction"] == "SHORT"]
+        gains = sum(winners)
+        losses = abs(sum(losers))
+        return {
+            "status": "REVIEW_REQUIRED" if observed_days >= 30 and len(trades) >= 30 else "INSUFFICIENT_EVIDENCE",
+            "observed_days": observed_days,
+            "equity_points": len(equity),
+            "closed_trades": len(trades),
+            "gross_realized_pnl_usdt": gross,
+            "win_rate_pct": (100.0 * len(winners) / len(trades)) if trades else None,
+            "profit_factor": (gains / losses) if losses > 0 else (None if not gains else 999.0),
+            "sampled_max_drawdown_pct": max_drawdown,
+            "account_return_pct": ((values[-1] / values[0] - 1.0) * 100.0) if len(values) >= 2 and values[0] > 0 else None,
+            "long_closed_trades": len(long_rows),
+            "long_gross_pnl_usdt": sum(float(row["gross_pnl"]) for row in long_rows),
+            "short_closed_trades": len(short_rows),
+            "short_gross_pnl_usdt": sum(float(row["gross_pnl"]) for row in short_rows),
+            "consecutive_errors": int(self.setting("forward_consecutive_errors") or 0),
+            "error_total": int(self.setting("forward_error_total") or 0),
+            "cycle_total": int(self.setting("forward_cycle_total") or 0),
+        }
+
     def forward_snapshot(self) -> dict:
         with self._connect() as db:
             position = db.execute("SELECT * FROM forward_position WHERE singleton=1").fetchone()
@@ -197,11 +246,13 @@ class FuturesTestnetLedger:
             equity = [dict(row) for row in db.execute(
                 "SELECT * FROM forward_equity ORDER BY id DESC LIMIT 120"
             )]
+        scorecard = self.forward_scorecard()
         return {
             "position": dict(position) if position else None,
             "trades": trades,
             "equity": list(reversed(equity)),
-            "closed_trades": len(trades),
-            "gross_pnl": sum(float(row["gross_pnl"]) for row in trades),
+            "closed_trades": scorecard["closed_trades"],
+            "gross_pnl": scorecard["gross_realized_pnl_usdt"],
+            "scorecard": scorecard,
         }
 
