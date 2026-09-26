@@ -27,7 +27,7 @@ def parser() -> argparse.ArgumentParser:
     root = argparse.ArgumentParser(description="Safety-first crypto AI swing bot")
     root.add_argument("--config", default=None, help="Path to config.toml")
     commands = root.add_subparsers(dest="command", required=True)
-    commands.add_parser("once", help="Run one complete paper-trading cycle")
+    commands.add_parser("once", help="Run one complete configured trading cycle")
     commands.add_parser("run", help="Run continuously with the local dashboard")
     commands.add_parser("dashboard", help="Run only the local dashboard")
     backtest = commands.add_parser("backtest", help="Backtest one Binance symbol")
@@ -82,9 +82,9 @@ def main() -> None:
                     dashboard.runtime_token = control.token
                     thread = dashboard.start_thread()
                     metadata = tomllib.loads((Path(__file__).resolve().parent.parent/'pyproject.toml').read_text())
-                    control.ready(metadata['project']['version'], dashboard_ready=thread.is_alive())
+                    control.ready(metadata['project']['version'], dashboard_ready=thread.is_alive(), mode=config.bot.mode)
                     control.await_activation()
-                    print(f"PAPER dashboard: http://{config.dashboard.host}:{config.dashboard.port}")
+                    print(f"{config.bot.mode.upper()} dashboard: http://{config.dashboard.host}:{config.dashboard.port}")
                     engine.run_forever(control.should_stop)
                 finally:
                     dashboard.close()
@@ -95,7 +95,7 @@ def main() -> None:
         with single_instance(config.bot.database_path.parent / "engine.lock"):
             control.guard_start()
             db = Database(config.bot.database_path)
-            print(f"PAPER dashboard: http://{config.dashboard.host}:{config.dashboard.port}")
+            print(f"{config.bot.mode.upper()} dashboard: http://{config.dashboard.host}:{config.dashboard.port}")
             DashboardServer(config, db).serve_forever()
     elif args.command == "backtest":
         exchange = BinanceClient()
@@ -134,7 +134,7 @@ def main() -> None:
             for position in db.positions()
         ]
         print(json.dumps({
-            "mode": "paper",
+            "mode": config.bot.mode,
             "kill_switch": config.bot.kill_switch_path.exists(),
             "cash": db.cash(),
             "positions": positions,

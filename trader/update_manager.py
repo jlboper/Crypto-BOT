@@ -193,7 +193,24 @@ class UpdateManager:
     def database_path(self):
         with (self.root / "config.toml").open("rb") as handle:
             config = tomllib.load(handle)
-        path = self.root / config["bot"]["database_path"]
+        mode = str(config["bot"].get("mode", "paper")).lower()
+        for name in (".env.local", ".env"):
+            env_file = self.root / name
+            if not env_file.is_file():
+                continue
+            for line in env_file.read_text(encoding="utf-8").splitlines():
+                if "=" not in line:
+                    continue
+                key, value = line.split("=", 1)
+                if key.strip() == "EXECUTION_MODE":
+                    mode = value.strip().strip('"').strip("'").lower()
+                    break
+            break
+        if mode not in {"paper", "testnet"}:
+            raise ValueError("unsupported execution mode for database backup")
+        database_setting = (config["bot"].get("testnet_database_path", "data/testnet-trader.db")
+                            if mode == "testnet" else config["bot"]["database_path"])
+        path = self.root / database_setting
         if not path.resolve().is_relative_to(self.root) or path.resolve() == self.root:
             raise ValueError("database must remain inside installation")
         for parent in (path, *path.parents):

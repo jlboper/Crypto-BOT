@@ -1,3 +1,9 @@
+# 0.6.20 unified execution candidate
+
+Version 0.6.20 is implemented on branch `work/unified-testnet-engine-v0620` for review. It keeps one TradingEngine and selects either PaperBroker or BinanceTestnetBroker. The Testnet broker is restricted to Spot Testnet, journals client order identity before writes, blocks duplicate writes during uncertain/partial states, reconciles by client id, and records exchange fills into a separate Testnet ledger. PAPER remains a reversible simulation environment; Binance LIVE remains unavailable.
+
+The portal/supervisor changes make the active environment explicit and add a supervised PAPER↔TESTNET switch. Research remains read-only and now emits a non-automatic strategy promotion pipeline; forward testing and explicit approval are still required before a research candidate may be considered for Testnet. Publication, signed release, Windows installation and actual Testnet autonomous execution remain unverified until CI/release/owner installation complete.
+
 # Bot updates: implementation and deployment status
 
 Version 0.6.19 prepares six PAPER-only size controls, preserves old stored

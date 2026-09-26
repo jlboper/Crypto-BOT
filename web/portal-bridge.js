@@ -31,7 +31,7 @@ async function portalRequest(path,body){
   if(!response.ok){if(response.status===401)portalLocked();throw new Error(data.error||'Error de conexión');}
   return data;
 }
-const activityActions={research:'Evaluar estrategias',update_check:'Buscar actualización',update_install:'Actualizar bot',update_restore:'Restaurar bot',kill:'Pausar bot',resume:'Reanudar bot',risk_profile:'Perfil de riesgo PAPER',paper_close:'Cerrar posición PAPER',ai_model:'Cambiar modelo IA',restart_engine:'Reiniciar motor',testnet_buy:'Comprar Testnet',testnet_close:'Cerrar Testnet',testnet_reconcile:'Conciliar Testnet',testnet_audit:'Comprobar Testnet en Binance'};
+const activityActions={research:'Evaluar estrategias',update_check:'Buscar actualización',update_install:'Actualizar bot',update_restore:'Restaurar bot',kill:'Pausar bot',resume:'Reanudar bot',risk_profile:'Perfil de riesgo PAPER',paper_close:'Cerrar posición PAPER',ai_model:'Cambiar modelo IA',restart_engine:'Reiniciar motor',execution_mode:'Cambiar entorno',testnet_buy:'Comprar Testnet',testnet_close:'Cerrar Testnet',testnet_reconcile:'Conciliar Testnet',testnet_audit:'Comprobar Testnet en Binance'};
 const activityStatuses={pending:'Pendiente',applied:'Confirmado por Windows',expired:'Vencido',superseded:'Sustituido',running:'En curso',completed:'Completado',failed:'Falló'};
 function renderActivity(list,items){
   for(const item of items){
@@ -75,7 +75,7 @@ window.portalApi=async(path,options={})=>{
     return response.json();
   }
   if(options.method==='POST'){
-    if(['/api/paper/risk-profile','/api/paper/close-position','/api/operations/model','/api/operations/restart','/api/testnet/buy','/api/testnet/close','/api/testnet/reconcile','/api/testnet/audit'].includes(path)){
+    if(['/api/paper/risk-profile','/api/paper/close-position','/api/operations/model','/api/operations/restart','/api/operations/execution-mode','/api/testnet/buy','/api/testnet/close','/api/testnet/reconcile','/api/testnet/audit'].includes(path)){
       const state=await portalState();
       if(state.stale||state.snapshot?.paper_controls!==true)throw new Error('Controles PAPER pendientes de conexión de Windows');
       if((path.startsWith('/api/operations/')||path.startsWith('/api/testnet/'))&&state.snapshot?.operations_controls!==true)throw new Error('Actualiza y repara el agente de Windows antes de usar esta opción');
@@ -84,7 +84,7 @@ window.portalApi=async(path,options={})=>{
       const result=await portalRequest('/v1/paper-controls',{
         action:({
           '/api/paper/risk-profile':'risk_profile','/api/paper/close-position':'paper_close',
-          '/api/operations/model':'ai_model','/api/operations/restart':'restart_engine',
+          '/api/operations/model':'ai_model','/api/operations/restart':'restart_engine','/api/operations/execution-mode':'execution_mode',
           '/api/testnet/buy':'testnet_buy','/api/testnet/close':'testnet_close',
           '/api/testnet/reconcile':'testnet_reconcile', '/api/testnet/audit':'testnet_audit'
         })[path],payload,request_id:crypto.randomUUID()});
@@ -148,7 +148,7 @@ document.addEventListener('DOMContentLoaded',()=>{
   async function operationalAction(path,payload,question){
     if(!confirm(question))return;
     const startedAt=Date.now()/1000;
-    const button=document.getElementById(path.endsWith('model')?'applyAiModel':'restartMotor');
+    const button=document.getElementById(path.endsWith('model')?'applyAiModel':path.endsWith('execution-mode')?'applyExecutionMode':'restartMotor');
     const message=document.getElementById('modelSettingsMessage');
     button.disabled=true;message.textContent='Esperando la comprobación de Windows…';
     try{
@@ -166,7 +166,13 @@ document.addEventListener('DOMContentLoaded',()=>{
   document.getElementById('applyAiModel').onclick=()=>operationalAction('/api/operations/model',
     {model:document.getElementById('aiModelChoice').value},'¿Verificar el modelo seleccionado y reiniciar el motor PAPER?');
   document.getElementById('restartMotor').onclick=()=>operationalAction('/api/operations/restart',{},
-    '¿Reiniciar el motor PAPER? Puede interrumpir la vigilancia durante unos segundos.');
+    '¿Reiniciar el motor? Puede interrumpir la vigilancia durante unos segundos.');
+  document.getElementById('applyExecutionMode').onclick=()=>{
+    const mode=document.getElementById('executionModeChoice').value;
+    const label=mode==='testnet'?'Binance Spot Testnet':'PAPER';
+    operationalAction('/api/operations/execution-mode',{mode},
+      `¿Cambiar el único motor a ${label}? Windows reiniciará el motor de forma supervisada. LIVE seguirá bloqueado.`);
+  };
   let nextHistoryPage=0,historyBusy=false;
   async function loadHistory(reset=false){
     if(historyBusy)return;

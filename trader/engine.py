@@ -8,6 +8,7 @@ from dataclasses import replace
 
 from .ai_advisor import AIAdvisor
 from .broker import PaperBroker
+from .testnet_broker import BinanceTestnetBroker
 from .config import AppConfig
 from .database import Database
 from .domain import Candle, Signal
@@ -24,7 +25,9 @@ class TradingEngine:
         self.db = Database(config.bot.database_path)
         self.exchange = BinanceClient()
         self.strategy = SwingStrategy(config.strategy, config.risk)
-        self.broker = PaperBroker(self.db, config.paper, config.risk)
+        self.broker = (BinanceTestnetBroker(self.db, config.paper, config.risk)
+                       if config.bot.mode == "testnet"
+                       else PaperBroker(self.db, config.paper, config.risk))
         self.ai = AIAdvisor(config.ai)
         self._errors = int(self.db.setting("consecutive_errors", "0"))
         self._candle_cache = {}
@@ -34,6 +37,8 @@ class TradingEngine:
 
     def cycle(self) -> dict:
         try:
+            if self.config.bot.mode == "testnet" and not self.broker.reconcile_pending():
+                raise RuntimeError("Spot Testnet order awaiting reconciliation")
             # Protect holdings before universe/regime downloads can fail.
             held_symbols = [position.symbol for position in self.db.positions()]
             if held_symbols:
@@ -273,7 +278,7 @@ class TradingEngine:
         return False
 
     def run_forever(self, should_stop=lambda: False) -> None:
-        self.db.event("INFO", "Trading engine started in PAPER mode")
+        self.db.event("INFO", f"Trading engine started in {self.config.bot.mode.upper()} mode")
         while not should_stop():
             started = time.monotonic()
             try:

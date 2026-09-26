@@ -53,7 +53,13 @@ class ProcessRuntime:
         try:
             with opener.open(f'http://{address}:{port}/health/runtime', timeout=2) as response:
                 payload = json.loads(response.read(4097))
-            return payload == {'pid': child.pid, 'token': token, 'mode': 'paper'} and child.poll() is None
+            return (
+                isinstance(payload, dict)
+                and payload.get('pid') == child.pid
+                and payload.get('token') == token
+                and payload.get('mode') in {'paper', 'testnet'}
+                and child.poll() is None
+            )
         except (OSError, ValueError):
             return False
 
@@ -87,7 +93,7 @@ class UpdateSupervisor:
             return False
         return (status.get('pid') == child.pid and status.get('token') == token
                 and status.get('version') == version and status.get('phase') == phase
-                and status.get('mode') == 'paper' and status.get('protocol') == 1
+                and status.get('mode') in {'paper', 'testnet'} and status.get('protocol') == 1
                 and status.get('dashboard_ready') is True and self.runtime.health(child, token))
 
     def wait_ready(self, child, token, version, phase):
@@ -131,7 +137,7 @@ class UpdateSupervisor:
             if not (self.manager.root/'trader/runtime_control.py').is_file():
                 raise RuntimeError("Existing installation requires one-time supervised bootstrap")
             original = json.loads(self.control.status.read_text())
-            if original.get('protocol') != 1 or original.get('phase') != 'running' or original.get('mode') != 'paper':
+            if original.get('protocol') != 1 or original.get('phase') != 'running' or original.get('mode') not in {'paper', 'testnet'}:
                 raise RuntimeError("Existing engine has no cooperative runtime status")
             # Do not turn a stopped installation into an active trading process.
             try:
@@ -190,7 +196,7 @@ class UpdateSupervisor:
         except (OSError, ValueError):
             return None
         if (status.get('protocol') != 1 or status.get('phase') != 'running'
-                or status.get('mode') != 'paper' or status.get('version') != offer['current_version']):
+                or status.get('mode') not in {'paper', 'testnet'} or status.get('version') != offer['current_version']):
             return None
         try:
             with single_instance(self.control.directory/'engine.lock'):
@@ -209,7 +215,7 @@ class UpdateSupervisor:
                 raise ValueError('Approved restore target changed')
             original = json.loads(self.control.status.read_text())
             if (original.get('protocol') != 1 or original.get('phase') != 'running'
-                    or original.get('mode') != 'paper' or original.get('version') != offer['current_version']):
+                    or original.get('mode') not in {'paper', 'testnet'} or original.get('version') != offer['current_version']):
                 raise RuntimeError('Existing engine has no matching cooperative runtime status')
             try:
                 with single_instance(self.control.directory/'engine.lock'):
@@ -217,7 +223,7 @@ class UpdateSupervisor:
             except RuntimeError:
                 pass
             else:
-                raise RuntimeError('Restoration requires a running PAPER engine')
+                raise RuntimeError('Restoration requires a running trading engine')
             token = secrets.token_hex(32)
             state = {'action':'restore', 'token':token, 'release_id':offer['current_release_id'],
                      'restore_id':approved, 'old_version':offer['current_version'],

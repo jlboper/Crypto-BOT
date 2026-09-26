@@ -84,11 +84,14 @@
       <select id="aiModelChoice"><option value="gpt-6-luna">GPT-6 Luna</option><option value="gpt-5.6-luna">GPT-5.6 Luna</option></select>
       <button id="applyAiModel" class="secondary" type="button">Aplicar modelo</button>
       <button id="restartMotor" class="secondary" type="button">Reiniciar motor</button>
-      <p id="modelSettingsMessage" role="status">El cambio se confirmará al aparecer el nuevo modelo en Revisión IA.</p>
+      <label for="executionModeChoice">Entorno de ejecución</label>
+      <select id="executionModeChoice"><option value="paper">PAPER · simulación interna</option><option value="testnet">Binance Spot Testnet · fondos ficticios</option></select>
+      <button id="applyExecutionMode" class="secondary" type="button">Cambiar entorno</button>
+      <p id="modelSettingsMessage" role="status">Windows aplicará cambios solo después de verificar el motor. Binance LIVE permanece bloqueado.</p>
     </section>
     <section id="testnetPanel" class="panel" hidden aria-label="Binance Spot Testnet">
       <div class="panel-title"><h2>Binance Spot Testnet</h2><button id="closeTestnetPanel" class="secondary">Cerrar</button></div>
-      <p>Ensayo de ejecución real en la red de prueba de Binance. La cuenta y el registro son independientes del motor PAPER. Solo BTC/USDT; máximo 25 USDT de prueba por entrada, una entrada al día.</p>
+      <p id="testnetIntro">Herramientas del antiguo piloto manual de Binance Spot Testnet. Cuando el motor unificado esté en TESTNET, estas órdenes manuales quedan deshabilitadas para evitar dos sistemas escribiendo sobre la misma cuenta.</p>
       <p id="testnetStatus">Esperando el registro local de Testnet.</p>
       <p id="testnetEvidence" role="status">Esperando comprobación de órdenes y saldo de prueba.</p>
       <button id="testnetBuy" class="secondary" type="button">Comprar 25 USDT de prueba</button>
@@ -99,7 +102,7 @@
     </section>
 
     <section class="operation-overview panel" aria-label="Estado de operaciones">
-      <div><p class="eyebrow">CENTRO DE OPERACIONES</p><h2>Cuenta de prueba · PAPER</h2>
+      <div><p class="eyebrow">CENTRO DE OPERACIONES</p><h2 id="accountEnvironmentTitle">Cuenta de prueba · PAPER</h2>
         <p id="operationSummary">Esperando el estado del motor de Windows.</p></div>
       <div class="operation-next"><strong>Siguiente etapa</strong><span>Ensayar órdenes y conciliación en Binance Spot Testnet. Las operaciones con fondos reales siguen deshabilitadas.</span></div>
     </section>
@@ -116,7 +119,7 @@
         <canvas id="equityChart" height="230" aria-label="Curva de equity"></canvas>
       </article>
       <article class="panel guardrail">
-        <div class="panel-title"><h2>Límites PAPER</h2><span id="killState" class="state">Comprobando</span></div>
+        <div class="panel-title"><h2 id="riskPanelTitle">Límites PAPER</h2><span id="killState" class="state">Comprobando</span></div>
         <dl>
           <div><dt>Riesgo / trade</dt><dd id="riskTrade">—</dd></div>
           <div><dt>Máx. posición</dt><dd id="riskPosition">—</dd></div>
@@ -126,9 +129,9 @@
           <div><dt>Apalancamiento</dt><dd>Desactivado</dd></div>
         </dl>
         <div class="paper-controls">
-          <label for="riskProfile">Tamaño de riesgo para nuevas entradas PAPER</label>
+          <label for="riskProfile">Tamaño de riesgo para nuevas entradas</label>
           <select id="riskProfile"><option value="minimo">Mínimo · 25% del límite</option><option value="leve">Leve · 35%</option><option value="prudente">Prudente · 50%</option><option value="moderado">Moderado · 65%</option><option value="alto">Alto · 85%</option><option value="normal">Muy alto · 100% del límite actual</option></select>
-          <button id="saveRiskProfile" class="secondary" type="button">Aplicar en PAPER</button>
+          <button id="saveRiskProfile" class="secondary" type="button">Aplicar nivel de riesgo</button>
           <small id="riskProfileNote">Solo afecta entradas PAPER futuras. «Muy alto» equivale al antiguo «Normal» y nunca supera los topes configurados.</small>
         </div>
       </article>
@@ -136,12 +139,12 @@
 
     <section class="panel">
       <div class="panel-title"><h2>Posiciones abiertas</h2><span>Protección ATR activa</span></div>
-      <div class="table-wrap"><table><thead><tr><th>Par</th><th>Cantidad</th><th>Entrada</th><th>Precio actual</th><th>P&amp;L</th><th>P&amp;L %</th><th>Stop</th><th>Objetivo</th><th>Máximo</th><th>Acción PAPER</th></tr></thead><tbody id="positions"></tbody></table></div>
+      <div class="table-wrap"><table><thead><tr><th>Par</th><th>Cantidad</th><th>Entrada</th><th>Precio actual</th><th>P&amp;L</th><th>P&amp;L %</th><th>Stop</th><th>Objetivo</th><th>Máximo</th><th>Acción</th></tr></thead><tbody id="positions"></tbody></table></div>
       <p class="paper-action-note">Cerrar una posición usa una cotización nueva y simula comisiones; bloquea nuevas entradas en ese par durante 24 horas. Disponible solo en el portal local de Windows.</p>
     </section>
 
-    <section class="panel paper-scorecard" aria-label="Seguimiento financiero PAPER">
-      <div class="panel-title"><h2>Seguimiento financiero PAPER</h2><span id="paperEvidenceState" class="state neutral">SIN DATOS</span></div>
+    <section class="panel paper-scorecard" aria-label="Seguimiento financiero">
+      <div class="panel-title"><h2 id="financialEvidenceTitle">Seguimiento financiero PAPER</h2><span id="paperEvidenceState" class="state neutral">SIN DATOS</span></div>
       <p id="paperEvidenceNote">Los resultados observados no autorizan operar con dinero real.</p>
       <p class="finance-strategy">Estrategia actual: swing multi-activo con límites fijos, paradas de protección y revisión IA. Las pruebas históricas no cambian sus decisiones.</p>
       <div id="paperEvidenceMetrics" class="research-summary"></div>

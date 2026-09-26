@@ -22,8 +22,8 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
 
 class RemoteAgent:
     def __init__(self, config, origin: str, token: str, *, state_directory=None):
-        if config.bot.mode.lower() != "paper":
-            raise ValueError("Remote agent requires PAPER")
+        if config.bot.mode.lower() not in {"paper", "testnet"}:
+            raise ValueError("Remote agent requires PAPER or TESTNET")
         parts = urlsplit(origin)
         if parts.scheme != "https" or not parts.hostname or parts.username or parts.path or parts.query or parts.fragment:
             raise ValueError("Canonical HTTPS origin required")
@@ -48,7 +48,7 @@ class RemoteAgent:
         try:
             row = db.execute("SELECT equity,cash,exposure,created_at FROM equity ORDER BY id DESC LIMIT 1").fetchone()
             positions = [dict(p) for p in db.execute("SELECT symbol,quantity,entry_price,stop_price,take_profit FROM positions LIMIT 100")]
-            return {"mode": "PAPER", "equity": row["equity"] if row else None,
+            return {"mode": self.config.bot.mode.upper(), "equity": row["equity"] if row else None,
                 "cash": row["cash"] if row else None, "exposure": row["exposure"] if row else None,
                 "last_cycle_at": row["created_at"] if row else None, "positions": positions,
                 "killed": self.config.bot.kill_switch_path.exists(), "ai_model": self.config.ai.model,
@@ -101,8 +101,9 @@ class RemoteAgent:
         self.last_error = None
         if self.config_provider:
             refreshed = self.config_provider()
-            if refreshed.bot.mode != 'paper' or refreshed.bot.database_path != self.config.bot.database_path:
-                raise ValueError('PAPER installation changed unexpectedly')
+            if (refreshed.bot.mode not in {'paper', 'testnet'}
+                    or refreshed.bot.database_path != self.config.bot.database_path):
+                raise ValueError('Trading installation changed unexpectedly')
             self.config = refreshed
         dashboard_issue = None
         last = self._last_id()

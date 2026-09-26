@@ -1,3 +1,14 @@
+# Actualización 0.6.20 — motor único Binance Spot Testnet y promoción de estrategias
+
+- Añade un único motor con dos entornos permitidos: PAPER y Binance Spot Testnet. Binance LIVE continúa sin implementación ni ruta de escritura.
+- El modo Testnet usa el mismo TradingEngine, estrategia, revisión IA, límites, stops y seis niveles de riesgo; solo cambia el broker de ejecución.
+- PAPER y Testnet conservan bases financieras separadas para no mezclar posiciones, P&L ni equity.
+- Las órdenes automáticas Testnet guardan identidad durable antes del único POST, nunca reintentan una escritura incierta y exigen conciliación antes de otra orden.
+- El supervisor, agente HTTPS, portal y actualizador reconocen PAPER/TESTNET sin duplicar motores. El cambio de entorno es supervisado desde Opciones y exige credenciales Spot Testnet operables.
+- El piloto manual Testnet anterior se bloquea cuando el motor unificado está en TESTNET, evitando dos escritores sobre la misma cuenta.
+- El cierre manual de una posición usa PaperBroker en PAPER y BinanceTestnetBroker en TESTNET.
+- Research Lab sigue aislado de ejecución y ahora publica un pipeline explícito RESEARCH → CANDIDATE → FORWARD_TEST → TESTNET → APPROVED → RETIRED. Ningún candidato se activa automáticamente.
+
 # Actualización 0.6.19 — seis niveles y evidencia Binance Spot Testnet
 
 - Seis niveles para el tamaño de nuevas entradas PAPER: Mínimo 25%, Leve 35%, Prudente 50%, Moderado 65%, Alto 85% y Muy alto 100% del límite configurado. Los valores guardados anteriormente para Mínimo, Prudente y Normal conservan exactamente su significado; «Muy alto» muestra el límite que antes se llamaba «Normal». No aumenta el riesgo base ni el límite de exposición.

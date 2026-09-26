@@ -17,7 +17,7 @@ def _time(value):
 
 
 def paper_scorecard(connection, *, prices=None, prices_at=None, cycle_seconds=None, paper=None,
-                    research_symbols=(), now=None):
+                    research_symbols=(), now=None, mode='paper'):
     """Summarize all recorded equity points and closed PAPER trades.
 
     Cash flows have no dedicated ledger, so the comparison cannot claim
@@ -134,7 +134,7 @@ def paper_scorecard(connection, *, prices=None, prices_at=None, cycle_seconds=No
         * (1 - paper.fee_rate) / (1 + paper.fee_rate) - 1
     )) if comparable and paper is not None else None
     return {
-        'mode': 'PAPER', 'status': 'REVIEW_REQUIRED' if observed_days >= 30 and closed >= 30 and invalid == 0 else 'INSUFFICIENT_EVIDENCE',
+        'mode': str(mode).upper(), 'status': 'REVIEW_REQUIRED' if observed_days >= 30 and closed >= 30 and invalid == 0 else 'INSUFFICIENT_EVIDENCE',
         'started_at': start.isoformat() if start else None,
         'last_at': end.isoformat() if end else None,
         'observed_days': round(observed_days, 2), 'equity_points': points,

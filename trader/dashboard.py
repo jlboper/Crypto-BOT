@@ -97,7 +97,7 @@ class DashboardServer:
                     elif not hasattr(outer, "runtime_token"):
                         self._json({"error": "runtime not supervised"}, HTTPStatus.SERVICE_UNAVAILABLE)
                     else:
-                        self._json({"pid": os.getpid(), "token": outer.runtime_token, "mode": "paper"})
+                        self._json({"pid": os.getpid(), "token": outer.runtime_token, "mode": outer.config.bot.mode})
                     return
                 if path == "/health":
                     equity_rows = outer.db.recent("equity", 1)
@@ -130,7 +130,7 @@ class DashboardServer:
                     return
                 testnet_routes = {'/api/testnet/buy':'testnet_buy', '/api/testnet/close':'testnet_close',
                                   '/api/testnet/reconcile':'testnet_reconcile', '/api/testnet/audit':'testnet_audit'}
-                if path in {"/api/operations/model", "/api/operations/restart", *testnet_routes}:
+                if path in {"/api/operations/model", "/api/operations/restart", "/api/operations/execution-mode", *testnet_routes}:
                     try:
                         if self.headers.get('Content-Type', '').split(';', 1)[0].strip() != 'application/json':
                             raise ValueError('JSON required')
@@ -140,11 +140,13 @@ class DashboardServer:
                         payload = json.loads(self.rfile.read(length))
                         if not isinstance(payload, dict):
                             raise ValueError('Invalid request')
-                        action = testnet_routes.get(path) or ('ai_model' if path.endswith('/model') else 'restart_engine')
-                        if (action == 'ai_model' and (set(payload) != {'model'} or payload['model'] not in {'gpt-5.6-luna','gpt-6-luna'})) or (action == 'restart_engine' and payload):
+                        action = testnet_routes.get(path) or ('ai_model' if path.endswith('/model') else ('execution_mode' if path.endswith('/execution-mode') else 'restart_engine'))
+                        if (action == 'ai_model' and (set(payload) != {'model'} or payload['model'] not in {'gpt-5.6-luna','gpt-6-luna'})) or (action == 'execution_mode' and (set(payload) != {'mode'} or payload['mode'] not in {'paper','testnet'})) or (action == 'restart_engine' and payload):
                             raise ValueError('Invalid operational request')
                         if action.startswith('testnet_') and payload:
                             raise ValueError('Testnet request accepts no free-form parameters')
+                        if action.startswith('testnet_') and outer.config.bot.mode != 'paper':
+                            raise ValueError('Legacy manual Testnet pilot is disabled while the unified Testnet engine is active')
                         script = PROJECT_ROOT / 'scripts/execute_paper_control.py'
                         process = subprocess.Popen([sys.executable, '-I', '-B', str(script), str(PROJECT_ROOT)],
                             cwd=PROJECT_ROOT, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL,
@@ -253,7 +255,7 @@ class DashboardServer:
                     activity = activity_status(latest.get("created_at"), outer.config.bot.cycle_seconds)
                     prices, prices_at = outer.db.market_snapshot()
                     self._json({
-                        "mode": "PAPER",
+                        "mode": outer.config.bot.mode.upper(),
                         "killed": outer.config.bot.kill_switch_path.exists(),
                         "ai_enabled": outer.config.ai.enabled,
                         "ai_model": outer.config.ai.model,
@@ -292,7 +294,7 @@ class DashboardServer:
                     with closing(sqlite3.connect(outer.config.bot.database_path.resolve().as_uri()+'?mode=ro', uri=True, timeout=3)) as connection:
                         prices, prices_at = outer.db.market_snapshot()
                         self._json(paper_scorecard(connection, prices=prices, prices_at=prices_at,
-                            cycle_seconds=outer.config.bot.cycle_seconds, paper=outer.config.paper,
+                            cycle_seconds=outer.config.bot.cycle_seconds, paper=outer.config.paper, mode=outer.config.bot.mode,
                             research_symbols=outer.config.research.symbols))
                 elif path == "/api/events":
                     self._json(outer.db.recent("events", 50))

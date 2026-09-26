@@ -63,7 +63,7 @@ async function readBody(request, maximum = 65536) {
   return value;
 }
 function validateSnapshot(snapshot) {
-  assert(object(snapshot) && snapshot.mode === 'PAPER', 'PAPER snapshot required');
+  assert(object(snapshot) && ['PAPER','TESTNET'].includes(snapshot.mode), 'Trading snapshot required');
   const allowed = ['mode','equity','cash','exposure','positions','killed','last_cycle_at','ai_model','update_state','dashboard','bot_update','bot_restore','paper_controls','operations_controls'];
   assert(Object.keys(snapshot).every(k => allowed.includes(k)), 'Unknown snapshot field');
   if(snapshot.paper_controls!==undefined)assert(snapshot.paper_controls===true,'Invalid PAPER capability');
@@ -92,7 +92,7 @@ function validateSnapshot(snapshot) {
   }
   if (snapshot.dashboard !== undefined) {
     const d = snapshot.dashboard;
-    assert(object(d) && object(d.status) && d.status.mode === 'PAPER', 'Invalid dashboard');
+    assert(object(d) && object(d.status) && d.status.mode === snapshot.mode, 'Invalid dashboard');
     assert(Object.keys(d).every(k=>['status','positions','equity','trades','reviews','events','risk','research','research_state','testnet','testnet_execution','updates','paper_scorecard'].includes(k)), 'Unknown dashboard field');
     if(d.testnet_execution!==undefined){
       const x=d.testnet_execution;
@@ -102,7 +102,7 @@ function validateSnapshot(snapshot) {
     }
     if(d.paper_scorecard!==undefined){
       const s=d.paper_scorecard;
-      assert(object(s)&&s.mode==='PAPER'&&['INSUFFICIENT_EVIDENCE','REVIEW_REQUIRED'].includes(s.status),'Invalid PAPER scorecard');
+      assert(object(s)&&s.mode===snapshot.mode&&['INSUFFICIENT_EVIDENCE','REVIEW_REQUIRED'].includes(s.status),'Invalid financial scorecard');
       assert(Object.keys(s).length<=26&&Array.isArray(s.by_asset)&&s.by_asset.length<=50
         &&(!s.attribution||(object(s.attribution)&&Array.isArray(s.attribution.exit_reasons)
           &&s.attribution.exit_reasons.length<=4&&Array.isArray(s.attribution.research_symbols)
@@ -132,12 +132,13 @@ const closeStored = "action='research' AND substr(COALESCE(release_id,''),1,12)=
 const riskStored = "action='research' AND substr(COALESCE(release_id,''),1,13)='risk_profile:'";
 const modelStored = "action='research' AND substr(COALESCE(release_id,''),1,9)='ai_model:'";
 const restartStored = "action='research' AND substr(COALESCE(release_id,''),1,15)='restart_engine:'";
+const executionModeStored = "action='research' AND substr(COALESCE(release_id,''),1,15)='execution_mode:'";
 const testBuyStored = "action='research' AND substr(COALESCE(release_id,''),1,12)='testnet_buy:'";
 const testCloseStored = "action='research' AND substr(COALESCE(release_id,''),1,14)='testnet_close:'";
 const testReconcileStored = "action='research' AND substr(COALESCE(release_id,''),1,18)='testnet_reconcile:'";
 const testAuditStored = "action='research' AND substr(COALESCE(release_id,''),1,14)='testnet_audit:'";
-const paperStored = `(${closeStored} OR ${riskStored} OR ${modelStored} OR ${restartStored} OR ${testBuyStored} OR ${testCloseStored} OR ${testReconcileStored} OR ${testAuditStored})`;
-const jobAction = `CASE WHEN ${closeStored} THEN 'paper_close' WHEN ${riskStored} THEN 'risk_profile' WHEN ${modelStored} THEN 'ai_model' WHEN ${restartStored} THEN 'restart_engine' WHEN ${testBuyStored} THEN 'testnet_buy' WHEN ${testCloseStored} THEN 'testnet_close' WHEN ${testReconcileStored} THEN 'testnet_reconcile' WHEN ${testAuditStored} THEN 'testnet_audit' WHEN ${restoreStored} THEN 'update_restore' ELSE action END`;
+const paperStored = `(${closeStored} OR ${riskStored} OR ${modelStored} OR ${restartStored} OR ${executionModeStored} OR ${testBuyStored} OR ${testCloseStored} OR ${testReconcileStored} OR ${testAuditStored})`;
+const jobAction = `CASE WHEN ${closeStored} THEN 'paper_close' WHEN ${riskStored} THEN 'risk_profile' WHEN ${modelStored} THEN 'ai_model' WHEN ${restartStored} THEN 'restart_engine' WHEN ${executionModeStored} THEN 'execution_mode' WHEN ${testBuyStored} THEN 'testnet_buy' WHEN ${testCloseStored} THEN 'testnet_close' WHEN ${testReconcileStored} THEN 'testnet_reconcile' WHEN ${testAuditStored} THEN 'testnet_audit' WHEN ${restoreStored} THEN 'update_restore' ELSE action END`;
 const jobRelease = `CASE WHEN ${restoreStored} THEN substr(release_id,9) ELSE release_id END`;
 function results(batch, index) { return batch[index]?.results || []; }
 function cookie(request) {
@@ -350,7 +351,7 @@ export async function handle(request, env, now = Math.floor(Date.now() / 1000)) 
   if(path==='/v1/paper-controls'&&method==='POST'){
     const body=await readBody(request,1024);
     assert(Object.keys(body).sort().join(',')==='action,payload,request_id'&&
-      ['risk_profile','paper_close','ai_model','restart_engine','testnet_buy','testnet_close','testnet_reconcile','testnet_audit'].includes(body.action)&&
+      ['risk_profile','paper_close','ai_model','restart_engine','execution_mode','testnet_buy','testnet_close','testnet_reconcile','testnet_audit'].includes(body.action)&&
       typeof body.request_id==='string'&&/^[A-Za-z0-9_-]{16,100}$/.test(body.request_id)&&object(body.payload),'Invalid PAPER request');
     if(body.action==='risk_profile'){
       assert(Object.keys(body.payload).join(',')==='profile'&&
@@ -358,6 +359,8 @@ export async function handle(request, env, now = Math.floor(Date.now() / 1000)) 
     }else if(body.action==='ai_model'){
       assert(Object.keys(body.payload).join(',')==='model'&&
         ['gpt-5.6-luna','gpt-6-luna'].includes(body.payload.model),'Invalid model selection');
+    }else if(body.action==='execution_mode'){
+      assert(Object.keys(body.payload).join(',')==='mode'&&['paper','testnet'].includes(body.payload.mode),'Invalid execution mode');
     }else if(['restart_engine','testnet_buy','testnet_close','testnet_reconcile','testnet_audit'].includes(body.action)){
       assert(Object.keys(body.payload).length===0,'Invalid restart request');
     }else{
@@ -377,11 +380,12 @@ export async function handle(request, env, now = Math.floor(Date.now() / 1000)) 
           SELECT 1 FROM snapshots WHERE id=1 AND received_at>=? AND
           json_extract(payload,'$.paper_controls')=1 AND
           (? IN ('risk_profile','paper_close') OR json_extract(payload,'$.operations_controls')=1) AND
+          (? NOT IN ('paper_close','testnet_buy','testnet_close','testnet_reconcile','testnet_audit') OR json_extract(payload,'$.mode')='PAPER') AND
           (?!='paper_close' OR EXISTS(SELECT 1 FROM json_each(payload,'$.dashboard.positions')
            WHERE json_extract(value,'$.symbol')=? AND json_extract(value,'$.opened_at')=?)))
         AND NOT EXISTS(SELECT 1 FROM jobs WHERE status IN ('pending','running'))
         ON CONFLICT(request_id) DO NOTHING`,body.request_id,storedRelease,now,now+300,now-120,
-          body.action,body.action,body.payload.symbol??'',body.payload.opened_at??''),
+          body.action,body.action,body.action,body.payload.symbol??'',body.payload.opened_at??''),
       statement(db,`SELECT id,${jobAction} AS action,release_id,status FROM jobs WHERE request_id=?`,body.request_id),
     ]);
     const row=results(batch,2)[0];
