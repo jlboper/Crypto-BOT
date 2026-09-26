@@ -84,11 +84,11 @@ class RemotePaperControls:
                         'TESTNET_SMOKE_RECONCILIATION_INCOMPLETE': 'La prueba terminó con una conciliación pendiente; revisa el ledger antes de repetir',
                         'BINANCE_TESTNET_EXECUTION_FAILED': 'Binance Testnet no completó la prueba; revisa órdenes y conciliación antes de repetir',
                         'FUTURES_TESTNET_REQUIRES_TESTNET': 'Mantén el motor principal en Spot TESTNET para usar el laboratorio de Futures',
-                        'FUTURES_TESTNET_RECOVERY_REQUIRED': 'Futures Testnet tiene una prueba previa que debe reconciliarse antes de continuar',
-                        'FUTURES_TESTNET_CREDENTIALS_UNAVAILABLE': 'Faltan las credenciales separadas de Binance Futures Testnet en Windows',
-                        'FUTURES_TESTNET_CANNOT_TRADE': 'La cuenta de Binance Futures Testnet no tiene trading habilitado',
-                        'FUTURES_TESTNET_MARGIN_LOW': 'El saldo ficticio disponible en Futures Testnet es insuficiente para la prueba',
-                        'FUTURES_TESTNET_EXECUTION_FAILED': 'Futures Testnet no completó la operación; usa Reconciliar Futures antes de repetir',
+                        'FUTURES_TESTNET_RECOVERY_REQUIRED': 'Futures Demo tiene una prueba previa que debe reconciliarse antes de continuar',
+                        'FUTURES_TESTNET_CREDENTIALS_UNAVAILABLE': 'Faltan las credenciales separadas de Binance Futures Demo en Windows',
+                        'FUTURES_TESTNET_CANNOT_TRADE': 'La cuenta de Binance Futures Demo no tiene trading habilitado',
+                        'FUTURES_TESTNET_MARGIN_LOW': 'El saldo ficticio disponible en Futures Demo es insuficiente para la prueba',
+                        'FUTURES_TESTNET_EXECUTION_FAILED': 'Futures Demo no completó la operación; usa Reconciliar Futures antes de repetir',
                     }
                     message = messages.get(code, 'Windows rechazó la acción; revisa el estado local')
                     status = 'failed'
@@ -104,14 +104,14 @@ class RemotePaperControls:
                         'restart_engine': 'Motor reiniciado y verificado',
                         'execution_mode': 'Entorno activo: ' + response.get('mode','').upper(),
                         'testnet_smoke': 'Prueba Spot Testnet completada · BUY y SELL conciliados',
-                        'futures_testnet_check': 'Futures Testnet verificado · disponible '
+                        'futures_testnet_check': 'Futures Demo verificado · disponible '
                             + str(round(float(futures.get('available_balance',0)),2)) + ' USDT · '
                             + str(futures.get('open_positions',0)) + ' posiciones abiertas',
                         'futures_testnet_smoke': 'Futures ' + str(futures.get('direction','')) + ' '
                             + str(futures.get('leverage','')) + 'x · ' + str(futures.get('symbol',''))
                             + ' · apertura/cierre reduceOnly conciliados'
                             + ((' · liq ' + str(round(float(liquidation),2))) if liquidation is not None else ''),
-                        'futures_testnet_reconcile': 'Futures Testnet reconciliado · posición técnica cerrada',
+                        'futures_testnet_reconcile': 'Futures Demo reconciliado · posición técnica cerrada',
                     }
                     message = messages[action]
                     status = 'completed'
