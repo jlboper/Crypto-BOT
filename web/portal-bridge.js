@@ -310,7 +310,28 @@ document.addEventListener('DOMContentLoaded',()=>{
   }
   document.getElementById('historyButton').onclick=async()=>{
     showOptions(false);document.getElementById('passwordPanel').hidden=true;document.getElementById('updatePanel').hidden=true;
-    if(!remotePortal){window.open('https://crypto-paper-private-portal.jlboper.workers.dev/','_blank','noopener');return;}
+    if(!remotePortal){
+      const button=document.getElementById('restoreBotVersion');
+      const offer=localRestoreOffer;
+      if(!offer?.restore_id){document.getElementById('botUpdateMessage').textContent='No hay una versión anterior verificada disponible.';return;}
+      if(!confirm('¿Restaurar localmente de v'+offer.current_version+' a v'+offer.version+'? Los datos financieros se conservarán.'))return;
+      button.disabled=true;
+      try{
+        await window.portalApi('/api/local-updates/restore',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({release_id:offer.restore_id})});
+        document.getElementById('botUpdateMessage').textContent='Restauración local solicitada · esperando supervisor de Windows…';
+        const deadline=Date.now()+180000;
+        while(Date.now()<deadline){
+          await new Promise(resolve=>setTimeout(resolve,2000));
+          try{
+            const status=await window.portalApi('/api/local-updates/status');
+            if(status.status==='restored_healthy'){setTimeout(()=>location.reload(),1200);return;}
+            if(status.status==='failed')throw new Error(status.code||'La restauración local falló');
+          }catch(error){if(Date.now()+5000>=deadline)throw error;}
+        }
+        throw new Error('La restauración sigue sin confirmación; revisa la app de Windows.');
+      }catch(error){document.getElementById('botUpdateMessage').textContent=error.message;button.disabled=false;}
+      return;
+    }
     document.getElementById('historyPanel').hidden=false;
     document.getElementById('historyPanel').scrollIntoView({behavior:'smooth',block:'start'});
     await loadHistory(true);
@@ -352,13 +373,38 @@ document.addEventListener('DOMContentLoaded',()=>{
     finally{current.value='';next.value='';confirmation.value='';button.disabled=false;}
   };
   window.addEventListener('portal-ready',()=>{if(location.hash==='#password')document.getElementById('passwordPanel').hidden=false;if(location.hash==='#updates')checkAllUpdates(false);});
-  let updatePending=false,lastUpdatesAt=0;
+  let updatePending=false,lastUpdatesAt=0,localUpdateCandidate=null,localRestoreOffer=null;
   async function checkAllUpdates(force=true){
     if(!remotePortal){
-      const output=document.getElementById('updateMessage');output.replaceChildren();
-      const link=document.createElement('a');link.href='https://crypto-paper-private-portal.jlboper.workers.dev/#updates';
-      link.textContent='Abrir el portal privado para revisar y autorizar con tu sesión segura';
-      link.rel='noopener';link.target='_blank';output.append(link);return;
+      const output=document.getElementById('updateMessage');
+      const button=document.getElementById('checkAllUpdates');
+      if(updatePending){output.textContent='La comprobación ya está en curso; no necesitas pulsar de nuevo.';return;}
+      if(!force && Date.now()-lastUpdatesAt<30000)return;
+      updatePending=true;button.disabled=true;
+      setUpdateCenterState('searching','Buscando actualizaciones','Windows verificará la publicación firmada con su supervisor independiente…');
+      try{
+        const data=await window.portalApi('/api/local-updates/check',{
+          method:'POST',headers:{'Content-Type':'application/json'},body:'{}'
+        });
+        localRestoreOffer=data.restore||null;
+        document.getElementById('restoreBotVersion').disabled=!localRestoreOffer;
+        if(data.status==='current'){
+          localUpdateCandidate=null;
+          setUpdateCenterState('current','Estás actualizado','Versión instalada v'+data.version+'.');
+          output.textContent=localRestoreOffer?'Existe una versión anterior verificada disponible para restaurar.':'No hay una actualización pendiente.';
+        }else{
+          localUpdateCandidate=Object.assign({},data,{enabled:true,expires:Number.MAX_SAFE_INTEGER});
+          setUpdateCenterState('update','Nueva versión disponible · v'+data.version,
+            'Paquete firmado verificado localmente. Puedes instalarlo sin usar el portal público.',localUpdateCandidate);
+          output.textContent='Revisión '+(data.commit||'verificada')+' · aprobación local exacta.';
+        }
+        lastUpdatesAt=Date.now();
+      }catch(error){
+        localUpdateCandidate=null;
+        setUpdateCenterState('warning','No se pudo comprobar',error.message);
+        output.textContent=error.message;
+      }finally{updatePending=false;button.disabled=false;}
+      return;
     }
     const output=document.getElementById('updateMessage');
     if(updatePending){
@@ -417,7 +463,36 @@ document.addEventListener('DOMContentLoaded',()=>{
     }
   }
   async function installBotUpdate(){
-    if(!remotePortal){window.open('https://crypto-paper-private-portal.jlboper.workers.dev/#updates','_blank','noopener');return;}
+    if(!remotePortal){
+      const output=document.getElementById('botUpdateMessage');
+      if(portalBusyButtons.has('installBotUpdate'))return;
+      const candidate=localUpdateCandidate;
+      if(!candidate?.release_id){output.textContent='Primero comprueba una actualización firmada.';return;}
+      if(!confirm('¿Instalar localmente v'+candidate.version+', revisión '+(candidate.commit||'verificada')+'? Windows reiniciará el motor de forma supervisada.'))return;
+      setPortalBusy('installBotUpdate',true,'Procesando…');
+      try{
+        await window.portalApi('/api/local-updates/install',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({release_id:candidate.release_id})});
+        setUpdateCenterState('searching','Instalación solicitada','El supervisor independiente de Windows está instalando la versión. El portal local puede desconectarse unos segundos.');
+        output.textContent='No necesitas abrir el portal público ni volver a pulsar.';
+        const deadline=Date.now()+180000;
+        while(Date.now()<deadline){
+          await new Promise(resolve=>setTimeout(resolve,2000));
+          try{
+            const status=await window.portalApi('/api/local-updates/status');
+            if(status.status==='installed_healthy'){
+              output.textContent='v'+status.version+' instalada y saludable.';
+              setTimeout(()=>location.reload(),1200);return;
+            }
+            if(status.status==='failed')throw new Error(status.code||'La instalación local falló');
+          }catch(error){
+            if(Date.now()+5000>=deadline)throw error;
+          }
+        }
+        throw new Error('La instalación sigue sin confirmación; revisa la app de Windows.');
+      }catch(error){setUpdateCenterState('warning','No se completó la instalación',error.message);output.textContent=error.message;}
+      finally{setPortalBusy('installBotUpdate',false);}
+      return;
+    }
     const output=document.getElementById('botUpdateMessage');
     const button=document.getElementById('installBotUpdate');
     if(portalBusyButtons.has('installBotUpdate'))return;
