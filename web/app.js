@@ -298,8 +298,8 @@ async function refresh() {
     if(pauseForward&&!window.portalButtonBusy?.('pauseFuturesForward'))pauseForward.disabled=!futuresForward?.enabled||!!futuresForward?.killed;
     if(resumeForward&&!window.portalButtonBusy?.('resumeFuturesForward'))resumeForward.disabled=!futuresForward?.enabled||!futuresForward?.killed;
 
-    document.getElementById('riskPanelTitle').textContent='Límites '+modeUpper;
-    document.getElementById('financialEvidenceTitle').textContent='Seguimiento financiero '+modeUpper;
+    document.getElementById('riskPanelTitle').textContent='Límites Spot · '+modeUpper;
+    document.getElementById('financialEvidenceTitle').textContent='Seguimiento financiero Spot · '+modeUpper;
     document.getElementById('equity').textContent=money(status.equity);
     document.getElementById('cash').textContent=money(status.cash);
     document.getElementById('exposure').textContent=money(status.exposure);
