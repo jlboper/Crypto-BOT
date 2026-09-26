@@ -56,6 +56,8 @@ def dashboard_snapshot(config, report_path=None):
             'updates':{'status':'not_configured','message':'Falta configurar el canal firmado y la recuperación supervisada.'},
             'futures_forward': {
                 'enabled': bool(config.bot.mode == 'testnet' and config.futures_testnet.forward_enabled),
+                'configured_enabled': bool(config.futures_testnet.forward_enabled),
+                'requires_testnet': config.bot.mode != 'testnet',
                 'killed': config.futures_testnet.kill_switch_path.exists(),
                 'symbol': config.futures_testnet.forward_symbol,
                 'automatic_leverage': config.futures_testnet.forward_leverage,
