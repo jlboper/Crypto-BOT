@@ -71,4 +71,16 @@ forward_min_score = 75
 forward_stop_atr_multiple = 2.0
 forward_minimum_stop_pct = 0.025
 forward_reward_to_risk = 2.0
+forward_daily_loss_limit_pct = 0.02
+forward_weekly_loss_limit_pct = 0.05
+forward_max_consecutive_errors = 3
 kill_switch_path = "data/FUTURES_KILL_SWITCH"
+
+[live_safety]
+# Architecture only. LIVE trading is still rejected by code.
+enabled = false
+capital_cap_usdt = 250.0
+spot_symbol_whitelist = ["BTCUSDT", "ETHUSDT"]
+withdrawals_enabled = false
+margin_enabled = false
+futures_enabled = false
