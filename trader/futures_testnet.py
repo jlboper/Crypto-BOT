@@ -240,6 +240,34 @@ class FuturesTestnetLab:
         self.ledger.set_setting("pending_order", None)
         return result
 
+    def _execution_price(self, order: dict, symbol: str) -> Decimal:
+        """Resolve a filled order price without resubmitting the order."""
+        for candidate in (order,):
+            avg = _decimal(candidate.get("avgPrice", "0"))
+            if avg > 0:
+                return avg
+            qty = _decimal(candidate.get("executedQty", "0"))
+            quote = _decimal(candidate.get("cumQuote", "0"))
+            if qty > 0 and quote > 0:
+                return quote / qty
+        client_id = str(order.get("clientOrderId") or "")
+        if not client_id:
+            raise FuturesTestnetExecutionError("Futures Testnet close missing order identity")
+        queried = signed_request("GET", "/fapi/v1/order", {
+            "symbol": symbol,
+            "origClientOrderId": client_id,
+        })
+        if not isinstance(queried, dict) or queried.get("clientOrderId") != client_id:
+            raise FuturesTestnetExecutionError("Futures Testnet order identity mismatch")
+        avg = _decimal(queried.get("avgPrice", "0"))
+        if avg > 0:
+            return avg
+        qty = _decimal(queried.get("executedQty", "0"))
+        quote = _decimal(queried.get("cumQuote", "0"))
+        if qty > 0 and quote > 0:
+            return quote / qty
+        raise FuturesTestnetExecutionError("Futures Testnet close missing execution price")
+
     def reconcile_pending(self) -> dict | None:
         pending = self.ledger.setting("pending_order")
         if not pending:
@@ -358,9 +386,7 @@ class FuturesTestnetLab:
             remaining = self._position_rows(symbol)
             if remaining:
                 raise FuturesTestnetExecutionError("Futures Testnet smoke close left an open position")
-            exit_price = _decimal(closed.get("avgPrice", "0"))
-            if exit_price <= 0:
-                raise FuturesTestnetExecutionError("Futures Testnet close missing average price")
+            exit_price = self._execution_price(closed, symbol)
             self.ledger.finish(
                 run_id,
                 quantity=float(actual_qty),

@@ -1,6 +1,24 @@
 /* One UI, local APIs or authenticated remote snapshots. No credentials in URLs. */
 const remotePortal = !['127.0.0.1','localhost','[::1]','::1'].includes(location.hostname);
 let portalCsrf = '', portalPending, portalCache, portalCacheAt = 0, portalEpoch=0;
+const portalBusyButtons=new Set();
+function setPortalBusy(id,busy,label){
+  const button=document.getElementById(id);
+  if(!button)return;
+  if(busy){
+    portalBusyButtons.add(id);
+    if(button.dataset.busyOriginal===undefined)button.dataset.busyOriginal=button.textContent;
+    button.disabled=true;
+    if(label)button.textContent=label;
+  }else{
+    portalBusyButtons.delete(id);
+    if(button.dataset.busyOriginal!==undefined){
+      button.textContent=button.dataset.busyOriginal;
+      delete button.dataset.busyOriginal;
+    }
+  }
+}
+window.portalButtonBusy=id=>portalBusyButtons.has(id);
 const portalRoute = {'/api/status':'status','/api/positions':'positions','/api/trades':'trades','/api/ai-reviews':'reviews','/api/equity':'equity','/api/events':'events','/api/research':'research','/api/research/status':'research_state','/api/updates':'updates','/api/paper-scorecard':'paper_scorecard'};
 async function portalPasswordProof(password,parameters){
   if(parameters.scheme==='initial-key')return password;
@@ -185,20 +203,43 @@ document.addEventListener('DOMContentLoaded',()=>{
     const futures=path.includes('/futures-');
     const button=document.getElementById(buttonId);
     const message=document.getElementById(futures?'futuresMessage':'modelSettingsMessage');
-    button.disabled=true;message.textContent='Esperando la comprobación de Windows…';
+    if(portalBusyButtons.has(buttonId))return;
+    setPortalBusy(buttonId,true,'Procesando…');
+    message.textContent='Enviando solicitud a Windows…';
     try{
       const result=await window.portalApi(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
       message.textContent=result.status==='pending'?
-        'Solicitud enviada. El resultado aparecerá en Actividad cuando Windows termine.':
+        'Solicitud recibida · esperando confirmación de Windows…':
         'Windows confirmó la operación.';
-      if(!remotePortal)setTimeout(async()=>{
+      if(remotePortal && result.status==='pending'){
+        const action=({
+          '/api/operations/model':'ai_model','/api/operations/restart':'restart_engine',
+          '/api/operations/execution-mode':'execution_mode','/api/operations/testnet-smoke':'testnet_smoke',
+          '/api/operations/futures-check':'futures_testnet_check','/api/operations/futures-smoke':'futures_testnet_smoke',
+          '/api/operations/futures-reconcile':'futures_testnet_reconcile'
+        })[path];
+        const deadline=Date.now()+90000;
+        while(Date.now()<deadline){
+          await new Promise(resolve=>setTimeout(resolve,1500));
+          portalCacheAt=0;
+          const state=await portalState(true);
+          const row=(state.paper_controls||[]).find(item=>item.action===action && (item.created||0)>=startedAt-2)
+            || (state.activity||[]).find(item=>item.action===action && (item.created||0)>=startedAt-2);
+          if(row?.status==='completed'){message.textContent=row.message||'Windows confirmó la operación.';break;}
+          if(row?.status==='failed'){message.textContent=row.message||'Windows no completó la acción.';break;}
+          if(row?.status==='expired'){message.textContent='La solicitud venció antes de completarse.';break;}
+        }
+      }else if(!remotePortal)setTimeout(async()=>{
         try{const state=await window.portalApi('/api/operations/last');
           if(state.at&&state.at>startedAt)message.textContent=state.status==='completed'?'Windows confirmó la operación.':
             `Windows no completó la acción (${state.reason||'revisar estado'}).`;}
         catch{}
       },4500);
     }catch(error){message.textContent=error.message;}
-    finally{button.disabled=false;portalCacheAt=0;}
+    finally{
+      setPortalBusy(buttonId,false);
+      portalCacheAt=0;
+    }
   }
   document.getElementById('applyAiModel').onclick=()=>operationalAction('/api/operations/model',
     {model:document.getElementById('aiModelChoice').value},'¿Verificar el modelo seleccionado y reiniciar el motor activo?');
@@ -359,20 +400,22 @@ document.addEventListener('DOMContentLoaded',()=>{
     if(!remotePortal){window.open('https://crypto-paper-private-portal.jlboper.workers.dev/#updates','_blank','noopener');return;}
     const output=document.getElementById('botUpdateMessage');
     const button=document.getElementById('installBotUpdate');
-    let submitted=false;button.disabled=true;
+    if(portalBusyButtons.has('installBotUpdate'))return;
+    let submitted=false;setPortalBusy('installBotUpdate',true,'Procesando…');
     try{
       const state=await portalState(true);if(state.stale)throw new Error('Windows debe estar conectado');
-      button.disabled=true;
       const candidate=state.snapshot?.bot_update;
       if(!candidate?.enabled||candidate.expires<=Date.now()/1000)throw new Error('Primero verifica una versión disponible');
       if(!confirm(`¿Instalar el bot ${candidate.version}, revisión ${candidate.commit}? El motor activo se reiniciará y se recuperará la versión anterior si falla el arranque.`))return;
       const body={action:'update_install',request_id:crypto.randomUUID(),release_id:candidate.release_id};
       await portalRequest('/v1/jobs',body);submitted=true;portalCacheAt=0;
-      output.textContent='';
-      setUpdateCenterState('searching','Instalando actualización','Windows detendrá y reiniciará el motor de forma supervisada.');
+      output.textContent='Instalación solicitada · esperando confirmación de Windows…';
+      setUpdateCenterState('searching','Instalación solicitada','Windows recibió la solicitud. No necesitas volver a pulsar el botón.');
       document.getElementById('updateDetails').open=false;
     }catch(error){output.textContent=error.message;}
-    finally{if(!submitted)button.disabled=false;}
+    finally{
+      if(!submitted)setPortalBusy('installBotUpdate',false);
+    }
   }
   async function restoreBotVersion(){
     showOptions(false);

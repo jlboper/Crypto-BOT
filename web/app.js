@@ -252,10 +252,13 @@ async function refresh() {
     const primaryState=document.getElementById('primaryEnvironmentState');
     if(primaryState)primaryState.textContent=modeUpper;
     const controlsReady=paperControlsAvailable();
-    document.getElementById('testTestnetExecution').disabled=currentExecutionMode!=='testnet'||!controlsReady;
+    const spotSmoke=document.getElementById('testTestnetExecution');
+    if(spotSmoke && !window.portalButtonBusy?.('testTestnetExecution'))
+      spotSmoke.disabled=currentExecutionMode!=='testnet'||!controlsReady;
     for(const id of ['checkFuturesTestnet','testFuturesExecution','reconcileFutures']){
       const button=document.getElementById(id);
-      if(button)button.disabled=currentExecutionMode!=='testnet'||!controlsReady;
+      if(button && !window.portalButtonBusy?.(id))
+        button.disabled=currentExecutionMode!=='testnet'||!controlsReady;
     }
     const futuresState=document.getElementById('futuresState');
     if(futuresState){
