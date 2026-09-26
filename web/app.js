@@ -262,8 +262,9 @@ async function refresh() {
     }
     const futuresState=document.getElementById('futuresState');
     if(futuresState){
-      futuresState.textContent=currentExecutionMode==='testnet'?'DISPONIBLE':'REQUIERE TESTNET';
-      futuresState.className='state '+(currentExecutionMode==='testnet'?'neutral':'warning');
+      futuresState.textContent=currentExecutionMode!=='testnet'?'REQUIERE TESTNET':
+        (!futuresForward?.enabled?'INACTIVO':(futuresForward?.killed?'PAUSADO':'ACTIVO'));
+      futuresState.className='state '+((currentExecutionMode!=='testnet'||futuresForward?.killed)?'warning':'neutral');
     }
     document.getElementById('accountEnvironmentTitle').textContent='Spot · '+modeUpper;
     const spotEngineState=document.getElementById('spotEngineState');
@@ -279,7 +280,7 @@ async function refresh() {
     const forwardState=document.getElementById('futuresForwardState');
     const forwardPosition=futuresForward?.position;
     if(forwardState){
-      forwardState.textContent=!futuresForward?.enabled?'INACTIVO':(futuresForward.killed?'PAUSADO':(forwardPosition?'POSICIÓN ABIERTA':'ACTIVO'));
+      forwardState.textContent=!futuresForward?.enabled?'INACTIVO':(futuresForward.killed?'PAUSADO':(forwardPosition?'POSICIÓN ABIERTA':'ACTIVO · ESPERANDO SEÑAL'));
       forwardState.className='state '+(futuresForward?.killed?'warning':'neutral');
     }
     const fWallet=document.getElementById('futuresForwardWallet');
@@ -293,6 +294,25 @@ async function refresh() {
     if(fPnl)fPnl.textContent=money(Number(futuresForward?.gross_pnl||0));
     const fClosed=document.getElementById('futuresForwardClosed');
     if(fClosed)fClosed.textContent=String(futuresForward?.closed_trades||0);
+    const fDays=document.getElementById('futuresForwardDays');
+    if(fDays)fDays.textContent=Number(futuresForward?.observed_days||0).toFixed(1);
+    const fDrawdown=document.getElementById('futuresForwardDrawdown');
+    if(fDrawdown)fDrawdown.textContent=`${Number(futuresForward?.max_drawdown_pct||0).toFixed(2)}%`;
+    const fErrors=document.getElementById('futuresForwardErrors');
+    if(fErrors)fErrors.textContent=String(futuresForward?.consecutive_errors||0);
+    const fAi=document.getElementById('futuresForwardAi');
+    if(fAi){
+      const review=futuresForward?.last_ai_review;
+      fAi.textContent=review?`${review.verdict} · ${Math.round(Number(review.confidence||0)*100)}%`:
+        `${futuresForward?.ai_model||status.ai_model} · esperando señal`;
+    }
+    const fSafety=document.getElementById('futuresForwardSafety');
+    if(fSafety){
+      const rec=futuresForward?.recovery||{};
+      const lastCycle=futuresForward?.last_cycle?.at;
+      const cycleText=lastCycle?`Último ciclo ${shortTime(lastCycle)}`:'esperando primer ciclo';
+      fSafety.textContent=`Seguridad: journal durable ${rec.durable_order_journal?'✓':'—'} · conciliación tras reinicio ${rec.startup_position_reconciliation?'✓':'—'} · kill switch independiente ${rec.separate_kill_switch?'✓':'—'} · ${cycleText}. LIVE bloqueado; stops nativos del exchange aún no forman parte de este piloto.`;
+    }
     const pauseForward=document.getElementById('pauseFuturesForward');
     const resumeForward=document.getElementById('resumeFuturesForward');
     if(pauseForward&&!window.portalButtonBusy?.('pauseFuturesForward'))pauseForward.disabled=!futuresForward?.enabled||!!futuresForward?.killed;
