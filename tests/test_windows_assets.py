@@ -50,6 +50,7 @@ class WindowsAssetTests(unittest.TestCase):
         self.assertIn("$script:AgentHealthFailures -lt 2", source)
         self.assertIn("Stop-ScheduledTask -TaskName 'Crypto Paper Portal Agent'", source)
         self.assertIn("Start-ScheduledTask -TaskName 'Crypto Paper Portal Agent'", source)
+        self.assertIn("Invoke-TradingEngineWatchdog", source)
 
     def test_manager_retires_sha_only_update_installer(self):
         source = (PROJECT_ROOT / "scripts" / "manager_windows.ps1").read_text(encoding="utf-8-sig")
@@ -109,7 +110,6 @@ class WindowsAssetTests(unittest.TestCase):
         self.assertIn("Instalar v${candidate.version}", bridge)
         self.assertIn("/api/local-update/check", bridge)
         self.assertIn("/api/local-update/install", bridge)
-        self.assertIn("Invoke-TradingEngineWatchdog", source)
 
     def test_remote_update_deep_link_opens_the_shared_center(self):
         bridge = (PROJECT_ROOT / "web" / "portal-bridge.js").read_text(encoding="utf-8")
