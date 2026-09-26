@@ -394,7 +394,8 @@ $form.StartPosition = [System.Windows.Forms.FormStartPosition]::CenterScreen
 $form.BackColor = [System.Drawing.Color]::FromArgb(8, 13, 24)
 $form.ForeColor = [System.Drawing.Color]::FromArgb(236, 242, 255)
 $form.Font = New-Object System.Drawing.Font("Segoe UI", 10)
-$form.MaximizeBox = $true
+$form.MaximizeBox = $false
+$form.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::FixedSingle
 $form.ShowIcon = $true
 
 $script:OperationalIcon = if (Test-Path $OperationalIconPath) { New-Object System.Drawing.Icon($OperationalIconPath, 16, 16) } else { [System.Drawing.SystemIcons]::Information }
