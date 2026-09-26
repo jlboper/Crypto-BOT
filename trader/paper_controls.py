@@ -22,8 +22,6 @@ def execute(config, db, action, payload):
         return {'ok': True, 'profile': payload['profile']}
     if action != 'paper_close':
         raise ValueError('Unknown PAPER action')
-    if config.bot.mode != 'paper':
-        raise ValueError('Simulated PAPER close is blocked in Testnet mode')
     if (set(payload) != {'symbol', 'opened_at', 'reference_price'} or
             not isinstance(payload['symbol'], str) or
             re.fullmatch(r'[A-Z0-9]{2,24}USDT', payload['symbol']) is None or
@@ -34,10 +32,18 @@ def execute(config, db, action, payload):
     held = db.position(payload['symbol'])
     if held is None or held.opened_at != payload['opened_at']:
         raise ValueError('Position changed; reload')
-    quote = BinanceClient(timeout=10).latest_prices({held.symbol})[held.symbol]
+    client = BinanceClient(timeout=10)
+    quote = (client.testnet_reference_price(held.symbol) if config.bot.mode == 'testnet'
+             else client.latest_prices({held.symbol})[held.symbol])
     if abs(quote / payload['reference_price'] - 1) > .02:
         raise ValueError('Price moved more than 2%; reload position')
-    pnl = PaperBroker(db, config.paper, config.risk).sell(
-        held, quote, 'manual PAPER close', manual_cooldown_until=time.time() + 86400)
-    db.event('INFO', held.symbol + ' manual PAPER close; 24h entry cooldown')
-    return {'ok': True, 'symbol': held.symbol, 'realized_pnl_usdt': pnl}
+    if config.bot.mode == 'testnet':
+        from .testnet_broker import BinanceTestnetBroker
+        pnl = BinanceTestnetBroker(db, config.paper, config.risk).sell(
+            held, quote, 'manual TESTNET close')
+        db.event('INFO', held.symbol + ' manual TESTNET close submitted and reconciled')
+    else:
+        pnl = PaperBroker(db, config.paper, config.risk).sell(
+            held, quote, 'manual PAPER close', manual_cooldown_until=time.time() + 86400)
+        db.event('INFO', held.symbol + ' manual PAPER close; 24h entry cooldown')
+    return {'ok': True, 'symbol': held.symbol, 'realized_pnl_usdt': pnl, 'mode': config.bot.mode}
