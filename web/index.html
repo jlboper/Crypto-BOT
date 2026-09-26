@@ -36,7 +36,6 @@
             <button id="historyButton" role="menuitem">Historial de actividad</button>
             <button id="diagnosticsButton" role="menuitem">Diagnóstico y estrategias</button>
             <button id="modelSettingsButton" role="menuitem">Modelo IA y motor</button>
-            <button id="testnetOptionsButton" role="menuitem">Binance Testnet</button>
             <button id="restoreBotVersion" role="menuitem" disabled>Restaurar versión anterior</button>
             <button id="portalPasswordButton" role="menuitem">Cambiar contraseña</button>
             <button id="portalLogout" role="menuitem" hidden>Cerrar sesión</button>
@@ -79,7 +78,7 @@
     </section>
     <section id="modelSettingsPanel" class="panel" hidden aria-label="Modelo IA y motor">
       <div class="panel-title"><h2>Modelo IA y motor</h2><button id="closeModelSettings" class="secondary">Cerrar</button></div>
-      <p>Windows verifica el modelo y reinicia el motor PAPER. Las claves permanecen en esta PC.</p>
+      <p>Windows verifica el modelo y reinicia el motor activo. Las claves permanecen en esta PC.</p>
       <label for="aiModelChoice">Modelo de revisión</label>
       <select id="aiModelChoice"><option value="gpt-6-luna">GPT-6 Luna</option><option value="gpt-5.6-luna">GPT-5.6 Luna</option></select>
       <button id="applyAiModel" class="secondary" type="button">Aplicar modelo</button>
@@ -89,18 +88,6 @@
       <button id="applyExecutionMode" class="secondary" type="button">Cambiar entorno</button>
       <p id="modelSettingsMessage" role="status">Windows aplicará cambios solo después de verificar el motor. Binance LIVE permanece bloqueado.</p>
     </section>
-    <section id="testnetPanel" class="panel" hidden aria-label="Binance Spot Testnet">
-      <div class="panel-title"><h2>Binance Spot Testnet</h2><button id="closeTestnetPanel" class="secondary">Cerrar</button></div>
-      <p id="testnetIntro">Herramientas del antiguo piloto manual de Binance Spot Testnet. Cuando el motor unificado esté en TESTNET, estas órdenes manuales quedan deshabilitadas para evitar dos sistemas escribiendo sobre la misma cuenta.</p>
-      <p id="testnetStatus">Esperando el registro local de Testnet.</p>
-      <p id="testnetEvidence" role="status">Esperando comprobación de órdenes y saldo de prueba.</p>
-      <button id="testnetBuy" class="secondary" type="button">Comprar 25 USDT de prueba</button>
-      <button id="testnetClose" class="secondary" type="button">Cerrar posición de prueba</button>
-      <button id="testnetReconcile" class="secondary" type="button">Conciliar orden</button>
-      <button id="testnetAudit" class="secondary" type="button">Comprobar órdenes y saldo en Binance</button>
-      <p id="testnetMessage" role="status"></p>
-    </section>
-
     <section class="operation-overview panel" aria-label="Estado de operaciones">
       <div><p class="eyebrow">CENTRO DE OPERACIONES</p><h2 id="accountEnvironmentTitle">Cuenta de prueba · PAPER</h2>
         <p id="operationSummary">Esperando el estado del motor de Windows.</p></div>
@@ -132,7 +119,7 @@
           <label for="riskProfile">Tamaño de riesgo para nuevas entradas</label>
           <select id="riskProfile"><option value="minimo">Mínimo · 25% del límite</option><option value="leve">Leve · 35%</option><option value="prudente">Prudente · 50%</option><option value="moderado">Moderado · 65%</option><option value="alto">Alto · 85%</option><option value="normal">Muy alto · 100% del límite actual</option></select>
           <button id="saveRiskProfile" class="secondary" type="button">Aplicar nivel de riesgo</button>
-          <small id="riskProfileNote">Solo afecta entradas PAPER futuras. «Muy alto» equivale al antiguo «Normal» y nunca supera los topes configurados.</small>
+          <small id="riskProfileNote">Afecta únicamente nuevas entradas del entorno activo. «Muy alto» equivale al antiguo «Normal» y nunca supera los topes configurados.</small>
         </div>
       </article>
     </section>
