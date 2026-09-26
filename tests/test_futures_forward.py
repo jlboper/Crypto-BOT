@@ -85,6 +85,29 @@ class FuturesForwardTests(unittest.TestCase):
         self.assertEqual(score["cycle_total"], 100)
         self.assertEqual(score["status"], "INSUFFICIENT_EVIDENCE")
 
+    def test_futures_daily_loss_limit_halts_only_futures_entries(self):
+        ledger = self.engine.ledger
+        today = __import__("datetime").datetime.now(__import__("datetime").UTC).date().isoformat()
+        week_start = (__import__("datetime").datetime.now(__import__("datetime").UTC).date()
+                      - __import__("datetime").timedelta(
+                          days=__import__("datetime").datetime.now(__import__("datetime").UTC).weekday()
+                      )).isoformat()
+        ledger.set_setting("forward_daily_baseline", {"key": today, "wallet": 5000.0})
+        ledger.set_setting("forward_weekly_baseline", {"key": week_start, "wallet": 5000.0})
+        state = self.engine._loss_circuit_breaker(4890.0)
+        self.assertTrue(state["halted"])
+        self.assertEqual(state["reason"], "DAILY_LOSS_LIMIT")
+        self.assertTrue(self.config.futures_testnet.kill_switch_path.exists())
+        self.assertFalse(self.config.bot.kill_switch_path.exists())
+
+    def test_future_live_policy_is_hard_disabled_and_bounded(self):
+        self.assertFalse(self.config.live_safety.enabled)
+        self.assertEqual(self.config.live_safety.capital_cap_usdt, 250.0)
+        self.assertEqual(self.config.live_safety.spot_symbol_whitelist, ("BTCUSDT", "ETHUSDT"))
+        self.assertFalse(self.config.live_safety.withdrawals_enabled)
+        self.assertFalse(self.config.live_safety.margin_enabled)
+        self.assertFalse(self.config.live_safety.futures_enabled)
+
     def test_forward_ledger_is_separate_and_persistent(self):
         ledger = FuturesTestnetLedger(self.config.futures_testnet.database_path)
         position = {
