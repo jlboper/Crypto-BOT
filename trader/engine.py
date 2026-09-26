@@ -321,8 +321,10 @@ class TradingEngine:
             total = self.futures_forward.ledger.setting("forward_error_total") or 0
             self.futures_forward.ledger.set_setting("forward_error_total", int(total) + 1)
             self.db.event("WARN", "Futures Demo forward cycle failed: " + type(exc).__name__)
-            if count >= 3:
-                self.futures_forward._halt("three consecutive Futures forward errors")
+            if count >= self.config.futures_testnet.forward_max_consecutive_errors:
+                self.futures_forward._halt(
+                    f"{count} consecutive Futures forward errors"
+                )
 
     def _run_futures_forward_protection(self) -> None:
         if self.futures_forward is None or not self.config.futures_testnet.forward_enabled:
@@ -339,8 +341,10 @@ class TradingEngine:
             total = self.futures_forward.ledger.setting("forward_error_total") or 0
             self.futures_forward.ledger.set_setting("forward_error_total", int(total) + 1)
             self.db.event("WARN", "Futures Demo protection failed: " + type(exc).__name__)
-            if count >= 3:
-                self.futures_forward._halt("three consecutive Futures protection errors")
+            if count >= self.config.futures_testnet.forward_max_consecutive_errors:
+                self.futures_forward._halt(
+                    f"{count} consecutive Futures protection errors"
+                )
 
     def protection_tick(self):
         self._run_futures_forward_protection()
