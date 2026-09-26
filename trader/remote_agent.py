@@ -39,6 +39,7 @@ class RemoteAgent:
         self.jobs = None
         self.update_provider = None
         self.restore_provider = None
+        self.version_provider = None
 
     def snapshot(self):
         # Read-only SQLite connection never initializes or modifies the engine database.
@@ -52,7 +53,8 @@ class RemoteAgent:
                 "cash": row["cash"] if row else None, "exposure": row["exposure"] if row else None,
                 "last_cycle_at": row["created_at"] if row else None, "positions": positions,
                 "killed": self.config.bot.kill_switch_path.exists(), "ai_model": self.config.ai.model,
-                "update_state": "manual_signed_install_only"}
+                "installed_version": self.version_provider() if self.version_provider else None,
+                "update_state": "signed_rollout"}
         finally:
             db.close()
 
