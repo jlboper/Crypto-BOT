@@ -95,27 +95,28 @@
     </section>
     <section id="modelSettingsPanel" class="panel" hidden aria-label="Motor y entornos">
       <div class="panel-title"><div><p class="eyebrow">CONTROL DEL MOTOR</p><h2>Motor y entornos</h2></div><button id="closeModelSettings" class="secondary">Cerrar</button></div>
-      <p class="settings-intro">Spot Testnet es el entorno principal de desarrollo. PAPER queda disponible como respaldo y CI. Futures Demo funciona en un ledger separado y nunca habilita Binance LIVE.</p>
+      <p class="settings-intro">Spot Testnet y Futures Demo son los dos entornos operativos de observación. PAPER se conserva únicamente como respaldo técnico/CI y Binance LIVE permanece bloqueado.</p>
       <div class="settings-grid">
         <article class="settings-card">
-          <div class="settings-card-head"><div><span class="settings-kicker">MOTOR PRINCIPAL</span><h3>Spot / PAPER</h3></div><span class="state neutral" id="primaryEnvironmentState">CARGANDO</span></div>
+          <div class="settings-card-head"><div><span class="settings-kicker">MOTOR PRINCIPAL</span><h3>Binance Spot Testnet</h3></div><span class="state neutral" id="primaryEnvironmentState">CARGANDO</span></div>
           <div class="settings-field">
-            <label for="aiModelChoice">Modelo de revisión IA</label>
+            <label for="aiModelChoice">Modelo IA compartido · Spot + Futures</label>
             <select id="aiModelChoice"><option value="gpt-6-luna">GPT-6 Luna</option><option value="gpt-5.6-luna">GPT-5.6 Luna</option></select>
           </div>
           <div class="settings-actions">
             <button id="applyAiModel" class="secondary" type="button">Aplicar modelo</button>
-            <button id="restartMotor" class="secondary" type="button">Reiniciar motor</button>
+            <button id="restartMotor" class="secondary" type="button">Reiniciar motores</button>
+            <button id="testTestnetExecution" class="secondary" type="button">Diagnóstico Spot</button>
           </div>
-          <div class="settings-field">
-            <label for="executionModeChoice">Entorno del motor</label>
-            <select id="executionModeChoice"><option value="testnet">Binance Spot Testnet · principal</option><option value="paper">PAPER · respaldo / CI</option></select>
-          </div>
-          <div class="settings-actions">
-            <button id="applyExecutionMode" class="secondary" type="button">Cambiar entorno</button>
-            <button id="testTestnetExecution" class="secondary" type="button">Probar Spot Testnet</button>
-          </div>
-          <p class="settings-help">PAPER se conserva para regresiones, diagnóstico y fallback. El desarrollo nuevo se valida primero en Testnet.</p>
+          <details class="update-details">
+            <summary>Respaldo técnico / PAPER</summary>
+            <p class="settings-help">PAPER no forma parte de la observación diaria. Se mantiene únicamente para CI, regresiones y recuperación.</p>
+            <div class="settings-field">
+              <label for="executionModeChoice">Entorno primario</label>
+              <select id="executionModeChoice"><option value="testnet">Binance Spot Testnet</option><option value="paper">PAPER · respaldo técnico</option></select>
+            </div>
+            <div class="settings-actions"><button id="applyExecutionMode" class="secondary" type="button">Cambiar entorno técnico</button></div>
+          </details>
         </article>
 
         <article class="settings-card futures-card">
@@ -155,13 +156,18 @@
       </article>
       <article class="panel engine-card futures-engine-card">
         <div class="settings-card-head"><div><p class="eyebrow">MOTOR 2</p><h2>Futures Demo · BTCUSDT</h2></div><span id="futuresForwardState" class="state neutral">CARGANDO</span></div>
-        <p>Forward test automático separado · LONG/SHORT · 1x · ISOLATED · una posición máxima.</p>
+        <p>Forward test automático separado · LONG/SHORT · 1x · ISOLATED · una posición máxima · confirmación IA final.</p>
         <div class="engine-stats">
           <span>Wallet <strong id="futuresForwardWallet">—</strong></span>
           <span>Posición <strong id="futuresForwardPosition">—</strong></span>
           <span>P&amp;L cerrado <strong id="futuresForwardPnl">—</strong></span>
           <span>Cierres <strong id="futuresForwardClosed">—</strong></span>
+          <span>Días observados <strong id="futuresForwardDays">—</strong></span>
+          <span>Drawdown <strong id="futuresForwardDrawdown">—</strong></span>
+          <span>Errores seguidos <strong id="futuresForwardErrors">—</strong></span>
+          <span>IA final <strong id="futuresForwardAi">—</strong></span>
         </div>
+        <p id="futuresForwardSafety" class="settings-help">Seguridad: journal durable, conciliación al reiniciar y kill switch independiente. LIVE bloqueado.</p>
         <div class="settings-actions">
           <button id="pauseFuturesForward" class="secondary" type="button">Pausar Futures</button>
           <button id="resumeFuturesForward" class="secondary" type="button">Reanudar Futures</button>
