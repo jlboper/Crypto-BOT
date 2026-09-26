@@ -5,11 +5,11 @@ from pathlib import Path
 from scripts.build_bot_release import build
 
 class ReleaseBuildTests(unittest.TestCase):
-    def test_deterministic_archive_includes_signed_config_but_excludes_credentials_and_data(self):
+    def test_bridge_archive_excludes_config_for_legacy_updater_compatibility(self):
         with tempfile.TemporaryDirectory() as directory:
             root=Path(directory)
             files={'trader/__main__.py':'# fixture\n','trader/runtime_control.py':'# fixture\n',
-                   'pyproject.toml':'[project]\nversion="0.6.3"\n','.env.local':'secret fixture',
+                   'pyproject.toml':'[project]\nversion="0.8.6"\n','.env.local':'secret fixture',
                    'config.toml':'[bot]\nmode="testnet"\n','data/database.db':'private fixture',
                    'trader/__pycache__/secret.pyc':'cache'}
             for name,content in files.items():
@@ -18,6 +18,6 @@ class ReleaseBuildTests(unittest.TestCase):
             second=build(root,files.keys(),root/'second.zip','a'*40,12345,1800000000)
             self.assertEqual(first,second)
             with zipfile.ZipFile(root/'first.zip') as archive:
-                self.assertEqual(set(archive.namelist()),{'trader/__main__.py','trader/runtime_control.py','pyproject.toml','config.toml'})
-            self.assertEqual(first['mode'],'testnet')
+                self.assertEqual(set(archive.namelist()),{'trader/__main__.py','trader/runtime_control.py','pyproject.toml'})
+            self.assertEqual(first['mode'],'paper')
             self.assertEqual(first['runtime_protocol'],1)

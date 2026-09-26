@@ -30,7 +30,11 @@ def build(root, paths, output, commit, sequence, expires):
         if name.endswith('.py'):
             compile(content, name, 'exec')
         files[name] = content
-    if not {'trader/__main__.py','trader/runtime_control.py','pyproject.toml','config.toml'} <= files.keys():
+    version = tomllib.loads(files['pyproject.toml'].decode())['project']['version']
+    bridge_release = version == '0.8.6'
+    if bridge_release:
+        files.pop('config.toml', None)
+    if not {'trader/__main__.py','trader/runtime_control.py','pyproject.toml'} <= files.keys():
         raise ValueError('Incomplete supervised release')
     if len(files)>2000 or sum(map(len,files.values()))>MAX_EXPANDED:
         raise ValueError('Release size limit')
@@ -41,11 +45,10 @@ def build(root, paths, output, commit, sequence, expires):
             entry.compress_type=zipfile.ZIP_DEFLATED
             entry.external_attr=0o100644<<16
             archive.writestr(entry,content)
-    version = tomllib.loads(files['pyproject.toml'].decode())['project']['version']
     if not re.fullmatch(r'\d+\.\d+\.\d+', version) or output.stat().st_size>MAX_PACKAGE:
         raise ValueError('Invalid release metadata')
-    release_config = tomllib.loads(files['config.toml'].decode())
-    release_mode = str(release_config.get('bot', {}).get('mode', '')).lower()
+    release_config = tomllib.loads((root/'config.toml').read_text(encoding='utf-8'))
+    release_mode = 'paper' if bridge_release else str(release_config.get('bot', {}).get('mode', '')).lower()
     if release_mode not in {'paper', 'testnet'}:
         raise ValueError('Invalid release execution mode')
     manifest={'app':'crypto-ai-trading-bot','mode':release_mode,'version':version,'runtime_protocol':1,
