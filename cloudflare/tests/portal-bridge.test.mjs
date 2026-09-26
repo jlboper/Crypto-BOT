@@ -8,7 +8,7 @@ const source=readFileSync(new URL('../../web/portal-bridge.js',import.meta.url),
 
 function node(){
   const classes=new Set();
-  return {hidden:false,disabled:false,textContent:'',value:'',children:[],attributes:{},
+  return {hidden:false,disabled:false,textContent:'',value:'',children:[],attributes:{},dataset:{},
     classList:{add(...names){for(const name of names)classes.add(name);},remove(...names){for(const name of names)classes.delete(name);},
       toggle(name,force){if(force===undefined){classes.has(name)?classes.delete(name):classes.add(name);}else{force?classes.add(name):classes.delete(name);}},
       contains(name){return classes.has(name);}},
@@ -120,6 +120,25 @@ test('manual update click performs a fresh check instead of being silently throt
   await instance.elements.get('checkAllUpdates').onclick();
   assert.equal(instance.calls.filter(call=>call.path==='/v1/jobs').length,2);
   assert.equal(instance.elements.get('updateMessage').textContent,'Segunda');
+});
+
+
+test('accepted operational action stays visibly busy instead of inviting a second click',async()=>{
+  const instance=bridge('paper.example.workers.dev',[
+    {status:200,body:state({snapshot:{mode:'TESTNET',dashboard:{},paper_controls:true,operations_controls:true}})},
+    {status:202,body:{id:45,action:'futures_testnet_check',status:'pending'}},
+    {status:200,body:state({
+      snapshot:{mode:'TESTNET',dashboard:{},paper_controls:true,operations_controls:true},
+      paper_controls:[{id:45,action:'futures_testnet_check',status:'completed',created:Date.now()/1000,message:'Futures Demo verificado'}],
+    })},
+  ]);
+  instance.start();
+  const promise=instance.elements.get('checkFuturesTestnet').onclick();
+  assert.equal(instance.elements.get('checkFuturesTestnet').disabled,true);
+  assert.equal(instance.elements.get('checkFuturesTestnet').textContent,'Procesando…');
+  await promise;
+  assert.equal(instance.elements.get('futuresMessage').textContent,'Futures Demo verificado');
+  assert.equal(instance.elements.get('checkFuturesTestnet').disabled,true);
 });
 
 test('remote Testnet smoke uses the supervised operations control',async()=>{
