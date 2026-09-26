@@ -84,7 +84,7 @@ Set-Content -LiteralPath $repairMarker -Value 'signed self-heal' -Encoding utf8
 Set-Content -LiteralPath $stopMarker -Value 'refresh outbound agent only' -Encoding utf8
 $result = $null
 try {
-    for ($attempt=0; $attempt -lt 90; $attempt++) {
+    for ($attempt=0; $attempt -lt 240; $attempt++) {
         if ((Get-ScheduledTask -TaskName $taskName).State -ne 'Running') { break }
         Start-Sleep -Milliseconds 500
     }
