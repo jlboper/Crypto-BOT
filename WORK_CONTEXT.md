@@ -36,7 +36,7 @@ Work prepara una rama/PR. GitHub ejecuta validaciones. Al integrar en `main`, el
 
 ## Fase actual
 
-La prioridad es **observación**, no añadir estrategia por ruido de pocos días. Spot y Futures acumulan métricas separadas (días, cierres, P&L/retorno, drawdown, calidad y errores). Cambios de estrategia o riesgo deben basarse en evidencia suficiente; correcciones de seguridad/operación sí pueden hacerse antes.
+La prioridad es **observación**, no añadir estrategia por ruido de pocos días. Spot y Futures acumulan métricas separadas (días, cierres, P&L/retorno, drawdown, calidad y errores). Desde 0.8.7 el portal añade salud de observación de 24 h: cobertura de ciclos, gaps, errores e integridad de journals/ledgers. Cambios de estrategia o riesgo deben basarse en evidencia suficiente; correcciones de seguridad/operación sí pueden hacerse antes.
 
 
 ## Unified signed rollout
