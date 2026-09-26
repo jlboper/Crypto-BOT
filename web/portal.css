@@ -252,3 +252,13 @@ select,input{min-width:0}
   margin:0!important;padding:11px 12px;border:1px solid #294255;border-radius:10px;
   background:#0a1822;color:#a9c4d4!important;font-size:.78rem;line-height:1.5!important;
 }
+
+.dual-engines{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.engine-card{margin-bottom:0}
+.engine-card>p{color:#8fa0ba;line-height:1.55}
+.engine-stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:14px 0}
+.engine-stats span{display:flex;flex-direction:column;gap:4px;padding:10px;border:1px solid #263950;border-radius:10px;background:#0b1320;color:#8fa0ba;font-size:.72rem}
+.engine-stats strong{color:#e8eef8;font-size:.96rem}
+.futures-engine-card{border-color:#344f68}
+@media(max-width:900px){.dual-engines{grid-template-columns:1fr}}
+@media(max-width:600px){.engine-stats{grid-template-columns:1fr 1fr}}
