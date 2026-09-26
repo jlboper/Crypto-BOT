@@ -31,6 +31,7 @@ $script:AgentRefreshCheckedVersion = ''
 $script:AgentRefreshNextAttempt = [DateTime]::MinValue
 $script:AgentHealthFailures = 0
 $script:AgentRestartNextAttempt = [DateTime]::MinValue
+$script:EngineRestartNextAttempt = [DateTime]::MinValue
 
 function Get-InstalledVersion {
     $projectFile = Join-Path $ProjectRoot "pyproject.toml"
@@ -222,6 +223,21 @@ function Get-TradingProcesses {
         Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
             Where-Object { $_.CommandLine -like "*-m trader *" -and $_.CommandLine.Contains((Join-Path $ProjectRoot 'config.toml')) -and $_.CommandLine -match '\brun\s*$' }
     )
+}
+
+function Invoke-TradingEngineWatchdog {
+    # Do not interfere with signed-update maintenance. Outside maintenance,
+    # recover the supervised engine after an unexpected process loss.
+    if (Test-Path (Join-Path $ProjectRoot 'data\UPDATE_MAINTENANCE.json')) { return }
+    if (Test-Path $StartupOptOutPath) { return }
+    if ((Get-TradingProcesses).Count -gt 0) { return }
+    if ([DateTime]::UtcNow -lt $script:EngineRestartNextAttempt) { return }
+    $script:EngineRestartNextAttempt = [DateTime]::UtcNow.AddMinutes(1)
+    try {
+        Start-TradingBot
+    } catch {
+        # Status UI will surface the failure; retry is intentionally rate-limited.
+    }
 }
 
 function Start-TradingBot {
@@ -778,6 +794,7 @@ $timer.Add_Tick({
     Update-ManagerStatus
     Invoke-AutomaticAgentRefresh
     Invoke-PortalAgentWatchdog
+    Invoke-TradingEngineWatchdog
 })
 $form.Add_Shown({
     if (-not (Test-Path $StartupOptOutPath) -and -not (Test-CanonicalStartup)) {
