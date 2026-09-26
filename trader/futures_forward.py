@@ -9,6 +9,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 
 from .domain import Candle
+from .ai_advisor import AIAdvisor
 from .futures_testnet import FuturesTestnetLab, FuturesTestnetExecutionError, _decimal
 from .indicators import atr, ema_series, rsi, sma
 
@@ -20,6 +21,7 @@ class FuturesForwardEngine:
         self.exchange = exchange
         self.lab = FuturesTestnetLab(self.settings)
         self.ledger = self.lab.ledger
+        self.ai = AIAdvisor(config.ai)
 
     def killed(self) -> bool:
         return self.settings.kill_switch_path.exists()
@@ -194,6 +196,10 @@ class FuturesForwardEngine:
     def cycle(self, candles: list[Candle]) -> dict:
         if not self.settings.forward_enabled:
             return {"enabled": False, "status": "OFF"}
+        now = datetime.now(UTC).isoformat()
+        cycles = int(self.ledger.setting("forward_cycles") or 0) + 1
+        self.ledger.set_setting("forward_cycles", cycles)
+        self.ledger.set_setting("forward_last_cycle", {"at": now})
         if self.killed():
             return {"enabled": True, "status": "KILLED"}
         pending = self.lab.reconcile_forward_pending()
@@ -226,6 +232,30 @@ class FuturesForwardEngine:
 
         if signal["direction"] is None:
             return {"enabled": True, "status": "FLAT", "signal": signal, **account}
+
+        ai_review = self.ai.review_futures(
+            signal,
+            {
+                "wallet_balance": float(account["wallet_balance"]),
+                "available_balance": float(account["available_balance"]),
+                "unrealized_pnl": float(account["unrealized_pnl"]),
+                "open_positions": float(1 if local else 0),
+                "automatic_leverage": 1.0,
+            },
+        )
+        self.ledger.set_setting("forward_last_ai_review", {
+            "model": self.config.ai.model,
+            "verdict": ai_review.verdict,
+            "confidence": ai_review.confidence,
+            "reason": ai_review.reason,
+            "at": datetime.now(UTC).isoformat(),
+            "direction": signal["direction"],
+            "score": int(signal["score"]),
+        })
+        if ai_review.verdict != "ALLOW" or ai_review.risk_multiplier <= 0:
+            return {"enabled": True, "status": "AI_REJECTED", "signal": signal,
+                    "ai_review": {"verdict": ai_review.verdict, "confidence": ai_review.confidence,
+                                  "reason": ai_review.reason, "model": self.config.ai.model}, **account}
 
         quantity = self.lab._validate_smoke_quantity(
             self.settings.forward_symbol, signal["direction"]
@@ -280,7 +310,9 @@ class FuturesForwardEngine:
             "opened_at": datetime.now(UTC).isoformat(),
         }
         self.ledger.set_forward_position(position)
-        return {"enabled": True, "status": "OPENED", "position": position, "signal": signal, **account}
+        return {"enabled": True, "status": "OPENED", "position": position, "signal": signal,
+                "ai_review": {"verdict": ai_review.verdict, "confidence": ai_review.confidence,
+                              "reason": ai_review.reason, "model": self.config.ai.model}, **account}
 
     def snapshot(self) -> dict:
         data = self.ledger.forward_snapshot()
@@ -291,5 +323,16 @@ class FuturesForwardEngine:
             "automatic_leverage": 1,
             "latest_signal": self.ledger.setting("forward_last_signal"),
             "last_error": self.ledger.setting("forward_last_error"),
+            "last_cycle": self.ledger.setting("forward_last_cycle"),
+            "cycles": int(self.ledger.setting("forward_cycles") or 0),
+            "consecutive_errors": int(self.ledger.setting("forward_consecutive_errors") or 0),
+            "ai_model": self.config.ai.model,
+            "last_ai_review": self.ledger.setting("forward_last_ai_review"),
+            "recovery": {
+                "durable_order_journal": True,
+                "separate_kill_switch": True,
+                "startup_position_reconciliation": True,
+                "native_exchange_stop_orders": False,
+            },
             **data,
         }
