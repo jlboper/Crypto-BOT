@@ -28,7 +28,7 @@ from .runtime import single_instance
 MAX_PACKAGE = 50 * 1024 * 1024
 MAX_EXPANDED = 100 * 1024 * 1024
 DIRECTORIES = {"trader", "tests", "web", "scripts", "portal_web"}
-FILES = {"README.md", "RESEARCH_METHODOLOGY.md", "pyproject.toml", "UPDATE_NOTES.md"}
+FILES = {"README.md", "RESEARCH_METHODOLOGY.md", "pyproject.toml", "UPDATE_NOTES.md", "config.toml"}
 
 
 def canonical(value):
@@ -95,7 +95,7 @@ def verify(package: Path, envelope: Path, public_key: Path, minimum_sequence=0, 
     Ed25519PublicKey.from_public_bytes(public_bytes(public_key)).verify(
         base64.b64decode(signed["signature"], validate=True), canonical(manifest))
     now = time.time() if now is None else now
-    if manifest["app"] != "crypto-ai-trading-bot" or manifest["mode"] != "paper":
+    if manifest["app"] != "crypto-ai-trading-bot" or manifest["mode"] not in {"paper", "testnet"}:
         raise ValueError("wrong application or mode")
     if type(manifest["sequence"]) is not int or manifest["sequence"] <= minimum_sequence:
         raise ValueError("replayed or downgraded update")
@@ -126,6 +126,11 @@ def verify(package: Path, envelope: Path, public_key: Path, minimum_sequence=0, 
         metadata = tomllib.loads(archive.read("pyproject.toml").decode())
         if metadata["project"]["version"] != manifest["version"]:
             raise ValueError("version mismatch")
+        if "config.toml" in files:
+            release_config = tomllib.loads(archive.read("config.toml").decode())
+            configured_mode = str(release_config.get("bot", {}).get("mode", "")).lower()
+            if configured_mode != manifest["mode"]:
+                raise ValueError("release mode mismatch")
     return manifest
 
 
