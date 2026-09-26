@@ -64,7 +64,7 @@ async function readBody(request, maximum = 65536) {
 }
 function validateSnapshot(snapshot) {
   assert(object(snapshot) && ['PAPER','TESTNET'].includes(snapshot.mode), 'Trading snapshot required');
-  const allowed = ['mode','equity','cash','exposure','positions','killed','last_cycle_at','ai_model','update_state','dashboard','bot_update','bot_restore','paper_controls','operations_controls'];
+  const allowed = ['mode','equity','cash','exposure','positions','killed','last_cycle_at','ai_model','installed_version','update_state','dashboard','bot_update','bot_restore','paper_controls','operations_controls'];
   assert(Object.keys(snapshot).every(k => allowed.includes(k)), 'Unknown snapshot field');
   if(snapshot.paper_controls!==undefined)assert(snapshot.paper_controls===true,'Invalid PAPER capability');
   if(snapshot.operations_controls!==undefined)assert(snapshot.operations_controls===true,'Invalid controls capability');
@@ -74,7 +74,10 @@ function validateSnapshot(snapshot) {
   assert(typeof snapshot.killed === 'boolean', 'Invalid pause state');
   assert(snapshot.last_cycle_at === null || (typeof snapshot.last_cycle_at === 'string' && snapshot.last_cycle_at.length <= 40 && Number.isFinite(Date.parse(snapshot.last_cycle_at))), 'Invalid cycle time');
   assert(typeof snapshot.ai_model === 'string' && /^[a-zA-Z0-9._-]{1,80}$/.test(snapshot.ai_model) && !snapshot.ai_model.startsWith('sk-'), 'Invalid model');
-  assert(snapshot.update_state === 'manual_signed_install_only', 'Invalid update state');
+  if(snapshot.installed_version!==undefined&&snapshot.installed_version!==null){
+    assert(typeof snapshot.installed_version==='string'&&/^\d+\.\d+\.\d+$/.test(snapshot.installed_version),'Invalid installed version');
+  }
+  assert(['manual_signed_install_only','signed_rollout'].includes(snapshot.update_state), 'Invalid update state');
   if(snapshot.bot_update!=null){
     const b=snapshot.bot_update;
     assert(object(b)&&Object.keys(b).every(k=>['release_id','version','sequence','expires','commit','enabled'].includes(k)),'Invalid bot release');
@@ -156,6 +159,12 @@ const paperStored = `(${closeStored} OR ${riskStored} OR ${modelStored} OR ${res
 const jobAction = `CASE WHEN ${closeStored} THEN 'paper_close' WHEN ${riskStored} THEN 'risk_profile' WHEN ${modelStored} THEN 'ai_model' WHEN ${restartStored} THEN 'restart_engine' WHEN ${executionModeStored} THEN 'execution_mode' WHEN ${testnetSmokeStored} THEN 'testnet_smoke' WHEN ${futuresCheckStored} THEN 'futures_testnet_check' WHEN ${futuresSmokeStored} THEN 'futures_testnet_smoke' WHEN ${futuresReconcileStored} THEN 'futures_testnet_reconcile' WHEN ${testBuyStored} THEN 'testnet_buy' WHEN ${testCloseStored} THEN 'testnet_close' WHEN ${testReconcileStored} THEN 'testnet_reconcile' WHEN ${testAuditStored} THEN 'testnet_audit' WHEN ${restoreStored} THEN 'update_restore' ELSE action END`;
 const jobRelease = `CASE WHEN ${restoreStored} THEN substr(release_id,9) ELSE release_id END`;
 function results(batch, index) { return batch[index]?.results || []; }
+function newerVersion(candidate,installed){
+  if(!/^\d+\.\d+\.\d+$/.test(candidate||'')||!/^\d+\.\d+\.\d+$/.test(installed||''))return false;
+  const a=candidate.split('.').map(Number),b=installed.split('.').map(Number);
+  for(let i=0;i<3;i++){if(a[i]!==b[i])return a[i]>b[i];}
+  return false;
+}
 function cookie(request) {
   const values = (request.headers.get('cookie') || '').split(';').map(p => p.trim()).filter(p => p.startsWith('__Host-session='));
   return values.length === 1 ? values[0].slice('__Host-session='.length) : '';
@@ -231,6 +240,22 @@ export async function handle(request, env, now = Math.floor(Date.now() / 1000)) 
     }
     jq.push(statement(db,"UPDATE jobs SET status='expired' WHERE status='pending' AND expires<=?",now));
     jq.push(statement(db,"UPDATE jobs SET status='failed',message='Windows no confirmó el resultado dentro del límite' WHERE status='running' AND created<=?",now-JOB_MAX_SECONDS));
+    if(snapshot.update_state==='signed_rollout'&&snapshot.installed_version){
+      const latest=await statement(db,'SELECT release_id,envelope FROM bot_releases ORDER BY sequence DESC LIMIT 1').first();
+      if(latest){
+        let latestVersion=null;
+        try{latestVersion=JSON.parse(latest.envelope)?.manifest?.version||null;}catch{}
+        if(HASH.test(latest.release_id)&&newerVersion(latestVersion,snapshot.installed_version)){
+          const autoRequest='auto_rollout_'+latest.release_id.slice(0,40);
+          jq.push(statement(db,`UPDATE jobs SET status='pending',created=?,expires=?,delivered_at=NULL,message='' WHERE request_id=? AND action='update_install' AND release_id=? AND status='expired'`,
+            now,now+300,autoRequest,latest.release_id));
+          jq.push(statement(db,`INSERT INTO jobs(request_id,action,status,created,expires,release_id)
+            SELECT ?,'update_install','pending',?,?,? WHERE NOT EXISTS(
+              SELECT 1 FROM jobs WHERE request_id=? OR status IN ('pending','running')
+            )`,autoRequest,now,now+300,latest.release_id,autoRequest));
+        }
+      }
+    }
     jq.push(statement(db,"UPDATE jobs SET delivered_at=COALESCE(delivered_at,?) WHERE status='pending' AND expires>?",now,now));
     jq.push(statement(db,`SELECT id,${jobAction} AS action,expires,${jobRelease} AS release_id FROM jobs WHERE status='pending' AND expires>? AND NOT ${paperStored} ORDER BY id LIMIT 1`,now));
     const controlResults=body.control_results||[];
