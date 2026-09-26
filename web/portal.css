@@ -270,3 +270,9 @@ select,input{min-width:0}
 .dual-scorecards dl div{display:flex;justify-content:space-between;gap:16px;padding:8px 0;border-bottom:1px solid rgba(143,160,186,.12)}
 .dual-scorecards dt{color:#8fa0ba}.dual-scorecards dd{margin:0;font-weight:700;text-align:right}
 @media(max-width:760px){.dual-scorecards{grid-template-columns:1fr}}
+
+/* v0.8.2 — cleaner dual-engine navigation */
+.technical-fallback{margin-top:2px;padding-top:12px;border-top:1px solid #263950}
+.technical-fallback>summary{font-size:.78rem;color:#8295ad}
+.settings-card-focus{outline:2px solid rgba(112,214,255,.65);outline-offset:3px;transition:outline-color .6s ease}
+#futuresSettingsButton{color:#a9d5dc}
