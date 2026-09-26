@@ -95,7 +95,7 @@ python -m trader testnet-simulate
 
 A partir de 0.7.0, PAPER queda como entorno de respaldo/CI: se mantiene para regresiones, diagnóstico y fallback, pero las capacidades nuevas se desarrollan sobre Testnet salvo cambios de seguridad necesarios.
 
-El laboratorio paralelo de **USDⓈ-M Futures Demo** usa credenciales distintas: `BINANCE_FUTURES_TESTNET_API_KEY` y `BINANCE_FUTURES_TESTNET_API_SECRET`. Sus datos se guardan en `data/futures-testnet.db`, separados del ledger Spot. Solo permite margen `ISOLATED`, modo `ONE_WAY` y leverage 1x/2x/3x. La primera fase ofrece verificación de cuenta, smoke LONG/SHORT y reconciliación explícita con cierre `reduceOnly`; todavía no convierte el motor automático Spot en un motor de Futures.
+El laboratorio paralelo de **USDⓈ-M Futures Demo** usa la API REST de prueba oficial en `https://testnet.binancefuture.com` y credenciales distintas: `BINANCE_FUTURES_TESTNET_API_KEY` y `BINANCE_FUTURES_TESTNET_API_SECRET`. Sus datos se guardan en `data/futures-testnet.db`, separados del ledger Spot. Solo permite margen `ISOLATED`, modo `ONE_WAY` y leverage 1x/2x/3x. La primera fase ofrece verificación de cuenta, smoke LONG/SHORT y reconciliación explícita con cierre `reduceOnly`; todavía no convierte el motor automático Spot en un motor de Futures.
 
 Usa únicamente claves dedicadas de entornos Testnet, nunca claves de Binance de producción. Guárdalas en la PC con acceso limitado y no las envíes al portal ni al repositorio. Las pruebas de Spot y Futures validan infraestructura, no rentabilidad.
 

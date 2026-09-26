@@ -1,3 +1,12 @@
+# Actualización 0.7.5 — host REST correcto para Binance Futures Demo
+
+- Corrige el host de USDⓈ-M Futures: la interfaz se denomina **Binance Demo Trading**, pero la API REST de prueba usa `https://testnet.binancefuture.com`.
+- Revierte el host experimental `demo-fapi.binance.com`, que provocaba `Futures Testnet public connection failed`.
+- Conserva todas las mejoras de 0.7.4: `POST /fapi/v1/order/test` como preflight de permiso TRADE, cantidad compatible con filtros del contrato y mensajes reales de Binance.
+- Conserva los cambios de fiabilidad de primer clic del portal.
+- Futures sigue separado de Spot, con fondos ficticios, ISOLATED, One-way, 1x/2x/3x, reduceOnly, journal durable y recovery.
+- Binance LIVE continúa sin host ni ruta de escritura.
+
 # Actualización 0.7.4 — diagnóstico Futures Demo + acciones de un solo clic
 
 - **Verificar Futures** construye ahora una orden de prueba con una cantidad compatible con `minQty`, `stepSize` y `MIN_NOTIONAL`; deja de asumir que 10 USDT siempre producen una cantidad válida para BTCUSDT.
