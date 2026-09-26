@@ -9,9 +9,34 @@ import argparse
 import json
 import sys
 import tomllib
+import subprocess
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+
+
+
+def discover_agent_root() -> Path:
+    """Discover the independent Windows agent without exposing secrets to the browser."""
+    if sys.platform != "win32":
+        raise RuntimeError("Automatic supervisor discovery requires Windows")
+    result = subprocess.run(
+        ["schtasks.exe", "/Query", "/TN", "Crypto Paper Portal Agent", "/XML"],
+        stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, check=False,
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+    )
+    if result.returncode != 0 or not result.stdout:
+        raise FileNotFoundError("Independent supervisor task not found")
+    root = ET.fromstring(result.stdout.decode("utf-16", errors="strict"))
+    namespace = {"t": "http://schemas.microsoft.com/windows/2004/02/mit/task"}
+    working = root.findtext(".//t:Exec/t:WorkingDirectory", namespaces=namespace)
+    if not working:
+        raise FileNotFoundError("Independent supervisor working directory unavailable")
+    path = Path(working).resolve(strict=True)
+    if not (path / "scripts" / "windows_agent.py").is_file():
+        raise FileNotFoundError("Independent supervisor installation unavailable")
+    return path
 
 
 def channel(source: Path, agent_root: Path):
@@ -89,7 +114,8 @@ def failure_code(error: Exception) -> str:
 def main() -> None:
     parser = argparse.ArgumentParser(description='Independent local trading update center')
     parser.add_argument('--source', type=Path, required=True)
-    parser.add_argument('--agent-root', type=Path, required=True)
+    parser.add_argument('--agent-root', type=Path, required=False)
+    parser.add_argument('--delay-seconds', type=float, default=0.0)
     options = parser.add_mutually_exclusive_group(required=True)
     options.add_argument('--check-online', action='store_true')
     options.add_argument('--check-offline', action='store_true')
@@ -97,7 +123,12 @@ def main() -> None:
     args = parser.parse_args()
     # Run the updater from the independent agent code, not the files that are
     # about to be replaced in the signed target installation.
-    agent_root = args.agent_root.resolve(strict=True)
+    if args.delay_seconds < 0 or args.delay_seconds > 10:
+        raise SystemExit('Invalid delay')
+    if args.delay_seconds:
+        import time
+        time.sleep(args.delay_seconds)
+    agent_root = (args.agent_root.resolve(strict=True) if args.agent_root else discover_agent_root())
     if not (agent_root / 'scripts/windows_agent.py').is_file():
         raise SystemExit('Independent supervisor not found')
     sys.path.insert(0, str(agent_root))
