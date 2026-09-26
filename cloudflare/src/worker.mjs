@@ -135,8 +135,9 @@ const restartStored = "action='research' AND substr(COALESCE(release_id,''),1,15
 const testBuyStored = "action='research' AND substr(COALESCE(release_id,''),1,12)='testnet_buy:'";
 const testCloseStored = "action='research' AND substr(COALESCE(release_id,''),1,14)='testnet_close:'";
 const testReconcileStored = "action='research' AND substr(COALESCE(release_id,''),1,18)='testnet_reconcile:'";
-const paperStored = `(${closeStored} OR ${riskStored} OR ${modelStored} OR ${restartStored} OR ${testBuyStored} OR ${testCloseStored} OR ${testReconcileStored})`;
-const jobAction = `CASE WHEN ${closeStored} THEN 'paper_close' WHEN ${riskStored} THEN 'risk_profile' WHEN ${modelStored} THEN 'ai_model' WHEN ${restartStored} THEN 'restart_engine' WHEN ${testBuyStored} THEN 'testnet_buy' WHEN ${testCloseStored} THEN 'testnet_close' WHEN ${testReconcileStored} THEN 'testnet_reconcile' WHEN ${restoreStored} THEN 'update_restore' ELSE action END`;
+const testAuditStored = "action='research' AND substr(COALESCE(release_id,''),1,14)='testnet_audit:'";
+const paperStored = `(${closeStored} OR ${riskStored} OR ${modelStored} OR ${restartStored} OR ${testBuyStored} OR ${testCloseStored} OR ${testReconcileStored} OR ${testAuditStored})`;
+const jobAction = `CASE WHEN ${closeStored} THEN 'paper_close' WHEN ${riskStored} THEN 'risk_profile' WHEN ${modelStored} THEN 'ai_model' WHEN ${restartStored} THEN 'restart_engine' WHEN ${testBuyStored} THEN 'testnet_buy' WHEN ${testCloseStored} THEN 'testnet_close' WHEN ${testReconcileStored} THEN 'testnet_reconcile' WHEN ${testAuditStored} THEN 'testnet_audit' WHEN ${restoreStored} THEN 'update_restore' ELSE action END`;
 const jobRelease = `CASE WHEN ${restoreStored} THEN substr(release_id,9) ELSE release_id END`;
 function results(batch, index) { return batch[index]?.results || []; }
 function cookie(request) {
@@ -349,15 +350,15 @@ export async function handle(request, env, now = Math.floor(Date.now() / 1000)) 
   if(path==='/v1/paper-controls'&&method==='POST'){
     const body=await readBody(request,1024);
     assert(Object.keys(body).sort().join(',')==='action,payload,request_id'&&
-      ['risk_profile','paper_close','ai_model','restart_engine','testnet_buy','testnet_close','testnet_reconcile'].includes(body.action)&&
+      ['risk_profile','paper_close','ai_model','restart_engine','testnet_buy','testnet_close','testnet_reconcile','testnet_audit'].includes(body.action)&&
       typeof body.request_id==='string'&&/^[A-Za-z0-9_-]{16,100}$/.test(body.request_id)&&object(body.payload),'Invalid PAPER request');
     if(body.action==='risk_profile'){
       assert(Object.keys(body.payload).join(',')==='profile'&&
-        ['minimo','prudente','normal'].includes(body.payload.profile),'Invalid risk profile');
+        ['minimo','leve','prudente','moderado','alto','normal'].includes(body.payload.profile),'Invalid risk profile');
     }else if(body.action==='ai_model'){
       assert(Object.keys(body.payload).join(',')==='model'&&
         ['gpt-5.6-luna','gpt-6-luna'].includes(body.payload.model),'Invalid model selection');
-    }else if(['restart_engine','testnet_buy','testnet_close','testnet_reconcile'].includes(body.action)){
+    }else if(['restart_engine','testnet_buy','testnet_close','testnet_reconcile','testnet_audit'].includes(body.action)){
       assert(Object.keys(body.payload).length===0,'Invalid restart request');
     }else{
       const p=body.payload;

@@ -78,8 +78,43 @@ def _balance(asset: str) -> Decimal:
     raise TestnetExecutionError('Testnet balance unavailable')
 
 
+def _summary(orders: list) -> dict:
+    """Conservative derived state; a corrupt ledger must never unlock a write."""
+    owned = Decimal('0')
+    spent = Decimal('0')
+    received = Decimal('0')
+    gross = Decimal('0')
+    cycles = 0
+    for row in orders:
+        if not isinstance(row, dict) or row.get('symbol') != SYMBOL or row.get('side') not in {'BUY','SELL'}:
+            raise TestnetExecutionError('Invalid Testnet ledger')
+        qty = Decimal(str(row.get('executed_qty','0')))
+        quote = Decimal(str(row.get('cumulative_quote','0')))
+        if not qty.is_finite() or not quote.is_finite() or qty < 0 or quote < 0:
+            raise TestnetExecutionError('Invalid Testnet ledger quantity')
+        if row['side'] == 'BUY':
+            owned += qty
+            spent += quote
+        else:
+            owned -= qty
+            received += quote
+            if owned < 0:
+                raise TestnetExecutionError('Testnet sale exceeds owned quantity')
+            if owned == 0 and spent > 0:
+                gross += received - spent
+                cycles += 1
+                spent = received = Decimal('0')
+    today = time.strftime('%Y-%m-%d', time.gmtime())
+    pending = any(row.get('status') not in TERMINAL for row in orders)
+    bought_today = any(row['side']=='BUY' and row.get('created_day')==today for row in orders)
+    return {'position_qty':str(owned), 'closed_cycles':cycles,
+            'gross_closed_quote_usdt':str(gross), 'can_buy':not pending and owned==0 and not bought_today,
+            'can_close':not pending and owned>0, 'needs_reconciliation':pending,
+            'entry_today':bought_today}
+
+
 def execute(source: Path, action: str, payload: dict) -> dict:
-    if action not in {'testnet_buy', 'testnet_close', 'testnet_reconcile'} or payload != {}:
+    if action not in {'testnet_buy', 'testnet_close', 'testnet_reconcile', 'testnet_audit'} or payload != {}:
         raise TestnetExecutionError('Invalid Testnet request')
     source = source.resolve(strict=True)
     from .config import load_config
@@ -93,7 +128,42 @@ def execute(source: Path, action: str, payload: dict) -> dict:
         orders = state['orders']
         if not isinstance(orders, list) or len(orders) > 100:
             raise TestnetExecutionError('Testnet history requires review')
+        summary = _summary(orders)
         unresolved = next((order for order in orders if order.get('status') not in TERMINAL), None)
+        if action == 'testnet_audit':
+            if unresolved:
+                raise TestnetExecutionError('Reconcile uncertain order before auditing')
+            audit_path = source/'data/testnet-audit.json'
+            # A failed read cannot leave an older "verified" flag in effect.
+            atomic_json(audit_path, {'status':'requires_review',
+                        'last_order_id':orders[-1]['client_order_id'] if orders else None,
+                        'checked_at':time.time()})
+            account = _signed('GET', '/api/v3/account', {})
+            balances = {}
+            for asset in ('BTC','USDT'):
+                row = next((r for r in account.get('balances',[]) if r.get('asset')==asset), None)
+                if row is None:
+                    raise TestnetExecutionError('Incomplete Testnet account response')
+                free = Decimal(str(row['free']))
+                locked = Decimal(str(row['locked']))
+                if not all(value.is_finite() and value >= 0 for value in (free,locked)):
+                    raise TestnetExecutionError('Invalid Testnet account balance')
+                balances[asset] = {'free':str(free), 'locked':str(locked)}
+            verified = True
+            for row in orders[-10:]:
+                received = _safe_order(_signed('GET', '/api/v3/order',
+                    {'symbol':SYMBOL, 'origClientOrderId':row['client_order_id']}),
+                    row['client_order_id'],row['side'])
+                if (received['status'] != row.get('status') or
+                        any(Decimal(received[key]) != Decimal(str(row.get(key))) for key in
+                            ('executed_qty', 'cumulative_quote'))):
+                    verified = False
+            audit = {'status':'verified' if verified else 'requires_review',
+                     'orders_checked':min(len(orders),10), 'complete_history':len(orders)<=10,
+                     'last_order_id':orders[-1]['client_order_id'] if orders else None,
+                     'balances':balances, 'checked_at':time.time()}
+            atomic_json(audit_path,audit)
+            return {'ok':True, **audit}
         if action == 'testnet_reconcile':
             if not unresolved:
                 return {'ok': True, 'status': 'reconciled', 'order': orders[-1] if orders else None}
@@ -104,13 +174,10 @@ def execute(source: Path, action: str, payload: dict) -> dict:
             return {'ok': True, 'status': target['status'], 'order': target}
         if unresolved:
             raise TestnetExecutionError('Unresolved Testnet order; reconcile first')
-        try:
-            owned = sum((Decimal(str(order.get('executed_qty','0'))) *
-                         (1 if order['side'] == 'BUY' else -1) for order in orders), Decimal('0'))
-        except (KeyError, ValueError, ArithmeticError):
-            raise TestnetExecutionError('Invalid Testnet execution ledger') from None
-        if owned < 0 or not owned.is_finite():
-            raise TestnetExecutionError('Testnet ledger requires manual review')
+        owned = Decimal(summary['position_qty'])
+        audit_file = source/'data/testnet-audit.json'
+        if audit_file.exists() and json.loads(audit_file.read_text()).get('status')=='requires_review':
+            raise TestnetExecutionError('Testnet order mismatch requires manual review')
         if action == 'testnet_buy':
             if owned > 0:
                 raise TestnetExecutionError('Testnet position already open')
@@ -155,12 +222,23 @@ def execute(source: Path, action: str, payload: dict) -> dict:
 def public_status(source: Path) -> dict:
     path = source / 'data/testnet-execution.json'
     if not path.is_file():
-        return {'mode':'SPOT_TESTNET', 'orders': [], 'next_step':'Primera operación limitada pendiente'}
+        return {'mode':'SPOT_TESTNET', 'orders': [], 'next_step':'Primera operación limitada pendiente',
+                **_summary([]), 'audit':None}
     try:
         data = json.loads(path.read_text())
+        if not isinstance(data.get('orders'),list) or len(data['orders'])>100:
+            raise TestnetExecutionError('Invalid Testnet history')
+        summary = _summary(data['orders'])
         rows = data['orders'][-5:]
+        audit_path = source/'data/testnet-audit.json'
+        audit = json.loads(audit_path.read_text()) if audit_path.is_file() else None
+        if audit is not None and audit.get('last_order_id') != (rows[-1]['client_order_id'] if rows else None):
+            audit = None
         return {'mode':'SPOT_TESTNET', 'orders': [{k: row.get(k) for k in
             ('client_order_id','side','symbol','status','executed_qty','cumulative_quote','created_day')} for row in rows],
-            'next_step': 'Conciliar si aparece estado incierto; nunca se reenvía una orden'}
-    except (OSError, ValueError, KeyError, TypeError):
-        return {'mode':'SPOT_TESTNET','orders':[],'next_step':'Historial local no disponible; acciones bloqueadas'}
+            'next_step': 'Conciliar si aparece estado incierto; nunca se reenvía una orden',
+            **summary, 'audit':audit}
+    except (OSError, ValueError, KeyError, TypeError, ArithmeticError):
+        return {'mode':'SPOT_TESTNET','orders':[],'next_step':'Historial local requiere revisión; acciones bloqueadas',
+                'position_qty':None,'closed_cycles':0,'gross_closed_quote_usdt':None,
+                'can_buy':False,'can_close':False,'needs_reconciliation':False,'entry_today':False,'audit':None}

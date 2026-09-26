@@ -70,6 +70,7 @@ test('PAPER controls require a current capable Windows snapshot, retain exact po
   assert.equal(status.body.paper_controls[0].status,'completed');
   assert.equal(status.body.activity[0].action,'paper_close');
   assert.equal((await f.request('/v1/paper-controls',{action:'risk_profile',request_id:'risk-profile-request-0001',payload:{profile:'infinito'}})).status,400);
+  assert.equal((await f.request('/v1/paper-controls',{action:'risk_profile',request_id:'risk-profile-request-0002',payload:{profile:'moderado'}})).status,202);
   assert.equal((await f.request('/v1/paper-controls',request,{'X-CSRF-Token':'bad'})).status,403);
 });
 
@@ -88,6 +89,10 @@ test('Testnet execution and model controls require the upgraded Windows capabili
   assert.deepEqual(delivery.body.paper_controls[0].payload,{});
   await f.sync({snapshot:{...snapshot(),paper_controls:true,operations_controls:true},acks:[],control_results:[{id:accepted.body.id,status:'completed',message:'Compra de prueba: FILLED'}]});
   assert.equal((await f.request('/v1/status')).body.activity[0].action,'testnet_buy');
+  const audit=await f.request('/v1/paper-controls',command('testnet_audit',{},'testnet-audit-0000004'));
+  assert.equal(audit.status,202);
+  const auditDelivery=await f.sync({snapshot:{...snapshot(),paper_controls:true,operations_controls:true},acks:[]});
+  assert.equal(auditDelivery.body.paper_controls[0].action,'testnet_audit');
 });
 
 test('activity combines jobs and commands, paginates privately, and rejects unbounded routes',async t=>{

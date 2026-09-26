@@ -93,7 +93,7 @@ python -m trader testnet-simulate
 
 `BINANCE_API_KEY` y `BINANCE_API_SECRET` de **Spot Testnet** deben estar únicamente en `.env.local`. `check-testnet`, `testnet-plan`, `testnet-simulate` y `testnet-validate` siguen disponibles como diagnósticos sin ejecutar operaciones. Desde 0.6.17, Opciones → Binance Testnet permite una primera **compra manual real en Testnet** de BTC/USDT por 25 USDT ficticios, un cierre manual de esa posición y conciliación de una respuesta incierta. Cada escritura guarda primero un identificador y nunca reintenta automáticamente. Esto no conecta el motor de estrategias ni reemplaza la contabilidad PAPER. Binance de producción y los fondos reales permanecen deshabilitados.
 
-Usa únicamente claves dedicadas de Binance Spot Testnet, nunca claves de Binance de producción. Guárdalas en la PC con acceso limitado y no las envíes al portal ni al repositorio.
+Usa únicamente claves dedicadas de Binance Spot Testnet, nunca claves de Binance de producción. Guárdalas en la PC con acceso limitado y no las envíes al portal ni al repositorio. A partir de 0.6.19, el portal presenta una ida y vuelta de prueba con variación **bruta**, la posición propia registrada y una comprobación de lectura en Binance para contrastar órdenes y saldos; no equipara el saldo BTC total de la cuenta con la posición del piloto ni promete P&L neto sin comisiones verificadas. Los seis tamaños de riesgo del portal solo afectan entradas PAPER futuras: desde 25% hasta 100% del límite base existente. El modo Testnet sigue enviando órdenes solo cuando el propietario confirma cada una.
 
 ## Qué hace cada ciclo
 
