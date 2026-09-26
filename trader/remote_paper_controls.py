@@ -36,7 +36,7 @@ class RemotePaperControls:
         payload = item.get('payload')
         expires = item.get('expires')
         if (not self.available or type(identifier) is not int or identifier <= 0 or
-                action not in {'risk_profile', 'paper_close', 'ai_model', 'restart_engine', 'execution_mode', 'testnet_smoke'} or not isinstance(payload, dict) or
+                action not in {'risk_profile', 'paper_close', 'ai_model', 'restart_engine', 'execution_mode', 'testnet_smoke', 'futures_testnet_check', 'futures_testnet_smoke', 'futures_testnet_reconcile'} or not isinstance(payload, dict) or
                 type(expires) not in (int, float) or not now < expires <= now + 305):
             raise ValueError('Invalid or unavailable trading control')
         expected = {'action': action, 'payload': payload}
@@ -83,6 +83,12 @@ class RemotePaperControls:
                         'TESTNET_SMOKE_ALLOCATION_TOO_SMALL': 'El ledger Testnet no tiene asignación suficiente para la prueba',
                         'TESTNET_SMOKE_RECONCILIATION_INCOMPLETE': 'La prueba terminó con una conciliación pendiente; revisa el ledger antes de repetir',
                         'BINANCE_TESTNET_EXECUTION_FAILED': 'Binance Testnet no completó la prueba; revisa órdenes y conciliación antes de repetir',
+                        'FUTURES_TESTNET_REQUIRES_TESTNET': 'Mantén el motor principal en Spot TESTNET para usar el laboratorio de Futures',
+                        'FUTURES_TESTNET_RECOVERY_REQUIRED': 'Futures Testnet tiene una prueba previa que debe reconciliarse antes de continuar',
+                        'FUTURES_TESTNET_CREDENTIALS_UNAVAILABLE': 'Faltan las credenciales separadas de Binance Futures Testnet en Windows',
+                        'FUTURES_TESTNET_CANNOT_TRADE': 'La cuenta de Binance Futures Testnet no tiene trading habilitado',
+                        'FUTURES_TESTNET_MARGIN_LOW': 'El saldo ficticio disponible en Futures Testnet es insuficiente para la prueba',
+                        'FUTURES_TESTNET_EXECUTION_FAILED': 'Futures Testnet no completó la operación; usa Reconciliar Futures antes de repetir',
                     }
                     message = messages.get(code, 'Windows rechazó la acción; revisa el estado local')
                     status = 'failed'
@@ -94,7 +100,10 @@ class RemotePaperControls:
                             'ai_model': 'Modelo activo: ' + response.get('model',''),
                             'restart_engine': 'Motor reiniciado y verificado',
                             'execution_mode': 'Entorno activo: ' + response.get('mode','').upper(),
-                            'testnet_smoke': 'Prueba Testnet completada · BUY y SELL conciliados'}[action])
+                            'testnet_smoke': 'Prueba Spot Testnet completada · BUY y SELL conciliados',
+                            'futures_testnet_check': 'Futures Testnet verificado · cuenta y margen disponibles',
+                            'futures_testnet_smoke': 'Prueba Futures Testnet completada · apertura y cierre reduceOnly conciliados',
+                            'futures_testnet_reconcile': 'Futures Testnet reconciliado · posición técnica cerrada'}[action])
                     status = 'completed'
             temp = record.with_suffix('.tmp')
             with temp.open('w', encoding='utf-8') as handle:
