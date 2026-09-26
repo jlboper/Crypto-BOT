@@ -46,6 +46,14 @@ class AgentRefreshTests(unittest.TestCase):
             self.assertTrue((Path(result["backup"]) / name).read_bytes().startswith(b"old "))
         self.assertEqual(refresh(self.source, self.agent, apply=True)["status"], "already_current")
 
+    def test_testnet_mode_can_refresh_signed_supervisor_modules(self):
+        (self.source / "config.toml").write_text('[bot]\nmode="testnet"\n')
+        before = refresh(self.source, self.agent)
+        self.assertEqual(before["changes"], list(MODULES))
+        self.assertIn("trader/update_supervisor.py", MODULES)
+        self.assertIn("trader/update_manager.py", MODULES)
+        self.assertIn("scripts/remote_job.py", MODULES)
+
     def test_new_signed_module_is_added_without_requiring_an_old_copy(self):
         (self.agent / MODULES[-1]).unlink()
         (self.agent / 'data/REMOTE_STOP').write_text('stopped')
