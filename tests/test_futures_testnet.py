@@ -151,6 +151,27 @@ class FuturesTestnetLabTests(unittest.TestCase):
         self.assertTrue(result["position_closed"])
         self.assertEqual(self.position_amt, 0.0)
 
+
+    def test_forward_order_journal_survives_fill_until_business_commit(self):
+        def signed(method, endpoint, fields=None):
+            self.assertEqual((method, endpoint), ("POST", "/fapi/v1/order"))
+            return {
+                "symbol": fields["symbol"],
+                "clientOrderId": fields["newClientOrderId"],
+                "status": "FILLED",
+                "avgPrice": "100000",
+                "executedQty": fields["quantity"],
+                "orderId": 77,
+            }
+        with patch("trader.futures_testnet.signed_request", side_effect=signed):
+            result = self.lab.forward_submit(
+                symbol="BTCUSDT", side="BUY", quantity=Decimal("0.001"), reduce_only=False
+            )
+        self.assertEqual(result["status"], "FILLED")
+        pending = self.lab.ledger.setting("forward_pending_order")
+        self.assertEqual(pending["symbol"], "BTCUSDT")
+        self.assertFalse(pending["reduce_only"])
+
     def test_leverage_above_three_is_rejected_before_write(self):
         with self.assertRaisesRegex(ValueError, "1x, 2x or 3x"):
             self.lab.smoke(direction="LONG", leverage=4)
