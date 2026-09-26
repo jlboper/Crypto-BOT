@@ -77,6 +77,12 @@ class RemotePaperControls:
                         'ENGINE_STOP_TIMEOUT': 'El motor no se detuvo a tiempo para cambiar de entorno',
                         'ENGINE_START_HEALTH_FAILED': 'El nuevo entorno no superó la comprobación de arranque',
                         'LOCAL_ENV_UNAVAILABLE': 'Windows no pudo actualizar la configuración local privada',
+                        'TESTNET_SMOKE_REQUIRES_TESTNET': 'Activa Binance Spot Testnet antes de ejecutar la prueba',
+                        'TESTNET_SMOKE_POSITIONS_OPEN': 'La prueba Testnet requiere no tener posiciones abiertas',
+                        'TESTNET_SMOKE_PENDING_ORDER': 'Hay una orden Testnet pendiente de conciliación',
+                        'TESTNET_SMOKE_ALLOCATION_TOO_SMALL': 'El ledger Testnet no tiene asignación suficiente para la prueba',
+                        'TESTNET_SMOKE_RECONCILIATION_INCOMPLETE': 'La prueba terminó con una conciliación pendiente; revisa el ledger antes de repetir',
+                        'BINANCE_TESTNET_EXECUTION_FAILED': 'Binance Testnet no completó la prueba; revisa órdenes y conciliación antes de repetir',
                     }
                     message = messages.get(code, 'Windows rechazó la acción; revisa el estado local')
                     status = 'failed'
