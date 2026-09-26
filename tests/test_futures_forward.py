@@ -55,6 +55,36 @@ class FuturesForwardTests(unittest.TestCase):
         self.assertEqual(short_signal["direction"], "SHORT")
         self.assertGreaterEqual(short_signal["score"], self.config.futures_testnet.forward_min_score)
 
+    def test_forward_scorecard_tracks_return_drawdown_direction_and_errors(self):
+        ledger = FuturesTestnetLedger(self.config.futures_testnet.database_path)
+        with ledger._connect() as db:
+            db.execute("INSERT INTO forward_equity(wallet_balance,available_balance,unrealized_pnl,created_at) VALUES(?,?,?,?)",
+                       (5000.0, 5000.0, 0.0, "2026-09-01T00:00:00+00:00"))
+            db.execute("INSERT INTO forward_equity(wallet_balance,available_balance,unrealized_pnl,created_at) VALUES(?,?,?,?)",
+                       (4900.0, 4900.0, 0.0, "2026-09-15T00:00:00+00:00"))
+            db.execute("INSERT INTO forward_equity(wallet_balance,available_balance,unrealized_pnl,created_at) VALUES(?,?,?,?)",
+                       (5100.0, 5100.0, 0.0, "2026-10-02T00:00:00+00:00"))
+            db.execute("""INSERT INTO forward_trades(symbol,direction,leverage,quantity,entry_price,exit_price,gross_pnl,exit_reason,opened_at,closed_at)
+                        VALUES(?,?,?,?,?,?,?,?,?,?)""",
+                       ("BTCUSDT","LONG",1,0.001,100000.0,101000.0,1.0,"TAKE_PROFIT","2026-09-02T00:00:00+00:00","2026-09-03T00:00:00+00:00"))
+            db.execute("""INSERT INTO forward_trades(symbol,direction,leverage,quantity,entry_price,exit_price,gross_pnl,exit_reason,opened_at,closed_at)
+                        VALUES(?,?,?,?,?,?,?,?,?,?)""",
+                       ("BTCUSDT","SHORT",1,0.001,100000.0,100500.0,-0.5,"STOP","2026-09-04T00:00:00+00:00","2026-09-05T00:00:00+00:00"))
+        ledger.set_setting("forward_cycle_total", 100)
+        ledger.set_setting("forward_error_total", 2)
+        score = ledger.forward_scorecard()
+        self.assertGreaterEqual(score["observed_days"], 30)
+        self.assertEqual(score["closed_trades"], 2)
+        self.assertEqual(score["long_closed_trades"], 1)
+        self.assertEqual(score["short_closed_trades"], 1)
+        self.assertAlmostEqual(score["gross_realized_pnl_usdt"], 0.5)
+        self.assertAlmostEqual(score["account_return_pct"], 2.0)
+        self.assertAlmostEqual(score["sampled_max_drawdown_pct"], 2.0)
+        self.assertAlmostEqual(score["profit_factor"], 2.0)
+        self.assertEqual(score["error_total"], 2)
+        self.assertEqual(score["cycle_total"], 100)
+        self.assertEqual(score["status"], "INSUFFICIENT_EVIDENCE")
+
     def test_forward_ledger_is_separate_and_persistent(self):
         ledger = FuturesTestnetLedger(self.config.futures_testnet.database_path)
         position = {
