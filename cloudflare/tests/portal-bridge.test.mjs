@@ -117,6 +117,19 @@ test('remote Testnet smoke uses the supervised operations control',async()=>{
   assert.deepEqual(JSON.parse(instance.calls[1].options.body).payload,{});
 });
 
+test('remote Futures Testnet smoke sends bounded direction and leverage',async()=>{
+  const instance=bridge('paper.example.workers.dev',[
+    {status:200,body:state({snapshot:{mode:'TESTNET',dashboard:{},paper_controls:true,operations_controls:true}})},
+    {status:202,body:{id:45,action:'futures_testnet_smoke',status:'pending'}},
+  ]);
+  const result=await instance.api('/api/operations/futures-smoke',{method:'POST',body:JSON.stringify({direction:'LONG',leverage:2})});
+  assert.equal(result.status,'pending');
+  assert.equal(instance.calls[1].path,'/v1/paper-controls');
+  const body=JSON.parse(instance.calls[1].options.body);
+  assert.equal(body.action,'futures_testnet_smoke');
+  assert.deepEqual(body.payload,{direction:'LONG',leverage:2});
+});
+
 test('remote Research Lab uses one authenticated allowlisted job request',async()=>{
   const instance=bridge('paper.example.workers.dev',[
     {status:200,body:state()},
