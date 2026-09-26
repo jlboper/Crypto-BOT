@@ -159,9 +159,11 @@ class FuturesForwardEngine:
         qty = _decimal(local["quantity"])
         pnl = ((exit_price - entry) * qty if local["direction"] == "LONG"
                else (entry - exit_price) * qty)
-        return self.ledger.close_forward_position(
+        closed = self.ledger.close_forward_position(
             exit_price=float(exit_price), gross_pnl=float(pnl), exit_reason=reason
         )
+        self.ledger.set_setting("forward_pending_order", None)
+        return closed
 
     def _recover_journal(self) -> dict | None:
         """Recover uncertain forward writes after network/process/power interruption."""
@@ -189,6 +191,7 @@ class FuturesForwardEngine:
                     exit_price=float(exit_price), gross_pnl=float(pnl),
                     exit_reason="RECOVERED_CLOSE",
                 )
+                self.ledger.set_setting("forward_pending_order", None)
                 return {"resolved": True, "status": "RECOVERED_CLOSE", "trade": closed}
             if local is not None:
                 self._assert_consistent(local, rows)
@@ -231,9 +234,11 @@ class FuturesForwardEngine:
             }
             self.ledger.set_forward_position(reconstructed)
             self.ledger.set_setting("forward_open_plan", None)
+            self.ledger.set_setting("forward_pending_order", None)
             return {"resolved": True, "status": "RECOVERED_OPEN", "position": reconstructed}
         self._assert_consistent(local, rows)
         self.ledger.set_setting("forward_open_plan", None)
+        self.ledger.set_setting("forward_pending_order", None)
         return outcome
 
     def protection_tick(self) -> dict:
@@ -386,6 +391,7 @@ class FuturesForwardEngine:
         }
         self.ledger.set_forward_position(position)
         self.ledger.set_setting("forward_open_plan", None)
+        self.ledger.set_setting("forward_pending_order", None)
         return {"enabled": True, "status": "OPENED", "position": position, "signal": signal,
                 "ai_review": {"model": self.config.ai.model, "verdict": ai_review.verdict,
                               "confidence": ai_review.confidence, "reason": ai_review.reason}, **account}
