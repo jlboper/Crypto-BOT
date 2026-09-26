@@ -18,7 +18,7 @@ from .broker import PaperBroker
 from .domain import Position, Signal
 from .risk_control import profile_multiplier
 from .testnet import plan_order
-from .testnet_execution import _signed, TestnetExecutionError, TERMINAL
+from .testnet_transport import signed_request, TestnetExecutionError, TERMINAL
 
 
 class BinanceTestnetBroker(PaperBroker):
@@ -78,7 +78,7 @@ class BinanceTestnetBroker(PaperBroker):
 
     @staticmethod
     def _account_balance(asset: str) -> Decimal:
-        account = _signed("GET", "/api/v3/account", {})
+        account = signed_request("GET", "/api/v3/account", {})
         for row in account.get("balances", []):
             if row.get("asset") != asset:
                 continue
@@ -93,7 +93,7 @@ class BinanceTestnetBroker(PaperBroker):
         pending = self._pending()
         if not pending:
             return True
-        response = _signed(
+        response = signed_request(
             "GET",
             "/api/v3/order",
             {"symbol": pending["symbol"], "origClientOrderId": pending["client_order_id"]},
@@ -114,7 +114,7 @@ class BinanceTestnetBroker(PaperBroker):
             raise TestnetExecutionError("Unresolved unified Testnet order")
         self._save_pending(pending)  # durable receipt before the only POST
         try:
-            response = _signed("POST", "/api/v3/order", fields)
+            response = signed_request("POST", "/api/v3/order", fields)
         except Exception:
             # Never retry a write. The next cycle/read-only reconciliation decides.
             raise
