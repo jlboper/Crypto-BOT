@@ -294,7 +294,7 @@ class DashboardServer:
                     with closing(sqlite3.connect(outer.config.bot.database_path.resolve().as_uri()+'?mode=ro', uri=True, timeout=3)) as connection:
                         prices, prices_at = outer.db.market_snapshot()
                         self._json(paper_scorecard(connection, prices=prices, prices_at=prices_at,
-                            cycle_seconds=outer.config.bot.cycle_seconds, paper=outer.config.paper,
+                            cycle_seconds=outer.config.bot.cycle_seconds, paper=outer.config.paper, mode=outer.config.bot.mode,
                             research_symbols=outer.config.research.symbols))
                 elif path == "/api/events":
                     self._json(outer.db.recent("events", 50))
