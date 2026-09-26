@@ -44,6 +44,12 @@ class WindowsAssetTests(unittest.TestCase):
         self.assertIn("'REMOTE_STOP'", refresh)
         self.assertIn("Start-ScheduledTask -TaskName 'Crypto Paper Portal Agent'", refresh)
         self.assertNotIn('Stop-TradingBot', refresh)
+        self.assertIn('[switch]$ForceRestart', refresh)
+        self.assertIn("if ($offer.changes.Count -eq 0 -and -not $ForceRestart)", refresh)
+        self.assertIn('function Invoke-PortalAgentWatchdog', source)
+        self.assertIn("$script:AgentHealthFailures -lt 2", source)
+        self.assertIn("Stop-ScheduledTask -TaskName 'Crypto Paper Portal Agent'", source)
+        self.assertIn("Start-ScheduledTask -TaskName 'Crypto Paper Portal Agent'", source)
 
     def test_manager_retires_sha_only_update_installer(self):
         source = (PROJECT_ROOT / "scripts" / "manager_windows.ps1").read_text(encoding="utf-8-sig")
