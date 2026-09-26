@@ -724,6 +724,35 @@ function Update-ManagerStatus {
         }
         $lastCycleLabel.Text = "ÚLTIMO CICLO`r`n$lastCycle"
         $notifyIcon.Text = "Crypto AI Trader - $equity USDT"
+        try {
+            $futures = Invoke-RestMethod -Uri ($DashboardUrl + "/api/futures-forward") -TimeoutSec 3
+            if (-not $futures.enabled) {
+                $futuresModeBadge.Text = "FUTURES OFF"
+                $futuresModeBadge.ForeColor = [System.Drawing.Color]::FromArgb(143, 160, 186)
+                $futuresStatusLine.Text = "Futures Demo · forward test inactivo"
+            }
+            elseif ($futures.killed) {
+                $futuresModeBadge.Text = "FUTURES PAUSA"
+                $futuresModeBadge.ForeColor = [System.Drawing.Color]::FromArgb(255, 204, 102)
+                $futuresStatusLine.Text = "Futures Demo · nuevas entradas pausadas · protecciones de posición siguen activas"
+            }
+            elseif ($futures.position) {
+                $direction = [string]$futures.position.direction
+                $futuresModeBadge.Text = "FUTURES 1x"
+                $futuresModeBadge.ForeColor = [System.Drawing.Color]::FromArgb(112, 214, 255)
+                $futuresStatusLine.Text = "Futures Demo · $direction BTCUSDT 1x · posición protegida"
+            }
+            else {
+                $futuresModeBadge.Text = "FUTURES 1x"
+                $futuresModeBadge.ForeColor = [System.Drawing.Color]::FromArgb(112, 214, 255)
+                $futuresStatusLine.Text = "Futures Demo · activo · BTCUSDT 1x · sin posición"
+            }
+        }
+        catch {
+            $futuresModeBadge.Text = "FUTURES —"
+            $futuresModeBadge.ForeColor = [System.Drawing.Color]::FromArgb(255, 204, 102)
+            $futuresStatusLine.Text = "Futures Demo · estado temporalmente no disponible"
+        }
     }
     catch {
         if ($processCount -gt 0) {
@@ -755,15 +784,15 @@ function Update-ManagerStatus {
         }
     }
     if (Test-Path $KillSwitchPath) {
-        $killButton.Text = "▶   Reanudar nuevas entradas"
+        $killButton.Text = "▶   Reanudar nuevas entradas Spot"
         $killButton.BackColor = [System.Drawing.Color]::FromArgb(14, 52, 48)
         $killButton.ForeColor = [System.Drawing.Color]::FromArgb(77, 239, 187)
         $killButton.FlatAppearance.BorderColor = [System.Drawing.Color]::FromArgb(37, 112, 94)
-        $protectionLabel.Text = "⚠  Kill switch activo  ·  No se abrirán nuevas posiciones"
+        $protectionLabel.Text = "⚠  Spot pausado · Futures conserva su interruptor independiente"
         $protectionLabel.ForeColor = [System.Drawing.Color]::FromArgb(255, 204, 102)
     }
     else {
-        $killButton.Text = "⚠   Activar kill switch"
+        $killButton.Text = "⚠   Pausar nuevas entradas Spot"
         $killButton.BackColor = [System.Drawing.Color]::FromArgb(55, 24, 35)
         $killButton.ForeColor = [System.Drawing.Color]::FromArgb(255, 147, 164)
         $killButton.FlatAppearance.BorderColor = [System.Drawing.Color]::FromArgb(120, 48, 66)
@@ -775,6 +804,28 @@ function Update-ManagerStatus {
         }
         $protectionLabel.ForeColor = [System.Drawing.Color]::FromArgb(92, 215, 171)
     }
+
+    if (Test-Path $FuturesKillSwitchPath) {
+        $futuresKillButton.Text = "▶   Reanudar nuevas entradas Futures"
+        $futuresKillButton.BackColor = [System.Drawing.Color]::FromArgb(14, 52, 48)
+        $futuresKillButton.ForeColor = [System.Drawing.Color]::FromArgb(77, 239, 187)
+        $futuresKillButton.FlatAppearance.BorderColor = [System.Drawing.Color]::FromArgb(37, 112, 94)
+    }
+    else {
+        $futuresKillButton.Text = "⚠   Pausar nuevas entradas Futures"
+        $futuresKillButton.BackColor = [System.Drawing.Color]::FromArgb(55, 24, 35)
+        $futuresKillButton.ForeColor = [System.Drawing.Color]::FromArgb(255, 147, 164)
+        $futuresKillButton.FlatAppearance.BorderColor = [System.Drawing.Color]::FromArgb(120, 48, 66)
+    }
+    if ((Test-Path $KillSwitchPath) -or (Test-Path $FuturesKillSwitchPath)) {
+        $protectionLabel.Text = "⚠  Alguna pista está pausada · las protecciones de posiciones siguen activas"
+        $protectionLabel.ForeColor = [System.Drawing.Color]::FromArgb(255, 204, 102)
+    }
+    else {
+        $protectionLabel.Text = "✓  Spot Testnet + Futures Demo · fondos ficticios · LIVE bloqueado por código"
+        $protectionLabel.ForeColor = [System.Drawing.Color]::FromArgb(92, 215, 171)
+    }
+
     if (Test-CanonicalStartup) {
         $startupButton.Text = "✓   Inicio automático activado"
     }
