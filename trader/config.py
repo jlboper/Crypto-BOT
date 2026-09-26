@@ -95,6 +95,17 @@ class AISettings:
 
 
 @dataclass(frozen=True)
+class FuturesTestnetSettings:
+    enabled: bool
+    database_path: Path
+    default_leverage: int
+    max_leverage: int
+    margin_type: str
+    position_mode: str
+    smoke_margin_usdt: float
+
+
+@dataclass(frozen=True)
 class DashboardSettings:
     host: str
     port: int
@@ -118,6 +129,7 @@ class AppConfig:
     ai: AISettings
     dashboard: DashboardSettings
     research: ResearchSettings
+    futures_testnet: FuturesTestnetSettings
 
 
 def _project_path(raw: str) -> Path:
@@ -138,6 +150,7 @@ def load_config(path: str | Path | None = None) -> AppConfig:
     ai = raw["ai"]
     dashboard = raw["dashboard"]
     research = raw.get("research", {})
+    futures_testnet = raw.get("futures_testnet", {})
 
     mode = os.getenv("EXECUTION_MODE", str(bot.get("mode", "paper"))).lower()
     if mode not in {"paper", "testnet"}:
@@ -165,6 +178,17 @@ def load_config(path: str | Path | None = None) -> AppConfig:
         raise ValueError("Unsupported timeframe")
     if not 0 <= ai["minimum_confidence"] <= 1 or not 1 <= ai["timeout_seconds"] <= 120 or not 0 <= ai["max_reviews_per_cycle"] <= 10:
         raise ValueError("Invalid AI limits")
+    futures_default = int(futures_testnet.get("default_leverage", 2))
+    futures_max = int(futures_testnet.get("max_leverage", 3))
+    futures_margin = str(futures_testnet.get("margin_type", "ISOLATED")).upper()
+    futures_position_mode = str(futures_testnet.get("position_mode", "ONE_WAY")).upper()
+    futures_smoke_margin = float(futures_testnet.get("smoke_margin_usdt", 10.0))
+    if futures_default not in {1, 2, 3} or futures_max not in {1, 2, 3} or futures_default > futures_max:
+        raise ValueError("Futures Testnet leverage must stay within 1x/2x/3x")
+    if futures_margin != "ISOLATED" or futures_position_mode != "ONE_WAY":
+        raise ValueError("Futures Testnet must remain ISOLATED and ONE_WAY")
+    if not math.isfinite(futures_smoke_margin) or not 5 <= futures_smoke_margin <= 25:
+        raise ValueError("Invalid Futures Testnet smoke margin")
 
     selected_database = bot.get("testnet_database_path", "data/testnet-trader.db") if mode == "testnet" else bot["database_path"]
     return AppConfig(
@@ -192,6 +216,15 @@ def load_config(path: str | Path | None = None) -> AppConfig:
             max_reviews_per_day=max(0, min(100, int(ai.get("max_reviews_per_day", 30)))),
         ),
         dashboard=DashboardSettings(host=str(dashboard["host"]), port=int(dashboard["port"])),
+        futures_testnet=FuturesTestnetSettings(
+            enabled=bool(futures_testnet.get("enabled", True)),
+            database_path=_project_path(str(bot.get("futures_testnet_database_path", "data/futures-testnet.db"))),
+            default_leverage=futures_default,
+            max_leverage=futures_max,
+            margin_type=futures_margin,
+            position_mode=futures_position_mode,
+            smoke_margin_usdt=futures_smoke_margin,
+        ),
         research=ResearchSettings(
             symbols=tuple(str(symbol).upper() for symbol in research.get(
                 "symbols", ["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT"]
