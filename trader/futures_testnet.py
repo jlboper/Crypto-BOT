@@ -240,6 +240,56 @@ class FuturesTestnetLab:
         self.ledger.set_setting("pending_order", None)
         return result
 
+    def forward_submit(self, *, symbol: str, side: str, quantity: Decimal, reduce_only: bool) -> dict:
+        """Submit one forward-test order with a journal separate from smoke tests."""
+        existing = self.ledger.setting("forward_pending_order")
+        if existing:
+            raise FuturesTestnetExecutionError("Futures forward order requires reconciliation")
+        client_id = "cait-fwd-" + secrets.token_hex(8)
+        pending = {
+            "symbol": symbol,
+            "side": side,
+            "quantity": str(quantity),
+            "reduce_only": reduce_only,
+            "client_order_id": client_id,
+        }
+        self.ledger.set_setting("forward_pending_order", pending)
+        fields = {
+            "symbol": symbol,
+            "side": side,
+            "type": "MARKET",
+            "quantity": format(quantity, "f"),
+            "newClientOrderId": client_id,
+            "newOrderRespType": "RESULT",
+        }
+        if reduce_only:
+            fields["reduceOnly"] = "true"
+        result = signed_request("POST", "/fapi/v1/order", fields)
+        if not isinstance(result, dict) or result.get("clientOrderId") != client_id:
+            raise FuturesTestnetExecutionError("Futures forward order identity mismatch")
+        if result.get("status") != "FILLED":
+            raise FuturesTestnetExecutionError("Futures forward MARKET order requires reconciliation")
+        self.ledger.set_setting("forward_pending_order", None)
+        return result
+
+    def reconcile_forward_pending(self) -> dict | None:
+        pending = self.ledger.setting("forward_pending_order")
+        if not pending:
+            return None
+        result = signed_request("GET", "/fapi/v1/order", {
+            "symbol": pending["symbol"],
+            "origClientOrderId": pending["client_order_id"],
+        })
+        if not isinstance(result, dict) or result.get("clientOrderId") != pending["client_order_id"]:
+            raise FuturesTestnetExecutionError("Futures forward order identity mismatch")
+        status = str(result.get("status", ""))
+        if status in {"NEW", "PARTIALLY_FILLED"}:
+            return {"resolved": False, "status": status, "pending": pending}
+        if status not in {"FILLED", "CANCELED", "EXPIRED", "REJECTED", "EXPIRED_IN_MATCH"}:
+            raise FuturesTestnetExecutionError("Unknown Futures forward order state")
+        self.ledger.set_setting("forward_pending_order", None)
+        return {"resolved": True, "status": status, "pending": pending, "order": result}
+
     def _execution_price(self, order: dict, symbol: str) -> Decimal:
         """Resolve a filled order price without resubmitting the order."""
         for candidate in (order,):
