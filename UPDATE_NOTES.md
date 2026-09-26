@@ -1,3 +1,9 @@
+# Actualización 0.8.4 — corrección de activación Futures
+
+- Corrige el caso en que una variable local antigua `FUTURES_FORWARD_ENABLED=false` podía seguir deshabilitando el forward test aunque la configuración firmada tuviera `forward_enabled=true`.
+- La activación del forward test ahora proviene únicamente de la configuración firmada. Pausar/reanudar Futures sigue usando su kill switch dedicado desde el portal.
+- No cambia estrategia, leverage, tamaño, credenciales, ledger ni rutas LIVE.
+
 # Actualización 0.8.3 — consolidación final Spot + Futures
 
 - **Binance Spot Testnet pasa a ser el modo operativo predeterminado** del paquete. PAPER permanece disponible únicamente como respaldo técnico/CI; Binance LIVE sigue sin implementación.
