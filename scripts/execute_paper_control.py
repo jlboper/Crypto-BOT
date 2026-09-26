@@ -21,12 +21,12 @@ def main():
     config = source_settings(ROOT)
     if (config.bot.database_path.parent / 'UPDATE_MAINTENANCE.json').exists():
         raise ValueError('Update maintenance in progress')
-    if request['action'] in {'ai_model', 'restart_engine', 'execution_mode', 'testnet_smoke'}:
+    if request['action'] in {'ai_model', 'restart_engine', 'execution_mode', 'testnet_smoke', 'futures_testnet_check', 'futures_testnet_smoke', 'futures_testnet_reconcile'}:
         from trader.operational_controls import execute as operational_control
         result = operational_control(ROOT, request['action'], request['payload'])
     else:
         result = execute(config, Database(config.bot.database_path), request['action'], request['payload'])
-    if request['action'] in {'ai_model','restart_engine','execution_mode','testnet_smoke'}:
+    if request['action'] in {'ai_model','restart_engine','execution_mode','testnet_smoke','futures_testnet_check','futures_testnet_smoke','futures_testnet_reconcile'}:
         atomic_json(ROOT / 'data/operation-last.json', {'action': request['action'],
                     'status': 'completed', 'at': time.time(), 'result': result})
     print(json.dumps(result, allow_nan=False))
@@ -56,6 +56,18 @@ def _safe_failure(error: Exception) -> str:
         return 'TESTNET_SMOKE_ALLOCATION_TOO_SMALL'
     if message == 'Testnet smoke reconciliation incomplete':
         return 'TESTNET_SMOKE_RECONCILIATION_INCOMPLETE'
+    if message == 'Futures Testnet requires Spot TESTNET motor mode':
+        return 'FUTURES_TESTNET_REQUIRES_TESTNET'
+    if message == 'Futures Testnet recovery required':
+        return 'FUTURES_TESTNET_RECOVERY_REQUIRED'
+    if message == 'Futures Testnet credentials unavailable':
+        return 'FUTURES_TESTNET_CREDENTIALS_UNAVAILABLE'
+    if message == 'Futures Testnet account cannot trade':
+        return 'FUTURES_TESTNET_CANNOT_TRADE'
+    if message == 'Insufficient Futures Testnet margin':
+        return 'FUTURES_TESTNET_MARGIN_LOW'
+    if type(error).__name__ == 'FuturesTestnetExecutionError':
+        return 'FUTURES_TESTNET_EXECUTION_FAILED'
     if type(error).__name__ == 'TestnetExecutionError':
         return 'BINANCE_TESTNET_EXECUTION_FAILED'
     if type(error).__name__ == 'ExchangeError':
