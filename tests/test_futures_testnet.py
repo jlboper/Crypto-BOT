@@ -1,4 +1,5 @@
 import tempfile
+from decimal import Decimal
 import unittest
 from dataclasses import replace
 from pathlib import Path
