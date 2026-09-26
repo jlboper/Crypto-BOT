@@ -63,10 +63,25 @@ function Invoke-LocalSignedUpdate {
     $arguments = @($pythonFlags) + @($scriptPath, '--source', $ProjectRoot, '--agent-root', $agentRoot, $Action)
     if ($Action -eq '--install') { $arguments += $ApprovedRelease }
     $result = & $python @arguments 2>&1
+    $decoded = $null
+    try { $decoded = (($result | Out-String) | ConvertFrom-Json) } catch { }
     if ($LASTEXITCODE -ne 0) {
-        throw 'La verificación o instalación supervisada falló. No se ha confirmado una versión nueva; revisa el supervisor local.'
+        $messages = @{
+            'SUPERVISOR_DISABLED' = 'El supervisor local no permite instalaciones.'
+            'MAINTENANCE_PENDING' = 'Existe una operación de mantenimiento pendiente; el supervisor debe recuperarla antes de instalar.'
+            'ENGINE_RUNTIME_STALE' = 'El estado cooperativo del motor no coincide con la instalación actual.'
+            'ENGINE_STOPPED' = 'El motor está detenido; debe estar operativo antes de actualizar.'
+            'CANDIDATE_EXITED' = 'La versión candidata no logró arrancar; se conservó o restauró la versión anterior.'
+            'CANDIDATE_HEALTH_FAILED' = 'La versión candidata no superó la comprobación de salud.'
+            'SUPERVISOR_TIMEOUT' = 'El supervisor agotó el tiempo de espera al detener o arrancar el motor.'
+            'LOCAL_CHANNEL_MISSING' = 'Falta parte del canal local firmado de actualizaciones.'
+            'LOCAL_VALIDATION_FAILED' = 'La validación local del paquete o del estado no fue válida.'
+        }
+        $code = if ($decoded -and $decoded.code) { [string]$decoded.code } else { 'UNKNOWN_UPDATE_FAILURE' }
+        $detail = if ($messages.ContainsKey($code)) { $messages[$code] } else { 'La actualización fue rechazada por el supervisor local.' }
+        throw "$code · $detail"
     }
-    return (($result | Out-String) | ConvertFrom-Json)
+    return $decoded
 }
 
 function Show-LocalUpdateCenter {
@@ -117,7 +132,7 @@ function Show-AgentRefresh {
     $scriptPath = Join-Path $ProjectRoot 'scripts\refresh_windows_agent.ps1'
     try {
         if (-not (Test-Path -LiteralPath $scriptPath)) { throw 'Actualiza el bot antes de reparar la conexión.' }
-        $result = & $scriptPath -SourcePath $ProjectRoot
+        $result = & $scriptPath -SourcePath $ProjectRoot -ForceRestart
         [System.Windows.Forms.MessageBox]::Show(
             ($result | Out-String), 'Conexión del portal',
             [System.Windows.Forms.MessageBoxButtons]::OK,
