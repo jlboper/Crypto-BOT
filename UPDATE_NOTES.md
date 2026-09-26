@@ -1,3 +1,12 @@
+# Actualización 0.7.6 — Futures Demo resiliente a fallos públicos
+
+- El preflight de permiso TRADE deja de consultar funding; para construir `order/test` solo usa ticker y filtros del contrato.
+- Las lecturas públicas de Futures intentan primero `testnet.binancefuture.com` y, si ese GET falla, usan `fapi.binance.com` únicamente como respaldo de datos públicos.
+- Las llamadas firmadas siguen fijadas exclusivamente a `testnet.binancefuture.com`: cuenta, posiciones, `order/test`, leverage, marginType y órdenes nunca tienen fallback a producción.
+- El fallback público no recibe API key ni secret y no puede escribir.
+- Mantiene los diagnósticos detallados de 0.7.4/0.7.5 y los botones de primer clic.
+- LIVE continúa bloqueado para cualquier acción de trading.
+
 # Actualización 0.7.5 — host REST correcto para Binance Futures Demo
 
 - Corrige el host de USDⓈ-M Futures: la interfaz se denomina **Binance Demo Trading**, pero la API REST de prueba usa `https://testnet.binancefuture.com`.
