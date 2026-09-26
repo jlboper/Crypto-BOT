@@ -111,20 +111,22 @@ class FuturesTestnetLabTests(unittest.TestCase):
         self.assertEqual(result["environment"], "USD-M FUTURES DEMO")
 
     def test_long_smoke_is_isolated_bounded_and_flat_after_close(self):
-        with patch("trader.futures_testnet.public_request", side_effect=self.public),              patch("trader.futures_testnet.signed_request", side_effect=self.signed):
+        with patch("trader.futures_testnet.public_request", side_effect=AssertionError("smoke must not use public data")), \
+             patch("trader.futures_testnet.signed_request", side_effect=self.signed):
             result = self.lab.smoke(direction="LONG", leverage=2)
         self.assertTrue(result["ok"])
         self.assertEqual(result["direction"], "LONG")
         self.assertEqual(result["leverage"], 2)
         self.assertEqual(result["margin_type"], "ISOLATED")
         self.assertEqual(result["position_mode"], "ONE_WAY")
-        self.assertEqual(result["position_notional_usdt"], 20.0)
+        self.assertEqual(result["position_notional_usdt"], 0.1)
         self.assertTrue(result["position_closed"])
         self.assertEqual(self.position_amt, 0.0)
         self.assertEqual(self.lab.ledger.latest()["status"], "COMPLETED")
 
     def test_short_smoke_closes_with_reduce_only(self):
-        with patch("trader.futures_testnet.public_request", side_effect=self.public),              patch("trader.futures_testnet.signed_request", side_effect=self.signed):
+        with patch("trader.futures_testnet.public_request", side_effect=AssertionError("smoke must not use public data")), \
+             patch("trader.futures_testnet.signed_request", side_effect=self.signed):
             result = self.lab.smoke(direction="SHORT", leverage=3)
         self.assertEqual(result["direction"], "SHORT")
         self.assertEqual(result["leverage"], 3)
