@@ -1,3 +1,12 @@
+# Actualización 0.7.3 — verificación real de permiso Futures Demo
+
+- Deja de bloquear Futures Demo únicamente por el campo `canTrade` de `/fapi/v3/account`.
+- **Verificar Futures** ahora usa el endpoint oficial `POST /fapi/v1/order/test`: exige permiso TRADE pero no crea ni ejecuta una orden.
+- El smoke también realiza ese preflight no ejecutable antes de cualquier cambio de leverage o apertura real en Demo.
+- Conserva host `demo-fapi.binance.com`, fondos ficticios, margen ISOLATED, One-way, 1x/2x/3x, reduceOnly, journal durable y recovery.
+- El valor reportado por la cuenta queda disponible solo como diagnóstico (`reported_can_trade`) y no como única fuente de verdad.
+- Binance LIVE continúa bloqueado.
+
 # Actualización 0.7.2 — Binance Futures Demo correcto
 
 - Corrige el endpoint del laboratorio de derivados para usar el entorno que corresponde a las claves creadas en Binance Demo Trading: `https://demo-fapi.binance.com`.
