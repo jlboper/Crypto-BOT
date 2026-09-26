@@ -33,6 +33,16 @@ def _floor_step(value: Decimal, step: Decimal) -> Decimal:
 
 class FuturesTestnetLab:
     SYMBOLS = ("BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT")
+    # Each quantity is validated with /order/test immediately before use.
+    # BTCUSDT 0.001 is already used by Verificar Futures and therefore known
+    # to be accepted by the current Demo account without executing an order.
+    SMOKE_QUANTITIES = {
+        "BTCUSDT": Decimal("0.001"),
+        "ETHUSDT": Decimal("0.01"),
+        "BNBUSDT": Decimal("0.1"),
+        "SOLUSDT": Decimal("0.1"),
+        "XRPUSDT": Decimal("10"),
+    }
 
     def __init__(self, settings):
         self.settings = settings
@@ -71,6 +81,21 @@ class FuturesTestnetLab:
             if not isinstance(result, dict):
                 raise FuturesTestnetExecutionError("Invalid Futures Demo test-order response")
         return True
+
+    def _validate_smoke_quantity(self, symbol: str, direction: str) -> Decimal:
+        quantity = self.SMOKE_QUANTITIES.get(symbol)
+        if quantity is None:
+            raise FuturesTestnetExecutionError("No bounded Futures Demo smoke quantity")
+        side = "BUY" if direction == "LONG" else "SELL"
+        result = signed_request("POST", "/fapi/v1/order/test", {
+            "symbol": symbol,
+            "side": side,
+            "type": "MARKET",
+            "quantity": format(quantity, "f"),
+        })
+        if result not in ({}, None) and not isinstance(result, dict):
+            raise FuturesTestnetExecutionError("Invalid Futures Demo smoke preflight response")
+        return quantity
 
     def check(self) -> dict:
         account = self._account()
@@ -304,9 +329,8 @@ class FuturesTestnetLab:
             raise FuturesTestnetExecutionError("No isolated Futures Testnet symbol available")
 
         self._configure(symbol, leverage)
-        price, funding = self._reference(symbol)
-        info = self._symbol_info(symbol)
-        quantity = self._quantity(info, price, margin * Decimal(leverage))
+        quantity = self._validate_smoke_quantity(symbol, direction)
+        funding = None
         run_id = self.ledger.start(symbol, direction, leverage, self.settings.margin_type)
         open_side = "BUY" if direction == "LONG" else "SELL"
         close_side = "SELL" if direction == "LONG" else "BUY"
@@ -352,8 +376,8 @@ class FuturesTestnetLab:
                 "leverage": leverage,
                 "margin_type": "ISOLATED",
                 "position_mode": "ONE_WAY",
-                "margin_usdt": float(margin),
-                "position_notional_usdt": float(margin * Decimal(leverage)),
+                "margin_usdt": float((actual_qty * entry) / Decimal(leverage)),
+                "position_notional_usdt": float(actual_qty * entry),
                 "quantity": float(actual_qty),
                 "entry_price": float(entry),
                 "exit_price": float(exit_price),
