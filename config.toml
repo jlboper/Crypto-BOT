@@ -61,8 +61,8 @@ margin_type = "ISOLATED"
 position_mode = "ONE_WAY"
 smoke_margin_usdt = 10.0
 
-# Persistent forward-test pilot. Installation leaves it off until the owner
-# installation starts it automatically when the primary motor is TESTNET.
+# Persistent forward-test pilot. It runs automatically only while the primary
+# motor is TESTNET; it remains isolated from Spot and cannot enable LIVE.
 forward_enabled = true
 forward_symbol = "BTCUSDT"
 forward_leverage = 1
