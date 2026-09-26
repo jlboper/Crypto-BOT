@@ -47,6 +47,22 @@ class ResearchTests(unittest.TestCase):
         self.assertIn("adaptive_selector", asset)
         self.assertIn("cash_folds", asset["adaptive_selector"])
         self.assertEqual(len(asset["qualification"]["gates"]), 14)
+        promotion = asset["promotion"]
+        self.assertIn(promotion["stage"], {"RESEARCH", "CANDIDATE"})
+        self.assertFalse(promotion["automatic"])
+        self.assertTrue(promotion["owner_approval_required"])
+        self.assertFalse(promotion["testnet_eligible"])
+        self.assertFalse(promotion["live_eligible"])
+        self.assertEqual(promotion["forward_test"]["status"], "NOT_STARTED")
+        self.assertEqual(promotion["forward_test"]["minimum_observed_days"], 30)
+        self.assertEqual(promotion["forward_test"]["minimum_closed_trades"], 30)
+        if asset["qualification"]["passed"]:
+            self.assertEqual(promotion["stage"], "CANDIDATE")
+            self.assertEqual(promotion["decision"], "ADVANCE_TO_FORWARD_TEST")
+            self.assertEqual(promotion["next_gate"], "FORWARD_TEST")
+        else:
+            self.assertEqual(promotion["stage"], "RESEARCH")
+            self.assertEqual(promotion["decision"], "KEEP_IN_RESEARCH")
         self.assertEqual(asset["qualification"]["gates"]["beats_asset_hold_oos"],
                          asset["fixed_strategy"]["oos_compounded_return_pct"] >
                          asset["fixed_strategy"]["oos_benchmark_return_pct"])
@@ -65,6 +81,11 @@ class ResearchTests(unittest.TestCase):
         self.assertEqual(changed["fixed_strategy"], asset["fixed_strategy"])
         self.assertEqual(changed["adaptive_selector"], asset["adaptive_selector"])
         self.assertEqual(changed['candidates'], asset['candidates'])
+        pipeline = report["promotion_pipeline"]
+        self.assertFalse(pipeline["automatic_promotion"])
+        self.assertIn("LIVE remains a separate locked authorization", pipeline["rule"])
+        self.assertEqual(report["summary"]["testnet_eligible"], 0)
+        self.assertEqual(report["summary"]["live_eligible"], 0)
 
 
 if __name__ == "__main__":
