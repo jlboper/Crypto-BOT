@@ -28,13 +28,13 @@ class RuntimeControl:
         elif self.maintenance.exists():
             raise RuntimeError("Update maintenance in progress; startup blocked")
 
-    def ready(self, version, *, dashboard_ready):
+    def ready(self, version, *, dashboard_ready, mode="paper"):
         if dashboard_ready is not True:
             raise RuntimeError("Dashboard did not start")
         self.directory.mkdir(parents=True, exist_ok=True)
         atomic_json(self.status, {"protocol": 1, "pid": os.getpid(), "version": version,
                     "token": self.token, "phase": "candidate" if self.token else "running",
-                    "mode": "paper", "dashboard_ready": True})
+                    "mode": mode, "dashboard_ready": True})
 
     def await_activation(self, timeout=120, sleep=time.sleep):
         if self.token is None:
