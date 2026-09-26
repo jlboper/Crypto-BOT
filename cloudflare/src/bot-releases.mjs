@@ -45,7 +45,7 @@ export function validateManifest(m,claim,now){
   require(m.files&&typeof m.files==='object'&&!Array.isArray(m.files)&&Object.keys(m.files).length<=2000,'Invalid files');
   for(const [path,hash]of Object.entries(m.files)){
     require(/^[a-zA-Z0-9_./-]+$/.test(path)&&!path.split('/').some(p=>!p||p==='.'||p==='..'||p.startsWith('.env')||p==='__pycache__'),'Unsafe file path');
-    require(/^(trader|web|scripts|tests|portal_web)\//.test(path)||['pyproject.toml','README.md','UPDATE_NOTES.md','RESEARCH_METHODOLOGY.md'].includes(path),'Protected file path');
+    require(/^(trader|web|scripts|tests|portal_web)\//.test(path)||['pyproject.toml','config.toml','README.md','UPDATE_NOTES.md','RESEARCH_METHODOLOGY.md'].includes(path),'Protected file path');
     require(/^[a-f0-9]{64}$/.test(hash),'Invalid file digest');
   }
   require(['trader/__main__.py','trader/runtime_control.py','pyproject.toml'].every(p=>m.files[p]),'Incomplete package');
