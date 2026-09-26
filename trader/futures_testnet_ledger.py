@@ -70,11 +70,13 @@ class FuturesTestnetLedger:
                  datetime.now(UTC).isoformat(),run_id),
             )
             db.commit()
-    def fail(self, run_id: int):
+    def set_status(self, run_id: int, status: str):
         with self._connect() as db:
-            db.execute("UPDATE smoke_runs SET status='FAILED',completed_at=? WHERE id=?",
-                       (datetime.now(UTC).isoformat(),run_id))
+            db.execute("UPDATE smoke_runs SET status=?,completed_at=? WHERE id=?",
+                       (status, datetime.now(UTC).isoformat(), run_id))
             db.commit()
+    def fail(self, run_id: int):
+        self.set_status(run_id, "FAILED")
     def latest(self) -> dict | None:
         with self._connect() as db:
             row = db.execute("SELECT * FROM smoke_runs ORDER BY id DESC LIMIT 1").fetchone()
