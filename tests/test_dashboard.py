@@ -24,7 +24,7 @@ class DashboardTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
             config = load_config()
-            config = replace(config, bot=replace(config.bot, database_path=root/'paper.db', kill_switch_path=root/'kill'))
+            config = replace(config, bot=replace(config.bot, mode='paper', database_path=root/'paper.db', kill_switch_path=root/'kill'))
             db = Database(config.bot.database_path)
             dashboard = DashboardServer(config, db)
             broker = PaperBroker(db, config.paper, config.risk)
