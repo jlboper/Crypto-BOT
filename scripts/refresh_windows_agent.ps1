@@ -1,4 +1,4 @@
-﻿param([Parameter(Mandatory = $true)][string]$SourcePath, [switch]$Automatic)
+﻿param([Parameter(Mandatory = $true)][string]$SourcePath, [switch]$Automatic, [switch]$ForceRestart)
 
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Windows.Forms
@@ -30,7 +30,7 @@ $preview = & $python @args
 if ($LASTEXITCODE -ne 0) { throw 'No se pudo comprobar el registro de instalación firmada.' }
 $offer = (($preview | Out-String) | ConvertFrom-Json)
 if ($offer.status -ne 'refresh_available') { throw 'No se encontró una instalación PAPER firmada y confirmada.' }
-if ($offer.changes.Count -eq 0) {
+if ($offer.changes.Count -eq 0 -and -not $ForceRestart) {
     Write-Output 'El supervisor ya tiene los módulos firmados de la instalación actual.'
     return
 }
@@ -69,11 +69,16 @@ try {
     if ((Get-ScheduledTask -TaskName 'Crypto Paper Portal Agent').State -eq 'Running') {
         throw 'El agente no se detuvo; no se copiaron archivos.'
     }
-    $updated = & $python @args --apply
-    if ($LASTEXITCODE -ne 0) { throw 'La copia verificada falló; revisa el respaldo del supervisor.' }
-    $result = (($updated | Out-String) | ConvertFrom-Json)
-    if ($result.status -ne 'refreshed' -and $result.status -ne 'already_current') {
-        throw 'El supervisor no confirmó la actualización de los módulos.'
+    if ($offer.changes.Count -gt 0) {
+        $updated = & $python @args --apply
+        if ($LASTEXITCODE -ne 0) { throw 'La copia verificada falló; revisa el respaldo del supervisor.' }
+        $result = (($updated | Out-String) | ConvertFrom-Json)
+        if ($result.status -ne 'refreshed' -and $result.status -ne 'already_current') {
+            throw 'El supervisor no confirmó la actualización de los módulos.'
+        }
+    }
+    else {
+        $result = [PSCustomObject]@{ status = 'restarted'; backup = 'sin cambios de módulos' }
     }
 } finally {
     # If the task timed out and is still running, cancel our stop marker instead.
@@ -92,7 +97,7 @@ for ($attempt = 0; $attempt -lt 60; $attempt++) {
         try {
             $status = Get-Content -LiteralPath $statusFile -Raw | ConvertFrom-Json
             if ($status.sync_ok -eq $true -and [double]$status.last_success -gt $previousSuccess) {
-                Write-Output "Agente conectado con versión PAPER $($offer.version). Respaldo: $($result.backup)"
+                Write-Output "Agente conectado con versión $($offer.version). Modo sincronizado: $($status.mode). Respaldo: $($result.backup)"
                 return
             }
         } catch { }
