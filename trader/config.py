@@ -111,7 +111,20 @@ class FuturesTestnetSettings:
     forward_stop_atr_multiple: float
     forward_minimum_stop_pct: float
     forward_reward_to_risk: float
+    forward_daily_loss_limit_pct: float
+    forward_weekly_loss_limit_pct: float
+    forward_max_consecutive_errors: int
     kill_switch_path: Path
+
+
+@dataclass(frozen=True)
+class LiveSafetySettings:
+    enabled: bool
+    capital_cap_usdt: float
+    spot_symbol_whitelist: tuple[str, ...]
+    withdrawals_enabled: bool
+    margin_enabled: bool
+    futures_enabled: bool
 
 
 @dataclass(frozen=True)
@@ -139,6 +152,7 @@ class AppConfig:
     dashboard: DashboardSettings
     research: ResearchSettings
     futures_testnet: FuturesTestnetSettings
+    live_safety: LiveSafetySettings
 
 
 def _project_path(raw: str) -> Path:
@@ -160,6 +174,7 @@ def load_config(path: str | Path | None = None) -> AppConfig:
     dashboard = raw["dashboard"]
     research = raw.get("research", {})
     futures_testnet = raw.get("futures_testnet", {})
+    live_safety = raw.get("live_safety", {})
 
     mode = os.getenv("EXECUTION_MODE", str(bot.get("mode", "paper"))).lower()
     if mode not in {"paper", "testnet"}:
@@ -203,6 +218,17 @@ def load_config(path: str | Path | None = None) -> AppConfig:
     futures_forward_stop_atr = float(futures_testnet.get("forward_stop_atr_multiple", 2.0))
     futures_forward_min_stop = float(futures_testnet.get("forward_minimum_stop_pct", 0.025))
     futures_forward_rr = float(futures_testnet.get("forward_reward_to_risk", 2.0))
+    futures_forward_daily_loss = float(futures_testnet.get("forward_daily_loss_limit_pct", 0.02))
+    futures_forward_weekly_loss = float(futures_testnet.get("forward_weekly_loss_limit_pct", 0.05))
+    futures_forward_max_errors = int(futures_testnet.get("forward_max_consecutive_errors", 3))
+    live_enabled = bool(live_safety.get("enabled", False))
+    live_cap = float(live_safety.get("capital_cap_usdt", 250.0))
+    live_whitelist = tuple(str(symbol).upper() for symbol in live_safety.get(
+        "spot_symbol_whitelist", ["BTCUSDT", "ETHUSDT"]
+    ))
+    live_withdrawals = bool(live_safety.get("withdrawals_enabled", False))
+    live_margin = bool(live_safety.get("margin_enabled", False))
+    live_futures = bool(live_safety.get("futures_enabled", False))
     if futures_default not in {1, 2, 3} or futures_max not in {1, 2, 3} or futures_default > futures_max:
         raise ValueError("Futures Testnet leverage must stay within 1x/2x/3x")
     if futures_margin != "ISOLATED" or futures_position_mode != "ONE_WAY":
@@ -223,6 +249,20 @@ def load_config(path: str | Path | None = None) -> AppConfig:
         raise ValueError("Invalid Futures forward-test minimum stop")
     if not math.isfinite(futures_forward_rr) or not 1 <= futures_forward_rr <= 5:
         raise ValueError("Invalid Futures forward-test reward/risk")
+    if not 0 < futures_forward_daily_loss <= 0.10 or not 0 < futures_forward_weekly_loss <= 0.20:
+        raise ValueError("Invalid Futures forward-test loss circuit breaker")
+    if futures_forward_daily_loss > futures_forward_weekly_loss:
+        raise ValueError("Futures daily loss limit cannot exceed weekly limit")
+    if not 1 <= futures_forward_max_errors <= 10:
+        raise ValueError("Invalid Futures forward-test error limit")
+    if live_enabled:
+        raise ValueError("Binance LIVE remains blocked by code")
+    if not math.isfinite(live_cap) or not 10 <= live_cap <= 1000:
+        raise ValueError("Invalid future LIVE capital cap")
+    if not live_whitelist or len(live_whitelist) > 10 or any(not symbol.endswith("USDT") for symbol in live_whitelist):
+        raise ValueError("Invalid future LIVE Spot whitelist")
+    if live_withdrawals or live_margin or live_futures:
+        raise ValueError("Withdrawals, margin and Futures LIVE must remain disabled")
 
     selected_database = bot.get("testnet_database_path", "data/testnet-trader.db") if mode == "testnet" else bot["database_path"]
     return AppConfig(
@@ -266,7 +306,18 @@ def load_config(path: str | Path | None = None) -> AppConfig:
             forward_stop_atr_multiple=futures_forward_stop_atr,
             forward_minimum_stop_pct=futures_forward_min_stop,
             forward_reward_to_risk=futures_forward_rr,
+            forward_daily_loss_limit_pct=futures_forward_daily_loss,
+            forward_weekly_loss_limit_pct=futures_forward_weekly_loss,
+            forward_max_consecutive_errors=futures_forward_max_errors,
             kill_switch_path=_project_path(str(futures_testnet.get("kill_switch_path", "data/FUTURES_KILL_SWITCH"))),
+        ),
+        live_safety=LiveSafetySettings(
+            enabled=live_enabled,
+            capital_cap_usdt=live_cap,
+            spot_symbol_whitelist=live_whitelist,
+            withdrawals_enabled=live_withdrawals,
+            margin_enabled=live_margin,
+            futures_enabled=live_futures,
         ),
         research=ResearchSettings(
             symbols=tuple(str(symbol).upper() for symbol in research.get(
