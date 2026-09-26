@@ -70,6 +70,8 @@ def execute(source: Path, action: str, payload: dict) -> dict:
     if config.bot.mode not in EXECUTION_MODES:
         raise ValueError('Supported trading motor required')
     if action == 'futures_testnet_check':
+        if config.bot.mode != 'testnet':
+            raise ValueError('Futures Testnet requires Spot TESTNET motor mode')
         from .futures_testnet import FuturesTestnetLab
         return {'ok': True, 'futures_testnet': FuturesTestnetLab(config.futures_testnet).check(),
                 'model': config.ai.model, 'mode': config.bot.mode}
