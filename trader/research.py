@@ -621,6 +621,15 @@ def research_asset(symbol, candles, btc_candles, config, *, train_bars=600, test
     result["qualification"]["passed"] = all(gates.values())
     result["status"] = "PROMISING_RESEARCH_ONLY" if all(gates.values()) else "INSUFFICIENT_EVIDENCE"
     result["selection_method"] = "fixed_candidate_selected_on_initial_training_only"
+    passed = bool(result["qualification"]["passed"])
+    result["promotion"] = {
+        "stage": "CANDIDATE" if passed else "RESEARCH_REJECTED",
+        "automatic": False,
+        "forward_test": {"status": "NOT_STARTED", "required": True},
+        "testnet_eligible": False,
+        "live_eligible": False,
+        "next_gate": "FORWARD_TEST" if passed else "RESEARCH_GATES",
+    }
     return result
 
 
@@ -738,7 +747,28 @@ def build_research_report(
             "assets": len(assets),
             "strategies_per_asset": len(default_profiles(config)),
             "promising_assets": sum(asset["status"] == "PROMISING_RESEARCH_ONLY" for asset in assets),
+            "promotion_candidates": sum(asset.get("promotion", {}).get("stage") == "CANDIDATE" for asset in assets),
+            "testnet_eligible": 0,
+            "live_eligible": 0,
             "total_walk_forward_folds": sum(asset["walk_forward"]["folds"] for asset in assets),
+        },
+        "promotion_pipeline": {
+            "stages": ["RESEARCH", "CANDIDATE", "FORWARD_TEST", "TESTNET", "APPROVED", "RETIRED"],
+            "automatic_promotion": False,
+            "rule": "Research may nominate a candidate; only future forward-test evidence and explicit owner approval can advance it to Testnet. LIVE remains a separate locked authorization.",
+            "candidates": [
+                {
+                    "symbol": asset["symbol"],
+                    "strategy": asset["champion_candidate"],
+                    "family": asset["champion_family"],
+                    "stage": asset["promotion"]["stage"],
+                    "next_gate": asset["promotion"]["next_gate"],
+                    "testnet_eligible": False,
+                    "live_eligible": False,
+                }
+                for asset in assets
+                if asset["promotion"]["stage"] == "CANDIDATE"
+            ],
         },
         "portfolio": portfolio,
         "adaptive_portfolio": adaptive_portfolio,
