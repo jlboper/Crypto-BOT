@@ -99,7 +99,7 @@ class WindowsAssetTests(unittest.TestCase):
         self.assertIn('id="testFuturesExecution"', html)
         self.assertIn('id="checkFuturesTestnet"', html)
         self.assertIn('id="reconcileFutures"', html)
-        self.assertIn('PAPER · respaldo / CI', html)
+        self.assertIn('Respaldo técnico / PAPER', html)
         self.assertIn('USDⓈ-M Futures Demo', html)
         bridge = (PROJECT_ROOT / "web" / "portal-bridge.js").read_text(encoding="utf-8")
         self.assertIn("Nueva versión disponible", bridge)
@@ -107,6 +107,9 @@ class WindowsAssetTests(unittest.TestCase):
         self.assertIn("checkAllUpdates(false);", bridge)
         self.assertIn("if(location.hash==='#updates')checkAllUpdates(false)", bridge)
         self.assertIn("Instalar v${candidate.version}", bridge)
+        self.assertIn("/api/local-update/check", bridge)
+        self.assertIn("/api/local-update/install", bridge)
+        self.assertIn("Invoke-TradingEngineWatchdog", source)
 
     def test_remote_update_deep_link_opens_the_shared_center(self):
         bridge = (PROJECT_ROOT / "web" / "portal-bridge.js").read_text(encoding="utf-8")
