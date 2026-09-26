@@ -89,6 +89,12 @@ python -m trader testnet-validate BTCUSDT --side BUY --quote-amount 25
 python -m trader testnet-simulate
 ```
 
+## Arquitectura operativa v0.8.2
+
+El portal y la app de Windows presentan dos pistas separadas: **Spot Testnet** como motor multi-activo y **Futures Demo** como forward test BTCUSDT 1x. Cada pista mantiene su propio ledger e interruptor operativo. Futures añade límites independientes de pérdida diaria/semanal y errores consecutivos; PAPER permanece únicamente como respaldo técnico y CI.
+
+La futura arquitectura LIVE está declarada de forma fail-closed pero sigue bloqueada: `enabled=false`, tope previsto de 250 USDT, whitelist Spot reducida, sin retiros, sin margin y sin Futures LIVE. Cambiar cualquiera de esas restricciones a un estado inseguro hace fallar la carga de configuración; no habilita ejecución real.
+
 ## Binance Testnet: entorno principal y laboratorio Futures
 
 `BINANCE_API_KEY` y `BINANCE_API_SECRET` de **Spot Testnet** deben estar únicamente en `.env.local`. `check-testnet`, `testnet-plan`, `testnet-simulate` y `testnet-validate` siguen disponibles como diagnósticos sin ejecutar operaciones. El TradingEngine principal puede operar en `PAPER` o `TESTNET`; Spot Testnet usa `BinanceTestnetBroker`, un ledger separado y un journal durable antes de cada escritura. No existe host ni modo Binance LIVE.
