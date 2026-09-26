@@ -387,7 +387,7 @@ export async function handle(request, env, now = Math.floor(Date.now() / 1000)) 
            WHERE json_extract(value,'$.symbol')=? AND json_extract(value,'$.opened_at')=?)))
         AND NOT EXISTS(SELECT 1 FROM jobs WHERE status IN ('pending','running'))
         ON CONFLICT(request_id) DO NOTHING`,body.request_id,storedRelease,now,now+300,now-120,
-          body.action,body.action,body.action,body.payload.symbol??'',body.payload.opened_at??''),
+          body.action,body.action,body.action,body.action,body.payload.symbol??'',body.payload.opened_at??''),
       statement(db,`SELECT id,${jobAction} AS action,release_id,status FROM jobs WHERE request_id=?`,body.request_id),
     ]);
     const row=results(batch,2)[0];
