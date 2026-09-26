@@ -71,6 +71,24 @@ class SignedUpdateTests(unittest.TestCase):
         self.assertEqual((self.root/"trader/__main__.py").read_text(), "OLD = True\n")
         self.assertFalse(self.manager.journal.exists())
 
+    def test_stage_discovery_allows_exact_current_sequence_only(self):
+        manifest = json.loads(self.envelope.read_text())["manifest"]
+        manifest["package_url"] = "https://portal.example/package.zip"
+        envelope = json.dumps({"manifest": manifest, "signature": base64.b64encode(self.key.sign(canonical(manifest))).decode()}).encode()
+        self.manager.sequence.parent.mkdir(parents=True, exist_ok=True)
+        self.manager.sequence.write_text(json.dumps({"sequence": 1}))
+        urls = []
+        def opened(request, timeout):
+            urls.append(request.full_url)
+            return io.BytesIO(envelope if len(urls) % 2 == 1 else self.package.read_bytes())
+        with patch("trader.update_manager.urllib.request.build_opener") as opener:
+            opener.return_value.open.side_effect = opened
+            with self.assertRaisesRegex(ValueError, "replayed or downgraded update"):
+                self.manager.stage("https://portal.example/latest")
+            current = self.manager.stage("https://portal.example/latest", allow_current=True)
+        self.assertEqual(current["status"], "staged_current")
+        self.assertEqual(current["sequence"], 1)
+
     def test_health_failure_restores_and_removes_new_files(self):
         with self.assertRaises(RuntimeError):
             self.manager.apply(self.package, self.envelope, health_check=lambda: False)

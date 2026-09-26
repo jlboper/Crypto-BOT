@@ -1,3 +1,11 @@
+# Actualización 0.6.24 — comprobación de updates idempotente
+
+- Corrige la búsqueda de actualizaciones cuando el bot ya está en la versión firmada más reciente: la secuencia actual puede verificarse para descubrimiento sin tratarse como replay ni convertirse en candidata de instalación.
+- La instalación continúa siendo estrictamente monotónica: una release con la misma secuencia o una anterior sigue sin poder instalarse.
+- Si Windows confirma que no hay una versión nueva, el Centro muestra `Estás actualizado · bot X · firma verificada` en lugar de registrar `ValueError`.
+- Si la consulta de detalles de publicación en GitHub falla temporalmente pero Windows sigue disponible, el estado local del bot continúa siendo útil y el error externo queda como detalle secundario.
+- No modifica estrategia, riesgo, balances, ledgers ni ejecución Binance Testnet.
+
 # Actualización 0.6.23 — supervisor independiente actualizable en TESTNET
 
 - Corrige una deuda de arquitectura detectada al intentar instalar 0.6.22 desde el portal con el motor en TESTNET: el supervisor independiente sincronizaba el heartbeat y controles, pero conservaba copias antiguas de sus módulos de instalación.

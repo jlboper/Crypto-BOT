@@ -139,8 +139,13 @@ class UpdateManager:
         # Shared by installers even if their staging directories differ.
         self.transaction_lock = self.root / "data" / "update-transaction.lock"
 
-    def stage(self, manifest_url: str):
-        """Download to staging over HTTPS; no installation or engine shutdown."""
+    def stage(self, manifest_url: str, *, allow_current: bool = False):
+        """Download and verify a signed release without installing it.
+
+        Installation callers remain strictly monotonic. Discovery may allow
+        exactly the already-committed sequence so "check for updates" can
+        report an up-to-date installation without treating it as a replay.
+        """
         from .remote_agent import NoRedirect
         from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
         origin = urlsplit(manifest_url)
@@ -171,10 +176,13 @@ class UpdateManager:
             pending.write_bytes(download(package_url, MAX_PACKAGE))
             pending_envelope.write_bytes(envelope_bytes)
             minimum = json.loads(self.sequence.read_text())["sequence"] if self.sequence.exists() else 0
-            manifest = verify(pending, pending_envelope, self.public_key, minimum)
+            verification_minimum = minimum - 1 if allow_current and minimum > 0 else minimum
+            manifest = verify(pending, pending_envelope, self.public_key, verification_minimum)
+            if manifest["sequence"] < minimum:
+                raise ValueError("replayed or downgraded update")
             pending.replace(package)
             pending_envelope.replace(envelope)
-            return {"status": "staged_verified", "version": manifest["version"],
+            return {"status": "staged_current" if manifest["sequence"] == minimum and minimum > 0 else "staged_verified", "version": manifest["version"],
                     "release_id": release_id(manifest), "sequence": manifest["sequence"],
                     "expires": manifest['expires'], "commit": manifest.get('commit'), "package": str(package)}
 
