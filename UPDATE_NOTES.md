@@ -1,3 +1,15 @@
+# Actualización 0.7.0 — TESTNET principal + laboratorio Futures aislado
+
+- PAPER queda funcionalmente congelado como respaldo, CI y diagnóstico; las capacidades nuevas pasan a Testnet salvo correcciones de seguridad.
+- Mantiene Spot Testnet como motor automático principal y conserva `trader.db`, `testnet-trader.db` y ahora `futures-testnet.db` separados.
+- Añade un laboratorio paralelo de Binance USDⓈ-M Futures Testnet con credenciales independientes de Spot.
+- Futures Testnet queda limitado por código a margen `ISOLATED`, modo `ONE_WAY` y leverage 1x/2x/3x.
+- Añade verificación de cuenta Futures, smoke LONG/SHORT con margen ficticio pequeño, lectura de funding/liquidation price y cierre `reduceOnly`.
+- Cada escritura Futures guarda primero un journal durable con `clientOrderId`; una respuesta incierta no se reintenta y exige reconciliación explícita.
+- La reconciliación solo puede cerrar el símbolo registrado por el smoke y valida dirección, leverage y margen aislado antes de enviar `reduceOnly`.
+- El portal reorganiza Modelo IA y motor en dos tarjetas: Motor principal (Spot/PAPER) y Laboratorio Futures Testnet.
+- Binance LIVE sigue sin host, selector ni ruta de escritura.
+
 # Actualización 0.6.26 — responsive global y Smoke Test aislado
 
 - Unifica el ancho de todos los paneles del portal para que Actualizaciones, Modelo IA, Historial, Diagnóstico y paneles financieros compartan la misma geometría.
