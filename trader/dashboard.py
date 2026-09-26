@@ -145,11 +145,17 @@ class DashboardServer:
                                   'futures_testnet_smoke' if path.endswith('/futures-smoke') else
                                   'futures_testnet_reconcile' if path.endswith('/futures-reconcile') else
                                   'restart_engine')
-                        if (action == 'ai_model' and (set(payload) != {'model'} or payload['model'] not in {'gpt-5.6-luna','gpt-6-luna'})) or (action == 'execution_mode' and (set(payload) != {'mode'} or payload['mode'] not in {'paper','testnet'})) or (action in {'restart_engine','testnet_smoke','futures_testnet_check','futures_testnet_reconcile'} and payload)
+                        invalid = (
+                            (action == 'ai_model' and (set(payload) != {'model'} or payload['model'] not in {'gpt-5.6-luna','gpt-6-luna'}))
+                            or (action == 'execution_mode' and (set(payload) != {'mode'} or payload['mode'] not in {'paper','testnet'}))
+                            or (action in {'restart_engine','testnet_smoke','futures_testnet_check','futures_testnet_reconcile'} and bool(payload))
                             or (action == 'futures_testnet_smoke' and (
                                 set(payload) != {'direction','leverage'}
                                 or payload.get('direction') not in {'LONG','SHORT'}
-                                or payload.get('leverage') not in {1,2,3})):
+                                or payload.get('leverage') not in {1,2,3}
+                            ))
+                        )
+                        if invalid:
                             raise ValueError('Invalid operational request')
                         script = PROJECT_ROOT / 'scripts/execute_paper_control.py'
                         process = subprocess.Popen([sys.executable, '-I', '-B', str(script), str(PROJECT_ROOT)],
