@@ -1,7 +1,7 @@
 /* One UI, local APIs or authenticated remote snapshots. No credentials in URLs. */
 const remotePortal = !['127.0.0.1','localhost','[::1]','::1'].includes(location.hostname);
 let portalCsrf = '', portalPending, portalCache, portalCacheAt = 0, portalEpoch=0;
-const portalRoute = {'/api/status':'status','/api/positions':'positions','/api/trades':'trades','/api/ai-reviews':'reviews','/api/equity':'equity','/api/events':'events','/api/research':'research','/api/research/status':'research_state','/api/updates':'updates','/api/paper-scorecard':'paper_scorecard','/api/testnet/execution':'testnet_execution'};
+const portalRoute = {'/api/status':'status','/api/positions':'positions','/api/trades':'trades','/api/ai-reviews':'reviews','/api/equity':'equity','/api/events':'events','/api/research':'research','/api/research/status':'research_state','/api/updates':'updates','/api/paper-scorecard':'paper_scorecard'};
 async function portalPasswordProof(password,parameters){
   if(parameters.scheme==='initial-key')return password;
   if(parameters.scheme!=='pbkdf2-sha256'||parameters.iterations!==600000||!/^[A-Za-z0-9_-]{43}$/.test(parameters.salt||''))throw new Error('Parámetros de acceso inválidos');
@@ -75,18 +75,16 @@ window.portalApi=async(path,options={})=>{
     return response.json();
   }
   if(options.method==='POST'){
-    if(['/api/paper/risk-profile','/api/paper/close-position','/api/operations/model','/api/operations/restart','/api/operations/execution-mode','/api/testnet/buy','/api/testnet/close','/api/testnet/reconcile','/api/testnet/audit'].includes(path)){
+    if(['/api/paper/risk-profile','/api/paper/close-position','/api/operations/model','/api/operations/restart','/api/operations/execution-mode'].includes(path)){
       const state=await portalState();
       if(state.stale||state.snapshot?.paper_controls!==true)throw new Error('Controles PAPER pendientes de conexión de Windows');
-      if((path.startsWith('/api/operations/')||path.startsWith('/api/testnet/'))&&state.snapshot?.operations_controls!==true)throw new Error('Actualiza y repara el agente de Windows antes de usar esta opción');
+      if((path.startsWith('/api/operations/'))&&state.snapshot?.operations_controls!==true)throw new Error('Actualiza y repara el agente de Windows antes de usar esta opción');
       let payload;
       try{payload=JSON.parse(options.body);}catch{throw new Error('Solicitud PAPER inválida');}
       const result=await portalRequest('/v1/paper-controls',{
         action:({
           '/api/paper/risk-profile':'risk_profile','/api/paper/close-position':'paper_close',
-          '/api/operations/model':'ai_model','/api/operations/restart':'restart_engine','/api/operations/execution-mode':'execution_mode',
-          '/api/testnet/buy':'testnet_buy','/api/testnet/close':'testnet_close',
-          '/api/testnet/reconcile':'testnet_reconcile', '/api/testnet/audit':'testnet_audit'
+          '/api/operations/model':'ai_model','/api/operations/restart':'restart_engine','/api/operations/execution-mode':'execution_mode'
         })[path],payload,request_id:crypto.randomUUID()});
       portalCacheAt=0;return result;
     }
@@ -139,12 +137,6 @@ document.addEventListener('DOMContentLoaded',()=>{
     panel.scrollIntoView({behavior:'smooth',block:'start'});
   };
   document.getElementById('closeModelSettings').onclick=()=>document.getElementById('modelSettingsPanel').hidden=true;
-  document.getElementById('testnetOptionsButton').onclick=()=>{
-    showOptions(false);const panel=document.getElementById('testnetPanel');panel.hidden=false;
-    panel.scrollIntoView({behavior:'smooth',block:'start'});
-    window.dispatchEvent(new Event('testnet-open'));
-  };
-  document.getElementById('closeTestnetPanel').onclick=()=>document.getElementById('testnetPanel').hidden=true;
   async function operationalAction(path,payload,question){
     if(!confirm(question))return;
     const startedAt=Date.now()/1000;
