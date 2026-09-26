@@ -8,6 +8,7 @@ from .domain import Position
 from .monitoring import activity_status, position_metrics, usable_price
 from .paper_scorecard import paper_scorecard
 from .risk_control import PROFILES
+from .futures_testnet_ledger import FuturesTestnetLedger
 
 
 def public_text(value):
@@ -53,6 +54,13 @@ def dashboard_snapshot(config, report_path=None):
             'research':{'mode':'RESEARCH_ONLY','status':'NOT_RUN','assets':[]},
             'research_state':{'running':False,'error':None},
             'updates':{'status':'not_configured','message':'Falta configurar el canal firmado y la recuperación supervisada.'},
+            'futures_forward': {
+                'enabled': bool(config.bot.mode == 'testnet' and config.futures_testnet.forward_enabled),
+                'killed': config.futures_testnet.kill_switch_path.exists(),
+                'symbol': config.futures_testnet.forward_symbol,
+                'automatic_leverage': config.futures_testnet.forward_leverage,
+                **FuturesTestnetLedger(config.futures_testnet.database_path).forward_snapshot(),
+            },
         }
         for key in ('trades','reviews','events'):
             for row in payload[key]:
