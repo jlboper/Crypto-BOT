@@ -113,8 +113,8 @@ class FuturesTestnetLabTests(unittest.TestCase):
         self.assertEqual(self.position_amt, 0.1)
 
     def test_transport_has_no_production_host_and_blocks_unknown_endpoint(self):
-        self.assertEqual(HOST, "https://testnet.binancefuture.com")
-        self.assertNotIn("fapi.binance.com", HOST)
+        self.assertEqual(HOST, "https://demo-fapi.binance.com")
+        self.assertNotEqual(HOST, "https://fapi.binance.com")
         with self.assertRaisesRegex(FuturesTestnetExecutionError, "endpoint blocked"):
             signed_request("POST", "/fapi/v1/withdraw", {})
 
