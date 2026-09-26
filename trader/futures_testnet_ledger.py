@@ -251,6 +251,7 @@ class FuturesTestnetLedger:
                 """SELECT COUNT(*) AS total,COALESCE(SUM(gross_pnl),0) AS pnl
                    FROM forward_trades WHERE closed_at>=?""", (since_iso,)
             ).fetchone()
+            position_count = int(db.execute("SELECT COUNT(*) AS n FROM forward_position").fetchone()["n"])
         def parse(value):
             try:
                 return datetime.fromisoformat(str(value).replace("Z","+00:00")) if value else None
@@ -288,7 +289,7 @@ class FuturesTestnetLedger:
             "errors_total": total_errors,
             "integrity": {
                 "order_journal_clear": journal_clear,
-                "local_position_count_valid": self.forward_position() is None or True,
+                "local_position_count_valid": position_count <= 1,
             },
         }
 
