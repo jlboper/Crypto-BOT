@@ -58,18 +58,14 @@ class FuturesTestnetLab:
         return payload
 
     def _trade_probe(self, symbol: str = "BTCUSDT") -> bool:
-        """Validate TRADE permission without creating an order."""
-        price_payload = public_request("GET", "/fapi/v1/ticker/price", {"symbol": symbol})
-        price = _decimal(price_payload.get("price", "0") if isinstance(price_payload, dict) else "0")
-        if price <= 0:
-            raise FuturesTestnetExecutionError("Invalid Futures Demo probe price")
-        info = self._symbol_info(symbol)
-        quantity = self._probe_quantity(info, price, Decimal("10"))
+        """Validate TRADE permission without public-data dependency or execution."""
+        # 0.001 BTC is deliberately conservative for BTCUSDT test-order validation:
+        # it is above the historical MARKET minQty and does not execute on /order/test.
         result = signed_request("POST", "/fapi/v1/order/test", {
             "symbol": symbol,
             "side": "BUY",
             "type": "MARKET",
-            "quantity": format(quantity, "f"),
+            "quantity": "0.001",
         })
         if result not in ({}, None):
             if not isinstance(result, dict):
