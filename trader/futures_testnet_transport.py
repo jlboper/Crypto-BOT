@@ -37,9 +37,11 @@ _SIGNED = {
 
 
 class FuturesTestnetExecutionError(ValueError):
-    def __init__(self, message: str, *, code: int | None = None, uncertain: bool = False):
+    def __init__(self, message: str, *, code: int | None = None,
+                 api_message: str | None = None, uncertain: bool = False):
         super().__init__(message)
         self.code = code
+        self.api_message = api_message
         self.uncertain = uncertain
 
 
@@ -97,13 +99,21 @@ def signed_request(method: str, endpoint: str, fields: dict | None = None) -> An
             return _decode(response)
     except urllib.error.HTTPError as error:
         code = None
+        api_message = None
         try:
             payload = json.loads(error.read(4097))
-            if isinstance(payload, dict) and isinstance(payload.get("code"), int):
-                code = payload["code"]
+            if isinstance(payload, dict):
+                if isinstance(payload.get("code"), int):
+                    code = payload["code"]
+                if isinstance(payload.get("msg"), str):
+                    api_message = " ".join(payload["msg"].split())[:180]
         except Exception:
             pass
-        raise FuturesTestnetExecutionError("Futures Testnet HTTP " + str(error.code), code=code) from None
+        detail = (" · Binance " + str(code) + ": " + api_message) if code is not None and api_message else ""
+        raise FuturesTestnetExecutionError(
+            "Futures Demo HTTP " + str(error.code) + detail,
+            code=code, api_message=api_message,
+        ) from None
     except (urllib.error.URLError, TimeoutError, ValueError):
         raise FuturesTestnetExecutionError(
             "Futures Testnet response uncertain; reconcile before another write",
