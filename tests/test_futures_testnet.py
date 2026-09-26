@@ -59,7 +59,7 @@ class FuturesTestnetLabTests(unittest.TestCase):
                 "marginType": "isolated",
             }]
         if endpoint == "/fapi/v1/positionSide/dual":
-            return {"code": 200}
+            return {"dualSidePosition": False} if method == "GET" else {"code": 200}
         if endpoint == "/fapi/v1/marginType":
             return {"code": 200}
         if endpoint == "/fapi/v1/leverage":
