@@ -231,10 +231,10 @@ class FuturesForwardEngine:
             self.settings.forward_symbol, signal["direction"]
         )
         estimated_notional = _decimal(signal["price"]) * quantity
-        minimum_headroom = max(
-            Decimal(str(self.settings.forward_margin_usdt)),
-            estimated_notional,
-        ) * Decimal("1.25")
+        budget = Decimal(str(self.settings.forward_margin_usdt))
+        if estimated_notional > budget * Decimal("1.25"):
+            raise FuturesTestnetExecutionError("BTCUSDT minimum quantity exceeds Futures forward budget")
+        minimum_headroom = max(budget, estimated_notional) * Decimal("1.25")
         if _decimal(account["available_balance"]) < minimum_headroom:
             raise FuturesTestnetExecutionError("Insufficient Futures Demo margin for forward test")
 
