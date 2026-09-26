@@ -119,6 +119,32 @@ class RemoteConnectionTests(unittest.TestCase):
         self.assertEqual(requests[0]['control_results'][0]['id'], 10)
         self.agent.paper_controls.apply.assert_called_once_with(control)
 
+    def test_config_refresh_accepts_supervised_paper_to_testnet_ledger_switch(self):
+        Database(self.config.bot.database_path)
+        testnet_path = self.config.bot.database_path.parent / 'testnet-trader.db'
+        testnet_config = replace(self.config, bot=replace(self.config.bot, mode='testnet', database_path=testnet_path))
+        Database(testnet_path)
+        self.agent.config_provider = lambda: testnet_config
+        received = []
+        def send(request, timeout):
+            received.append(json.loads(request.data))
+            return io.BytesIO(b'{"commands":[],"jobs":[]}')
+        with patch.object(self.agent.opener, 'open', side_effect=send):
+            self.agent.sync()
+        self.assertEqual(self.agent.config.bot.mode, 'testnet')
+        self.assertEqual(self.agent.config.bot.database_path, testnet_path)
+        self.assertEqual(received[0]['snapshot']['mode'], 'TESTNET')
+
+    def test_config_refresh_rejects_database_directory_escape(self):
+        Database(self.config.bot.database_path)
+        foreign = self.root / 'foreign/testnet.db'
+        foreign.parent.mkdir()
+        Database(foreign)
+        changed = replace(self.config, bot=replace(self.config.bot, mode='testnet', database_path=foreign))
+        self.agent.config_provider = lambda: changed
+        with self.assertRaisesRegex(ValueError, 'Trading installation changed unexpectedly'):
+            self.agent.sync()
+
     def test_dashboard_failure_does_not_hide_core_job_failure(self):
         Database(self.config.bot.database_path)
         self.agent.dashboard_provider = lambda: 1 / 0
