@@ -31,7 +31,7 @@ async function portalRequest(path,body){
   if(!response.ok){if(response.status===401)portalLocked();throw new Error(data.error||'Error de conexión');}
   return data;
 }
-const activityActions={research:'Evaluar estrategias',update_check:'Buscar actualización',update_install:'Actualizar bot',update_restore:'Restaurar bot',kill:'Pausar bot',resume:'Reanudar bot',risk_profile:'Perfil de riesgo',paper_close:'Cerrar posición',ai_model:'Cambiar modelo IA',restart_engine:'Reiniciar motor',execution_mode:'Cambiar entorno',testnet_smoke:'Prueba Testnet',testnet_buy:'Comprar Testnet',testnet_close:'Cerrar Testnet',testnet_reconcile:'Conciliar Testnet',testnet_audit:'Comprobar Testnet en Binance'};
+const activityActions={research:'Evaluar estrategias',update_check:'Buscar actualización',update_install:'Actualizar bot',update_restore:'Restaurar bot',kill:'Pausar bot',resume:'Reanudar bot',risk_profile:'Perfil de riesgo',paper_close:'Cerrar posición',ai_model:'Cambiar modelo IA',restart_engine:'Reiniciar motor',execution_mode:'Cambiar entorno',testnet_smoke:'Prueba Spot Testnet',futures_testnet_check:'Verificar Futures',futures_testnet_smoke:'Prueba Futures',futures_testnet_reconcile:'Reconciliar Futures',testnet_buy:'Comprar Testnet',testnet_close:'Cerrar Testnet',testnet_reconcile:'Conciliar Testnet',testnet_audit:'Comprobar Testnet en Binance'};
 const activityStatuses={pending:'Pendiente',applied:'Confirmado por Windows',expired:'Vencido',superseded:'Sustituido',running:'En curso',completed:'Completado',failed:'Falló'};
 function renderActivity(list,items){
   for(const item of items){
@@ -107,7 +107,7 @@ window.portalApi=async(path,options={})=>{
     return response.json();
   }
   if(options.method==='POST'){
-    if(['/api/paper/risk-profile','/api/paper/close-position','/api/operations/model','/api/operations/restart','/api/operations/execution-mode','/api/operations/testnet-smoke'].includes(path)){
+    if(['/api/paper/risk-profile','/api/paper/close-position','/api/operations/model','/api/operations/restart','/api/operations/execution-mode','/api/operations/testnet-smoke','/api/operations/futures-check','/api/operations/futures-smoke','/api/operations/futures-reconcile'].includes(path)){
       const state=await portalState();
       if(state.stale||state.snapshot?.paper_controls!==true)throw new Error('Controles del motor pendientes de conexión de Windows');
       if((path.startsWith('/api/operations/'))&&state.snapshot?.operations_controls!==true)throw new Error('Actualiza y repara el agente de Windows antes de usar esta opción');
@@ -116,7 +116,7 @@ window.portalApi=async(path,options={})=>{
       const result=await portalRequest('/v1/paper-controls',{
         action:({
           '/api/paper/risk-profile':'risk_profile','/api/paper/close-position':'paper_close',
-          '/api/operations/model':'ai_model','/api/operations/restart':'restart_engine','/api/operations/execution-mode':'execution_mode','/api/operations/testnet-smoke':'testnet_smoke'
+          '/api/operations/model':'ai_model','/api/operations/restart':'restart_engine','/api/operations/execution-mode':'execution_mode','/api/operations/testnet-smoke':'testnet_smoke','/api/operations/futures-check':'futures_testnet_check','/api/operations/futures-smoke':'futures_testnet_smoke','/api/operations/futures-reconcile':'futures_testnet_reconcile'
         })[path],payload,request_id:crypto.randomUUID()});
       portalCacheAt=0;return result;
     }
@@ -172,12 +172,21 @@ document.addEventListener('DOMContentLoaded',()=>{
   async function operationalAction(path,payload,question){
     if(!confirm(question))return;
     const startedAt=Date.now()/1000;
-    const button=document.getElementById(path.endsWith('model')?'applyAiModel':path.endsWith('execution-mode')?'applyExecutionMode':path.endsWith('testnet-smoke')?'testTestnetExecution':'restartMotor');
-    const message=document.getElementById('modelSettingsMessage');
+    const buttonId=path.endsWith('model')?'applyAiModel':
+      path.endsWith('execution-mode')?'applyExecutionMode':
+      path.endsWith('testnet-smoke')?'testTestnetExecution':
+      path.endsWith('futures-check')?'checkFuturesTestnet':
+      path.endsWith('futures-smoke')?'testFuturesExecution':
+      path.endsWith('futures-reconcile')?'reconcileFutures':'restartMotor';
+    const futures=path.includes('/futures-');
+    const button=document.getElementById(buttonId);
+    const message=document.getElementById(futures?'futuresMessage':'modelSettingsMessage');
     button.disabled=true;message.textContent='Esperando la comprobación de Windows…';
     try{
       const result=await window.portalApi(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-      message.textContent=result.status==='pending'?'Solicitud enviada. Revisa el resultado en Actividad y el modelo efectivo en el panel.':'Windows confirmó la operación.';
+      message.textContent=result.status==='pending'?
+        'Solicitud enviada. El resultado aparecerá en Actividad cuando Windows termine.':
+        'Windows confirmó la operación.';
       if(!remotePortal)setTimeout(async()=>{
         try{const state=await window.portalApi('/api/operations/last');
           if(state.at&&state.at>startedAt)message.textContent=state.status==='completed'?'Windows confirmó la operación.':
@@ -200,6 +209,20 @@ document.addEventListener('DOMContentLoaded',()=>{
   document.getElementById('testTestnetExecution').onclick=()=>operationalAction(
     '/api/operations/testnet-smoke',{},
     '¿Ejecutar una prueba real en Binance Spot Testnet? Usará fondos ficticios, abrirá una posición pequeña de BTCUSDT, la conciliará, la cerrará y reiniciará el motor. LIVE seguirá bloqueado.'
+  );
+  document.getElementById('checkFuturesTestnet').onclick=()=>operationalAction(
+    '/api/operations/futures-check',{},
+    '¿Verificar la cuenta separada de Binance USDⓈ-M Futures Testnet? Esta comprobación es de solo lectura.'
+  );
+  document.getElementById('testFuturesExecution').onclick=()=>{
+    const direction=document.getElementById('futuresDirection').value;
+    const leverage=Number(document.getElementById('futuresLeverage').value);
+    operationalAction('/api/operations/futures-smoke',{direction,leverage},
+      `¿Probar ${direction} en Futures Testnet con ${leverage}x, margen ISOLATED y fondos ficticios? La posición se cerrará con reduceOnly y LIVE seguirá bloqueado.`);
+  };
+  document.getElementById('reconcileFutures').onclick=()=>operationalAction(
+    '/api/operations/futures-reconcile',{},
+    '¿Reconciliar una prueba Futures pendiente y cerrar únicamente su posición técnica con reduceOnly si todavía existe?'
   );
   let nextHistoryPage=0,historyBusy=false;
   async function loadHistory(reset=false){

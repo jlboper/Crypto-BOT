@@ -106,6 +106,14 @@ class OperationalControlsTests(unittest.TestCase):
         self.assertFalse((source/"data/UPDATE_MAINTENANCE.json").exists())
         self.assertEqual(json.loads(status.read_text())["mode"], "paper")
 
+    def test_futures_lab_requires_spot_testnet_mode(self):
+        source, config, status = self._fixture("paper")
+        with patch.dict(os.environ, {"EXECUTION_MODE":"paper","OPENAI_MODEL":"gpt-6-luna"}, clear=False), \
+             patch("trader.operational_controls.load_config", return_value=config):
+            with self.assertRaisesRegex(ValueError, "Futures Testnet requires Spot TESTNET"):
+                execute(source, "futures_testnet_check", {})
+        self.assertEqual(json.loads(status.read_text())["mode"], "paper")
+
     def test_smoke_can_use_isolated_symbol_with_existing_positions(self):
         source, config, status = self._fixture("testnet")
         runtime = _Runtime(source, status, "testnet")

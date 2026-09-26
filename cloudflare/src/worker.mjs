@@ -134,12 +134,15 @@ const modelStored = "action='research' AND substr(COALESCE(release_id,''),1,9)='
 const restartStored = "action='research' AND substr(COALESCE(release_id,''),1,15)='restart_engine:'";
 const executionModeStored = "action='research' AND substr(COALESCE(release_id,''),1,15)='execution_mode:'";
 const testnetSmokeStored = "action='research' AND substr(COALESCE(release_id,''),1,14)='testnet_smoke:'";
+const futuresCheckStored = "action='research' AND substr(COALESCE(release_id,''),1,length('futures_testnet_check:'))='futures_testnet_check:'";
+const futuresSmokeStored = "action='research' AND substr(COALESCE(release_id,''),1,length('futures_testnet_smoke:'))='futures_testnet_smoke:'";
+const futuresReconcileStored = "action='research' AND substr(COALESCE(release_id,''),1,length('futures_testnet_reconcile:'))='futures_testnet_reconcile:'";
 const testBuyStored = "action='research' AND substr(COALESCE(release_id,''),1,12)='testnet_buy:'";
 const testCloseStored = "action='research' AND substr(COALESCE(release_id,''),1,14)='testnet_close:'";
 const testReconcileStored = "action='research' AND substr(COALESCE(release_id,''),1,18)='testnet_reconcile:'";
 const testAuditStored = "action='research' AND substr(COALESCE(release_id,''),1,14)='testnet_audit:'";
-const paperStored = `(${closeStored} OR ${riskStored} OR ${modelStored} OR ${restartStored} OR ${executionModeStored} OR ${testnetSmokeStored} OR ${testBuyStored} OR ${testCloseStored} OR ${testReconcileStored} OR ${testAuditStored})`;
-const jobAction = `CASE WHEN ${closeStored} THEN 'paper_close' WHEN ${riskStored} THEN 'risk_profile' WHEN ${modelStored} THEN 'ai_model' WHEN ${restartStored} THEN 'restart_engine' WHEN ${executionModeStored} THEN 'execution_mode' WHEN ${testnetSmokeStored} THEN 'testnet_smoke' WHEN ${testBuyStored} THEN 'testnet_buy' WHEN ${testCloseStored} THEN 'testnet_close' WHEN ${testReconcileStored} THEN 'testnet_reconcile' WHEN ${testAuditStored} THEN 'testnet_audit' WHEN ${restoreStored} THEN 'update_restore' ELSE action END`;
+const paperStored = `(${closeStored} OR ${riskStored} OR ${modelStored} OR ${restartStored} OR ${executionModeStored} OR ${testnetSmokeStored} OR ${futuresCheckStored} OR ${futuresSmokeStored} OR ${futuresReconcileStored} OR ${testBuyStored} OR ${testCloseStored} OR ${testReconcileStored} OR ${testAuditStored})`;
+const jobAction = `CASE WHEN ${closeStored} THEN 'paper_close' WHEN ${riskStored} THEN 'risk_profile' WHEN ${modelStored} THEN 'ai_model' WHEN ${restartStored} THEN 'restart_engine' WHEN ${executionModeStored} THEN 'execution_mode' WHEN ${testnetSmokeStored} THEN 'testnet_smoke' WHEN ${futuresCheckStored} THEN 'futures_testnet_check' WHEN ${futuresSmokeStored} THEN 'futures_testnet_smoke' WHEN ${futuresReconcileStored} THEN 'futures_testnet_reconcile' WHEN ${testBuyStored} THEN 'testnet_buy' WHEN ${testCloseStored} THEN 'testnet_close' WHEN ${testReconcileStored} THEN 'testnet_reconcile' WHEN ${testAuditStored} THEN 'testnet_audit' WHEN ${restoreStored} THEN 'update_restore' ELSE action END`;
 const jobRelease = `CASE WHEN ${restoreStored} THEN substr(release_id,9) ELSE release_id END`;
 function results(batch, index) { return batch[index]?.results || []; }
 function cookie(request) {
@@ -352,7 +355,7 @@ export async function handle(request, env, now = Math.floor(Date.now() / 1000)) 
   if(path==='/v1/paper-controls'&&method==='POST'){
     const body=await readBody(request,1024);
     assert(Object.keys(body).sort().join(',')==='action,payload,request_id'&&
-      ['risk_profile','paper_close','ai_model','restart_engine','execution_mode','testnet_smoke'].includes(body.action)&&
+      ['risk_profile','paper_close','ai_model','restart_engine','execution_mode','testnet_smoke','futures_testnet_check','futures_testnet_smoke','futures_testnet_reconcile'].includes(body.action)&&
       typeof body.request_id==='string'&&/^[A-Za-z0-9_-]{16,100}$/.test(body.request_id)&&object(body.payload),'Invalid PAPER request');
     if(body.action==='risk_profile'){
       assert(Object.keys(body.payload).join(',')==='profile'&&
@@ -362,8 +365,12 @@ export async function handle(request, env, now = Math.floor(Date.now() / 1000)) 
         ['gpt-5.6-luna','gpt-6-luna'].includes(body.payload.model),'Invalid model selection');
     }else if(body.action==='execution_mode'){
       assert(Object.keys(body.payload).join(',')==='mode'&&['paper','testnet'].includes(body.payload.mode),'Invalid execution mode');
-    }else if(body.action==='restart_engine'||body.action==='testnet_smoke'){
+    }else if(body.action==='restart_engine'||body.action==='testnet_smoke'||body.action==='futures_testnet_check'||body.action==='futures_testnet_reconcile'){
       assert(Object.keys(body.payload).length===0,'Invalid operational request');
+    }else if(body.action==='futures_testnet_smoke'){
+      assert(Object.keys(body.payload).sort().join(',')==='direction,leverage'&&
+        ['LONG','SHORT'].includes(body.payload.direction)&&[1,2,3].includes(body.payload.leverage),
+        'Invalid Futures Testnet request');
     }else{
       const p=body.payload;
       assert(Object.keys(p).sort().join(',')==='opened_at,reference_price,symbol'&&
@@ -383,15 +390,16 @@ export async function handle(request, env, now = Math.floor(Date.now() / 1000)) 
           (? IN ('risk_profile','paper_close') OR json_extract(payload,'$.operations_controls')=1) AND
           (?!='paper_close' OR json_extract(payload,'$.mode') IN ('PAPER','TESTNET')) AND
           (?!='testnet_smoke' OR json_extract(payload,'$.mode')='TESTNET') AND
+          (? NOT IN ('futures_testnet_check','futures_testnet_smoke','futures_testnet_reconcile') OR json_extract(payload,'$.mode')='TESTNET') AND
           (?!='paper_close' OR EXISTS(SELECT 1 FROM json_each(payload,'$.dashboard.positions')
            WHERE json_extract(value,'$.symbol')=? AND json_extract(value,'$.opened_at')=?)))
         AND NOT EXISTS(SELECT 1 FROM jobs WHERE status IN ('pending','running'))
         ON CONFLICT(request_id) DO NOTHING`,body.request_id,storedRelease,now,now+300,now-120,
-          body.action,body.action,body.action,body.action,body.payload.symbol??'',body.payload.opened_at??''),
+          body.action,body.action,body.action,body.action,body.action,body.payload.symbol??'',body.payload.opened_at??''),
       statement(db,`SELECT id,${jobAction} AS action,release_id,status FROM jobs WHERE request_id=?`,body.request_id),
     ]);
     const row=results(batch,2)[0];
-    if(!row)return json({error:'Windows no disponible, posición distinta o solicitud PAPER pendiente'},409);
+    if(!row)return json({error:'Windows no disponible, entorno incompatible o existe otra operación pendiente'},409);
     if(row.action!==body.action||row.release_id!==storedRelease)return json({error:'Idempotency conflict'},409);
     return json({id:row.id,action:row.action,status:row.status},202);
   }

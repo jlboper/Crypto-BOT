@@ -190,3 +190,65 @@ select,input{min-width:0}
   .update-hero-icon{display:none}
   .update-hero{padding:16px}
 }
+
+
+/* v0.7.0 — motor / derivatives control center */
+#modelSettingsPanel{
+  display:block;
+}
+#modelSettingsPanel .panel-title{margin-bottom:10px}
+.settings-intro{margin:0 0 18px;color:#aebdd1;line-height:1.55}
+.settings-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px}
+.settings-card{
+  display:grid;gap:14px;align-content:start;
+  padding:18px;border:1px solid #2c3c56;border-radius:16px;background:#0b1422;
+}
+.settings-card.futures-card{
+  border-color:#365a67;
+  background:linear-gradient(145deg,#0b1721,#10182a);
+}
+.settings-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}
+.settings-card-head h3{margin:3px 0 0;font-size:1.15rem}
+.settings-kicker{font-size:.68rem;font-weight:800;letter-spacing:.12em;color:#8ea4bf}
+.settings-field{display:grid;gap:7px}
+.settings-field label{font-size:.8rem;font-weight:700;color:#c9d5e6}
+.settings-field select{
+  width:100%;min-width:0;padding:10px 12px;border:1px solid #354663;border-radius:9px;
+  background:#0c1320;color:#ecf2ff;
+}
+.settings-two-col{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.settings-actions{display:flex;gap:9px;flex-wrap:wrap}
+.settings-actions button{flex:1 1 140px}
+.settings-help{margin:0!important;font-size:.78rem;line-height:1.5!important;color:#8fa0ba!important}
+.futures-guardrails{display:flex;gap:7px;flex-wrap:wrap}
+.futures-guardrails span{
+  padding:6px 9px;border:1px solid #315063;border-radius:999px;background:#0b2028;
+  color:#a9d5dc;font-size:.68rem;font-weight:750;
+}
+.futures-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.futures-metrics>div{padding:10px;border:1px solid #263950;border-radius:10px;background:#0b1320}
+.futures-metrics span{display:block;font-size:.67rem;color:#8fa0ba}
+.futures-metrics strong{display:block;margin-top:4px;font-size:.9rem}
+#modelSettingsMessage{
+  margin:16px 0 0;padding:12px 14px;border:1px solid #293a53;border-radius:10px;
+  background:#0b1320;color:#aebdd1;line-height:1.5;
+}
+@media(max-width:1000px){
+  .settings-grid{grid-template-columns:1fr}
+}
+@media(max-width:640px){
+  .settings-card{padding:15px}
+  .settings-two-col{grid-template-columns:1fr}
+  .settings-actions{display:grid;grid-template-columns:1fr}
+  .settings-actions button{width:100%;min-width:0}
+  .futures-metrics{grid-template-columns:1fr 1fr}
+  .settings-card-head{align-items:center}
+}
+@media(max-width:390px){
+  .futures-metrics{grid-template-columns:1fr}
+}
+
+.futures-status{
+  margin:0!important;padding:11px 12px;border:1px solid #294255;border-radius:10px;
+  background:#0a1822;color:#a9c4d4!important;font-size:.78rem;line-height:1.5!important;
+}
