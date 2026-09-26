@@ -12,6 +12,7 @@ const headers = token ? {'X-Dashboard-Token': token} : {};
 const esc = value => String(value ?? '').replace(/[&<>'"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
 let lastResearchReport = null;
 let lastPositions = [];
+let currentExecutionMode = 'paper';
 const paperControlsAvailable = () => typeof window.paperControlsAvailable === 'function' ? window.paperControlsAvailable() : true;
 
 async function refreshTestnet(){
@@ -28,10 +29,12 @@ async function refreshTestnet(){
     summary.textContent=state.position_qty==null?state.next_step:
       `Posición registrada: ${num(position,8)} BTC · ${state.closed_cycles} vuelta(s) cerrada(s) · variación bruta cerrada: ${gross==null?'—':Number(gross).toFixed(4)+' USDT'} (comisiones no verificadas). `+
       (audit?`Binance: ${audit.status==='verified'?'órdenes verificadas':'REVISAR DIFERENCIA'} · saldo libre BTC ${audit.balances?.BTC?.free??'—'}, USDT ${audit.balances?.USDT?.free??'—'} · ${shortTime(audit.checked_at*1000)}.`:'Pulsa «Comprobar órdenes y saldo en Binance» para validar el registro local.');
-    document.getElementById('testnetBuy').disabled=state.can_buy!==true||audit?.status==='requires_review';
-    document.getElementById('testnetClose').disabled=state.can_close!==true||audit?.status==='requires_review';
-    document.getElementById('testnetReconcile').disabled=state.needs_reconciliation!==true;
-    document.getElementById('testnetAudit').disabled=state.needs_reconciliation===true;
+    const legacyDisabled=currentExecutionMode==='testnet';
+    document.getElementById('testnetBuy').disabled=legacyDisabled||state.can_buy!==true||audit?.status==='requires_review';
+    document.getElementById('testnetClose').disabled=legacyDisabled||state.can_close!==true||audit?.status==='requires_review';
+    document.getElementById('testnetReconcile').disabled=legacyDisabled||state.needs_reconciliation!==true;
+    document.getElementById('testnetAudit').disabled=legacyDisabled||state.needs_reconciliation===true;
+    document.getElementById('testnetIntro').textContent=legacyDisabled?'Motor unificado activo en Binance Spot Testnet. El piloto manual anterior está bloqueado para evitar órdenes duplicadas. Las posiciones se gestionan desde el motor principal.':'Piloto manual anterior de Binance Spot Testnet. Úsalo solo mientras el motor principal siga en PAPER.';
   }catch(error){label.textContent='Testnet pendiente de sincronización: '+error.message;
     for(const id of ['testnetBuy','testnetClose','testnetReconcile','testnetAudit'])document.getElementById(id).disabled=true;}
 }
@@ -106,7 +109,7 @@ function renderPaperEvidence(report, equity, trades) {
   const state=document.getElementById('paperEvidenceState');
   const note=document.getElementById('paperEvidenceNote');
   const panel=document.getElementById('paperEvidenceMetrics');
-  const complete=report?.mode==='PAPER'&&report?.equity_points>0;
+  const complete=['PAPER','TESTNET'].includes(report?.mode)&&report?.equity_points>0;
   const samples=equity.filter(row=>Number.isFinite(Number(row.equity))&&Number(row.equity)>0);
   const closes=trades.filter(row=>row.side==='SELL');
   let peak=0,drawdown=0;
@@ -124,7 +127,7 @@ function renderPaperEvidence(report, equity, trades) {
   const openCount=Number(report?.open_positions||0);
   const stale=openCount>0&&report?.price_status!=='fresh';
   note.textContent=complete?
-    `Historial PAPER desde ${shortTime(report.started_at)}. ${stale?'Precios de posiciones abiertas ausentes o desactualizados: P&L abierto no disponible. ':''}${report.invalid_points?'Hay registros inválidos que requieren revisión. ':''}30 días y 30 cierres son solo un umbral de observación, nunca permiso para usar dinero real.`:
+    `Historial ${report.mode} desde ${shortTime(report.started_at)}. ${stale?'Precios de posiciones abiertas ausentes o desactualizados: P&L abierto no disponible. ':''}${report.invalid_points?'Hay registros inválidos que requieren revisión. ':''}30 días y 30 cierres son solo evidencia operativa; nunca activan dinero real automáticamente.`:
     'Se muestran solo los últimos 300 puntos de equity y 50 operaciones recibidos. El historial completo aparecerá cuando el agente de Windows incorpore esta medición.';
   const finite=value=>Number.isFinite(Number(value))?Number(value):0;
   const optionalMoney=value=>value==null?'—':`${finite(value).toFixed(2)} USDT`;
@@ -145,7 +148,7 @@ function renderPaperEvidence(report, equity, trades) {
   document.getElementById('paperMoreMetrics').innerHTML=cards(metrics.slice(4));
   const benchmark=report?.benchmark,comparison=document.getElementById('paperBenchmark');
   comparison.textContent=benchmark?.paper_return_pct!=null&&benchmark?.btc_net_return_pct!=null?
-    `Mismo período desde ${shortTime(benchmark.started_at)} (${benchmark.observed_days} días, ${benchmark.matched_points} muestras): equity PAPER ${pct(benchmark.paper_return_pct)} · BTC con costos PAPER ${pct(benchmark.btc_net_return_pct)} · diferencia ${pct(benchmark.net_difference_pp)} puntos. BTC usa el 100% del capital; no hay libro de aportes/retiros ni evidencia suficiente para operar con dinero real.`:
+    `Mismo período desde ${shortTime(benchmark.started_at)} (${benchmark.observed_days} días, ${benchmark.matched_points} muestras): equity ${report?.mode||'PAPER'} ${pct(benchmark.paper_return_pct)} · BTC con costos PAPER ${pct(benchmark.btc_net_return_pct)} · diferencia ${pct(benchmark.net_difference_pp)} puntos. BTC usa el 100% del capital; no hay libro de aportes/retiros ni evidencia suficiente para operar con dinero real.`:
     'Comparación BTC: esperando al menos dos ciclos PAPER con cotización BTC y equity simultáneas. Los datos anteriores no se reconstruyen.';
   const checks=[
     [Number(report?.observed_days)>=30,`Seguimiento PAPER: ${finite(report?.observed_days).toFixed(1)} de 30 días`],
@@ -282,6 +285,13 @@ async function refresh() {
     const [status,positions,trades,reviews,equity,events,research,researchState,paperReport] = await Promise.all([
       api('/api/status'),api('/api/positions'),api('/api/trades'),api('/api/ai-reviews'),api('/api/equity'),api('/api/events'),api('/api/research'),api('/api/research/status'),api('/api/paper-scorecard')
     ]);
+    currentExecutionMode=String(status.mode||'paper').toLowerCase();
+    const modeUpper=currentExecutionMode.toUpperCase();
+    document.getElementById('mode').textContent=modeUpper;
+    document.getElementById('executionModeChoice').value=currentExecutionMode==='testnet'?'testnet':'paper';
+    document.getElementById('accountEnvironmentTitle').textContent='Cuenta de prueba · '+modeUpper;
+    document.getElementById('riskPanelTitle').textContent='Límites '+modeUpper;
+    document.getElementById('financialEvidenceTitle').textContent='Seguimiento financiero '+modeUpper;
     refreshTestnet();
     document.getElementById('equity').textContent=money(status.equity);
     document.getElementById('cash').textContent=money(status.cash);
@@ -302,7 +312,7 @@ async function refresh() {
     const riskBudget=Number(risk.risk_per_trade_pct);
     const riskDescription=riskSelected?`${riskSelected[0]} · ${Number.isFinite(riskBudget)?(100*riskBudget*riskSelected[1]).toFixed(3)+'% del capital en pérdida estimada por operación':'presupuesto reducido'}`:'Perfil inválido: nuevas entradas bloqueadas';
     document.getElementById('riskProfileNote').textContent=paperControlsAvailable()?
-      `Actual: ${riskDescription}. El cambio afecta nuevas entradas PAPER; los topes de posición y exposición no aumentan.`:
+      `Actual: ${riskDescription}. El cambio afecta nuevas entradas ${modeUpper}; los topes de posición y exposición no aumentan.`:
       'Esperando conexión y controles PAPER de Windows.';
     const effectiveRisk={...risk,risk_per_trade_pct:Number(risk.risk_per_trade_pct)*({minimo:.25,prudente:.5,normal:1}[riskName]??0)};
     for(const [id,key] of [['riskTrade','risk_per_trade_pct'],['riskPosition','max_position_pct'],['riskExposure','max_total_exposure_pct'],['riskDaily','daily_loss_limit_pct'],['riskWeekly','weekly_loss_limit_pct']]){
@@ -316,7 +326,7 @@ async function refresh() {
 
     const activity=status.activity || {state:'starting',age_seconds:null};
     document.getElementById('operationSummary').textContent=activity.state==='operational'?
-      `Motor PAPER activo. ${status.positions} posiciones abiertas de ${status.max_positions}; ${status.killed?'nuevas entradas pausadas y protecciones vigentes':'nuevas entradas sujetas a límites y revisión IA'}. Último ciclo ${ageLabel(activity.age_seconds)}.`:
+      `Motor ${modeUpper} activo. ${status.positions} posiciones abiertas de ${status.max_positions}; ${status.killed?'nuevas entradas pausadas y protecciones vigentes':'nuevas entradas sujetas a límites y revisión IA'}. Último ciclo ${ageLabel(activity.age_seconds)}.`:
       `Motor ${activityLabel(activity.state).toLowerCase()}. ${status.killed?'Nuevas entradas pausadas. ':'Comprueba la conexión de Windows antes de dar instrucciones. '}Último ciclo ${ageLabel(activity.age_seconds)}.`;
     const botState=document.getElementById('botState');
     botState.textContent=activityLabel(activity.state);
@@ -324,7 +334,7 @@ async function refresh() {
     botState.classList.toggle('offline',activity.state==='offline');
 
     lastPositions=positions;
-    document.getElementById('positions').innerHTML=positions.length?positions.map(p=>`<tr><td><strong>${esc(p.symbol)}</strong></td><td>${num(p.quantity)}</td><td>${num(p.entry_price,4)}</td><td>${p.market_price==null?'—':num(p.market_price,4)}</td><td class="${p.unrealized_pnl==null?'':p.unrealized_pnl>=0?'positive':'negative'}">${p.unrealized_pnl==null?'—':`${p.unrealized_pnl>=0?'+':''}${num(p.unrealized_pnl,2)}`}</td><td class="${p.unrealized_pct==null?'':p.unrealized_pct>=0?'positive':'negative'}">${p.unrealized_pct==null?'—':`${p.unrealized_pct>=0?'+':''}${num(p.unrealized_pct,2)}%`}</td><td>${num(p.stop_price,4)}</td><td>${num(p.take_profit,4)}</td><td>${num(p.high_water,4)}</td><td><button class="secondary paper-close" data-symbol="${esc(p.symbol)}" ${p.market_price==null||!paperControlsAvailable()?'disabled':''}>Cerrar PAPER</button></td></tr>`).join(''):emptyRow(10,'Sin posiciones abiertas');
+    document.getElementById('positions').innerHTML=positions.length?positions.map(p=>`<tr><td><strong>${esc(p.symbol)}</strong></td><td>${num(p.quantity)}</td><td>${num(p.entry_price,4)}</td><td>${p.market_price==null?'—':num(p.market_price,4)}</td><td class="${p.unrealized_pnl==null?'':p.unrealized_pnl>=0?'positive':'negative'}">${p.unrealized_pnl==null?'—':`${p.unrealized_pnl>=0?'+':''}${num(p.unrealized_pnl,2)}`}</td><td class="${p.unrealized_pct==null?'':p.unrealized_pct>=0?'positive':'negative'}">${p.unrealized_pct==null?'—':`${p.unrealized_pct>=0?'+':''}${num(p.unrealized_pct,2)}%`}</td><td>${num(p.stop_price,4)}</td><td>${num(p.take_profit,4)}</td><td>${num(p.high_water,4)}</td><td><button class="secondary paper-close" data-symbol="${esc(p.symbol)}" ${p.market_price==null||!paperControlsAvailable()?'disabled':''}>Cerrar ${currentExecutionMode==='testnet'?'TESTNET':'PAPER'}</button></td></tr>`).join(''):emptyRow(10,'Sin posiciones abiertas');
     document.getElementById('trades').innerHTML=trades.length?trades.slice(0,8).map(t=>`<div class="feed-item"><strong class="${esc(t.side.toLowerCase())}">${esc(t.side)}</strong><div><strong>${esc(t.symbol)} · ${num(t.quantity)}</strong><p>${esc(t.reason)}</p></div><time>${shortTime(t.created_at)}</time></div>`).join(''):feedEmpty('Aún no hay operaciones');
     document.getElementById('reviews').innerHTML=reviews.length?reviews.slice(0,8).map(r=>`<div class="feed-item"><strong class="${esc(r.verdict.toLowerCase())}">${esc(r.verdict)}</strong><div><strong>${esc(r.symbol)} · ${(r.confidence*100).toFixed(0)}%</strong><p>${esc(r.reason)}</p></div><time>${shortTime(r.created_at)}</time></div>`).join(''):feedEmpty('Aún no hay revisiones');
     const important=events.filter(e=>['WARN','ERROR','CRITICAL'].includes(e.level)).slice(0,10);
@@ -343,14 +353,14 @@ async function refresh() {
 
 document.getElementById('killButton').addEventListener('click', async event => {
   const killed=event.currentTarget.dataset.killed==='true';
-  const message=killed?'¿Solicitar reanudar nuevas entradas PAPER? Las pausas locales requieren liberación local.':'¿Solicitar pausa de nuevas entradas? El motor la aplicará al comprobar el interruptor; no cierra posiciones.';
+  const message=killed?`¿Solicitar reanudar nuevas entradas ${currentExecutionMode.toUpperCase()}? Las pausas locales requieren liberación local.`:'¿Solicitar pausa de nuevas entradas? El motor la aplicará al comprobar el interruptor; no cierra posiciones.';
   if (!confirm(message)) return;
   await api(killed?'/api/resume':'/api/kill',{method:'POST'}); await refresh();
 });
 document.getElementById('saveRiskProfile').addEventListener('click', async event=>{
   if(!paperControlsAvailable())return;
   const profile=document.getElementById('riskProfile').value;
-  if(!confirm(`¿Aplicar ${profile} a las próximas entradas PAPER? El límite base no aumenta.`))return;
+  if(!confirm(`¿Aplicar ${profile} a las próximas entradas ${currentExecutionMode.toUpperCase()}? El límite base no aumenta.`))return;
   event.currentTarget.disabled=true;
   try{
     const result=await api('/api/paper/risk-profile',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({profile})});
@@ -363,7 +373,7 @@ document.getElementById('positions').addEventListener('click',async event=>{
   if(!button||!paperControlsAvailable())return;
   const position=lastPositions.find(row=>row.symbol===button.dataset.symbol);
   if(!position||!Number.isFinite(Number(position.market_price))||Number(position.market_price)<=0)return;
-  if(!confirm(`¿Cerrar ${position.symbol} en PAPER? Se consultará un precio nuevo; si cambió más del 2%, vuelve a cargar. Nuevas entradas en este par se bloquearán 24 horas.`))return;
+  if(!confirm(`¿Cerrar ${position.symbol} en ${currentExecutionMode.toUpperCase()}? Se consultará un precio nuevo y el cierre pasará por el broker del entorno activo.${currentExecutionMode==='paper'?' Nuevas entradas en este par se bloquearán 24 horas.':''}`))return;
   button.disabled=true;
   try{
     const result=await api('/api/paper/close-position',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({symbol:position.symbol,opened_at:position.opened_at,reference_price:position.market_price})});
