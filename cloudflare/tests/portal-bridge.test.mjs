@@ -98,7 +98,7 @@ test('one update search checks GitHub and asks Windows to verify the bot',async(
   assert.deepEqual(instance.calls.map(call=>call.path),['/v1/status','/v1/updates','/v1/jobs']);
   assert.equal(JSON.parse(instance.calls[2].options.body).action,'update_check');
   assert.equal(instance.elements.get('updateMessage').textContent,'Publicación consultada');
-  assert.match(instance.elements.get('botUpdateMessage').textContent,/Solicitud enviada/);
+  assert.match(instance.elements.get('botUpdateMessage').textContent,/Windows está verificando el paquete firmado/);
 });
 
 test('remote Research Lab uses one authenticated allowlisted job request',async()=>{
