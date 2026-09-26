@@ -2,7 +2,7 @@
 
 > Copia de desarrollo aislada de la instalación Windows. El repositorio no contiene credenciales ni datos de la instancia operativa. No inicies un segundo motor. Consulta `BOT_UPDATE_PROGRESS.md` para distinguir versión preparada, publicada e instalada.
 
-Bot de capital para swing trading de varios días/semanas, **sin apalancamiento** y **solo en simulación**. Consume precios reales de Binance Spot, crea señales cuantitativas y utiliza OpenAI como una segunda barrera de riesgo. La versión 0.6 incorpora un laboratorio independiente para comparar activos y estrategias sin modificar el motor operativo.
+Bot de swing trading de varios días/semanas con motor principal en PAPER o Binance Spot Testnet. Consume datos reales de mercado, crea señales cuantitativas y utiliza OpenAI como una segunda barrera de riesgo. Desde 0.7.0 incorpora además un laboratorio separado de Binance USDⓈ-M Futures Testnet para ensayar LONG/SHORT y apalancamiento 1x–3x con fondos ficticios, sin habilitar Binance LIVE.
 
 La IA no puede inventar compras, aumentar el tamaño de una posición, eliminar stops ni cambiar límites. Únicamente puede `ALLOW`, `REJECT` o `REDUCE` una entrada que ya pasó las reglas cuantitativas.
 
@@ -14,7 +14,7 @@ La IA no puede inventar compras, aumentar el tamaño de una posición, eliminar 
 - Riesgo objetivo: 0.75% del portafolio por operación.
 - Detención diaria: −2%; semanal: −5%.
 - Stops por ATR, objetivo 2R y trailing stop después de alcanzar 1R.
-- Sin futuros, margen, cortos ni promedio de pérdidas.
+- El motor principal Spot no usa margen ni cortos. Futures Testnet vive en un laboratorio separado, limitado a `ISOLATED`, One-way y 1x–3x con fondos ficticios.
 - Kill switch manual y automático después de tres errores consecutivos. Bloquea entradas nuevas, pero el motor continúa vigilando stops y salidas de posiciones existentes.
 
 Todos estos valores están en `config.toml`.

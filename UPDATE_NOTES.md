@@ -1,3 +1,12 @@
+# Actualización 0.7.1 — hardening de Futures Testnet
+
+- Mantiene la arquitectura 0.7.0: Spot Testnet como motor principal, PAPER como respaldo/CI y Futures Testnet como laboratorio separado.
+- Antes de intentar cambiar el modo de posiciones de USDⓈ-M Futures, consulta `GET /fapi/v1/positionSide/dual`; solo envía el cambio a One-way si la cuenta realmente está en Hedge Mode.
+- Evita una escritura de configuración innecesaria en cada smoke test y reduce el riesgo de conflictos con cambios recientes de Binance al sincronizar modos de posiciones entre productos.
+- Conserva margen `ISOLATED`, leverage limitado a 1x/2x/3x, cierre `reduceOnly`, journal durable y reconciliación explícita.
+- Documenta en `.env.example` las credenciales separadas de Futures Testnet.
+- Binance LIVE continúa sin host, selector ni ruta de escritura.
+
 # Actualización 0.7.0 — TESTNET principal + laboratorio Futures aislado
 
 - PAPER queda funcionalmente congelado como respaldo, CI y diagnóstico; las capacidades nuevas pasan a Testnet salvo correcciones de seguridad.
