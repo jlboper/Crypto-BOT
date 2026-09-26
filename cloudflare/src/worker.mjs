@@ -63,7 +63,7 @@ async function readBody(request, maximum = 65536) {
   return value;
 }
 function validateSnapshot(snapshot) {
-  assert(object(snapshot) && snapshot.mode === 'PAPER', 'PAPER snapshot required');
+  assert(object(snapshot) && ['PAPER','TESTNET'].includes(snapshot.mode), 'Trading snapshot required');
   const allowed = ['mode','equity','cash','exposure','positions','killed','last_cycle_at','ai_model','update_state','dashboard','bot_update','bot_restore','paper_controls','operations_controls'];
   assert(Object.keys(snapshot).every(k => allowed.includes(k)), 'Unknown snapshot field');
   if(snapshot.paper_controls!==undefined)assert(snapshot.paper_controls===true,'Invalid PAPER capability');
@@ -92,7 +92,7 @@ function validateSnapshot(snapshot) {
   }
   if (snapshot.dashboard !== undefined) {
     const d = snapshot.dashboard;
-    assert(object(d) && object(d.status) && d.status.mode === 'PAPER', 'Invalid dashboard');
+    assert(object(d) && object(d.status) && d.status.mode === snapshot.mode, 'Invalid dashboard');
     assert(Object.keys(d).every(k=>['status','positions','equity','trades','reviews','events','risk','research','research_state','testnet','testnet_execution','updates','paper_scorecard'].includes(k)), 'Unknown dashboard field');
     if(d.testnet_execution!==undefined){
       const x=d.testnet_execution;
@@ -377,11 +377,12 @@ export async function handle(request, env, now = Math.floor(Date.now() / 1000)) 
           SELECT 1 FROM snapshots WHERE id=1 AND received_at>=? AND
           json_extract(payload,'$.paper_controls')=1 AND
           (? IN ('risk_profile','paper_close') OR json_extract(payload,'$.operations_controls')=1) AND
+          (? NOT IN ('paper_close','testnet_buy','testnet_close','testnet_reconcile','testnet_audit') OR json_extract(payload,'$.mode')='PAPER') AND
           (?!='paper_close' OR EXISTS(SELECT 1 FROM json_each(payload,'$.dashboard.positions')
            WHERE json_extract(value,'$.symbol')=? AND json_extract(value,'$.opened_at')=?)))
         AND NOT EXISTS(SELECT 1 FROM jobs WHERE status IN ('pending','running'))
         ON CONFLICT(request_id) DO NOTHING`,body.request_id,storedRelease,now,now+300,now-120,
-          body.action,body.action,body.payload.symbol??'',body.payload.opened_at??''),
+          body.action,body.action,body.action,body.payload.symbol??'',body.payload.opened_at??''),
       statement(db,`SELECT id,${jobAction} AS action,release_id,status FROM jobs WHERE request_id=?`,body.request_id),
     ]);
     const row=results(batch,2)[0];
