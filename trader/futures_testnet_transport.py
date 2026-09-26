@@ -27,6 +27,7 @@ _SIGNED = {
     ("GET", "/fapi/v3/account"),
     ("GET", "/fapi/v3/positionRisk"),
     ("GET", "/fapi/v1/order"),
+    ("GET", "/fapi/v1/positionSide/dual"),
     ("POST", "/fapi/v1/order"),
     ("POST", "/fapi/v1/leverage"),
     ("POST", "/fapi/v1/marginType"),
