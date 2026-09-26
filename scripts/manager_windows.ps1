@@ -3,6 +3,16 @@
 $ErrorActionPreference = "Stop"
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
+
+Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+public static class CryptoAITraderDpi {
+    [DllImport("user32.dll")]
+    public static extern bool SetProcessDpiAwarenessContext(IntPtr value);
+}
+"@
+try { [CryptoAITraderDpi]::SetProcessDpiAwarenessContext([IntPtr](-4)) | Out-Null } catch { }
 [System.Windows.Forms.Application]::EnableVisualStyles()
 
 Add-Type @"
@@ -18,6 +28,7 @@ $ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $DashboardUrl = "http://127.0.0.1:8765"
 $RemotePortalUrl = "https://crypto-paper-private-portal.jlboper.workers.dev/"
 $KillSwitchPath = Join-Path $ProjectRoot "data\KILL_SWITCH"
+$FuturesKillSwitchPath = Join-Path $ProjectRoot "data\FUTURES_KILL_SWITCH"
 $StartupFolder = [Environment]::GetFolderPath("Startup")
 $StartupShortcut = Join-Path $StartupFolder "Crypto AI Trader.lnk"
 $StartupOptOutPath = Join-Path $ProjectRoot "data\DISABLE_AUTO_START"
@@ -310,13 +321,13 @@ function New-AppButton {
         [string]$Text,
         [int]$X,
         [int]$Y,
-        [int]$Width = 330,
+        [int]$Width = 410,
         [string]$Tone = "Default"
     )
     $button = New-Object System.Windows.Forms.Button
     $button.Text = $Text
     $button.Location = New-Object System.Drawing.Point($X, $Y)
-    $button.Size = New-Object System.Drawing.Size($Width, 46)
+    $button.Size = New-Object System.Drawing.Size($Width, 48)
     $button.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
     $button.FlatAppearance.BorderColor = [System.Drawing.Color]::FromArgb(47, 67, 94)
     $button.FlatAppearance.MouseOverBackColor = [System.Drawing.Color]::FromArgb(29, 46, 72)
@@ -342,13 +353,13 @@ function New-KpiCard {
     param([string]$Title, [int]$X, [int]$Y)
     $panel = New-Object System.Windows.Forms.Panel
     $panel.Location = New-Object System.Drawing.Point($X, $Y)
-    $panel.Size = New-Object System.Drawing.Size(166, 106)
+    $panel.Size = New-Object System.Drawing.Size(202, 108)
     $panel.BackColor = [System.Drawing.Color]::FromArgb(16, 27, 45)
 
     $titleLabel = New-Object System.Windows.Forms.Label
     $titleLabel.Text = $Title.ToUpperInvariant()
     $titleLabel.Location = New-Object System.Drawing.Point(14, 12)
-    $titleLabel.Size = New-Object System.Drawing.Size(138, 18)
+    $titleLabel.Size = New-Object System.Drawing.Size(174, 18)
     $titleLabel.Font = New-Object System.Drawing.Font("Segoe UI Semibold", 8)
     $titleLabel.ForeColor = [System.Drawing.Color]::FromArgb(124, 151, 188)
     $panel.Controls.Add($titleLabel)
@@ -356,7 +367,7 @@ function New-KpiCard {
     $valueLabel = New-Object System.Windows.Forms.Label
     $valueLabel.Text = "—"
     $valueLabel.Location = New-Object System.Drawing.Point(13, 36)
-    $valueLabel.Size = New-Object System.Drawing.Size(143, 31)
+    $valueLabel.Size = New-Object System.Drawing.Size(174, 32)
     $valueLabel.Font = New-Object System.Drawing.Font("Segoe UI", 16, [System.Drawing.FontStyle]::Bold)
     $valueLabel.ForeColor = [System.Drawing.Color]::FromArgb(240, 246, 255)
     $panel.Controls.Add($valueLabel)
@@ -364,7 +375,7 @@ function New-KpiCard {
     $noteLabel = New-Object System.Windows.Forms.Label
     $noteLabel.Text = "Comprobando"
     $noteLabel.Location = New-Object System.Drawing.Point(14, 76)
-    $noteLabel.Size = New-Object System.Drawing.Size(138, 18)
+    $noteLabel.Size = New-Object System.Drawing.Size(174, 20)
     $noteLabel.Font = New-Object System.Drawing.Font("Segoe UI", 8)
     $noteLabel.ForeColor = [System.Drawing.Color]::FromArgb(116, 139, 171)
     $panel.Controls.Add($noteLabel)
@@ -374,14 +385,17 @@ function New-KpiCard {
 
 $form = New-Object System.Windows.Forms.Form
 $form.Text = "Crypto AI Trader"
-$form.Size = New-Object System.Drawing.Size(760, 680)
-$form.MinimumSize = New-Object System.Drawing.Size(760, 680)
-$form.MaximumSize = New-Object System.Drawing.Size(760, 680)
+$form.Size = New-Object System.Drawing.Size(920, 820)
+$form.MinimumSize = New-Object System.Drawing.Size(820, 760)
+$form.AutoScaleMode = [System.Windows.Forms.AutoScaleMode]::Dpi
+$form.AutoScaleDimensions = New-Object System.Drawing.SizeF(96, 96)
+$form.AutoScroll = $true
 $form.StartPosition = [System.Windows.Forms.FormStartPosition]::CenterScreen
 $form.BackColor = [System.Drawing.Color]::FromArgb(8, 13, 24)
 $form.ForeColor = [System.Drawing.Color]::FromArgb(236, 242, 255)
 $form.Font = New-Object System.Drawing.Font("Segoe UI", 10)
 $form.MaximizeBox = $false
+$form.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::FixedSingle
 $form.ShowIcon = $true
 
 $script:OperationalIcon = if (Test-Path $OperationalIconPath) { New-Object System.Drawing.Icon($OperationalIconPath, 16, 16) } else { [System.Drawing.SystemIcons]::Information }
@@ -391,9 +405,10 @@ $script:FormIcon = if (Test-Path $OperationalIconPath) { New-Object System.Drawi
 $form.Icon = $script:FormIcon
 
 $logo = New-Object System.Windows.Forms.PictureBox
-$logo.Location = New-Object System.Drawing.Point(28, 22)
-$logo.Size = New-Object System.Drawing.Size(58, 58)
+$logo.Location = New-Object System.Drawing.Point(28, 24)
+$logo.Size = New-Object System.Drawing.Size(64, 64)
 $logo.SizeMode = [System.Windows.Forms.PictureBoxSizeMode]::Zoom
+$logo.BackColor = [System.Drawing.Color]::Transparent
 if (Test-Path $HeaderLogoPath) {
     $temporaryLogo = [System.Drawing.Image]::FromFile($HeaderLogoPath)
     $script:LogoBitmap = New-Object System.Drawing.Bitmap($temporaryLogo)
@@ -407,32 +422,42 @@ $form.Controls.Add($logo)
 
 $title = New-Object System.Windows.Forms.Label
 $title.Text = "Crypto AI Trader"
-$title.Location = New-Object System.Drawing.Point(100, 20)
-$title.Size = New-Object System.Drawing.Size(470, 40)
+$title.Location = New-Object System.Drawing.Point(108, 22)
+$title.Size = New-Object System.Drawing.Size(500, 42)
 $title.Font = New-Object System.Drawing.Font("Segoe UI", 22, [System.Drawing.FontStyle]::Bold)
 $title.ForeColor = [System.Drawing.Color]::FromArgb(236, 242, 255)
 $form.Controls.Add($title)
 
 $subtitle = New-Object System.Windows.Forms.Label
-$subtitle.Text = "Centro de control local y monitor de inversión"
-$subtitle.Location = New-Object System.Drawing.Point(103, 59)
-$subtitle.Size = New-Object System.Drawing.Size(460, 22)
+$subtitle.Text = "Spot Testnet + Futures Demo · control, riesgo y observabilidad"
+$subtitle.Location = New-Object System.Drawing.Point(111, 63)
+$subtitle.Size = New-Object System.Drawing.Size(500, 24)
 $subtitle.ForeColor = [System.Drawing.Color]::FromArgb(132, 153, 184)
 $form.Controls.Add($subtitle)
 
 $modeBadge = New-Object System.Windows.Forms.Label
 $modeBadge.Text = "..."
-$modeBadge.Location = New-Object System.Drawing.Point(625, 30)
-$modeBadge.Size = New-Object System.Drawing.Size(91, 32)
+$modeBadge.Location = New-Object System.Drawing.Point(628, 32)
+$modeBadge.Size = New-Object System.Drawing.Size(116, 34)
 $modeBadge.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
 $modeBadge.Font = New-Object System.Drawing.Font("Segoe UI", 9, [System.Drawing.FontStyle]::Bold)
 $modeBadge.BackColor = [System.Drawing.Color]::FromArgb(14, 52, 48)
 $modeBadge.ForeColor = [System.Drawing.Color]::FromArgb(60, 232, 175)
 $form.Controls.Add($modeBadge)
 
+$futuresModeBadge = New-Object System.Windows.Forms.Label
+$futuresModeBadge.Text = "FUTURES 1x"
+$futuresModeBadge.Location = New-Object System.Drawing.Point(752, 32)
+$futuresModeBadge.Size = New-Object System.Drawing.Size(120, 34)
+$futuresModeBadge.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
+$futuresModeBadge.Font = New-Object System.Drawing.Font("Segoe UI", 9, [System.Drawing.FontStyle]::Bold)
+$futuresModeBadge.BackColor = [System.Drawing.Color]::FromArgb(18, 40, 60)
+$futuresModeBadge.ForeColor = [System.Drawing.Color]::FromArgb(112, 214, 255)
+$form.Controls.Add($futuresModeBadge)
+
 $statusPanel = New-Object System.Windows.Forms.Panel
-$statusPanel.Location = New-Object System.Drawing.Point(28, 102)
-$statusPanel.Size = New-Object System.Drawing.Size(688, 92)
+$statusPanel.Location = New-Object System.Drawing.Point(28, 112)
+$statusPanel.Size = New-Object System.Drawing.Size(844, 108)
 $statusPanel.BackColor = [System.Drawing.Color]::FromArgb(14, 38, 42)
 $form.Controls.Add($statusPanel)
 
@@ -447,51 +472,59 @@ $statusPanel.Controls.Add($statusDot)
 $statusLabel = New-Object System.Windows.Forms.Label
 $statusLabel.Text = "Comprobando..."
 $statusLabel.Location = New-Object System.Drawing.Point(51, 15)
-$statusLabel.Size = New-Object System.Drawing.Size(390, 29)
+$statusLabel.Size = New-Object System.Drawing.Size(500, 29)
 $statusLabel.Font = New-Object System.Drawing.Font("Segoe UI", 14, [System.Drawing.FontStyle]::Bold)
 $statusPanel.Controls.Add($statusLabel)
 
 $statusDescription = New-Object System.Windows.Forms.Label
 $statusDescription.Text = "Validando el motor y el portal..."
 $statusDescription.Location = New-Object System.Drawing.Point(53, 50)
-$statusDescription.Size = New-Object System.Drawing.Size(390, 22)
+$statusDescription.Size = New-Object System.Drawing.Size(500, 22)
 $statusDescription.ForeColor = [System.Drawing.Color]::FromArgb(157, 181, 202)
 $statusPanel.Controls.Add($statusDescription)
 
 $lastCycleLabel = New-Object System.Windows.Forms.Label
 $lastCycleLabel.Text = "ÚLTIMO CICLO`r`nComprobando..."
-$lastCycleLabel.Location = New-Object System.Drawing.Point(469, 19)
-$lastCycleLabel.Size = New-Object System.Drawing.Size(197, 52)
+$lastCycleLabel.Location = New-Object System.Drawing.Point(625, 19)
+$lastCycleLabel.Size = New-Object System.Drawing.Size(195, 52)
 $lastCycleLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleRight
 $lastCycleLabel.Font = New-Object System.Drawing.Font("Segoe UI", 9)
 $lastCycleLabel.ForeColor = [System.Drawing.Color]::FromArgb(139, 169, 190)
 $statusPanel.Controls.Add($lastCycleLabel)
 
-$equityCard = New-KpiCard "Equity" 28 210
-$returnCard = New-KpiCard "Rendimiento" 202 210
-$cashCard = New-KpiCard "Efectivo" 376 210
-$exposureCard = New-KpiCard "Exposición" 550 210
+$futuresStatusLine = New-Object System.Windows.Forms.Label
+$futuresStatusLine.Text = "Futures Demo · comprobando pista BTCUSDT 1x"
+$futuresStatusLine.Location = New-Object System.Drawing.Point(53, 78)
+$futuresStatusLine.Size = New-Object System.Drawing.Size(740, 20)
+$futuresStatusLine.Font = New-Object System.Drawing.Font("Segoe UI", 8.5)
+$futuresStatusLine.ForeColor = [System.Drawing.Color]::FromArgb(112, 214, 255)
+$statusPanel.Controls.Add($futuresStatusLine)
+
+$equityCard = New-KpiCard "Equity Spot" 28 238
+$returnCard = New-KpiCard "Retorno Spot" 242 238
+$cashCard = New-KpiCard "Efectivo Spot" 456 238
+$exposureCard = New-KpiCard "Exposición Spot" 670 238
 foreach ($card in @($equityCard, $returnCard, $cashCard, $exposureCard)) {
     $form.Controls.Add($card.Panel)
 }
 
 $actionsLabel = New-Object System.Windows.Forms.Label
 $actionsLabel.Text = "ACCIONES RÁPIDAS"
-$actionsLabel.Location = New-Object System.Drawing.Point(29, 335)
+$actionsLabel.Location = New-Object System.Drawing.Point(29, 366)
 $actionsLabel.Size = New-Object System.Drawing.Size(250, 22)
 $actionsLabel.Font = New-Object System.Drawing.Font("Segoe UI Semibold", 9)
 $actionsLabel.ForeColor = [System.Drawing.Color]::FromArgb(113, 139, 176)
 $form.Controls.Add($actionsLabel)
 
-$openLocalButton = New-AppButton "⌂   Abrir portal local" 28 365
+$openLocalButton = New-AppButton "⌂   Abrir portal local" 28 396
 $openLocalButton.Add_Click({ Start-Process $DashboardUrl })
 $form.Controls.Add($openLocalButton)
 
-$openRemoteButton = New-AppButton "↗   Abrir portal remoto" 386 365
+$openRemoteButton = New-AppButton "↗   Abrir portal remoto" 462 396
 $openRemoteButton.Add_Click({ Start-Process -FilePath $RemotePortalUrl })
 $form.Controls.Add($openRemoteButton)
 
-$restartButton = New-AppButton "↻   Reiniciar motor" 28 421
+$restartButton = New-AppButton "↻   Reiniciar motor Spot" 28 454
 $restartButton.Add_Click({
     $answer = [System.Windows.Forms.MessageBox]::Show(
         "¿Quieres reiniciar el motor ahora? El portal dejará de responder durante unos segundos.",
@@ -509,7 +542,7 @@ $restartButton.Add_Click({
 })
 $form.Controls.Add($restartButton)
 
-$killButton = New-AppButton "⚠   Activar kill switch" 386 421 330 "Danger"
+$killButton = New-AppButton "⚠   Pausar nuevas entradas Spot" 462 454 410 "Danger"
 $killButton.Add_Click({
     if (Test-Path $KillSwitchPath) {
         $answer = [System.Windows.Forms.MessageBox]::Show(
@@ -538,11 +571,40 @@ $killButton.Add_Click({
 })
 $form.Controls.Add($killButton)
 
-$updateButton = New-AppButton "↻   Actualizar bot desde esta PC" 28 477 330 "Accent"
+$updateButton = New-AppButton "↻   Actualizar bot desde esta PC" 28 512 410 "Accent"
 $updateButton.Add_Click({ Show-LocalUpdateCenter })
 $form.Controls.Add($updateButton)
 
-$startupButton = New-AppButton "⚙   Activar inicio automático" 386 477
+$futuresKillButton = New-AppButton "⚠   Pausar nuevas entradas Futures" 462 512 410 "Danger"
+$futuresKillButton.Add_Click({
+    if (Test-Path $FuturesKillSwitchPath) {
+        $answer = [System.Windows.Forms.MessageBox]::Show(
+            "¿Reanudar nuevas entradas de Futures Demo? Las posiciones existentes siempre conservan sus protecciones.",
+            "Reanudar Futures Demo",
+            [System.Windows.Forms.MessageBoxButtons]::YesNo,
+            [System.Windows.Forms.MessageBoxIcon]::Question
+        )
+        if ($answer -eq [System.Windows.Forms.DialogResult]::Yes) {
+            Remove-Item -LiteralPath $FuturesKillSwitchPath -Force -ErrorAction SilentlyContinue
+        }
+    }
+    else {
+        $answer = [System.Windows.Forms.MessageBox]::Show(
+            "Esto bloqueará nuevas entradas de Futures Demo sin cerrar una posición existente. ¿Continuar?",
+            "Pausar Futures Demo",
+            [System.Windows.Forms.MessageBoxButtons]::YesNo,
+            [System.Windows.Forms.MessageBoxIcon]::Warning
+        )
+        if ($answer -eq [System.Windows.Forms.DialogResult]::Yes) {
+            New-Item -ItemType Directory -Path (Split-Path $FuturesKillSwitchPath) -Force | Out-Null
+            Set-Content -LiteralPath $FuturesKillSwitchPath -Value "manual futures kill switch from manager"
+        }
+    }
+    Update-ManagerStatus
+})
+$form.Controls.Add($futuresKillButton)
+
+$startupButton = New-AppButton "⚙   Activar inicio automático" 28 570 844
 $startupButton.Add_Click({
     if (Test-CanonicalStartup) {
         $answer = [System.Windows.Forms.MessageBox]::Show(
@@ -569,30 +631,30 @@ $startupButton.Add_Click({
 $form.Controls.Add($startupButton)
 
 $footerPanel = New-Object System.Windows.Forms.Panel
-$footerPanel.Location = New-Object System.Drawing.Point(28, 546)
-$footerPanel.Size = New-Object System.Drawing.Size(688, 66)
+$footerPanel.Location = New-Object System.Drawing.Point(28, 636)
+$footerPanel.Size = New-Object System.Drawing.Size(844, 78)
 $footerPanel.BackColor = [System.Drawing.Color]::FromArgb(11, 20, 34)
 $form.Controls.Add($footerPanel)
 
 $protectionLabel = New-Object System.Windows.Forms.Label
-$protectionLabel.Text = "✓  Protecciones activas  ·  Simulación sin dinero real"
+$protectionLabel.Text = "✓  Testnet/Demo · fondos ficticios · LIVE bloqueado por código"
 $protectionLabel.Location = New-Object System.Drawing.Point(16, 12)
-$protectionLabel.Size = New-Object System.Drawing.Size(470, 22)
+$protectionLabel.Size = New-Object System.Drawing.Size(610, 22)
 $protectionLabel.ForeColor = [System.Drawing.Color]::FromArgb(92, 215, 171)
 $footerPanel.Controls.Add($protectionLabel)
 
 $footerHint = New-Object System.Windows.Forms.Label
-$footerHint.Text = "Al cerrar, el indicador continúa junto al reloj de Windows."
+$footerHint.Text = "Spot y Futures conservan ledgers, límites y kill switches separados. Al cerrar, el indicador sigue junto al reloj."
 $footerHint.Location = New-Object System.Drawing.Point(17, 36)
-$footerHint.Size = New-Object System.Drawing.Size(480, 20)
+$footerHint.Size = New-Object System.Drawing.Size(650, 34)
 $footerHint.Font = New-Object System.Drawing.Font("Segoe UI", 8)
 $footerHint.ForeColor = [System.Drawing.Color]::FromArgb(104, 128, 158)
 $footerPanel.Controls.Add($footerHint)
 
 $versionLabel = New-Object System.Windows.Forms.Label
 $versionLabel.Text = "VERSIÓN " + (Get-InstalledVersion)
-$versionLabel.Location = New-Object System.Drawing.Point(520, 20)
-$versionLabel.Size = New-Object System.Drawing.Size(148, 24)
+$versionLabel.Location = New-Object System.Drawing.Point(680, 20)
+$versionLabel.Size = New-Object System.Drawing.Size(144, 24)
 $versionLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleRight
 $versionLabel.Font = New-Object System.Drawing.Font("Segoe UI Semibold", 8)
 $versionLabel.ForeColor = [System.Drawing.Color]::FromArgb(113, 139, 176)
@@ -663,6 +725,35 @@ function Update-ManagerStatus {
         }
         $lastCycleLabel.Text = "ÚLTIMO CICLO`r`n$lastCycle"
         $notifyIcon.Text = "Crypto AI Trader - $equity USDT"
+        try {
+            $futures = Invoke-RestMethod -Uri ($DashboardUrl + "/api/futures-forward") -TimeoutSec 3
+            if (-not $futures.enabled) {
+                $futuresModeBadge.Text = "FUTURES OFF"
+                $futuresModeBadge.ForeColor = [System.Drawing.Color]::FromArgb(143, 160, 186)
+                $futuresStatusLine.Text = "Futures Demo · forward test inactivo"
+            }
+            elseif ($futures.killed) {
+                $futuresModeBadge.Text = "FUTURES PAUSA"
+                $futuresModeBadge.ForeColor = [System.Drawing.Color]::FromArgb(255, 204, 102)
+                $futuresStatusLine.Text = "Futures Demo · nuevas entradas pausadas · protecciones de posición siguen activas"
+            }
+            elseif ($futures.position) {
+                $direction = [string]$futures.position.direction
+                $futuresModeBadge.Text = "FUTURES 1x"
+                $futuresModeBadge.ForeColor = [System.Drawing.Color]::FromArgb(112, 214, 255)
+                $futuresStatusLine.Text = "Futures Demo · $direction BTCUSDT 1x · posición protegida"
+            }
+            else {
+                $futuresModeBadge.Text = "FUTURES 1x"
+                $futuresModeBadge.ForeColor = [System.Drawing.Color]::FromArgb(112, 214, 255)
+                $futuresStatusLine.Text = "Futures Demo · activo · BTCUSDT 1x · sin posición"
+            }
+        }
+        catch {
+            $futuresModeBadge.Text = "FUTURES —"
+            $futuresModeBadge.ForeColor = [System.Drawing.Color]::FromArgb(255, 204, 102)
+            $futuresStatusLine.Text = "Futures Demo · estado temporalmente no disponible"
+        }
     }
     catch {
         if ($processCount -gt 0) {
@@ -694,15 +785,15 @@ function Update-ManagerStatus {
         }
     }
     if (Test-Path $KillSwitchPath) {
-        $killButton.Text = "▶   Reanudar nuevas entradas"
+        $killButton.Text = "▶   Reanudar nuevas entradas Spot"
         $killButton.BackColor = [System.Drawing.Color]::FromArgb(14, 52, 48)
         $killButton.ForeColor = [System.Drawing.Color]::FromArgb(77, 239, 187)
         $killButton.FlatAppearance.BorderColor = [System.Drawing.Color]::FromArgb(37, 112, 94)
-        $protectionLabel.Text = "⚠  Kill switch activo  ·  No se abrirán nuevas posiciones"
+        $protectionLabel.Text = "⚠  Spot pausado · Futures conserva su interruptor independiente"
         $protectionLabel.ForeColor = [System.Drawing.Color]::FromArgb(255, 204, 102)
     }
     else {
-        $killButton.Text = "⚠   Activar kill switch"
+        $killButton.Text = "⚠   Pausar nuevas entradas Spot"
         $killButton.BackColor = [System.Drawing.Color]::FromArgb(55, 24, 35)
         $killButton.ForeColor = [System.Drawing.Color]::FromArgb(255, 147, 164)
         $killButton.FlatAppearance.BorderColor = [System.Drawing.Color]::FromArgb(120, 48, 66)
@@ -714,6 +805,28 @@ function Update-ManagerStatus {
         }
         $protectionLabel.ForeColor = [System.Drawing.Color]::FromArgb(92, 215, 171)
     }
+
+    if (Test-Path $FuturesKillSwitchPath) {
+        $futuresKillButton.Text = "▶   Reanudar nuevas entradas Futures"
+        $futuresKillButton.BackColor = [System.Drawing.Color]::FromArgb(14, 52, 48)
+        $futuresKillButton.ForeColor = [System.Drawing.Color]::FromArgb(77, 239, 187)
+        $futuresKillButton.FlatAppearance.BorderColor = [System.Drawing.Color]::FromArgb(37, 112, 94)
+    }
+    else {
+        $futuresKillButton.Text = "⚠   Pausar nuevas entradas Futures"
+        $futuresKillButton.BackColor = [System.Drawing.Color]::FromArgb(55, 24, 35)
+        $futuresKillButton.ForeColor = [System.Drawing.Color]::FromArgb(255, 147, 164)
+        $futuresKillButton.FlatAppearance.BorderColor = [System.Drawing.Color]::FromArgb(120, 48, 66)
+    }
+    if ((Test-Path $KillSwitchPath) -or (Test-Path $FuturesKillSwitchPath)) {
+        $protectionLabel.Text = "⚠  Alguna pista está pausada · las protecciones de posiciones siguen activas"
+        $protectionLabel.ForeColor = [System.Drawing.Color]::FromArgb(255, 204, 102)
+    }
+    else {
+        $protectionLabel.Text = "✓  Spot Testnet + Futures Demo · fondos ficticios · LIVE bloqueado por código"
+        $protectionLabel.ForeColor = [System.Drawing.Color]::FromArgb(92, 215, 171)
+    }
+
     if (Test-CanonicalStartup) {
         $startupButton.Text = "✓   Inicio automático activado"
     }

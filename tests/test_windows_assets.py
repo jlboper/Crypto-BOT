@@ -99,7 +99,9 @@ class WindowsAssetTests(unittest.TestCase):
         self.assertIn('id="testFuturesExecution"', html)
         self.assertIn('id="checkFuturesTestnet"', html)
         self.assertIn('id="reconcileFutures"', html)
-        self.assertIn('PAPER · respaldo / CI', html)
+        self.assertIn('id="futuresSettingsButton"', html)
+        self.assertIn('Respaldo técnico', html)
+        self.assertIn('PAPER · diagnóstico / CI', html)
         self.assertIn('USDⓈ-M Futures Demo', html)
         bridge = (PROJECT_ROOT / "web" / "portal-bridge.js").read_text(encoding="utf-8")
         self.assertIn("Nueva versión disponible", bridge)
@@ -132,6 +134,14 @@ class WindowsAssetTests(unittest.TestCase):
         self.assertIn("$eventArgs.Cancel = $true", source)
         self.assertIn("Hide-ManagerWindow", source)
         self.assertIn('$notifyMenu.Items.Add("Salir del indicador")', source)
+
+    def test_windows_manager_is_dpi_aware_and_separates_spot_futures(self):
+        source = (PROJECT_ROOT / "scripts" / "manager_windows.ps1").read_text(encoding="utf-8-sig")
+        self.assertIn("SetProcessDpiAwarenessContext", source)
+        self.assertIn("AutoScaleMode]::Dpi", source)
+        self.assertIn("$FuturesKillSwitchPath", source)
+        self.assertIn("Pausar nuevas entradas Futures", source)
+        self.assertIn("Spot Testnet + Futures Demo", source)
 
     def test_windows_uses_branded_icons_and_persistent_startup(self):
         source = (PROJECT_ROOT / "scripts" / "manager_windows.ps1").read_text(encoding="utf-8-sig")

@@ -1,3 +1,15 @@
+# Actualización 0.8.2 — hardening final y app Windows modernizada
+
+- Futures Demo conserva un motor separado de Spot Testnet: BTCUSDT, 1x, ISOLATED, ONE-WAY y una sola posición automática.
+- Añade circuit breakers propios de Futures: pérdida diaria de 2%, semanal de 5% y pausa tras 3 errores consecutivos. Pausar Futures no pausa Spot y viceversa.
+- Los stops y objetivos siguen persistidos y la reconciliación precede cualquier nueva escritura.
+- El override histórico `FUTURES_FORWARD_ENABLED` deja de controlar el runtime; la configuración estructural habilita Futures y la pausa operativa usa el kill switch dedicado.
+- El portal limpia el selector PAPER de la vista normal: PAPER queda dentro de **Respaldo técnico**. **Futures Demo** aparece como entrada propia en Opciones.
+- El estado Futures distingue ACTIVO, POSICIÓN ABIERTA, PAUSADO y REQUIERE SPOT TESTNET; evita el ambiguo INACTIVO por una variable local antigua.
+- Se deja una política LIVE preparada pero bloqueada por código: capital máximo previsto 250 USDT, whitelist Spot BTCUSDT/ETHUSDT, withdrawals deshabilitados, margin deshabilitado y Futures LIVE deshabilitado.
+- La app Windows adopta DPI awareness, escala automática, layout más amplio, controles separados para Spot/Futures y estado visible de ambos motores.
+- Binance LIVE continúa sin estar implementado ni habilitado.
+
 # Actualización 0.8.1 — observabilidad comparativa Spot + Futures
 
 - Añade un scorecard persistente del forward test Futures Demo: días observados, cierres, P&L realizado bruto, retorno observado de la cuenta, win rate, profit factor, drawdown muestreado y desglose LONG/SHORT.

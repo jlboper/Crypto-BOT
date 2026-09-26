@@ -315,8 +315,19 @@ async function refresh() {
     const forwardState=document.getElementById('futuresForwardState');
     const forwardPosition=futuresForward?.position;
     if(forwardState){
-      forwardState.textContent=!futuresForward?.enabled?'INACTIVO':(futuresForward.killed?'PAUSADO':(forwardPosition?'POSICIÓN ABIERTA':'ACTIVO'));
-      forwardState.className='state '+(futuresForward?.killed?'warning':'neutral');
+      if(futuresForward?.requires_testnet){
+        forwardState.textContent='REQUIERE SPOT TESTNET';
+        forwardState.className='state warning';
+      }else if(futuresForward?.configured_enabled===false){
+        forwardState.textContent='DESHABILITADO';
+        forwardState.className='state warning';
+      }else if(futuresForward?.killed){
+        forwardState.textContent='PAUSADO';
+        forwardState.className='state warning';
+      }else{
+        forwardState.textContent=forwardPosition?'POSICIÓN ABIERTA':'ACTIVO';
+        forwardState.className='state neutral';
+      }
     }
     const fWallet=document.getElementById('futuresForwardWallet');
     if(fWallet){
@@ -332,7 +343,7 @@ async function refresh() {
     const pauseForward=document.getElementById('pauseFuturesForward');
     const resumeForward=document.getElementById('resumeFuturesForward');
     if(pauseForward&&!window.portalButtonBusy?.('pauseFuturesForward'))pauseForward.disabled=!futuresForward?.enabled||!!futuresForward?.killed;
-    if(resumeForward&&!window.portalButtonBusy?.('resumeFuturesForward'))resumeForward.disabled=!futuresForward?.enabled||!futuresForward?.killed;
+    if(resumeForward&&!window.portalButtonBusy?.('resumeFuturesForward'))resumeForward.disabled=!!futuresForward?.requires_testnet||futuresForward?.configured_enabled===false||!futuresForward?.killed;
 
     document.getElementById('riskPanelTitle').textContent='Límites Spot · '+modeUpper;
     document.getElementById('financialEvidenceTitle').textContent='Seguimiento financiero Spot · '+modeUpper;

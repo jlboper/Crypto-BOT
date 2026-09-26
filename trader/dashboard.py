@@ -128,6 +128,59 @@ class DashboardServer:
                 if not self._same_origin():
                     self._json({"error": "origin not allowed"}, HTTPStatus.FORBIDDEN)
                     return
+                if path in {"/api/local-updates/check", "/api/local-updates/install", "/api/local-updates/restore"}:
+                    if os.name != "nt":
+                        self._json({"error":"Local Windows update center unavailable"}, HTTPStatus.NOT_IMPLEMENTED)
+                        return
+                    try:
+                        if self.headers.get('Content-Type', '').split(';', 1)[0].strip() != 'application/json':
+                            raise ValueError('JSON required')
+                        length = int(self.headers.get('Content-Length', '0'))
+                        if not 0 < length <= 512:
+                            raise ValueError('Invalid request size')
+                        payload = json.loads(self.rfile.read(length))
+                        if not isinstance(payload, dict):
+                            raise ValueError('Invalid request')
+                        action = ('check-online' if path.endswith('/check') else
+                                  'install' if path.endswith('/install') else 'restore')
+                        release_id = str(payload.get('release_id',''))
+                        if action == 'check-online' and payload:
+                            raise ValueError('Check takes no parameters')
+                        if action in {'install','restore'} and (
+                            set(payload) != {'release_id'} or len(release_id) != 64
+                            or any(ch not in '0123456789abcdef' for ch in release_id.lower())
+                        ):
+                            raise ValueError('Exact signed release id required')
+                        bridge = PROJECT_ROOT / 'scripts/local_update_bridge.ps1'
+                        if not bridge.is_file():
+                            raise ValueError('Local update bridge unavailable')
+                        status_path = PROJECT_ROOT / 'data/local-update-operation.json'
+                        powershell = os.path.join(os.environ.get('SystemRoot', r'C:\Windows'),
+                                                'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe')
+                        command = [powershell, '-NoLogo', '-NoProfile', '-ExecutionPolicy', 'Bypass',
+                                   '-File', str(bridge), '-Action', action]
+                        if release_id:
+                            command += ['-ReleaseId', release_id]
+                        if action == 'check-online':
+                            completed = subprocess.run(command, cwd=PROJECT_ROOT, capture_output=True,
+                                                       text=True, timeout=90,
+                                                       creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+                            raw = (completed.stdout or '').strip().splitlines()
+                            data = json.loads(raw[-1]) if raw else {}
+                            if completed.returncode != 0 or data.get('status') == 'failed':
+                                self._json({"error":data.get("code","LOCAL_UPDATE_FAILED")},
+                                           HTTPStatus.SERVICE_UNAVAILABLE)
+                                return
+                            self._json(data)
+                            return
+                        command += ['-StatusPath', str(status_path)]
+                        subprocess.Popen(command, cwd=PROJECT_ROOT, stdin=subprocess.DEVNULL,
+                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                            creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+                        self._json({"status":"pending","action":action}, HTTPStatus.ACCEPTED)
+                    except (ValueError, OSError, subprocess.TimeoutExpired, json.JSONDecodeError):
+                        self._json({"error":"Local update action unavailable"}, HTTPStatus.CONFLICT)
+                    return
                 if path in {"/api/operations/model", "/api/operations/restart", "/api/operations/execution-mode", "/api/operations/testnet-smoke", "/api/operations/futures-check", "/api/operations/futures-smoke", "/api/operations/futures-reconcile", "/api/operations/futures-forward-pause", "/api/operations/futures-forward-resume"}:
                     try:
                         if self.headers.get('Content-Type', '').split(';', 1)[0].strip() != 'application/json':
@@ -246,6 +299,15 @@ class DashboardServer:
                     self._json({"error": "not found"}, HTTPStatus.NOT_FOUND)
 
             def _api(self, path: str) -> None:
+                if path == '/api/local-updates/status':
+                    record = PROJECT_ROOT / 'data/local-update-operation.json'
+                    try:
+                        if record.stat().st_size > 4096:
+                            raise ValueError('Oversized local update status')
+                        self._json(json.loads(record.read_text(encoding='utf-8-sig')))
+                    except (OSError, ValueError, json.JSONDecodeError):
+                        self._json({'status':'idle'})
+                    return
                 if path == '/api/operations/last':
                     record = PROJECT_ROOT / 'data/operation-last.json'
                     try:
@@ -300,9 +362,14 @@ class DashboardServer:
                     snapshot = FuturesTestnetLedger(outer.config.futures_testnet.database_path).forward_snapshot()
                     self._json({
                         "enabled": bool(outer.config.bot.mode == "testnet" and outer.config.futures_testnet.forward_enabled),
+                        "configured_enabled": bool(outer.config.futures_testnet.forward_enabled),
+                        "requires_testnet": outer.config.bot.mode != "testnet",
                         "killed": outer.config.futures_testnet.kill_switch_path.exists(),
                         "symbol": outer.config.futures_testnet.forward_symbol,
                         "automatic_leverage": outer.config.futures_testnet.forward_leverage,
+                        "daily_loss_limit_pct": outer.config.futures_testnet.forward_daily_loss_limit_pct * 100.0,
+                        "weekly_loss_limit_pct": outer.config.futures_testnet.forward_weekly_loss_limit_pct * 100.0,
+                        "max_consecutive_errors": outer.config.futures_testnet.forward_max_consecutive_errors,
                         **snapshot,
                     })
                 elif path == "/api/paper-scorecard":

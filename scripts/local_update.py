@@ -52,17 +52,33 @@ def staged(manager) -> dict:
 def run(source: Path, action: str, approved: str | None = None, *, agent_root: Path = ROOT) -> dict:
     from trader.update_supervisor import UpdateSupervisor
     manager, settings = channel(source, agent_root)
+    supervisor = UpdateSupervisor(manager)
+    if action == 'restore-offer':
+        return {'status': 'restore_offer', 'restore': supervisor.available_restore()}
+    if action == 'restore':
+        offer = supervisor.available_restore()
+        if not offer or approved != offer.get('restore_id'):
+            raise ValueError('Exact restore approval required')
+        return supervisor.restore(approved)
     if action == 'check-online':
         manager.stage(settings['manifest_url'])
-    info = staged(manager)
+    try:
+        info = staged(manager)
+    except ValueError as error:
+        if action in {'check-online','check-offline'} and str(error) == 'Signed release is not newer than the installed version':
+            installed = tomllib.loads((manager.root / 'pyproject.toml').read_text(encoding='utf-8'))['project']['version']
+            return {'status':'current','version':installed,'restore':supervisor.available_restore(),
+                    'order_submission_enabled':False}
+        raise
     if action != 'install':
         return {'status': 'verified_local_package', 'version': info['version'],
                 'release_id': info['release_id'], 'commit': info['commit'],
+                'restore': supervisor.available_restore(),
                 'order_submission_enabled': False}
     if approved != info['release_id']:
         raise ValueError('Exact signed release approval required')
     # The supervisor re-verifies the signature/hash and all runtime gates.
-    return UpdateSupervisor(manager).install(info['package'], info['envelope'], approved)
+    return supervisor.install(info['package'], info['envelope'], approved)
 
 
 def failure_code(error: Exception) -> str:
@@ -94,6 +110,8 @@ def main() -> None:
     options.add_argument('--check-online', action='store_true')
     options.add_argument('--check-offline', action='store_true')
     options.add_argument('--install', metavar='EXACT_RELEASE_ID')
+    options.add_argument('--restore-offer', action='store_true')
+    options.add_argument('--restore', metavar='EXACT_RESTORE_ID')
     args = parser.parse_args()
     # Run the updater from the independent agent code, not the files that are
     # about to be replaced in the signed target installation.
@@ -101,9 +119,11 @@ def main() -> None:
     if not (agent_root / 'scripts/windows_agent.py').is_file():
         raise SystemExit('Independent supervisor not found')
     sys.path.insert(0, str(agent_root))
-    action = 'check-online' if args.check_online else 'check-offline' if args.check_offline else 'install'
+    action = ('check-online' if args.check_online else 'check-offline' if args.check_offline
+              else 'restore-offer' if args.restore_offer else 'restore' if args.restore else 'install')
+    approved = args.install if action == 'install' else args.restore if action == 'restore' else None
     try:
-        print(json.dumps(run(args.source, action, args.install, agent_root=agent_root), ensure_ascii=False))
+        print(json.dumps(run(args.source, action, approved, agent_root=agent_root), ensure_ascii=False))
     except Exception as error:
         # Emit only an allowlisted machine-readable category. Never expose paths,
         # credentials, HTTP bodies or raw exception text to the GUI.
