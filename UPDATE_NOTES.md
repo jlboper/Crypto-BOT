@@ -1,3 +1,16 @@
+# Actualización 0.8.0 — Spot Testnet + Futures Demo en paralelo
+
+- El portal pasa a mostrar dos motores claramente separados: **Spot Testnet** y **Futures Demo**.
+- Spot conserva su estrategia multi-activo, ledger y controles actuales.
+- Futures deja de ser solo un smoke lab y añade un forward test persistente de **BTCUSDT LONG/SHORT**, máximo una posición, margen `ISOLATED`, modo `ONE_WAY` y **1x automático fijo**.
+- El forward test Futures arranca automáticamente al instalar 0.8.0 mientras el motor principal esté en TESTNET; no requiere un botón inicial.
+- Futures usa su propio ledger, journal de órdenes y kill switch. Pausar Futures no pausa Spot, y pausar nuevas entradas Futures mantiene la protección de una posición ya abierta.
+- Las pruebas manuales 1x/2x/3x quedan plegadas como diagnóstico; 2x/3x no forman parte de la ejecución automática.
+- La cantidad automática inicial es `0.001 BTC`, validada con `/order/test`, y se bloquea si supera el presupuesto configurado de 100 USDT con margen de tolerancia.
+- El portal muestra wallet, posición, P&L cerrado y número de cierres de Futures por separado de las métricas Spot.
+- Tres errores consecutivos del forward test activan únicamente el kill switch de Futures; Spot continúa.
+- Binance LIVE continúa sin host, ruta de escritura ni activación automática.
+
 # Actualización 0.7.9 — acciones de portal de un solo clic
 
 - Las acciones manuales mantienen un estado ocupado persistente desde el primer clic: el botón cambia a **Procesando…** y queda bloqueado mientras Windows trabaja.
