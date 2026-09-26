@@ -102,9 +102,26 @@ class SignedUpdateTests(unittest.TestCase):
         self.envelope.write_text(json.dumps(data))
         with self.assertRaises(InvalidSignature):
             verify(self.package, self.envelope, self.public)
-        for name in ("../x", "trader/../../x", "trader/CON.py", "trader/a:stream", ".env.local", "config.toml", "trader/.env", "trader/a."):
+        self.assertEqual(safe_name("config.toml").as_posix(), "config.toml")
+        for name in ("../x", "trader/../../x", "trader/CON.py", "trader/a:stream", ".env.local", "secrets.toml", "trader/.env", "trader/a."):
             with self.subTest(name=name), self.assertRaises(ValueError):
                 safe_name(name)
+
+    def test_testnet_manifest_with_signed_config_is_verified(self):
+        files = {
+            "trader/__main__.py": b"NEW = True\n",
+            "pyproject.toml": b'[project]\nversion="0.6.3"\n',
+            "config.toml": b'[bot]\nmode="testnet"\ndatabase_path="data/bot.db"\n',
+        }
+        with zipfile.ZipFile(self.package, "w") as archive:
+            for name, payload in files.items():
+                archive.writestr(name, payload)
+        manifest = {"app": "crypto-ai-trading-bot", "mode": "testnet", "version": "0.6.3", "sequence": 2,
+            "expires": time.time()+3600, "size": self.package.stat().st_size,
+            "sha256": hashlib.sha256(self.package.read_bytes()).hexdigest(),
+            "files": {name: hashlib.sha256(payload).hexdigest() for name,payload in files.items()}}
+        self.envelope.write_text(json.dumps({"manifest": manifest, "signature": base64.b64encode(self.key.sign(canonical(manifest))).decode()}))
+        self.assertEqual(verify(self.package, self.envelope, self.public)["mode"], "testnet")
 
     def test_running_engine_prevents_install(self):
         with single_instance(self.root/"data/engine.lock"):
