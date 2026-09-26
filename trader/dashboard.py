@@ -300,6 +300,8 @@ class DashboardServer:
                     snapshot = FuturesTestnetLedger(outer.config.futures_testnet.database_path).forward_snapshot()
                     self._json({
                         "enabled": bool(outer.config.bot.mode == "testnet" and outer.config.futures_testnet.forward_enabled),
+                        "configured_enabled": bool(outer.config.futures_testnet.forward_enabled),
+                        "requires_testnet": outer.config.bot.mode != "testnet",
                         "killed": outer.config.futures_testnet.kill_switch_path.exists(),
                         "symbol": outer.config.futures_testnet.forward_symbol,
                         "automatic_leverage": outer.config.futures_testnet.forward_leverage,
