@@ -60,11 +60,16 @@ async function portalState(){
     document.getElementById('installBotUpdate').disabled=!(usable&&candidate.enabled&&!activeJob);
     const restore=state.snapshot?.bot_restore;
     document.getElementById('restoreBotVersion').disabled=!(restore?.enabled&&!state.stale&&!activeJob);
+    const latestUpdateCheck=(state.jobs||[]).find(job=>job.action==='update_check');
     document.getElementById('botUpdateMessage').textContent=usable?
       (candidate.enabled?
         `Versión ${candidate.version} verificada y lista para instalar.`:
         `Versión ${candidate.version} verificada, pero Windows debe sincronizar o reparar el supervisor antes de instalar.`):
-      'Listo para buscar una versión firmada.';
+      (latestUpdateCheck?.status==='completed'&&latestUpdateCheck.message?
+        latestUpdateCheck.message:
+        latestUpdateCheck?.status==='failed'?
+          'La última comprobación no terminó correctamente. Puedes volver a intentarlo.':
+          'Listo para buscar una versión firmada.');
     document.getElementById('portalLogin').hidden=true;document.querySelector('.shell').hidden=false;
     return state;
   }).finally(()=>{portalPending=null;});
@@ -269,7 +274,9 @@ document.addEventListener('DOMContentLoaded',()=>{
         }
           releases.append(card);
         }
-      }else output.textContent=portalResult.reason.message;
+      }else output.textContent=botResult.status==='fulfilled'?
+        'No se pudieron consultar temporalmente los detalles de publicación en GitHub; Windows continúa verificando el bot.':
+        portalResult.reason.message;
       if(botResult.status==='fulfilled'){
         portalCacheAt=0;botOutput.textContent='Windows está verificando el paquete firmado. El estado se actualizará automáticamente.';
       }else botOutput.textContent=botResult.reason.message;
