@@ -298,8 +298,9 @@ async function refresh() {
     }
     const futuresState=document.getElementById('futuresState');
     if(futuresState){
-      futuresState.textContent=currentExecutionMode==='testnet'?'DISPONIBLE':'REQUIERE TESTNET';
-      futuresState.className='state '+(currentExecutionMode==='testnet'?'neutral':'warning');
+      futuresState.textContent=currentExecutionMode!=='testnet'?'REQUIERE TESTNET':
+        (!futuresForward?.enabled?'INACTIVO':(futuresForward?.killed?'PAUSADO':'ACTIVO'));
+      futuresState.className='state '+((currentExecutionMode!=='testnet'||futuresForward?.killed)?'warning':'neutral');
     }
     document.getElementById('accountEnvironmentTitle').textContent='Spot · '+modeUpper;
     const spotEngineState=document.getElementById('spotEngineState');
@@ -315,7 +316,7 @@ async function refresh() {
     const forwardState=document.getElementById('futuresForwardState');
     const forwardPosition=futuresForward?.position;
     if(forwardState){
-      forwardState.textContent=!futuresForward?.enabled?'INACTIVO':(futuresForward.killed?'PAUSADO':(forwardPosition?'POSICIÓN ABIERTA':'ACTIVO'));
+      forwardState.textContent=!futuresForward?.enabled?'INACTIVO':(futuresForward.killed?'PAUSADO':(forwardPosition?'POSICIÓN ABIERTA':'ACTIVO · ESPERANDO SEÑAL'));
       forwardState.className='state '+(futuresForward?.killed?'warning':'neutral');
     }
     const fWallet=document.getElementById('futuresForwardWallet');
@@ -329,6 +330,22 @@ async function refresh() {
     if(fPnl)fPnl.textContent=money(Number(futuresForward?.gross_pnl||0));
     const fClosed=document.getElementById('futuresForwardClosed');
     if(fClosed)fClosed.textContent=String(futuresForward?.closed_trades||0);
+    const fAi=document.getElementById('futuresForwardAi');
+    if(fAi){
+      const review=futuresForward?.last_ai_review;
+      fAi.textContent=review?`${review.verdict} · ${Math.round(Number(review.confidence||0)*100)}%`:
+        `${futuresForward?.ai_model||status.ai_model} · esperando señal`;
+    }
+    const fRecovery=document.getElementById('futuresForwardRecovery');
+    if(fRecovery){
+      const rec=futuresForward?.recovery||{};
+      fRecovery.textContent=rec.durable_order_journal&&rec.startup_position_reconciliation?'LISTA':'REVISAR';
+    }
+    const fSafety=document.getElementById('futuresForwardSafety');
+    if(fSafety){
+      const rec=futuresForward?.recovery||{};
+      fSafety.textContent=`Journal ${rec.durable_order_journal?'✓':'—'} · conciliación al reiniciar ${rec.startup_position_reconciliation?'✓':'—'} · kill switch propio ${rec.separate_kill_switch?'✓':'—'} · IA final: ${futuresForward?.ai_model||status.ai_model}. Stops nativos persistentes aún pendientes; LIVE bloqueado.`;
+    }
     const pauseForward=document.getElementById('pauseFuturesForward');
     const resumeForward=document.getElementById('resumeFuturesForward');
     if(pauseForward&&!window.portalButtonBusy?.('pauseFuturesForward'))pauseForward.disabled=!futuresForward?.enabled||!!futuresForward?.killed;
