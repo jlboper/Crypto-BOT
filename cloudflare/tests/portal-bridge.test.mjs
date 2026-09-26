@@ -7,7 +7,11 @@ import {webcrypto} from 'node:crypto';
 const source=readFileSync(new URL('../../web/portal-bridge.js',import.meta.url),'utf8');
 
 function node(){
+  const classes=new Set();
   return {hidden:false,disabled:false,textContent:'',value:'',children:[],attributes:{},
+    classList:{add(...names){for(const name of names)classes.add(name);},remove(...names){for(const name of names)classes.delete(name);},
+      toggle(name,force){if(force===undefined){classes.has(name)?classes.delete(name):classes.add(name);}else{force?classes.add(name):classes.delete(name);}},
+      contains(name){return classes.has(name);}},
     append(...items){this.children.push(...items);},replaceChildren(...items){this.children=[...items];},
     scrollIntoView(){},addEventListener(){},
     setAttribute(name,value){this.attributes[name]=String(value);},getAttribute(name){return this.attributes[name];}};
