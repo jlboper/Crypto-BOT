@@ -42,3 +42,10 @@ La prioridad es **observación**, no añadir estrategia por ruido de pocos días
 ## Unified signed rollout
 
 Desde 0.8.5, un agente actualizado reporta su versión instalada al portal. Si el ledger de releases firmadas contiene una versión superior, el Worker crea automáticamente un `update_install` para esa release exacta. El supervisor Windows valida firma, secuencia, health-check y rollback. Un fallo real queda detenido y no se reintenta en bucle. La instalación manual permanece solo como fallback.
+
+
+## Self-healing remote agent (0.8.8+)
+
+La tarea programada de Windows usa un watchdog persistente independiente del motor. Si el agente HTTPS termina inesperadamente, el watchdog lo relanza con backoff y la tarea conserva una política secundaria amplia de reinicio. Después de que una release firmada queda comprometida y el nuevo motor supera activación/health-check, el motor lanza en segundo plano `agent_self_heal.ps1`: valida el journal firmado, actualiza la definición de la tarea, refresca únicamente módulos del agente independiente, reinicia ese agente y busca una sincronización HTTPS nueva. Un fallo de esta reparación degrada solo visibilidad remota; nunca detiene el motor ni revierte datos financieros.
+
+El rollout compara siempre la versión instalada contra la última release firmada. Por ello una instalación atrasada puede saltar directamente a la versión más reciente sin encadenar releases intermedias.
