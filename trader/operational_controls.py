@@ -52,7 +52,7 @@ def _execution_file(source: Path, mode: str) -> None:
 
 def execute(source: Path, action: str, payload: dict) -> dict:
     source = source.resolve(strict=True)
-    if not isinstance(payload, dict) or action not in {'ai_model', 'restart_engine', 'execution_mode'}:
+    if not isinstance(payload, dict) or action not in {'ai_model', 'restart_engine', 'execution_mode', 'testnet_smoke'}:
         raise ValueError('Unknown operational control')
     if action == 'ai_model':
         if set(payload) != {'model'} or payload['model'] not in MODELS:
@@ -60,8 +60,8 @@ def execute(source: Path, action: str, payload: dict) -> dict:
     elif action == 'execution_mode':
         if set(payload) != {'mode'} or payload['mode'] not in EXECUTION_MODES:
             raise ValueError('Unknown execution mode')
-    elif payload:
-        raise ValueError('Restart does not accept parameters')
+    elif action in {'restart_engine', 'testnet_smoke'} and payload:
+        raise ValueError('Operational action does not accept parameters')
 
     config = load_config(source / 'config.toml')
     if config.bot.mode not in EXECUTION_MODES:
@@ -84,6 +84,8 @@ def execute(source: Path, action: str, payload: dict) -> dict:
             raise ValueError('Active model is not a supported rollback target')
         selected_model = payload['model'] if action == 'ai_model' else old_model
         selected_mode = payload['mode'] if action == 'execution_mode' else old_mode
+        if action == 'testnet_smoke' and old_mode != 'testnet':
+            raise ValueError('Testnet smoke test requires TESTNET mode')
 
         if action == 'ai_model':
             from .ai_advisor import AIAdvisor
@@ -130,6 +132,51 @@ def execute(source: Path, action: str, payload: dict) -> dict:
                 _execution_file(source, selected_mode)
                 mode_changed = True
 
+            smoke_result = None
+            if action == 'testnet_smoke':
+                from datetime import UTC, datetime
+                from .database import Database
+                from .domain import Signal
+                from .exchange import BinanceClient
+                from .testnet_broker import BinanceTestnetBroker
+
+                smoke_config = load_config(source / 'config.toml')
+                if smoke_config.bot.mode != 'testnet':
+                    raise ValueError('Testnet smoke test requires TESTNET mode')
+                smoke_db = Database(smoke_config.bot.database_path)
+                if smoke_db.positions():
+                    raise ValueError('Testnet smoke test requires no open positions')
+                broker = BinanceTestnetBroker(smoke_db, smoke_config.paper, smoke_config.risk)
+                if not broker.reconcile_pending():
+                    raise ValueError('Testnet smoke test requires no pending order')
+                client = BinanceClient(timeout=10)
+                symbol = 'BTCUSDT'
+                price = float(client.testnet_reference_price(symbol))
+                if not price > 0:
+                    raise ValueError('Testnet smoke reference price unavailable')
+                quote_target = min(10.0, smoke_db.cash() * 0.05)
+                if quote_target < 6.0:
+                    raise ValueError('Testnet smoke allocation too small')
+                quantity = quote_target / price
+                signal = Signal(
+                    symbol, 'BUY', 100, price, price * 0.99, price * 1.01,
+                    price * 0.005, 50.0, price, price, 1.0,
+                    'supervised Testnet smoke test', datetime.now(UTC).isoformat(),
+                )
+                position = broker.buy(signal, quantity, 'supervised TESTNET smoke BUY')
+                close_price = float(client.testnet_reference_price(symbol))
+                realized = broker.sell(position, close_price, 'supervised TESTNET smoke SELL')
+                if not broker.reconcile_pending() or smoke_db.position(symbol) is not None:
+                    raise RuntimeError('Testnet smoke reconciliation incomplete')
+                smoke_result = {
+                    'symbol': symbol,
+                    'buy_quantity': position.quantity,
+                    'buy_price': position.entry_price,
+                    'close_reference': close_price,
+                    'realized_pnl_usdt': realized,
+                    'pending': False,
+                }
+
             control.maintenance.unlink()
             os.environ['OPENAI_MODEL'] = selected_model
             os.environ['EXECUTION_MODE'] = selected_mode
@@ -139,7 +186,10 @@ def execute(source: Path, action: str, payload: dict) -> dict:
                 state = json.loads(control.status.read_text(encoding='utf-8'))
                 if (state.get('pid') == child.pid and state.get('phase') == 'running'
                         and state.get('mode') == selected_mode and runtime.health(child, None)):
-                    return {'ok': True, 'model': selected_model, 'mode': selected_mode, 'pid': child.pid}
+                    result = {'ok': True, 'model': selected_model, 'mode': selected_mode, 'pid': child.pid}
+                    if smoke_result is not None:
+                        result['testnet_smoke'] = smoke_result
+                    return result
                 if child.poll() is not None:
                     break
                 time.sleep(.2)
