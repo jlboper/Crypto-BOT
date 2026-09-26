@@ -303,6 +303,9 @@ class DashboardServer:
                         "killed": outer.config.futures_testnet.kill_switch_path.exists(),
                         "symbol": outer.config.futures_testnet.forward_symbol,
                         "automatic_leverage": outer.config.futures_testnet.forward_leverage,
+                        "daily_loss_limit_pct": outer.config.futures_testnet.forward_daily_loss_limit_pct * 100.0,
+                        "weekly_loss_limit_pct": outer.config.futures_testnet.forward_weekly_loss_limit_pct * 100.0,
+                        "max_consecutive_errors": outer.config.futures_testnet.forward_max_consecutive_errors,
                         **snapshot,
                     })
                 elif path == "/api/paper-scorecard":
