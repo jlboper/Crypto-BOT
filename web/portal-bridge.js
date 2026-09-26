@@ -218,7 +218,9 @@ document.addEventListener('DOMContentLoaded',()=>{
           '/api/operations/model':'ai_model','/api/operations/restart':'restart_engine',
           '/api/operations/execution-mode':'execution_mode','/api/operations/testnet-smoke':'testnet_smoke',
           '/api/operations/futures-check':'futures_testnet_check','/api/operations/futures-smoke':'futures_testnet_smoke',
-          '/api/operations/futures-reconcile':'futures_testnet_reconcile'
+          '/api/operations/futures-reconcile':'futures_testnet_reconcile',
+          '/api/operations/futures-forward-pause':'futures_forward_pause',
+          '/api/operations/futures-forward-resume':'futures_forward_resume'
         })[path];
         const deadline=Date.now()+90000;
         while(Date.now()<deadline){
