@@ -307,6 +307,8 @@ class TradingEngine:
 
 
     def _run_futures_forward_cycle(self, candles: list[Candle]) -> None:
+        current_cycles = self.futures_forward.ledger.setting("forward_cycle_total") or 0
+        self.futures_forward.ledger.set_setting("forward_cycle_total", int(current_cycles) + 1)
         try:
             result = self.futures_forward.cycle(candles)
             self.futures_forward.ledger.set_setting("forward_consecutive_errors", 0)
@@ -316,6 +318,8 @@ class TradingEngine:
             current = self.futures_forward.ledger.setting("forward_consecutive_errors") or 0
             count = int(current) + 1
             self.futures_forward.ledger.set_setting("forward_consecutive_errors", count)
+            total = self.futures_forward.ledger.setting("forward_error_total") or 0
+            self.futures_forward.ledger.set_setting("forward_error_total", int(total) + 1)
             self.db.event("WARN", "Futures Demo forward cycle failed: " + type(exc).__name__)
             if count >= 3:
                 self.futures_forward._halt("three consecutive Futures forward errors")
@@ -332,6 +336,8 @@ class TradingEngine:
             current = self.futures_forward.ledger.setting("forward_consecutive_errors") or 0
             count = int(current) + 1
             self.futures_forward.ledger.set_setting("forward_consecutive_errors", count)
+            total = self.futures_forward.ledger.setting("forward_error_total") or 0
+            self.futures_forward.ledger.set_setting("forward_error_total", int(total) + 1)
             self.db.event("WARN", "Futures Demo protection failed: " + type(exc).__name__)
             if count >= 3:
                 self.futures_forward._halt("three consecutive Futures protection errors")

@@ -136,6 +136,42 @@ function renderPaperEvidence(report, equity, trades) {
   if (report?.omitted_assets) note.textContent+=` ${report.omitted_assets} activos agrupados en «Otros»; su resultado y cierres están incluidos en el total.`;
 }
 
+function renderDualEvidence(spot, futures) {
+  const score=futures?.scorecard||{};
+  const finite=value=>Number.isFinite(Number(value))?Number(value):0;
+  const set=(id,value)=>{const node=document.getElementById(id);if(node)node.textContent=value;};
+  set('spotObservedDays', Number(spot?.observed_days||0).toFixed(1));
+  set('spotClosedTrades', String(Number(spot?.closed_trades||0)));
+  set('spotObservedPnl', money(spot?.net_realized_pnl_usdt||0));
+  set('spotObservedDrawdown', finite(spot?.sampled_max_drawdown_pct).toFixed(2)+'%');
+  set('futuresObservedDays', finite(score.observed_days).toFixed(1));
+  set('futuresObservedTrades', String(finite(score.closed_trades).toFixed(0)));
+  set('futuresObservedReturn', score.account_return_pct==null?'—':pct(score.account_return_pct));
+  set('futuresObservedPnl', money(score.gross_realized_pnl_usdt||0));
+  set('futuresObservedDrawdown', finite(score.sampled_max_drawdown_pct).toFixed(2)+'%');
+  set('futuresObservedQuality', (score.win_rate_pct==null?'—':finite(score.win_rate_pct).toFixed(1)+'%')+' / '+(score.profit_factor==null?'—':finite(score.profit_factor).toFixed(2)));
+  set('futuresDirectionSplit','L '+finite(score.long_closed_trades).toFixed(0)+' ('+money(score.long_gross_pnl_usdt||0)+') · S '+finite(score.short_closed_trades).toFixed(0)+' ('+money(score.short_gross_pnl_usdt||0)+')');
+  const cycles=finite(score.cycle_total),errors=finite(score.error_total);
+  set('futuresErrorRate',errors.toFixed(0)+' / '+cycles.toFixed(0)+' ciclos'+(cycles?' · '+(100*errors/cycles).toFixed(2)+'%':''));
+  const spotDays=finite(spot?.observed_days),spotTrades=finite(spot?.closed_trades);
+  const futuresDays=finite(score.observed_days),futuresTrades=finite(score.closed_trades);
+  const checks=[
+    [spotDays>=30,'Spot: '+spotDays.toFixed(1)+' / 30 días'],
+    [spotTrades>=30,'Spot: '+spotTrades.toFixed(0)+' / 30 cierres'],
+    [futuresDays>=30,'Futures: '+futuresDays.toFixed(1)+' / 30 días'],
+    [futuresTrades>=30,'Futures: '+futuresTrades.toFixed(0)+' / 30 cierres'],
+    [finite(score.consecutive_errors)===0,'Futures: sin errores consecutivos activos'],
+  ];
+  const list=document.getElementById('dualReadinessChecks');
+  if(list){list.replaceChildren();for(const [ok,label] of checks){const li=document.createElement('li');li.textContent=(ok?'✓':'○')+' '+label;list.append(li);}}
+  const ready=spotDays>=30&&spotTrades>=30&&futuresDays>=30&&futuresTrades>=30;
+  const state=document.getElementById('dualEvidenceState');
+  if(state){state.textContent=ready?'LISTO PARA REVISIÓN':'ACUMULANDO DATOS';state.className='state '+(ready?'warning':'neutral');}
+  const note=document.getElementById('dualEvidenceNote');
+  if(note)note.textContent=ready?
+    'Ambos motores alcanzaron el mínimo de observación. Esto habilita una revisión humana de resultados, no Binance LIVE.':
+    'Se están acumulando datos separados de Spot y Futures. Evitaremos cambiar estrategia o riesgo por ruido de pocos días; solo corregiremos fallos operativos o de seguridad.';
+}
 function renderResearch(report, state) {
   lastResearchReport=report;
   const badge=document.getElementById('researchState');
@@ -349,6 +385,7 @@ async function refresh() {
     renderChart(equity);
     renderResearch(research,researchState);
     renderPaperEvidence(paperReport,equity,trades);
+    renderDualEvidence(paperReport,futuresForward);
     document.getElementById('updated').textContent=`Último ciclo ${ageLabel(activity.age_seconds)} · ${shortTime(activity.last_cycle_at)}`;
   } catch(error) {
     const botState=document.getElementById('botState');

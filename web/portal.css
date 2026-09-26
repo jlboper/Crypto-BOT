@@ -262,3 +262,11 @@ select,input{min-width:0}
 .futures-engine-card{border-color:#344f68}
 @media(max-width:900px){.dual-engines{grid-template-columns:1fr}}
 @media(max-width:600px){.engine-stats{grid-template-columns:1fr 1fr}}
+
+.dual-scorecards{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px}
+.dual-scorecards article{padding:16px;border:1px solid #263950;border-radius:12px;background:#0b1320}
+.dual-scorecards h3{margin:0 0 10px;font-size:.95rem}
+.dual-scorecards dl{margin:0}
+.dual-scorecards dl div{display:flex;justify-content:space-between;gap:16px;padding:8px 0;border-bottom:1px solid rgba(143,160,186,.12)}
+.dual-scorecards dt{color:#8fa0ba}.dual-scorecards dd{margin:0;font-weight:700;text-align:right}
+@media(max-width:760px){.dual-scorecards{grid-template-columns:1fr}}

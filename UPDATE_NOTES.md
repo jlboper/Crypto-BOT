@@ -1,3 +1,12 @@
+# Actualización 0.8.1 — observabilidad comparativa Spot + Futures
+
+- Añade un scorecard persistente del forward test Futures Demo: días observados, cierres, P&L realizado bruto, retorno observado de la cuenta, win rate, profit factor, drawdown muestreado y desglose LONG/SHORT.
+- Registra ciclos y errores acumulados del segundo motor para distinguir problemas operativos de resultados de estrategia.
+- El portal muestra Spot Testnet y Futures Demo en un panel comparativo con puertas de observación separadas.
+- La regla mínima para una revisión formal se mantiene en **30 días y 30 cierres por motor**. Alcanzarla solo habilita revisión humana; nunca activa Binance LIVE.
+- Durante el warm-up se evitan cambios de estrategia, riesgo o leverage basados en pocos días. Las correcciones operativas y de seguridad sí pueden aplicarse cuando sean necesarias.
+- No cambia señales, tamaño de Spot, presupuesto Futures, leverage automático ni límites de riesgo. LIVE continúa bloqueado.
+
 # Actualización 0.8.0 — Spot Testnet + Futures Demo en paralelo
 
 - El portal pasa a mostrar dos motores claramente separados: **Spot Testnet** y **Futures Demo**.
