@@ -1,5 +1,6 @@
 import tempfile
 import unittest
+from unittest.mock import patch
 from dataclasses import replace
 from pathlib import Path
 
@@ -84,6 +85,12 @@ class FuturesForwardTests(unittest.TestCase):
         self.assertEqual(score["error_total"], 2)
         self.assertEqual(score["cycle_total"], 100)
         self.assertEqual(score["status"], "INSUFFICIENT_EVIDENCE")
+
+    def test_legacy_forward_environment_override_does_not_disable_configured_pilot(self):
+        import os
+        with patch.dict(os.environ, {"FUTURES_FORWARD_ENABLED": "false"}):
+            configured = load_config()
+        self.assertTrue(configured.futures_testnet.forward_enabled)
 
     def test_futures_daily_loss_limit_halts_only_futures_entries(self):
         ledger = self.engine.ledger
