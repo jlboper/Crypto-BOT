@@ -31,7 +31,7 @@ async function portalRequest(path,body){
   if(!response.ok){if(response.status===401)portalLocked();throw new Error(data.error||'Error de conexión');}
   return data;
 }
-const activityActions={research:'Evaluar estrategias',update_check:'Buscar actualización',update_install:'Actualizar bot',update_restore:'Restaurar bot',kill:'Pausar bot',resume:'Reanudar bot',risk_profile:'Perfil de riesgo PAPER',paper_close:'Cerrar posición PAPER',ai_model:'Cambiar modelo IA',restart_engine:'Reiniciar motor',execution_mode:'Cambiar entorno',testnet_buy:'Comprar Testnet',testnet_close:'Cerrar Testnet',testnet_reconcile:'Conciliar Testnet',testnet_audit:'Comprobar Testnet en Binance'};
+const activityActions={research:'Evaluar estrategias',update_check:'Buscar actualización',update_install:'Actualizar bot',update_restore:'Restaurar bot',kill:'Pausar bot',resume:'Reanudar bot',risk_profile:'Perfil de riesgo',paper_close:'Cerrar posición',ai_model:'Cambiar modelo IA',restart_engine:'Reiniciar motor',execution_mode:'Cambiar entorno',testnet_buy:'Comprar Testnet',testnet_close:'Cerrar Testnet',testnet_reconcile:'Conciliar Testnet',testnet_audit:'Comprobar Testnet en Binance'};
 const activityStatuses={pending:'Pendiente',applied:'Confirmado por Windows',expired:'Vencido',superseded:'Sustituido',running:'En curso',completed:'Completado',failed:'Falló'};
 function renderActivity(list,items){
   for(const item of items){
@@ -77,10 +77,10 @@ window.portalApi=async(path,options={})=>{
   if(options.method==='POST'){
     if(['/api/paper/risk-profile','/api/paper/close-position','/api/operations/model','/api/operations/restart','/api/operations/execution-mode'].includes(path)){
       const state=await portalState();
-      if(state.stale||state.snapshot?.paper_controls!==true)throw new Error('Controles PAPER pendientes de conexión de Windows');
+      if(state.stale||state.snapshot?.paper_controls!==true)throw new Error('Controles del motor pendientes de conexión de Windows');
       if((path.startsWith('/api/operations/'))&&state.snapshot?.operations_controls!==true)throw new Error('Actualiza y repara el agente de Windows antes de usar esta opción');
       let payload;
-      try{payload=JSON.parse(options.body);}catch{throw new Error('Solicitud PAPER inválida');}
+      try{payload=JSON.parse(options.body);}catch{throw new Error('Solicitud de control inválida');}
       const result=await portalRequest('/v1/paper-controls',{
         action:({
           '/api/paper/risk-profile':'risk_profile','/api/paper/close-position':'paper_close',
@@ -156,7 +156,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     finally{button.disabled=false;portalCacheAt=0;}
   }
   document.getElementById('applyAiModel').onclick=()=>operationalAction('/api/operations/model',
-    {model:document.getElementById('aiModelChoice').value},'¿Verificar el modelo seleccionado y reiniciar el motor PAPER?');
+    {model:document.getElementById('aiModelChoice').value},'¿Verificar el modelo seleccionado y reiniciar el motor activo?');
   document.getElementById('restartMotor').onclick=()=>operationalAction('/api/operations/restart',{},
     '¿Reiniciar el motor? Puede interrumpir la vigilancia durante unos segundos.');
   document.getElementById('applyExecutionMode').onclick=()=>{
@@ -291,7 +291,7 @@ document.addEventListener('DOMContentLoaded',()=>{
       button.disabled=true;
       const candidate=state.snapshot?.bot_update;
       if(!candidate?.enabled||candidate.expires<=Date.now()/1000)throw new Error('Primero verifica una versión disponible');
-      if(!confirm(`¿Instalar el bot ${candidate.version}, revisión ${candidate.commit}? El motor PAPER se reiniciará y se recuperará la versión anterior si falla el arranque.`))return;
+      if(!confirm(`¿Instalar el bot ${candidate.version}, revisión ${candidate.commit}? El motor activo se reiniciará y se recuperará la versión anterior si falla el arranque.`))return;
       const body={action:'update_install',request_id:crypto.randomUUID(),release_id:candidate.release_id};
       await portalRequest('/v1/jobs',body);submitted=true;portalCacheAt=0;
       output.textContent='Solicitud enviada. El resultado aparecerá en las solicitudes remotas.';
@@ -308,7 +308,7 @@ document.addEventListener('DOMContentLoaded',()=>{
       const state=await portalState();
       const offer=state.snapshot?.bot_restore;
       if(state.stale||!offer?.enabled||(state.jobs||[]).some(j=>['pending','running'].includes(j.status)))throw new Error('Windows aún no ofrece una versión anterior verificable');
-      if(!confirm(`¿Restaurar el código del bot de ${offer.current_version} a ${offer.version}? El motor PAPER se reiniciará. Se conservarán los saldos y las operaciones actuales.`))return;
+      if(!confirm(`¿Restaurar el código del bot de ${offer.current_version} a ${offer.version}? El motor activo se reiniciará. Se conservarán los saldos y las operaciones actuales.`))return;
       await portalRequest('/v1/jobs',{action:'update_restore',request_id:crypto.randomUUID(),release_id:offer.restore_id});
       submitted=true;
       portalCacheAt=0;
