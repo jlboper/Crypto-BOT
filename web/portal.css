@@ -247,3 +247,8 @@ select,input{min-width:0}
 @media(max-width:390px){
   .futures-metrics{grid-template-columns:1fr}
 }
+
+.futures-status{
+  margin:0!important;padding:11px 12px;border:1px solid #294255;border-radius:10px;
+  background:#0a1822;color:#a9c4d4!important;font-size:.78rem;line-height:1.5!important;
+}
