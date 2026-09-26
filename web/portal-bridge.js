@@ -19,7 +19,7 @@ function setPortalBusy(id,busy,label){
   }
 }
 window.portalButtonBusy=id=>portalBusyButtons.has(id);
-const portalRoute = {'/api/status':'status','/api/positions':'positions','/api/trades':'trades','/api/ai-reviews':'reviews','/api/equity':'equity','/api/events':'events','/api/research':'research','/api/research/status':'research_state','/api/updates':'updates','/api/paper-scorecard':'paper_scorecard'};
+const portalRoute = {'/api/status':'status','/api/positions':'positions','/api/trades':'trades','/api/ai-reviews':'reviews','/api/equity':'equity','/api/events':'events','/api/research':'research','/api/research/status':'research_state','/api/updates':'updates','/api/paper-scorecard':'paper_scorecard','/api/futures-forward':'futures_forward'};
 async function portalPasswordProof(password,parameters){
   if(parameters.scheme==='initial-key')return password;
   if(parameters.scheme!=='pbkdf2-sha256'||parameters.iterations!==600000||!/^[A-Za-z0-9_-]{43}$/.test(parameters.salt||''))throw new Error('Parámetros de acceso inválidos');
@@ -49,7 +49,7 @@ async function portalRequest(path,body){
   if(!response.ok){if(response.status===401)portalLocked();throw new Error(data.error||'Error de conexión');}
   return data;
 }
-const activityActions={research:'Evaluar estrategias',update_check:'Buscar actualización',update_install:'Actualizar bot',update_restore:'Restaurar bot',kill:'Pausar bot',resume:'Reanudar bot',risk_profile:'Perfil de riesgo',paper_close:'Cerrar posición',ai_model:'Cambiar modelo IA',restart_engine:'Reiniciar motor',execution_mode:'Cambiar entorno',testnet_smoke:'Prueba Spot Testnet',futures_testnet_check:'Verificar Futures',futures_testnet_smoke:'Prueba Futures',futures_testnet_reconcile:'Reconciliar Futures',testnet_buy:'Comprar Testnet',testnet_close:'Cerrar Testnet',testnet_reconcile:'Conciliar Testnet',testnet_audit:'Comprobar Testnet en Binance'};
+const activityActions={research:'Evaluar estrategias',update_check:'Buscar actualización',update_install:'Actualizar bot',update_restore:'Restaurar bot',kill:'Pausar bot',resume:'Reanudar bot',risk_profile:'Perfil de riesgo',paper_close:'Cerrar posición',ai_model:'Cambiar modelo IA',restart_engine:'Reiniciar motor',execution_mode:'Cambiar entorno',testnet_smoke:'Prueba Spot Testnet',futures_testnet_check:'Verificar Futures',futures_testnet_smoke:'Prueba Futures',futures_testnet_reconcile:'Reconciliar Futures',futures_forward_pause:'Pausar Futures automático',futures_forward_resume:'Reanudar Futures automático',testnet_buy:'Comprar Testnet',testnet_close:'Cerrar Testnet',testnet_reconcile:'Conciliar Testnet',testnet_audit:'Comprobar Testnet en Binance'};
 const activityStatuses={pending:'Pendiente',applied:'Confirmado por Windows',expired:'Vencido',superseded:'Sustituido',running:'En curso',completed:'Completado',failed:'Falló'};
 function renderActivity(list,items){
   for(const item of items){
@@ -129,7 +129,7 @@ window.portalApi=async(path,options={})=>{
     return response.json();
   }
   if(options.method==='POST'){
-    if(['/api/paper/risk-profile','/api/paper/close-position','/api/operations/model','/api/operations/restart','/api/operations/execution-mode','/api/operations/testnet-smoke','/api/operations/futures-check','/api/operations/futures-smoke','/api/operations/futures-reconcile'].includes(path)){
+    if(['/api/paper/risk-profile','/api/paper/close-position','/api/operations/model','/api/operations/restart','/api/operations/execution-mode','/api/operations/testnet-smoke','/api/operations/futures-check','/api/operations/futures-smoke','/api/operations/futures-reconcile','/api/operations/futures-forward-pause','/api/operations/futures-forward-resume'].includes(path)){
       const state=await portalState(true);
       if(state.stale||state.snapshot?.paper_controls!==true)throw new Error('Controles del motor pendientes de conexión de Windows');
       if((path.startsWith('/api/operations/'))&&state.snapshot?.operations_controls!==true)throw new Error('Actualiza y repara el agente de Windows antes de usar esta opción');
@@ -138,7 +138,7 @@ window.portalApi=async(path,options={})=>{
       const result=await portalRequest('/v1/paper-controls',{
         action:({
           '/api/paper/risk-profile':'risk_profile','/api/paper/close-position':'paper_close',
-          '/api/operations/model':'ai_model','/api/operations/restart':'restart_engine','/api/operations/execution-mode':'execution_mode','/api/operations/testnet-smoke':'testnet_smoke','/api/operations/futures-check':'futures_testnet_check','/api/operations/futures-smoke':'futures_testnet_smoke','/api/operations/futures-reconcile':'futures_testnet_reconcile'
+          '/api/operations/model':'ai_model','/api/operations/restart':'restart_engine','/api/operations/execution-mode':'execution_mode','/api/operations/testnet-smoke':'testnet_smoke','/api/operations/futures-check':'futures_testnet_check','/api/operations/futures-smoke':'futures_testnet_smoke','/api/operations/futures-reconcile':'futures_testnet_reconcile','/api/operations/futures-forward-pause':'futures_forward_pause','/api/operations/futures-forward-resume':'futures_forward_resume'
         })[path],payload,request_id:crypto.randomUUID()});
       portalCacheAt=0;return result;
     }
@@ -199,7 +199,9 @@ document.addEventListener('DOMContentLoaded',()=>{
       path.endsWith('testnet-smoke')?'testTestnetExecution':
       path.endsWith('futures-check')?'checkFuturesTestnet':
       path.endsWith('futures-smoke')?'testFuturesExecution':
-      path.endsWith('futures-reconcile')?'reconcileFutures':'restartMotor';
+      path.endsWith('futures-reconcile')?'reconcileFutures':
+      path.endsWith('futures-forward-pause')?'pauseFuturesForward':
+      path.endsWith('futures-forward-resume')?'resumeFuturesForward':'restartMotor';
     const futures=path.includes('/futures-');
     const button=document.getElementById(buttonId);
     const message=document.getElementById(futures?'futuresMessage':'modelSettingsMessage');
@@ -268,6 +270,14 @@ document.addEventListener('DOMContentLoaded',()=>{
   document.getElementById('reconcileFutures').onclick=()=>operationalAction(
     '/api/operations/futures-reconcile',{},
     '¿Reconciliar una prueba Futures pendiente y cerrar únicamente su posición técnica con reduceOnly si todavía existe?'
+  );
+  document.getElementById('pauseFuturesForward').onclick=()=>operationalAction(
+    '/api/operations/futures-forward-pause',{},
+    '¿Pausar nuevas decisiones del motor automático Futures Demo? Spot Testnet seguirá funcionando y una posición Futures abierta conservará su protección.'
+  );
+  document.getElementById('resumeFuturesForward').onclick=()=>operationalAction(
+    '/api/operations/futures-forward-resume',{},
+    '¿Reanudar el forward test automático de BTCUSDT Futures Demo a 1x?'
   );
   let nextHistoryPage=0,historyBusy=false;
   async function loadHistory(reset=false){
