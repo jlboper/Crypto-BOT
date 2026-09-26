@@ -207,3 +207,16 @@ La siguiente fase debe comenzar solo tras revisar resultados fuera de muestra, c
 - La cantidad inicial es 0.001 BTC, validada con `/order/test`, y la entrada se bloquea si su notional supera el presupuesto automático configurado.
 - Las protecciones de Futures se revisan durante los ticks de protección aunque se pausen nuevas entradas Futures.
 - Ninguna métrica de Testnet autoriza automáticamente LIVE. La evaluación de dinero real es una decisión posterior y separada.
+
+
+## Observación dual 0.8.0
+
+El portal presenta **Spot Testnet** y **Futures Demo** como dos motores de observación separados. PAPER permanece disponible únicamente dentro de respaldo técnico/CI para no mezclarlo con la operación diaria.
+
+Futures Demo registra días observados, ciclos, cierres, P&L bruto, porcentaje de aciertos, drawdown, errores consecutivos, última señal y última confirmación IA. Un kill switch independiente detiene nuevas decisiones Futures sin detener Spot. Windows conserva inicio automático y un watchdog con backoff que intenta recuperar el motor tras una caída inesperada, pero no durante una actualización firmada.
+
+Las escrituras inciertas de Futures se registran antes de enviarse y se consultan por clientOrderId al volver la conexión o después de un reinicio. Si una apertura confirmada quedó entre el exchange y el commit local, el forward test reconstruye su posición desde Binance y el plan durable. Si un cierre confirmado quedó pendiente, concilia el resultado sin reenviar la orden.
+
+**Límite importante:** este piloto todavía no coloca stops/targets nativos persistentes en el exchange. Durante una caída completa de Internet o energía, una posición Futures abierta sigue existiendo en Binance Demo y se vuelve a conciliar cuando Windows regresa, pero la protección local no puede actuar mientras la PC está desconectada. Por eso Binance LIVE continúa bloqueado y este punto es una puerta obligatoria antes de considerar capital real.
+
+En `http://127.0.0.1:8765`, el centro de actualizaciones puede buscar, verificar e iniciar directamente una instalación firmada mediante el supervisor independiente de Windows; ya no necesita abrir el portal remoto para instalar.
