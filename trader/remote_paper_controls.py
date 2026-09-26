@@ -95,15 +95,25 @@ class RemotePaperControls:
                 else:
                     if response.get('ok') is not True:
                         raise ValueError('Unconfirmed trading response')
-                    message = ({'risk_profile': 'Perfil de riesgo aplicado: ' + response.get('profile',''),
-                            'paper_close': 'Posición cerrada en ' + response.get('mode','').upper() + ': ' + response.get('symbol',''),
-                            'ai_model': 'Modelo activo: ' + response.get('model',''),
-                            'restart_engine': 'Motor reiniciado y verificado',
-                            'execution_mode': 'Entorno activo: ' + response.get('mode','').upper(),
-                            'testnet_smoke': 'Prueba Spot Testnet completada · BUY y SELL conciliados',
-                            'futures_testnet_check': 'Futures Testnet verificado · cuenta y margen disponibles',
-                            'futures_testnet_smoke': 'Prueba Futures Testnet completada · apertura y cierre reduceOnly conciliados',
-                            'futures_testnet_reconcile': 'Futures Testnet reconciliado · posición técnica cerrada'}[action])
+                    futures = response.get('futures_testnet') if isinstance(response.get('futures_testnet'), dict) else {}
+                    liquidation = futures.get('liquidation_price')
+                    messages = {
+                        'risk_profile': 'Perfil de riesgo aplicado: ' + response.get('profile',''),
+                        'paper_close': 'Posición cerrada en ' + response.get('mode','').upper() + ': ' + response.get('symbol',''),
+                        'ai_model': 'Modelo activo: ' + response.get('model',''),
+                        'restart_engine': 'Motor reiniciado y verificado',
+                        'execution_mode': 'Entorno activo: ' + response.get('mode','').upper(),
+                        'testnet_smoke': 'Prueba Spot Testnet completada · BUY y SELL conciliados',
+                        'futures_testnet_check': 'Futures Testnet verificado · disponible '
+                            + str(round(float(futures.get('available_balance',0)),2)) + ' USDT · '
+                            + str(futures.get('open_positions',0)) + ' posiciones abiertas',
+                        'futures_testnet_smoke': 'Futures ' + str(futures.get('direction','')) + ' '
+                            + str(futures.get('leverage','')) + 'x · ' + str(futures.get('symbol',''))
+                            + ' · apertura/cierre reduceOnly conciliados'
+                            + ((' · liq ' + str(round(float(liquidation),2))) if liquidation is not None else ''),
+                        'futures_testnet_reconcile': 'Futures Testnet reconciliado · posición técnica cerrada',
+                    }
+                    message = messages[action]
                     status = 'completed'
             temp = record.with_suffix('.tmp')
             with temp.open('w', encoding='utf-8') as handle:
