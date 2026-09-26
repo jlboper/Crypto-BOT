@@ -48,8 +48,8 @@ def _safe_failure(error: Exception) -> str:
         return 'LOCAL_ENV_UNAVAILABLE'
     if message == 'Testnet smoke test requires TESTNET mode':
         return 'TESTNET_SMOKE_REQUIRES_TESTNET'
-    if message == 'Testnet smoke test requires no open positions':
-        return 'TESTNET_SMOKE_POSITIONS_OPEN'
+    if message == 'Testnet smoke test found no isolated symbol':
+        return 'TESTNET_SMOKE_NO_ISOLATED_SYMBOL'
     if message == 'Testnet smoke test requires no pending order':
         return 'TESTNET_SMOKE_PENDING_ORDER'
     if message == 'Testnet smoke allocation too small':
