@@ -52,7 +52,7 @@ def _execution_file(source: Path, mode: str) -> None:
 
 def execute(source: Path, action: str, payload: dict) -> dict:
     source = source.resolve(strict=True)
-    if not isinstance(payload, dict) or action not in {'ai_model', 'restart_engine', 'execution_mode', 'testnet_smoke', 'futures_testnet_check', 'futures_testnet_smoke', 'futures_testnet_reconcile'}:
+    if not isinstance(payload, dict) or action not in {'ai_model', 'restart_engine', 'execution_mode', 'testnet_smoke', 'futures_testnet_check', 'futures_testnet_smoke', 'futures_testnet_reconcile', 'futures_forward_pause', 'futures_forward_resume'}:
         raise ValueError('Unknown operational control')
     if action == 'ai_model':
         if set(payload) != {'model'} or payload['model'] not in MODELS:
@@ -60,7 +60,7 @@ def execute(source: Path, action: str, payload: dict) -> dict:
     elif action == 'execution_mode':
         if set(payload) != {'mode'} or payload['mode'] not in EXECUTION_MODES:
             raise ValueError('Unknown execution mode')
-    elif action in {'restart_engine', 'testnet_smoke', 'futures_testnet_check', 'futures_testnet_reconcile'} and payload:
+    elif action in {'restart_engine', 'testnet_smoke', 'futures_testnet_check', 'futures_testnet_reconcile', 'futures_forward_pause', 'futures_forward_resume'} and payload:
         raise ValueError('Operational action does not accept parameters')
     elif action == 'futures_testnet_smoke':
         if set(payload) != {'direction','leverage'} or payload['direction'] not in {'LONG','SHORT'} or payload['leverage'] not in {1,2,3}:
@@ -75,6 +75,22 @@ def execute(source: Path, action: str, payload: dict) -> dict:
         from .futures_testnet import FuturesTestnetLab
         return {'ok': True, 'futures_testnet': FuturesTestnetLab(config.futures_testnet).check(),
                 'model': config.ai.model, 'mode': config.bot.mode}
+    if action in {'futures_forward_pause','futures_forward_resume'}:
+        if config.bot.mode != 'testnet':
+            raise ValueError('Futures forward test requires Spot TESTNET motor mode')
+        kill = config.futures_testnet.kill_switch_path
+        kill.parent.mkdir(parents=True, exist_ok=True)
+        if action == 'futures_forward_pause':
+            if not kill.exists():
+                kill.write_text('owner pause\n', encoding='utf-8')
+            paused = True
+        else:
+            kill.unlink(missing_ok=True)
+            paused = False
+        return {'ok': True, 'mode': config.bot.mode, 'futures_forward': {
+            'enabled': config.futures_testnet.forward_enabled, 'paused': paused,
+            'symbol': config.futures_testnet.forward_symbol, 'automatic_leverage': 1,
+        }}
     data = config.bot.database_path.parent
     control = RuntimeControl(data)
     with (source / 'pyproject.toml').open('rb') as stream:
