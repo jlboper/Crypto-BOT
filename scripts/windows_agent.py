@@ -28,10 +28,7 @@ def source_settings(source):
         if not path.is_relative_to(source) or path == source:
             raise ValueError("Source paths must remain within the selected installation")
         return path
-    database = confined(raw["bot"]["database_path"])
     kill = confined(raw["bot"]["kill_switch_path"])
-    if not database.is_file():
-        raise ValueError("Existing database required; no database will be created")
     config = load_config(source / "config.toml")
     model = str(raw["ai"]["model"])
     execution_mode = str(raw["bot"]["mode"]).lower()
@@ -53,6 +50,11 @@ def source_settings(source):
             break
     if execution_mode not in {"paper", "testnet"}:
         raise ValueError("Unsupported execution override")
+    database_setting = (raw["bot"].get("testnet_database_path", "data/testnet-trader.db")
+                        if execution_mode == "testnet" else raw["bot"]["database_path"])
+    database = confined(database_setting)
+    if not database.is_file():
+        raise ValueError("Existing active database required; no database will be created")
     return replace(config, bot=replace(config.bot, mode=execution_mode, database_path=database, kill_switch_path=kill),
                    ai=replace(config.ai, model=model))
 
@@ -174,7 +176,8 @@ def main():
     def validate():
         raw = tomllib.loads((args.source / "config.toml").read_text(encoding="utf-8"))
         refreshed = source_settings(args.source)
-        if ((args.source / raw["bot"]["database_path"]).resolve() != refreshed.bot.database_path
+        expected_database = raw["bot"].get("testnet_database_path", "data/testnet-trader.db") if refreshed.bot.mode == "testnet" else raw["bot"]["database_path"]
+        if ((args.source / expected_database).resolve() != refreshed.bot.database_path
                 or (args.source / raw["bot"]["kill_switch_path"]).resolve() != refreshed.bot.kill_switch_path):
             raise ValueError("Source paths changed; restart after review")
     last_success = None
