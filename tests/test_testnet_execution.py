@@ -95,6 +95,45 @@ class ExecutionTests(unittest.TestCase):
             with self.assertRaisesRegex(TestnetExecutionError,'per UTC day'):
                 execute(self.source,'testnet_buy',{})
 
+    def test_closed_round_trip_requires_signed_read_only_audit_for_verified_status(self):
+        placed = {}
+        def request(method, endpoint, fields):
+            if endpoint == '/api/v3/account':
+                return {'balances':[{'asset':'USDT','free':'975','locked':'0'},
+                                    {'asset':'BTC','free':'0' if any(x['side']=='SELL' for x in placed.values()) else '0.24','locked':'0'}]}
+            if method == 'POST':
+                response = {'symbol':'BTCUSDT','clientOrderId':fields['newClientOrderId'],
+                            'side':fields['side'],'status':'FILLED', 'executedQty':'0.24',
+                            'cummulativeQuoteQty':'25' if fields['side']=='BUY' else '24.9'}
+                placed[fields['newClientOrderId']] = response
+                return response
+            found = placed[fields['origClientOrderId']]
+            return {**found, 'executedQty':format(float(found['executedQty']),'.8f')}
+        with patch('trader.config.load_config',return_value=self.config), \
+             patch('trader.testnet_execution.BinanceClient') as client, \
+             patch('trader.testnet_execution._signed',side_effect=request) as signed:
+            client.return_value.testnet_symbol_info.return_value=self.info
+            client.return_value.testnet_reference_price.return_value=100.
+            self.assertEqual(execute(self.source,'testnet_buy',{})['status'],'FILLED')
+            self.assertFalse(public_status(self.source)['can_buy'])
+            self.assertTrue(public_status(self.source)['can_close'])
+            execute(self.source,'testnet_close',{})
+            before = public_status(self.source)
+            self.assertEqual(before['position_qty'],'0.00')
+            self.assertEqual(before['closed_cycles'],1)
+            self.assertEqual(before['gross_closed_quote_usdt'],'-0.1')
+            self.assertFalse(before['can_close'])
+            self.assertFalse(before['can_buy'])  # One buy per UTC day.
+            signed.reset_mock()
+            audit = execute(self.source,'testnet_audit',{})
+            self.assertEqual(audit['status'],'verified')
+            self.assertEqual(audit['orders_checked'],2)
+            self.assertTrue(all(call.args[0]=='GET' for call in signed.call_args_list))
+            self.assertEqual(public_status(self.source)['audit']['status'],'verified')
+            placed[next(iter(placed))] = {**placed[next(iter(placed))], 'executedQty':'0.23'}
+            self.assertEqual(execute(self.source,'testnet_audit',{})['status'],'requires_review')
+            self.assertFalse(public_status(self.source)['can_buy'] or public_status(self.source)['can_close'])
+
 
 if __name__=='__main__':
     unittest.main()

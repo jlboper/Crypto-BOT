@@ -1,5 +1,13 @@
 # Bot updates: implementation and deployment status
 
+Version 0.6.19 prepares six PAPER-only size controls, preserves old stored
+risk multipliers, and adds a bounded read-only Binance Spot Testnet order and
+balance audit for the completed fictional-funds round trip. The Testnet portal
+uses derived ledger state to disable duplicate buy/sell controls; the installed
+engine remains PAPER and no strategy automatically sends Testnet orders.
+Publication and Windows installation remain pending until their actual GitHub
+workflow and signed update are independently confirmed.
+
 Version 0.6.18 prepares automatic refresh of the independent Windows agent
 from a committed signed installation when the 0.6.18 app starts, following
 a local update, or when it detects a remote portal installation while running.

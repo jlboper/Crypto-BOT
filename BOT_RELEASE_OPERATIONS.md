@@ -112,6 +112,17 @@ installed still runs its old code until the app is reopened once; reopening it
 enables the automatic check for future releases. No new trading process is
 started by agent refresh.
 
+Version 0.6.19 adds six selectable PAPER risk fractions below or equal to the
+configured base limit. It also offers **Options → Binance Testnet → Comprobar
+órdenes y saldo en Binance** to verify up to ten owned Testnet order identifiers
+and read BTC/USDT balances without posting orders. A mismatch marks the local
+Testnet record for review and blocks further buys and closes until a new signed
+audit resolves it. Result figures for completed round trips are gross USDT
+quote differences, not net returns: the earlier order ledger did not record
+all commission assets. The account may contain BTC unrelated to this trial;
+its total balance is not proof of the trial's owned position. A new release
+does not automatically arm any Testnet strategy or authorize production trading.
+
 ## One-time Windows transition
 
 The original v0.6.2 engine does not support cooperative maintenance. Preserve it

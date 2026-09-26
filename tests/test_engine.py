@@ -17,13 +17,13 @@ class EngineTests(unittest.TestCase):
                                                 kill_switch_path=Path(folder)/'kill'))
             engine = TradingEngine(config)
             signal = Signal('BTCUSDT','BUY',80,100,95,110,2,60,101,99,1.3,'synthetic','now')
-            normal = engine._position_size(signal,1000,1000,0,1)
-            engine.db.set_setting('paper_risk_profile','prudente')
-            cautious = engine._position_size(signal,1000,1000,0,1)
-            engine.db.set_setting('paper_risk_profile','minimo')
-            minimum = engine._position_size(signal,1000,1000,0,1)
-            self.assertLess(minimum,cautious)
-            self.assertLess(cautious,normal)
+            sizes = []
+            for profile in ('minimo','leve','prudente','moderado','alto','normal'):
+                engine.db.set_setting('paper_risk_profile',profile)
+                sizes.append(engine._position_size(signal,1000,1000,0,1))
+            self.assertEqual(sizes,sorted(sizes))
+            self.assertEqual(len(set(sizes)),6)
+            self.assertLessEqual(sizes[-1]*signal.price, 150)  # Existing 15% cap.
             engine.db.set_setting('paper_risk_profile','unexpected')
             self.assertEqual(engine._position_size(signal,1000,1000,0,1),0)
 

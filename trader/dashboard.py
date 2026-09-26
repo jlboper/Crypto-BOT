@@ -129,7 +129,7 @@ class DashboardServer:
                     self._json({"error": "origin not allowed"}, HTTPStatus.FORBIDDEN)
                     return
                 testnet_routes = {'/api/testnet/buy':'testnet_buy', '/api/testnet/close':'testnet_close',
-                                  '/api/testnet/reconcile':'testnet_reconcile'}
+                                  '/api/testnet/reconcile':'testnet_reconcile', '/api/testnet/audit':'testnet_audit'}
                 if path in {"/api/operations/model", "/api/operations/restart", *testnet_routes}:
                     try:
                         if self.headers.get('Content-Type', '').split(';', 1)[0].strip() != 'application/json':

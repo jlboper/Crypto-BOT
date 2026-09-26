@@ -22,17 +22,25 @@ async function refreshTestnet(){
     const last=state.orders?.at(-1);
     label.textContent=last?`Última orden ${last.side==='BUY'?'compra':'venta'} ${last.symbol}: ${last.status} · ejecutado ${last.executed_qty??'pendiente'} BTC · ${last.created_day}.`:
       'Sin operaciones de Testnet registradas. La primera entrada se realizará solo tras tu confirmación.';
-    const uncertain=state.orders?.some(row=>!['FILLED','CANCELED','REJECTED','EXPIRED','EXPIRED_IN_MATCH'].includes(row.status));
-    document.getElementById('testnetBuy').disabled=!!uncertain;
-    document.getElementById('testnetClose').disabled=!!uncertain||!state.orders?.some(row=>row.side==='BUY'&&Number(row.executed_qty)>0);
-    document.getElementById('testnetReconcile').disabled=!uncertain;
-  }catch(error){label.textContent='Testnet pendiente de sincronización: '+error.message;}
+    const summary=document.getElementById('testnetEvidence');
+    const position=Number(state.position_qty||0),gross=state.gross_closed_quote_usdt;
+    const audit=state.audit;
+    summary.textContent=state.position_qty==null?state.next_step:
+      `Posición registrada: ${num(position,8)} BTC · ${state.closed_cycles} vuelta(s) cerrada(s) · variación bruta cerrada: ${gross==null?'—':Number(gross).toFixed(4)+' USDT'} (comisiones no verificadas). `+
+      (audit?`Binance: ${audit.status==='verified'?'órdenes verificadas':'REVISAR DIFERENCIA'} · saldo libre BTC ${audit.balances?.BTC?.free??'—'}, USDT ${audit.balances?.USDT?.free??'—'} · ${shortTime(audit.checked_at*1000)}.`:'Pulsa «Comprobar órdenes y saldo en Binance» para validar el registro local.');
+    document.getElementById('testnetBuy').disabled=state.can_buy!==true||audit?.status==='requires_review';
+    document.getElementById('testnetClose').disabled=state.can_close!==true||audit?.status==='requires_review';
+    document.getElementById('testnetReconcile').disabled=state.needs_reconciliation!==true;
+    document.getElementById('testnetAudit').disabled=state.needs_reconciliation===true;
+  }catch(error){label.textContent='Testnet pendiente de sincronización: '+error.message;
+    for(const id of ['testnetBuy','testnetClose','testnetReconcile','testnetAudit'])document.getElementById(id).disabled=true;}
 }
 window.addEventListener('testnet-open',refreshTestnet);
 for(const [id,path,question] of [
   ['testnetBuy','/api/testnet/buy','¿Enviar una compra de BTC/USDT por exactamente 25 USDT de prueba a Binance Spot Testnet? Esta orden sí se ejecutará con fondos ficticios de Testnet.'],
   ['testnetClose','/api/testnet/close','¿Vender en Binance Spot Testnet el BTC adquirido en la última compra de prueba?'],
-  ['testnetReconcile','/api/testnet/reconcile','¿Consultar a Binance Spot Testnet el resultado de la orden pendiente? No reenviará la orden.']]){
+  ['testnetReconcile','/api/testnet/reconcile','¿Consultar a Binance Spot Testnet el resultado de la orden pendiente? No reenviará la orden.'],
+  ['testnetAudit','/api/testnet/audit','¿Comprobar en Binance Spot Testnet las últimas órdenes y los saldos BTC/USDT? Es una consulta, no envía órdenes.']]){
   document.getElementById(id).addEventListener('click',async event=>{
     if(!confirm(question))return;
     const startedAt=Date.now()/1000;
@@ -287,10 +295,14 @@ async function refresh() {
     const risk=status.risk||{};
     const riskName=status.paper_risk_profile||'normal';
     const profileSelect=document.getElementById('riskProfile');
-    if(['minimo','prudente','normal'].includes(riskName))profileSelect.value=riskName;
+    if(['minimo','leve','prudente','moderado','alto','normal'].includes(riskName))profileSelect.value=riskName;
     document.getElementById('saveRiskProfile').disabled=!paperControlsAvailable();
+    const riskLevels={minimo:['Mínimo',.25],leve:['Leve',.35],prudente:['Prudente',.5],moderado:['Moderado',.65],alto:['Alto',.85],normal:['Muy alto',1]};
+    const riskSelected=riskLevels[riskName];
+    const riskBudget=Number(risk.risk_per_trade_pct);
+    const riskDescription=riskSelected?`${riskSelected[0]} · ${Number.isFinite(riskBudget)?(100*riskBudget*riskSelected[1]).toFixed(3)+'% del capital en pérdida estimada por operación':'presupuesto reducido'}`:'Perfil inválido: nuevas entradas bloqueadas';
     document.getElementById('riskProfileNote').textContent=paperControlsAvailable()?
-      `Actual: ${riskName}. El cambio afecta nuevas entradas PAPER; los topes de posición y exposición no aumentan.`:
+      `Actual: ${riskDescription}. El cambio afecta nuevas entradas PAPER; los topes de posición y exposición no aumentan.`:
       'Esperando conexión y controles PAPER de Windows.';
     const effectiveRisk={...risk,risk_per_trade_pct:Number(risk.risk_per_trade_pct)*({minimo:.25,prudente:.5,normal:1}[riskName]??0)};
     for(const [id,key] of [['riskTrade','risk_per_trade_pct'],['riskPosition','max_position_pct'],['riskExposure','max_total_exposure_pct'],['riskDaily','daily_loss_limit_pct'],['riskWeekly','weekly_loss_limit_pct']]){

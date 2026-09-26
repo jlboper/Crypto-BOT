@@ -1,4 +1,10 @@
-# Actualización 0.6.18 — sincronización automática de la conexión del portal
+# Actualización 0.6.19 — seis niveles y evidencia Binance Spot Testnet
+
+- Seis niveles para el tamaño de nuevas entradas PAPER: Mínimo 25%, Leve 35%, Prudente 50%, Moderado 65%, Alto 85% y Muy alto 100% del límite configurado. Los valores guardados anteriormente para Mínimo, Prudente y Normal conservan exactamente su significado; «Muy alto» muestra el límite que antes se llamaba «Normal». No aumenta el riesgo base ni el límite de exposición.
+- El panel Testnet distingue posición abierta, una entrada ya realizada en el día UTC, conciliación pendiente y vueltas completas. Solo habilita comprar o cerrar cuando el registro permite esa operación. Muestra variación **bruta** de vueltas cerradas, sin afirmar rentabilidad neta cuando no están verificadas las comisiones.
+- «Comprobar órdenes y saldo en Binance» consulta el resultado de hasta diez órdenes propias y los saldos BTC/USDT en Spot Testnet; señala diferencias respecto al registro local y bloquea nuevas operaciones si detecta una. La consulta no envía órdenes. El ensayo sigue siendo manual: ninguna estrategia envía operaciones automáticamente ni utiliza Binance de producción.
+
+## Actualización anterior 0.6.18 — sincronización automática de la conexión del portal
 
 - La app comprueba la instalación firmada al abrirse, después de un update local y cuando detecta uno remoto mientras sigue abierta. Si los módulos del agente independiente cambiaron, los respalda y reinicia únicamente su tarea.
 - La actualización conserva «Reparar conexión del portal» como recuperación. Nunca reanuda un agente detenido intencionalmente ni reinicia el motor de trading por este motivo.

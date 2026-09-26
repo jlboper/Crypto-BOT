@@ -21,7 +21,7 @@ def main():
     config = source_settings(ROOT)
     if (config.bot.database_path.parent / 'UPDATE_MAINTENANCE.json').exists():
         raise ValueError('Update maintenance in progress')
-    if request['action'] in {'testnet_buy', 'testnet_close', 'testnet_reconcile'}:
+    if request['action'] in {'testnet_buy', 'testnet_close', 'testnet_reconcile', 'testnet_audit'}:
         from trader.testnet_execution import execute as testnet_execute
         result = testnet_execute(ROOT, request['action'], request['payload'])
     elif request['action'] in {'ai_model', 'restart_engine'}:
@@ -29,7 +29,7 @@ def main():
         result = operational_control(ROOT, request['action'], request['payload'])
     else:
         result = execute(config, Database(config.bot.database_path), request['action'], request['payload'])
-    if request['action'] in {'ai_model','restart_engine','testnet_buy','testnet_close','testnet_reconcile'}:
+    if request['action'] in {'ai_model','restart_engine','testnet_buy','testnet_close','testnet_reconcile','testnet_audit'}:
         atomic_json(ROOT / 'data/operation-last.json', {'action': request['action'],
                     'status': 'completed', 'at': time.time(), 'result': result})
     print(json.dumps(result, allow_nan=False))
