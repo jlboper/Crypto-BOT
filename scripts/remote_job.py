@@ -37,13 +37,19 @@ def main():
                 return
             manager=UpdateManager(args.source,key,state_dir=ROOT/'data/remote-updates')
             settings = json.loads(channel.read_text())
-            staged = manager.stage(settings['manifest_url'])
+            staged = manager.stage(settings['manifest_url'], allow_current=job['action']=='update_check')
             if job['action']=='update_install' and job.get('release_id') != staged['release_id']:
                 raise ValueError('Approved release differs from staged package')
             if job['action']=='update_check':
                 from trader.update_manager import atomic_json
-                atomic_json(ROOT/'data/verified-release.json', {key:staged[key] for key in ('version','release_id','sequence','expires','commit')})
-                jobs.finish(args.id,'completed','Paquete '+staged['version']+' verificado; identificación: '+staged['release_id']+'; instalación pendiente')
+                current_sequence = json.loads(manager.sequence.read_text())['sequence'] if manager.sequence.exists() else 0
+                candidate = ROOT/'data/verified-release.json'
+                if staged['sequence'] <= current_sequence:
+                    candidate.unlink(missing_ok=True)
+                    jobs.finish(args.id,'completed','Estás actualizado · bot '+staged['version']+' · firma verificada')
+                else:
+                    atomic_json(candidate, {key:staged[key] for key in ('version','release_id','sequence','expires','commit')})
+                    jobs.finish(args.id,'completed','Versión '+staged['version']+' verificada y lista para instalar')
             else:
                 if settings.get('supervised_install_enabled') is not True or args.source.resolve() == ROOT:
                     jobs.finish(args.id,'failed','Paquete verificado; instalación supervisada aún no aprovisionada')
