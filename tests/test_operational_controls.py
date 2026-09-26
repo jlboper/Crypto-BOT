@@ -1,4 +1,5 @@
 import json
+import os
 import tempfile
 import unittest
 from dataclasses import replace
@@ -95,7 +96,8 @@ class OperationalControlsTests(unittest.TestCase):
 
     def test_smoke_requires_testnet_before_maintenance(self):
         source, config, status = self._fixture("paper")
-        with patch("trader.operational_controls.load_config", return_value=config):
+        with patch.dict(os.environ, {"EXECUTION_MODE":"paper","OPENAI_MODEL":"gpt-6-luna"}, clear=False), \
+             patch("trader.operational_controls.load_config", return_value=config):
             with self.assertRaisesRegex(ValueError, "requires TESTNET"):
                 execute(source, "testnet_smoke", {})
         self.assertFalse((source/"data/UPDATE_MAINTENANCE.json").exists())
@@ -106,7 +108,8 @@ class OperationalControlsTests(unittest.TestCase):
         runtime = _Runtime(source, status, "testnet")
         db = _SmokeDB()
         broker = _Broker(db, config.paper, config.risk)
-        with patch("trader.operational_controls.load_config", return_value=config), \
+        with patch.dict(os.environ, {"EXECUTION_MODE":"testnet","OPENAI_MODEL":"gpt-6-luna"}, clear=False), \
+             patch("trader.operational_controls.load_config", return_value=config), \
              patch("trader.operational_controls.ProcessRuntime", return_value=runtime), \
              patch("trader.database.Database", return_value=db), \
              patch("trader.testnet_broker.BinanceTestnetBroker", return_value=broker), \
