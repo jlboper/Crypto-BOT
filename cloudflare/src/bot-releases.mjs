@@ -37,7 +37,7 @@ export async function authorizePublisher(token,origin,now,transport=fetch){
 export function validateManifest(m,claim,now){
   require(m&&typeof m==='object'&&!Array.isArray(m),'Invalid manifest');
   require(Object.keys(m).sort().join(',')==='app,commit,expires,files,mode,package_url,runtime_protocol,sequence,sha256,size,version','Invalid manifest fields');
-  require(m.app==='crypto-ai-trading-bot'&&m.mode==='paper'&&m.runtime_protocol===1,'Invalid runtime');
+  require(m.app==='crypto-ai-trading-bot'&&['paper','testnet'].includes(m.mode)&&m.runtime_protocol===1,'Invalid runtime');
   require(m.commit===claim.sha&&m.sequence===Number(claim.run_id)&&Number.isSafeInteger(m.sequence),'Revision mismatch');
   require(/^\d+\.\d+\.\d+$/.test(m.version)&&Number.isInteger(m.expires)&&m.expires>now&&m.expires<=now+15*86400,'Invalid release lifetime');
   require(m.package_url===`https://raw.githubusercontent.com/${repo}/bot-releases/packages/${m.commit}.zip`,'Invalid package destination');
