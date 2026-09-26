@@ -1,3 +1,13 @@
+# Actualización 0.8.7 — observabilidad e integridad de la muestra
+
+- Añade un panel **Salud de observación · 24 h** separado para Spot Testnet y Futures Demo.
+- Mide cobertura de ciclos contra el tiempo realmente observado, muestras esperadas, gap promedio y antigüedad del último ciclo sin penalizar un arranque reciente.
+- Spot resume errores/avisos, revisiones IA/rechazos, cierres y P&L realizado de las últimas 24 horas.
+- Futures resume continuidad, cierres/P&L, errores consecutivos y total de errores.
+- Añade comprobaciones locales de integridad: journal de órdenes pendiente, frescura de precios, límite de posiciones Spot y restricción de una posición Futures.
+- El panel clasifica la muestra como INICIANDO, ESTABLE, VIGILAR o ATENCIÓN para distinguir problemas operativos de resultados financieros.
+- No cambia señales, estrategia, riesgo, leverage, sizing, universo, IA, credenciales ni rutas LIVE. Es observabilidad únicamente.
+
 # Actualización 0.8.6 — puente de actualización remota
 
 - Release puente compatible con el updater instalado en 0.8.4: el paquete se publica temporalmente como `PAPER` y no incluye `config.toml`, evitando el `ValueError` del verificador antiguo.

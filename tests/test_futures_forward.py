@@ -1,5 +1,6 @@
 import tempfile
 import unittest
+from datetime import UTC, datetime, timedelta
 from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
@@ -115,6 +116,27 @@ class FuturesForwardTests(unittest.TestCase):
         self.assertEqual(self.engine.ledger.forward_position()["direction"], "LONG")
         self.assertIsNone(self.engine.ledger.setting("forward_pending_order"))
         self.assertIsNone(self.engine.ledger.setting("forward_open_plan"))
+
+    def test_observation_health_reports_cycle_coverage_and_pending_journal(self):
+        ledger = FuturesTestnetLedger(self.config.futures_testnet.database_path)
+        now = datetime(2026, 9, 26, 20, 0, tzinfo=UTC)
+        with ledger._connect() as db:
+            for minutes in (0, 15, 30, 45):
+                at = now - timedelta(minutes=45-minutes)
+                db.execute(
+                    "INSERT INTO forward_equity(wallet_balance,available_balance,unrealized_pnl,created_at) VALUES(?,?,?,?)",
+                    (5000.0, 5000.0, 0.0, at.isoformat()),
+                )
+        health = ledger.observation_health(900, now=now)
+        self.assertEqual(health["state"], "OK")
+        self.assertEqual(health["samples"], 4)
+        self.assertEqual(health["expected_samples"], 4)
+        self.assertEqual(health["cycle_coverage_pct"], 100.0)
+        self.assertTrue(health["integrity"]["order_journal_clear"])
+        ledger.set_setting("forward_pending_order", {"symbol": "BTCUSDT"})
+        pending = ledger.observation_health(900, now=now)
+        self.assertEqual(pending["state"], "ATTENTION")
+        self.assertFalse(pending["integrity"]["order_journal_clear"])
 
     def test_forward_ledger_is_separate_and_persistent(self):
         ledger = FuturesTestnetLedger(self.config.futures_testnet.database_path)

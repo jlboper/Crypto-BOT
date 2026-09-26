@@ -180,6 +180,21 @@
         </div>
       </article>
     </section>
+    <section class="panel observation-health" aria-label="Salud de observación últimas 24 horas">
+      <div class="panel-title">
+        <div><p class="eyebrow">SALUD DE OBSERVACIÓN · 24 H</p><h2>Calidad operativa de la muestra</h2></div>
+        <span id="observationHealthState" class="state neutral">CARGANDO</span>
+      </div>
+      <p id="observationHealthNote">Mide continuidad e integridad sin cambiar estrategia, riesgo ni ejecución.</p>
+      <div class="health-grid">
+        <article><div class="health-head"><h3>Spot Testnet</h3><span id="spotHealthState" class="state neutral">—</span></div><dl>
+          <div><dt>Cobertura de ciclos</dt><dd id="spotCycleCoverage">—</dd></div><div><dt>Muestras / esperadas</dt><dd id="spotCycleSamples">—</dd></div><div><dt>Gap promedio</dt><dd id="spotCycleGap">—</dd></div><div><dt>Errores / avisos</dt><dd id="spotDailyErrors">—</dd></div><div><dt>IA: revisiones / rechazos</dt><dd id="spotDailyAi">—</dd></div><div><dt>Cierres / P&amp;L</dt><dd id="spotDailyTrading">—</dd></div><div><dt>Integridad</dt><dd id="spotIntegrity">—</dd></div>
+        </dl></article>
+        <article><div class="health-head"><h3>Futures Demo</h3><span id="futuresHealthState" class="state neutral">—</span></div><dl>
+          <div><dt>Cobertura de ciclos</dt><dd id="futuresCycleCoverage">—</dd></div><div><dt>Muestras / esperadas</dt><dd id="futuresCycleSamples">—</dd></div><div><dt>Gap promedio</dt><dd id="futuresCycleGap">—</dd></div><div><dt>Errores consecutivos</dt><dd id="futuresDailyErrors">—</dd></div><div><dt>Cierres / P&amp;L</dt><dd id="futuresDailyTrading">—</dd></div><div><dt>Integridad</dt><dd id="futuresIntegrity">—</dd></div>
+        </dl></article>
+      </div>
+    </section>
     <section class="panel dual-observation" aria-label="Observación comparativa Spot y Futures">
       <div class="panel-title">
         <div><p class="eyebrow">FORWARD TEST · SEGUIMIENTO</p><h2>Comportamiento de ambos motores</h2></div>

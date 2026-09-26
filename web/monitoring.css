@@ -23,3 +23,15 @@
 .options-menu button{min-height:38px}
 @media(max-width:900px){.engine-workspace{grid-template-columns:1fr}.engine-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:520px){.engine-kpis{grid-template-columns:1fr}.engine-chart-head{align-items:flex-start;flex-direction:column}}
+
+/* v0.8.7 observation health */
+.observation-health{margin-top:16px}
+.health-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px}
+.health-grid>article{border:1px solid rgba(125,154,190,.16);border-radius:14px;padding:14px;background:rgba(9,18,31,.5)}
+.health-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}
+.health-head h3{margin:0}
+.health-grid dl{display:grid;gap:0;margin:0}
+.health-grid dl>div{display:flex;justify-content:space-between;gap:18px;padding:9px 0;border-top:1px solid rgba(125,154,190,.1)}
+.health-grid dt{color:#8194ae}
+.health-grid dd{margin:0;text-align:right;color:#e8f0fb;font-weight:600}
+@media(max-width:760px){.health-grid{grid-template-columns:1fr}.health-grid dl>div{align-items:flex-start}}
