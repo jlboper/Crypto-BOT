@@ -128,7 +128,7 @@ class DashboardServer:
                 if not self._same_origin():
                     self._json({"error": "origin not allowed"}, HTTPStatus.FORBIDDEN)
                     return
-                if path in {"/api/operations/model", "/api/operations/restart", "/api/operations/execution-mode"}:
+                if path in {"/api/operations/model", "/api/operations/restart", "/api/operations/execution-mode", "/api/operations/testnet-smoke"}:
                     try:
                         if self.headers.get('Content-Type', '').split(';', 1)[0].strip() != 'application/json':
                             raise ValueError('JSON required')
@@ -138,8 +138,11 @@ class DashboardServer:
                         payload = json.loads(self.rfile.read(length))
                         if not isinstance(payload, dict):
                             raise ValueError('Invalid request')
-                        action = 'ai_model' if path.endswith('/model') else ('execution_mode' if path.endswith('/execution-mode') else 'restart_engine')
-                        if (action == 'ai_model' and (set(payload) != {'model'} or payload['model'] not in {'gpt-5.6-luna','gpt-6-luna'})) or (action == 'execution_mode' and (set(payload) != {'mode'} or payload['mode'] not in {'paper','testnet'})) or (action == 'restart_engine' and payload):
+                        action = ('ai_model' if path.endswith('/model') else
+                                  'execution_mode' if path.endswith('/execution-mode') else
+                                  'testnet_smoke' if path.endswith('/testnet-smoke') else
+                                  'restart_engine')
+                        if (action == 'ai_model' and (set(payload) != {'model'} or payload['model'] not in {'gpt-5.6-luna','gpt-6-luna'})) or (action == 'execution_mode' and (set(payload) != {'mode'} or payload['mode'] not in {'paper','testnet'})) or (action in {'restart_engine','testnet_smoke'} and payload):
                             raise ValueError('Invalid operational request')
                         script = PROJECT_ROOT / 'scripts/execute_paper_control.py'
                         process = subprocess.Popen([sys.executable, '-I', '-B', str(script), str(PROJECT_ROOT)],
@@ -166,10 +169,10 @@ class DashboardServer:
                             "risk_profile" if path == "/api/paper/risk-profile" else "paper_close", data))
                         return
                     except ValueError:
-                        self._json({"error": "invalid or stale PAPER request"}, HTTPStatus.CONFLICT)
+                        self._json({"error": "invalid or stale trading request"}, HTTPStatus.CONFLICT)
                         return
                     except Exception:
-                        self._json({"error": "PAPER action unavailable; no confirmation"}, HTTPStatus.SERVICE_UNAVAILABLE)
+                        self._json({"error": "Trading action unavailable; no confirmation"}, HTTPStatus.SERVICE_UNAVAILABLE)
                         return
                 if path == "/api/kill":
                     outer.config.bot.kill_switch_path.parent.mkdir(parents=True, exist_ok=True)
