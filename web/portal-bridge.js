@@ -212,13 +212,13 @@ document.addEventListener('DOMContentLoaded',()=>{
   );
   document.getElementById('checkFuturesTestnet').onclick=()=>operationalAction(
     '/api/operations/futures-check',{},
-    '¿Verificar la cuenta separada de Binance USDⓈ-M Futures Testnet? Esta comprobación es de solo lectura.'
+    '¿Verificar la cuenta separada de Binance USDⓈ-M Futures Demo? Esta comprobación es de solo lectura.'
   );
   document.getElementById('testFuturesExecution').onclick=()=>{
     const direction=document.getElementById('futuresDirection').value;
     const leverage=Number(document.getElementById('futuresLeverage').value);
     operationalAction('/api/operations/futures-smoke',{direction,leverage},
-      `¿Probar ${direction} en Futures Testnet con ${leverage}x, margen ISOLATED y fondos ficticios? La posición se cerrará con reduceOnly y LIVE seguirá bloqueado.`);
+      `¿Probar ${direction} en Futures Demo con ${leverage}x, margen ISOLATED y fondos ficticios? La posición se cerrará con reduceOnly y LIVE seguirá bloqueado.`);
   };
   document.getElementById('reconcileFutures').onclick=()=>operationalAction(
     '/api/operations/futures-reconcile',{},
