@@ -34,6 +34,39 @@ class FuturesTestnetLedger:
                 created_at TEXT NOT NULL,
                 completed_at TEXT
             );
+            CREATE TABLE IF NOT EXISTS forward_position(
+                singleton INTEGER PRIMARY KEY CHECK(singleton=1),
+                symbol TEXT NOT NULL,
+                direction TEXT NOT NULL,
+                leverage INTEGER NOT NULL,
+                quantity REAL NOT NULL,
+                entry_price REAL NOT NULL,
+                stop_price REAL NOT NULL,
+                take_profit REAL NOT NULL,
+                liquidation_price REAL,
+                signal_score INTEGER NOT NULL,
+                opened_at TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS forward_trades(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                symbol TEXT NOT NULL,
+                direction TEXT NOT NULL,
+                leverage INTEGER NOT NULL,
+                quantity REAL NOT NULL,
+                entry_price REAL NOT NULL,
+                exit_price REAL NOT NULL,
+                gross_pnl REAL NOT NULL,
+                exit_reason TEXT NOT NULL,
+                opened_at TEXT NOT NULL,
+                closed_at TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS forward_equity(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                wallet_balance REAL NOT NULL,
+                available_balance REAL NOT NULL,
+                unrealized_pnl REAL NOT NULL,
+                created_at TEXT NOT NULL
+            );
             """)
     @contextmanager
     def _connect(self):
@@ -90,3 +123,85 @@ class FuturesTestnetLedger:
         with self._connect() as db:
             row = db.execute("SELECT * FROM smoke_runs ORDER BY id DESC LIMIT 1").fetchone()
         return dict(row) if row else None
+
+    def forward_position(self) -> dict | None:
+        with self._connect() as db:
+            row = db.execute("SELECT * FROM forward_position WHERE singleton=1").fetchone()
+        return dict(row) if row else None
+
+    def set_forward_position(self, position: dict | None) -> None:
+        with self._connect() as db:
+            if position is None:
+                db.execute("DELETE FROM forward_position WHERE singleton=1")
+            else:
+                db.execute(
+                    """INSERT INTO forward_position(
+                       singleton,symbol,direction,leverage,quantity,entry_price,stop_price,take_profit,
+                       liquidation_price,signal_score,opened_at
+                    ) VALUES(1,?,?,?,?,?,?,?,?,?,?)
+                    ON CONFLICT(singleton) DO UPDATE SET
+                       symbol=excluded.symbol,direction=excluded.direction,leverage=excluded.leverage,
+                       quantity=excluded.quantity,entry_price=excluded.entry_price,
+                       stop_price=excluded.stop_price,take_profit=excluded.take_profit,
+                       liquidation_price=excluded.liquidation_price,signal_score=excluded.signal_score,
+                       opened_at=excluded.opened_at""",
+                    (
+                        position["symbol"], position["direction"], int(position["leverage"]),
+                        float(position["quantity"]), float(position["entry_price"]),
+                        float(position["stop_price"]), float(position["take_profit"]),
+                        position.get("liquidation_price"), int(position["signal_score"]),
+                        position["opened_at"],
+                    ),
+                )
+            db.commit()
+
+    def close_forward_position(self, *, exit_price: float, gross_pnl: float, exit_reason: str) -> dict:
+        position = self.forward_position()
+        if not position:
+            raise ValueError("No Futures forward position")
+        closed_at = datetime.now(UTC).isoformat()
+        with self._connect() as db:
+            db.execute(
+                """INSERT INTO forward_trades(
+                   symbol,direction,leverage,quantity,entry_price,exit_price,gross_pnl,exit_reason,opened_at,closed_at
+                ) VALUES(?,?,?,?,?,?,?,?,?,?)""",
+                (
+                    position["symbol"], position["direction"], int(position["leverage"]),
+                    float(position["quantity"]), float(position["entry_price"]), float(exit_price),
+                    float(gross_pnl), str(exit_reason)[:180], position["opened_at"], closed_at,
+                ),
+            )
+            db.execute("DELETE FROM forward_position WHERE singleton=1")
+            db.commit()
+        return {**position, "exit_price": float(exit_price), "gross_pnl": float(gross_pnl),
+                "exit_reason": str(exit_reason)[:180], "closed_at": closed_at}
+
+    def record_forward_equity(self, wallet_balance: float, available_balance: float, unrealized_pnl: float) -> None:
+        with self._connect() as db:
+            db.execute(
+                "INSERT INTO forward_equity(wallet_balance,available_balance,unrealized_pnl,created_at) VALUES(?,?,?,?)",
+                (float(wallet_balance), float(available_balance), float(unrealized_pnl), datetime.now(UTC).isoformat()),
+            )
+            db.execute(
+                """DELETE FROM forward_equity WHERE id NOT IN
+                   (SELECT id FROM forward_equity ORDER BY id DESC LIMIT 1000)"""
+            )
+            db.commit()
+
+    def forward_snapshot(self) -> dict:
+        with self._connect() as db:
+            position = db.execute("SELECT * FROM forward_position WHERE singleton=1").fetchone()
+            trades = [dict(row) for row in db.execute(
+                "SELECT * FROM forward_trades ORDER BY id DESC LIMIT 20"
+            )]
+            equity = [dict(row) for row in db.execute(
+                "SELECT * FROM forward_equity ORDER BY id DESC LIMIT 120"
+            )]
+        return {
+            "position": dict(position) if position else None,
+            "trades": trades,
+            "equity": list(reversed(equity)),
+            "closed_trades": len(trades),
+            "gross_pnl": sum(float(row["gross_pnl"]) for row in trades),
+        }
+
