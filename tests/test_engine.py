@@ -13,7 +13,7 @@ class EngineTests(unittest.TestCase):
     def test_paper_profile_reduces_risk_and_cannot_raise_base_cap(self):
         with tempfile.TemporaryDirectory() as folder:
             config = load_config()
-            config = replace(config, bot=replace(config.bot, database_path=Path(folder)/'risk.db',
+            config = replace(config, bot=replace(config.bot, mode='paper', database_path=Path(folder)/'risk.db',
                                                 kill_switch_path=Path(folder)/'kill'))
             engine = TradingEngine(config)
             signal = Signal('BTCUSDT','BUY',80,100,95,110,2,60,101,99,1.3,'synthetic','now')
@@ -30,7 +30,7 @@ class EngineTests(unittest.TestCase):
     def test_diagnostic_cleanup_keeps_financial_records_and_positions(self):
         with tempfile.TemporaryDirectory() as folder:
             config = load_config()
-            config = replace(config, bot=replace(config.bot, database_path=Path(folder)/'test.db',
+            config = replace(config, bot=replace(config.bot, mode='paper', database_path=Path(folder)/'test.db',
                                                 kill_switch_path=Path(folder)/'KILL_SWITCH'))
             engine = TradingEngine(config)
             engine.db.initialize_cash(1000)
@@ -55,7 +55,7 @@ class EngineTests(unittest.TestCase):
     def test_missing_or_invalid_spot_never_closes_held_position_at_candle_price(self):
         with tempfile.TemporaryDirectory() as folder:
             config = load_config()
-            config = replace(config, bot=replace(config.bot, database_path=Path(folder)/'test.db',
+            config = replace(config, bot=replace(config.bot, mode='paper', database_path=Path(folder)/'test.db',
                                                 kill_switch_path=Path(folder)/'KILL_SWITCH'))
             engine = TradingEngine(config)
             engine.db.upsert_position(Position('TESTUSDT', 1, 100, 95, 120, 100, 2, 0.1, 'now'))
@@ -69,7 +69,7 @@ class EngineTests(unittest.TestCase):
     def test_missing_held_quote_blocks_cycle_before_universe_and_buy(self):
         with tempfile.TemporaryDirectory() as folder:
             config = load_config()
-            config = replace(config, bot=replace(config.bot, database_path=Path(folder)/'test.db',
+            config = replace(config, bot=replace(config.bot, mode='paper', database_path=Path(folder)/'test.db',
                                                 kill_switch_path=Path(folder)/'KILL_SWITCH'))
             engine = TradingEngine(config)
             engine.db.upsert_position(Position('TESTUSDT', 1, 100, 95, 120, 100, 2, 0.1, 'now'))
@@ -87,6 +87,7 @@ class EngineTests(unittest.TestCase):
                 config,
                 bot=replace(
                     config.bot,
+                    mode='paper',
                     database_path=Path(folder) / "test.db",
                     kill_switch_path=Path(folder) / "KILL_SWITCH",
                 ),
