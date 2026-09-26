@@ -1,3 +1,13 @@
+# Actualización 0.7.8 — smoke Futures 100% privado/Testnet
+
+- La **Prueba Futures** ya no depende de ticker, funding ni exchangeInfo públicos.
+- Antes de abrir una posición, valida la cantidad exacta con `POST /fapi/v1/order/test` en Futures Demo; esa llamada no ejecuta ninguna orden.
+- Para BTCUSDT usa inicialmente `0.001`, la misma cantidad ya validada por **Verificar Futures**.
+- El notional y margen mostrados se calculan después de la apertura a partir de `positionAmt`, `entryPrice` y leverage obtenidos mediante endpoints firmados.
+- `funding_rate` queda en `null` durante este smoke técnico porque ya no consulta el endpoint público de funding.
+- Apertura, lectura de posición, cierre `reduceOnly` y reconciliación siguen exclusivamente en `testnet.binancefuture.com`.
+- LIVE continúa bloqueado.
+
 # Actualización 0.7.7 — diagnóstico privado independiente de datos públicos
 
 - **Verificar Futures** ya no depende de ticker, funding ni exchangeInfo públicos. Usa directamente `POST /fapi/v1/order/test` con BTCUSDT y cantidad `0.001`, que valida permiso TRADE sin ejecutar una orden.
