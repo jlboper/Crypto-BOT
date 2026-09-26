@@ -9,6 +9,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 
 from .domain import Candle
+from .ai_advisor import AIAdvisor
 from .futures_testnet import FuturesTestnetLab, FuturesTestnetExecutionError, _decimal
 from .indicators import atr, ema_series, rsi, sma
 
@@ -20,6 +21,7 @@ class FuturesForwardEngine:
         self.exchange = exchange
         self.lab = FuturesTestnetLab(self.settings)
         self.ledger = self.lab.ledger
+        self.ai = AIAdvisor(config.ai)
 
     def killed(self) -> bool:
         return self.settings.kill_switch_path.exists()
@@ -161,11 +163,84 @@ class FuturesForwardEngine:
             exit_price=float(exit_price), gross_pnl=float(pnl), exit_reason=reason
         )
 
+    def _recover_journal(self) -> dict | None:
+        """Recover uncertain forward writes after network/process/power interruption."""
+        if not self.ledger.setting("forward_pending_order"):
+            return None
+        outcome = self.lab.reconcile_forward_pending()
+        if not outcome or not outcome.get("resolved"):
+            return outcome
+        if outcome.get("status") != "FILLED":
+            self.ledger.set_setting("forward_open_plan", None)
+            return outcome
+        pending = outcome["pending"]
+        order = outcome["order"]
+        local = self.ledger.forward_position()
+        rows = self._actual_rows()
+
+        if pending.get("reduce_only"):
+            if local is not None and not rows:
+                exit_price = self.lab._execution_price(order, local["symbol"])
+                entry = _decimal(local["entry_price"])
+                qty = _decimal(local["quantity"])
+                pnl = ((exit_price - entry) * qty if local["direction"] == "LONG"
+                       else (entry - exit_price) * qty)
+                closed = self.ledger.close_forward_position(
+                    exit_price=float(exit_price), gross_pnl=float(pnl),
+                    exit_reason="RECOVERED_CLOSE",
+                )
+                return {"resolved": True, "status": "RECOVERED_CLOSE", "trade": closed}
+            if local is not None:
+                self._assert_consistent(local, rows)
+            return outcome
+
+        if local is None:
+            plan = self.ledger.setting("forward_open_plan")
+            if not isinstance(plan, dict) or len(rows) != 1:
+                self._halt("uncertain Futures open could not be reconstructed")
+                raise FuturesTestnetExecutionError("Futures forward recovery requires owner review")
+            row = rows[0]
+            amount = _decimal(row.get("positionAmt", "0"))
+            direction = str(plan.get("direction"))
+            if (direction == "LONG" and amount <= 0) or (direction == "SHORT" and amount >= 0):
+                self._halt("recovered Futures direction mismatch")
+                raise FuturesTestnetExecutionError("Recovered Futures direction mismatch")
+            entry = _decimal(row.get("entryPrice", "0"))
+            if entry <= 0:
+                entry = self.lab._execution_price(order, self.settings.forward_symbol)
+            distance = max(
+                Decimal(str(self.settings.forward_stop_atr_multiple * float(plan["atr"]))),
+                Decimal(str(self.settings.forward_minimum_stop_pct)) * entry,
+            )
+            stop = entry - distance if direction == "LONG" else entry + distance
+            take = (entry + Decimal(str(self.settings.forward_reward_to_risk)) * distance
+                    if direction == "LONG"
+                    else entry - Decimal(str(self.settings.forward_reward_to_risk)) * distance)
+            liquidation = _decimal(row.get("liquidationPrice", "0"))
+            reconstructed = {
+                "symbol": self.settings.forward_symbol,
+                "direction": direction,
+                "leverage": 1,
+                "quantity": float(abs(amount)),
+                "entry_price": float(entry),
+                "stop_price": float(stop),
+                "take_profit": float(take),
+                "liquidation_price": float(liquidation) if liquidation > 0 else None,
+                "signal_score": int(plan["score"]),
+                "opened_at": str(plan["opened_at"]),
+            }
+            self.ledger.set_forward_position(reconstructed)
+            self.ledger.set_setting("forward_open_plan", None)
+            return {"resolved": True, "status": "RECOVERED_OPEN", "position": reconstructed}
+        self._assert_consistent(local, rows)
+        self.ledger.set_setting("forward_open_plan", None)
+        return outcome
+
     def protection_tick(self) -> dict:
         if not self.settings.forward_enabled:
             return {"enabled": False}
         local = self.ledger.forward_position()
-        pending = self.lab.reconcile_forward_pending()
+        pending = self._recover_journal()
         if pending and not pending.get("resolved"):
             return {"enabled": True, "status": "PENDING_RECONCILIATION"}
         rows = self._actual_rows()
@@ -196,7 +271,7 @@ class FuturesForwardEngine:
             return {"enabled": False, "status": "OFF"}
         if self.killed():
             return {"enabled": True, "status": "KILLED"}
-        pending = self.lab.reconcile_forward_pending()
+        pending = self._recover_journal()
         if pending and not pending.get("resolved"):
             return {"enabled": True, "status": "PENDING_RECONCILIATION"}
 
@@ -227,6 +302,30 @@ class FuturesForwardEngine:
         if signal["direction"] is None:
             return {"enabled": True, "status": "FLAT", "signal": signal, **account}
 
+        ai_review = self.ai.review_futures(
+            signal,
+            {
+                "wallet_balance": float(account["wallet_balance"]),
+                "available_balance": float(account["available_balance"]),
+                "unrealized_pnl": float(account["unrealized_pnl"]),
+                "open_positions": 0.0,
+                "automatic_leverage": 1.0,
+            },
+        )
+        self.ledger.set_setting("forward_last_ai_review", {
+            "model": self.config.ai.model,
+            "verdict": ai_review.verdict,
+            "confidence": ai_review.confidence,
+            "reason": ai_review.reason,
+            "direction": signal["direction"],
+            "score": int(signal["score"]),
+            "at": datetime.now(UTC).isoformat(),
+        })
+        if ai_review.verdict != "ALLOW" or ai_review.risk_multiplier <= 0:
+            return {"enabled": True, "status": "AI_REJECTED", "signal": signal,
+                    "ai_review": {"model": self.config.ai.model, "verdict": ai_review.verdict,
+                                  "confidence": ai_review.confidence, "reason": ai_review.reason}, **account}
+
         quantity = self.lab._validate_smoke_quantity(
             self.settings.forward_symbol, signal["direction"]
         )
@@ -240,6 +339,12 @@ class FuturesForwardEngine:
 
         self.lab._configure(self.settings.forward_symbol, 1)
         side = "BUY" if signal["direction"] == "LONG" else "SELL"
+        self.ledger.set_setting("forward_open_plan", {
+            "direction": signal["direction"],
+            "score": int(signal["score"]),
+            "atr": float(signal["atr"]),
+            "opened_at": datetime.now(UTC).isoformat(),
+        })
         order = self.lab.forward_submit(
             symbol=self.settings.forward_symbol,
             side=side,
@@ -280,7 +385,10 @@ class FuturesForwardEngine:
             "opened_at": datetime.now(UTC).isoformat(),
         }
         self.ledger.set_forward_position(position)
-        return {"enabled": True, "status": "OPENED", "position": position, "signal": signal, **account}
+        self.ledger.set_setting("forward_open_plan", None)
+        return {"enabled": True, "status": "OPENED", "position": position, "signal": signal,
+                "ai_review": {"model": self.config.ai.model, "verdict": ai_review.verdict,
+                              "confidence": ai_review.confidence, "reason": ai_review.reason}, **account}
 
     def snapshot(self) -> dict:
         data = self.ledger.forward_snapshot()
@@ -291,5 +399,13 @@ class FuturesForwardEngine:
             "automatic_leverage": 1,
             "latest_signal": self.ledger.setting("forward_last_signal"),
             "last_error": self.ledger.setting("forward_last_error"),
+            "ai_model": self.config.ai.model,
+            "last_ai_review": self.ledger.setting("forward_last_ai_review"),
+            "recovery": {
+                "durable_order_journal": True,
+                "startup_position_reconciliation": True,
+                "separate_kill_switch": True,
+                "native_exchange_stop_orders": False,
+            },
             **data,
         }
