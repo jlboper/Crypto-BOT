@@ -1,4 +1,4 @@
-"""Run exactly one authenticated PAPER control using the installed bot code."""
+"""Run exactly one authenticated supervised control using installed bot code."""
 import json
 import sys
 import time
@@ -21,12 +21,12 @@ def main():
     config = source_settings(ROOT)
     if (config.bot.database_path.parent / 'UPDATE_MAINTENANCE.json').exists():
         raise ValueError('Update maintenance in progress')
-    if request['action'] in {'ai_model', 'restart_engine', 'execution_mode'}:
+    if request['action'] in {'ai_model', 'restart_engine', 'execution_mode', 'testnet_smoke'}:
         from trader.operational_controls import execute as operational_control
         result = operational_control(ROOT, request['action'], request['payload'])
     else:
         result = execute(config, Database(config.bot.database_path), request['action'], request['payload'])
-    if request['action'] in {'ai_model','restart_engine','execution_mode'}:
+    if request['action'] in {'ai_model','restart_engine','execution_mode','testnet_smoke'}:
         atomic_json(ROOT / 'data/operation-last.json', {'action': request['action'],
                     'status': 'completed', 'at': time.time(), 'result': result})
     print(json.dumps(result, allow_nan=False))
@@ -46,6 +46,18 @@ def _safe_failure(error: Exception) -> str:
         return 'ENGINE_START_HEALTH_FAILED'
     if message == 'Local credential file unavailable':
         return 'LOCAL_ENV_UNAVAILABLE'
+    if message == 'Testnet smoke test requires TESTNET mode':
+        return 'TESTNET_SMOKE_REQUIRES_TESTNET'
+    if message == 'Testnet smoke test requires no open positions':
+        return 'TESTNET_SMOKE_POSITIONS_OPEN'
+    if message == 'Testnet smoke test requires no pending order':
+        return 'TESTNET_SMOKE_PENDING_ORDER'
+    if message == 'Testnet smoke allocation too small':
+        return 'TESTNET_SMOKE_ALLOCATION_TOO_SMALL'
+    if message == 'Testnet smoke reconciliation incomplete':
+        return 'TESTNET_SMOKE_RECONCILIATION_INCOMPLETE'
+    if type(error).__name__ == 'TestnetExecutionError':
+        return 'BINANCE_TESTNET_EXECUTION_FAILED'
     if type(error).__name__ == 'ExchangeError':
         return 'BINANCE_TESTNET_CONNECTION_OR_AUTH_FAILED'
     return type(error).__name__.upper()

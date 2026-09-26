@@ -31,7 +31,7 @@ async function portalRequest(path,body){
   if(!response.ok){if(response.status===401)portalLocked();throw new Error(data.error||'Error de conexión');}
   return data;
 }
-const activityActions={research:'Evaluar estrategias',update_check:'Buscar actualización',update_install:'Actualizar bot',update_restore:'Restaurar bot',kill:'Pausar bot',resume:'Reanudar bot',risk_profile:'Perfil de riesgo',paper_close:'Cerrar posición',ai_model:'Cambiar modelo IA',restart_engine:'Reiniciar motor',execution_mode:'Cambiar entorno',testnet_buy:'Comprar Testnet',testnet_close:'Cerrar Testnet',testnet_reconcile:'Conciliar Testnet',testnet_audit:'Comprobar Testnet en Binance'};
+const activityActions={research:'Evaluar estrategias',update_check:'Buscar actualización',update_install:'Actualizar bot',update_restore:'Restaurar bot',kill:'Pausar bot',resume:'Reanudar bot',risk_profile:'Perfil de riesgo',paper_close:'Cerrar posición',ai_model:'Cambiar modelo IA',restart_engine:'Reiniciar motor',execution_mode:'Cambiar entorno',testnet_smoke:'Prueba Testnet',testnet_buy:'Comprar Testnet',testnet_close:'Cerrar Testnet',testnet_reconcile:'Conciliar Testnet',testnet_audit:'Comprobar Testnet en Binance'};
 const activityStatuses={pending:'Pendiente',applied:'Confirmado por Windows',expired:'Vencido',superseded:'Sustituido',running:'En curso',completed:'Completado',failed:'Falló'};
 function renderActivity(list,items){
   for(const item of items){
@@ -42,6 +42,26 @@ function renderActivity(list,items){
     if(item.created){const time=document.createElement('small');time.textContent=new Date(item.created*1000).toLocaleString('es-MX');row.append(time);}
     list.append(row);
   }
+}
+function setUpdateCenterState(kind,headline,message,candidate=null){
+  const hero=document.getElementById('updateHero');
+  const icon=document.getElementById('updateHeroIcon');
+  const title=document.getElementById('updateHeadline');
+  const check=document.getElementById('checkAllUpdates');
+  const install=document.getElementById('installBotUpdate');
+  hero.classList.remove('is-searching','has-update','has-warning');
+  if(kind==='searching'){hero.classList.add('is-searching');icon.textContent='…';}
+  else if(kind==='update'){hero.classList.add('has-update');icon.textContent='↓';}
+  else if(kind==='warning'){hero.classList.add('has-warning');icon.textContent='!';}
+  else {icon.textContent='✓';}
+  title.textContent=headline;
+  document.getElementById('botUpdateMessage').textContent=message;
+  const canInstall=kind==='update'&&candidate?.enabled===true;
+  install.hidden=!canInstall;
+  install.disabled=!canInstall;
+  install.textContent=canInstall?`Instalar v${candidate.version}`:'Instalar actualización';
+  check.hidden=canInstall;
+  check.textContent=kind==='current'?'Comprobar de nuevo':'Comprobar ahora';
 }
 async function portalState(){
   if(portalCache && Date.now()-portalCacheAt<5000)return portalCache;
@@ -57,19 +77,24 @@ async function portalState(){
     const candidate=state.snapshot?.bot_update;
     const activeJob=(state.jobs||[]).some(j=>['pending','running'].includes(j.status));
     const usable=candidate&&!state.stale&&candidate.expires>Date.now()/1000;
-    document.getElementById('installBotUpdate').disabled=!(usable&&candidate.enabled&&!activeJob);
     const restore=state.snapshot?.bot_restore;
     document.getElementById('restoreBotVersion').disabled=!(restore?.enabled&&!state.stale&&!activeJob);
     const latestUpdateCheck=(state.jobs||[]).find(job=>job.action==='update_check');
-    document.getElementById('botUpdateMessage').textContent=usable?
-      (candidate.enabled?
-        `Versión ${candidate.version} verificada y lista para instalar.`:
-        `Versión ${candidate.version} verificada, pero Windows debe sincronizar o reparar el supervisor antes de instalar.`):
-      (latestUpdateCheck?.status==='completed'&&latestUpdateCheck.message?
-        latestUpdateCheck.message:
-        latestUpdateCheck?.status==='failed'?
-          'La última comprobación no terminó correctamente. Puedes volver a intentarlo.':
-          'Listo para buscar una versión firmada.');
+    if(state.stale){
+      setUpdateCenterState('warning','Windows sin conexión','Reconecta Windows para verificar o instalar una actualización.');
+    }else if(usable&&candidate.enabled&&!activeJob){
+      setUpdateCenterState('update',`Nueva versión disponible · v${candidate.version}`,
+        'Paquete firmado y supervisor verificados. Puedes instalarlo de forma supervisada.',candidate);
+    }else if(usable&&!candidate.enabled){
+      setUpdateCenterState('warning','Actualización pendiente de reparación',
+        `La versión ${candidate.version} está firmada, pero el supervisor de Windows debe sincronizarse antes de instalar.`);
+    }else if(latestUpdateCheck?.status==='completed'){
+      setUpdateCenterState('current','Estás actualizado',latestUpdateCheck.message||'La versión instalada coincide con la última release firmada.');
+    }else if(latestUpdateCheck?.status==='failed'){
+      setUpdateCenterState('warning','No se pudo comprobar','La última comprobación no terminó correctamente. Puedes volver a intentarlo.');
+    }else{
+      setUpdateCenterState('idle','Listo para comprobar','Windows verificará firma, versión y supervisor antes de ofrecer una instalación.');
+    }
     document.getElementById('portalLogin').hidden=true;document.querySelector('.shell').hidden=false;
     return state;
   }).finally(()=>{portalPending=null;});
@@ -82,7 +107,7 @@ window.portalApi=async(path,options={})=>{
     return response.json();
   }
   if(options.method==='POST'){
-    if(['/api/paper/risk-profile','/api/paper/close-position','/api/operations/model','/api/operations/restart','/api/operations/execution-mode'].includes(path)){
+    if(['/api/paper/risk-profile','/api/paper/close-position','/api/operations/model','/api/operations/restart','/api/operations/execution-mode','/api/operations/testnet-smoke'].includes(path)){
       const state=await portalState();
       if(state.stale||state.snapshot?.paper_controls!==true)throw new Error('Controles del motor pendientes de conexión de Windows');
       if((path.startsWith('/api/operations/'))&&state.snapshot?.operations_controls!==true)throw new Error('Actualiza y repara el agente de Windows antes de usar esta opción');
@@ -91,7 +116,7 @@ window.portalApi=async(path,options={})=>{
       const result=await portalRequest('/v1/paper-controls',{
         action:({
           '/api/paper/risk-profile':'risk_profile','/api/paper/close-position':'paper_close',
-          '/api/operations/model':'ai_model','/api/operations/restart':'restart_engine','/api/operations/execution-mode':'execution_mode'
+          '/api/operations/model':'ai_model','/api/operations/restart':'restart_engine','/api/operations/execution-mode':'execution_mode','/api/operations/testnet-smoke':'testnet_smoke'
         })[path],payload,request_id:crypto.randomUUID()});
       portalCacheAt=0;return result;
     }
@@ -147,7 +172,7 @@ document.addEventListener('DOMContentLoaded',()=>{
   async function operationalAction(path,payload,question){
     if(!confirm(question))return;
     const startedAt=Date.now()/1000;
-    const button=document.getElementById(path.endsWith('model')?'applyAiModel':path.endsWith('execution-mode')?'applyExecutionMode':'restartMotor');
+    const button=document.getElementById(path.endsWith('model')?'applyAiModel':path.endsWith('execution-mode')?'applyExecutionMode':path.endsWith('testnet-smoke')?'testTestnetExecution':'restartMotor');
     const message=document.getElementById('modelSettingsMessage');
     button.disabled=true;message.textContent='Esperando la comprobación de Windows…';
     try{
@@ -172,6 +197,10 @@ document.addEventListener('DOMContentLoaded',()=>{
     operationalAction('/api/operations/execution-mode',{mode},
       `¿Cambiar el único motor a ${label}? Windows reiniciará el motor de forma supervisada. LIVE seguirá bloqueado.`);
   };
+  document.getElementById('testTestnetExecution').onclick=()=>operationalAction(
+    '/api/operations/testnet-smoke',{},
+    '¿Ejecutar una prueba real en Binance Spot Testnet? Usará fondos ficticios, abrirá una posición pequeña de BTCUSDT, la conciliará, la cerrará y reiniciará el motor. LIVE seguirá bloqueado.'
+  );
   let nextHistoryPage=0,historyBusy=false;
   async function loadHistory(reset=false){
     if(historyBusy)return;
@@ -247,7 +276,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     updatePending=true;const button=document.getElementById('checkAllUpdates');button.disabled=true;
     const output=document.getElementById('updateMessage'),releases=document.getElementById('updateReleases'),botOutput=document.getElementById('botUpdateMessage');
     releases.replaceChildren();output.textContent='';
-    botOutput.textContent='Verificando publicación, firma y supervisor de Windows…';
+    setUpdateCenterState('searching','Buscando actualizaciones','Verificando publicación, firma y supervisor de Windows…');
     const epoch=portalEpoch;
     try{
       const state=await portalState();
@@ -278,8 +307,8 @@ document.addEventListener('DOMContentLoaded',()=>{
         'No se pudieron consultar temporalmente los detalles de publicación en GitHub; Windows continúa verificando el bot.':
         portalResult.reason.message;
       if(botResult.status==='fulfilled'){
-        portalCacheAt=0;botOutput.textContent='Windows está verificando el paquete firmado. El estado se actualizará automáticamente.';
-      }else botOutput.textContent=botResult.reason.message;
+        portalCacheAt=0;setUpdateCenterState('searching','Verificando en Windows','La firma y el supervisor se están comprobando. El estado se actualizará automáticamente.');
+      }else setUpdateCenterState('warning','No se pudo comprobar',botResult.reason.message);
       if(portalResult.status==='fulfilled'||botResult.status==='fulfilled')lastUpdatesAt=Date.now();
     }catch(error){output.textContent=error.message;}
     finally{updatePending=false;button.disabled=false;}
@@ -307,7 +336,8 @@ document.addEventListener('DOMContentLoaded',()=>{
       if(!confirm(`¿Instalar el bot ${candidate.version}, revisión ${candidate.commit}? El motor activo se reiniciará y se recuperará la versión anterior si falla el arranque.`))return;
       const body={action:'update_install',request_id:crypto.randomUUID(),release_id:candidate.release_id};
       await portalRequest('/v1/jobs',body);submitted=true;portalCacheAt=0;
-      output.textContent='Instalación solicitada. Windows detendrá y reiniciará el motor de forma supervisada.';
+      output.textContent='';
+      setUpdateCenterState('searching','Instalando actualización','Windows detendrá y reiniciará el motor de forma supervisada.');
       document.getElementById('updateDetails').open=false;
     }catch(error){output.textContent=error.message;}
     finally{if(!submitted)button.disabled=false;}

@@ -421,7 +421,7 @@ $subtitle.ForeColor = [System.Drawing.Color]::FromArgb(132, 153, 184)
 $form.Controls.Add($subtitle)
 
 $modeBadge = New-Object System.Windows.Forms.Label
-$modeBadge.Text = "PAPER"
+$modeBadge.Text = "..."
 $modeBadge.Location = New-Object System.Drawing.Point(625, 30)
 $modeBadge.Size = New-Object System.Drawing.Size(91, 32)
 $modeBadge.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter

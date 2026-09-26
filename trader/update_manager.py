@@ -260,11 +260,7 @@ class UpdateManager:
             stack.enter_context(single_instance(self.state / "stage.lock"))
             with (self.root / "config.toml").open("rb") as handle:
                 config = tomllib.load(handle)
-            if config["bot"]["mode"] != "paper":
-                raise ValueError("PAPER only")
-            db_path = Path(config["bot"]["database_path"])
-            if not db_path.is_absolute():
-                db_path = self.root / db_path
+            db_path = self.database_path()
             report = Path(config.get("research", {}).get("report_path", "data/research/latest.json"))
             if not report.is_absolute():
                 report = self.root / report
@@ -383,7 +379,7 @@ class UpdateManager:
                 self.invalidate_bytecode(name)
 
     def rollback_restore(self):
-        """Reinstate the current code without touching PAPER balances or trades."""
+        """Reinstate the current code without touching active ledger balances or trades."""
         with self.locks():
             record = json.loads(self.journal.read_text())
             snapshot = self.state/'restore-current'

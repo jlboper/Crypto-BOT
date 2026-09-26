@@ -83,7 +83,22 @@ test('legacy manual Testnet controls are retired while unified operational contr
   assert.equal((await f.request('/v1/paper-controls',command('testnet_reconcile',{},'testnet-rec-00000001'))).status,400);
   assert.equal((await f.request('/v1/paper-controls',command('testnet_audit',{},'testnet-audit-0000001'))).status,400);
   assert.equal((await f.request('/v1/paper-controls',command('ai_model',{model:'unknown'},'model-select-0000001'))).status,400);
+  assert.equal((await f.request('/v1/paper-controls',command('testnet_smoke',{},'smoke-paper-00000001'))).status,409);
   assert.equal((await f.request('/v1/paper-controls',command('execution_mode',{mode:'testnet'},'mode-change-00000001'))).status,202);
+});
+
+test('supervised Testnet smoke control is TESTNET-only and idempotent',async t=>{
+  const f=await fixture(t);await f.login();
+  await f.sync({snapshot:{...snapshot(),mode:'TESTNET',paper_controls:true,operations_controls:true},acks:[]});
+  const request={action:'testnet_smoke',payload:{},request_id:'testnet-smoke-000001'};
+  const created=await f.request('/v1/paper-controls',request);
+  assert.equal(created.status,202);
+  const duplicate=await f.request('/v1/paper-controls',request);
+  assert.equal(duplicate.status,202);
+  assert.equal(duplicate.body.id,created.body.id);
+  const delivered=await f.sync({snapshot:{...snapshot(),mode:'TESTNET',paper_controls:true,operations_controls:true},acks:[]});
+  assert.equal(delivered.body.paper_controls[0].action,'testnet_smoke');
+  assert.deepEqual(delivered.body.paper_controls[0].payload,{});
 });
 
 test('activity combines jobs and commands, paginates privately, and rejects unbounded routes',async t=>{

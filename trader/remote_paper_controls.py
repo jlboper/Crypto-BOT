@@ -1,4 +1,4 @@
-"""Persist owner-requested PAPER controls before acknowledging their result."""
+"""Persist owner-requested trading controls before acknowledging their result."""
 import json
 import os
 import subprocess
@@ -36,18 +36,18 @@ class RemotePaperControls:
         payload = item.get('payload')
         expires = item.get('expires')
         if (not self.available or type(identifier) is not int or identifier <= 0 or
-                action not in {'risk_profile', 'paper_close', 'ai_model', 'restart_engine', 'execution_mode'} or not isinstance(payload, dict) or
+                action not in {'risk_profile', 'paper_close', 'ai_model', 'restart_engine', 'execution_mode', 'testnet_smoke'} or not isinstance(payload, dict) or
                 type(expires) not in (int, float) or not now < expires <= now + 305):
-            raise ValueError('Invalid or unavailable PAPER control')
+            raise ValueError('Invalid or unavailable trading control')
         expected = {'action': action, 'payload': payload}
         encoded = json.dumps(expected, sort_keys=True, separators=(',', ':'), allow_nan=False)
         if len(encoded) > 450:
-            raise ValueError('Oversized PAPER control')
+            raise ValueError('Oversized trading control')
         record = self.directory / (str(identifier) + '.json')
         if record.exists():
             prior = json.loads(record.read_text(encoding='utf-8'))
             if prior.get('request') != encoded:
-                raise ValueError('PAPER control identifier conflict')
+                raise ValueError('Trading control identifier conflict')
             return
         # A durable receipt prevents an uncertain retry from selling a replacement position.
         with record.open('x', encoding='utf-8') as handle:
@@ -77,17 +77,24 @@ class RemotePaperControls:
                         'ENGINE_STOP_TIMEOUT': 'El motor no se detuvo a tiempo para cambiar de entorno',
                         'ENGINE_START_HEALTH_FAILED': 'El nuevo entorno no superó la comprobación de arranque',
                         'LOCAL_ENV_UNAVAILABLE': 'Windows no pudo actualizar la configuración local privada',
+                        'TESTNET_SMOKE_REQUIRES_TESTNET': 'Activa Binance Spot Testnet antes de ejecutar la prueba',
+                        'TESTNET_SMOKE_POSITIONS_OPEN': 'La prueba Testnet requiere no tener posiciones abiertas',
+                        'TESTNET_SMOKE_PENDING_ORDER': 'Hay una orden Testnet pendiente de conciliación',
+                        'TESTNET_SMOKE_ALLOCATION_TOO_SMALL': 'El ledger Testnet no tiene asignación suficiente para la prueba',
+                        'TESTNET_SMOKE_RECONCILIATION_INCOMPLETE': 'La prueba terminó con una conciliación pendiente; revisa el ledger antes de repetir',
+                        'BINANCE_TESTNET_EXECUTION_FAILED': 'Binance Testnet no completó la prueba; revisa órdenes y conciliación antes de repetir',
                     }
                     message = messages.get(code, 'Windows rechazó la acción; revisa el estado local')
                     status = 'failed'
                 else:
                     if response.get('ok') is not True:
-                        raise ValueError('Unconfirmed PAPER response')
-                    message = ({'risk_profile': 'Perfil PAPER aplicado: ' + response.get('profile',''),
-                            'paper_close': 'Posición PAPER cerrada: ' + response.get('symbol',''),
+                        raise ValueError('Unconfirmed trading response')
+                    message = ({'risk_profile': 'Perfil de riesgo aplicado: ' + response.get('profile',''),
+                            'paper_close': 'Posición cerrada en ' + response.get('mode','').upper() + ': ' + response.get('symbol',''),
                             'ai_model': 'Modelo activo: ' + response.get('model',''),
                             'restart_engine': 'Motor reiniciado y verificado',
-                            'execution_mode': 'Entorno activo: ' + response.get('mode','').upper()}[action])
+                            'execution_mode': 'Entorno activo: ' + response.get('mode','').upper(),
+                            'testnet_smoke': 'Prueba Testnet completada · BUY y SELL conciliados'}[action])
                     status = 'completed'
             temp = record.with_suffix('.tmp')
             with temp.open('w', encoding='utf-8') as handle:

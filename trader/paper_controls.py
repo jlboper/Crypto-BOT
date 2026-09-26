@@ -1,4 +1,4 @@
-"""The same validated PAPER mutations for the local dashboard and Windows agent."""
+"""Validated trading controls shared by the local dashboard and Windows agent."""
 import math
 import re
 import time
@@ -12,16 +12,16 @@ def execute(config, db, action, payload):
     if config.bot.mode not in {'paper', 'testnet'}:
         raise ValueError('Unsupported execution mode')
     if not isinstance(payload, dict):
-        raise ValueError('Invalid PAPER request')
+        raise ValueError('Invalid trading request')
     if action == 'risk_profile':
         if set(payload) != {'profile'} or payload['profile'] not in PROFILES:
             raise ValueError('Unknown risk profile')
         with db.transaction():
             db.set_setting('paper_risk_profile', payload['profile'])
-            db.event('INFO', 'PAPER risk profile: ' + payload['profile'])
+            db.event('INFO', config.bot.mode.upper() + ' risk profile: ' + payload['profile'])
         return {'ok': True, 'profile': payload['profile']}
     if action != 'paper_close':
-        raise ValueError('Unknown PAPER action')
+        raise ValueError('Unknown trading action')
     if (set(payload) != {'symbol', 'opened_at', 'reference_price'} or
             not isinstance(payload['symbol'], str) or
             re.fullmatch(r'[A-Z0-9]{2,24}USDT', payload['symbol']) is None or

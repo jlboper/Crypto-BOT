@@ -1,4 +1,4 @@
-"""Supervised PAPER activation. Run from the stable agent, outside the target.
+"""Supervised trading-engine activation. Run from the stable agent, outside the target.
 
 Never kills a discovered PID: only a child created by this supervisor may be
 terminated. An existing engine must implement the cooperative maintenance gate.
@@ -206,7 +206,7 @@ class UpdateSupervisor:
         return {**offer, 'enabled': True}
 
     def restore(self, approved, *, job_id=None):
-        """Restore a verified previous code snapshot; retain PAPER data and sequence."""
+        """Restore a verified previous code snapshot; retain active ledger data and sequence."""
         if job_id is not None and (type(job_id) is not int or job_id <= 0):
             raise ValueError('Invalid restoration job identifier')
         with single_instance(self.lock):

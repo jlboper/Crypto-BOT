@@ -53,6 +53,7 @@ function ageLabel(seconds) {
 const pct = value => `${Number(value || 0)>=0?'+':''}${Number(value || 0).toFixed(2)}%`;
 
 function renderPaperEvidence(report, equity, trades) {
+  const evidenceMode=String(report?.mode||currentExecutionMode||'paper').toUpperCase();
   const state=document.getElementById('paperEvidenceState');
   const note=document.getElementById('paperEvidenceNote');
   const panel=document.getElementById('paperEvidenceMetrics');
@@ -83,7 +84,7 @@ function renderPaperEvidence(report, equity, trades) {
     ['Operaciones cerradas',finite(values.trades).toFixed(0)],
     ['P&amp;L realizado neto',`${finite(values.pnl).toFixed(2)} USDT`],
     ['Drawdown de equity muestreada',`${finite(values.drawdown).toFixed(2)}%`],
-    ['Comisiones simuladas',`${finite(values.fees).toFixed(2)} USDT`],
+    ['Comisiones registradas',`${finite(values.fees).toFixed(2)} USDT`],
     ['Operaciones ganadoras',values.win===null?'—':`${finite(values.win).toFixed(1)}%`],
     ['Muestras de equity',finite(values.points).toFixed(0)],
     ['P&amp;L abierto estimado',complete?optionalMoney(report.estimated_open_pnl_usdt):'—'],
@@ -95,10 +96,10 @@ function renderPaperEvidence(report, equity, trades) {
   document.getElementById('paperMoreMetrics').innerHTML=cards(metrics.slice(4));
   const benchmark=report?.benchmark,comparison=document.getElementById('paperBenchmark');
   comparison.textContent=benchmark?.paper_return_pct!=null&&benchmark?.btc_net_return_pct!=null?
-    `Mismo período desde ${shortTime(benchmark.started_at)} (${benchmark.observed_days} días, ${benchmark.matched_points} muestras): equity ${report?.mode||'PAPER'} ${pct(benchmark.paper_return_pct)} · BTC con costos PAPER ${pct(benchmark.btc_net_return_pct)} · diferencia ${pct(benchmark.net_difference_pp)} puntos. BTC usa el 100% del capital; no hay libro de aportes/retiros ni evidencia suficiente para operar con dinero real.`:
-    'Comparación BTC: esperando al menos dos ciclos PAPER con cotización BTC y equity simultáneas. Los datos anteriores no se reconstruyen.';
+    `Mismo período desde ${shortTime(benchmark.started_at)} (${benchmark.observed_days} días, ${benchmark.matched_points} muestras): equity ${evidenceMode} ${pct(benchmark.paper_return_pct)} · BTC con costos de referencia ${pct(benchmark.btc_net_return_pct)} · diferencia ${pct(benchmark.net_difference_pp)} puntos. BTC usa el 100% del capital; no hay libro de aportes/retiros ni evidencia suficiente para operar con dinero real.`:
+    `Comparación BTC: esperando al menos dos ciclos ${evidenceMode} con cotización BTC y equity simultáneas. Los datos anteriores no se reconstruyen.`;
   const checks=[
-    [Number(report?.observed_days)>=30,`Seguimiento PAPER: ${finite(report?.observed_days).toFixed(1)} de 30 días`],
+    [Number(report?.observed_days)>=30,`Seguimiento ${evidenceMode}: ${finite(report?.observed_days).toFixed(1)} de 30 días`],
     [Number(report?.closed_trades)>=30,`Operaciones cerradas: ${finite(report?.closed_trades).toFixed(0)} de 30`],
     [Number(benchmark?.observed_days)>=30,`Comparación temporal BTC: ${finite(benchmark?.observed_days).toFixed(1)} de 30 días`],
     [complete&&Number(report?.invalid_points)===0&&report?.price_status!=='stale_or_missing','Integridad de muestras y cotizaciones abiertas'],
@@ -110,7 +111,7 @@ function renderPaperEvidence(report, equity, trades) {
   const preflight=attribution.market_preflight||{};
   const latest=Array.isArray(preflight.recent_issues)?preflight.recent_issues:[];
   document.getElementById('marketPreflight').textContent=Number(preflight.checked)>0?
-    `Compatibilidad aproximada de ${finite(preflight.checked).toFixed(0)} entradas PAPER candidatas: ${finite(preflight.estimated_compatible).toFixed(0)} pasan los filtros públicos comprobados, ${finite(preflight.incompatible).toFixed(0)} presentan incompatibilidades y ${finite(preflight.unknown).toFixed(0)} no tienen reglas suficientes. ${latest.length?`Ejemplos recientes: ${latest.map(row=>`${row.symbol} (${Array.isArray(row.reasons)?row.reasons.join(', '):'sin detalle'})`).join(' · ')}. `:''}El valor mínimo de una orden de mercado usa precios de referencia que pueden variar; faltan Testnet y conciliación de ejecuciones.`:
+    `Compatibilidad aproximada de ${finite(preflight.checked).toFixed(0)} entradas ${evidenceMode} candidatas: ${finite(preflight.estimated_compatible).toFixed(0)} pasan los filtros públicos comprobados, ${finite(preflight.incompatible).toFixed(0)} presentan incompatibilidades y ${finite(preflight.unknown).toFixed(0)} no tienen reglas suficientes. ${latest.length?`Ejemplos recientes: ${latest.map(row=>`${row.symbol} (${Array.isArray(row.reasons)?row.reasons.join(', '):'sin detalle'})`).join(' · ')}. `:''}El valor mínimo de una orden de mercado usa precios de referencia que pueden variar; faltan Testnet y conciliación de ejecuciones.`:
     'Aún no se evaluaron candidatas con las reglas públicas de Binance Spot. El preflight se registra a partir de esta versión; no envía órdenes ni certifica ejecución.';
   const shown=assets.map(asset=>`
     <tr><td>${esc(asset.symbol)}</td><td>${finite(asset.closed_trades).toFixed(0)}</td>
@@ -130,8 +131,8 @@ function renderPaperEvidence(report, equity, trades) {
     emptyRow(3,complete?'Aún no hay cierres.':'Disponible al sincronizar el historial completo.');
   const covered=attribution.research_closed_trades;
   document.getElementById('researchCoverage').textContent=complete&&covered!=null?
-    `Los cinco activos estudiados concentran ${finite(covered).toFixed(0)} de ${finite(report.closed_trades).toFixed(0)} cierres PAPER. El informe histórico no evalúa los demás pares operados por el bot.`:
-    'El informe histórico solo estudia cinco activos; esperando historial completo para medir su cobertura de las operaciones PAPER.';
+    `Los cinco activos estudiados concentran ${finite(covered).toFixed(0)} de ${finite(report.closed_trades).toFixed(0)} cierres ${evidenceMode}. El informe histórico no evalúa los demás pares operados por el bot.`:
+    `El informe histórico solo estudia cinco activos; esperando historial completo para medir su cobertura de las operaciones ${evidenceMode}.`;
   if (report?.omitted_assets) note.textContent+=` ${report.omitted_assets} activos agrupados en «Otros»; su resultado y cierres están incluidos en el total.`;
 }
 
@@ -248,6 +249,7 @@ async function refresh() {
     const modeUpper=currentExecutionMode.toUpperCase();
     document.getElementById('mode').textContent=modeUpper;
     document.getElementById('executionModeChoice').value=currentExecutionMode==='testnet'?'testnet':'paper';
+    document.getElementById('testTestnetExecution').disabled=currentExecutionMode!=='testnet'||!paperControlsAvailable();
     document.getElementById('accountEnvironmentTitle').textContent='Cuenta de prueba · '+modeUpper;
     document.getElementById('riskPanelTitle').textContent='Límites '+modeUpper;
     document.getElementById('financialEvidenceTitle').textContent='Seguimiento financiero '+modeUpper;
@@ -271,7 +273,7 @@ async function refresh() {
     const riskDescription=riskSelected?`${riskSelected[0]} · ${Number.isFinite(riskBudget)?(100*riskBudget*riskSelected[1]).toFixed(3)+'% del capital en pérdida estimada por operación':'presupuesto reducido'}`:'Perfil inválido: nuevas entradas bloqueadas';
     document.getElementById('riskProfileNote').textContent=paperControlsAvailable()?
       `Actual: ${riskDescription}. El cambio afecta nuevas entradas ${modeUpper}; los topes de posición y exposición no aumentan.`:
-      'Esperando conexión y controles PAPER de Windows.';
+      'Esperando conexión y controles del motor en Windows.';
     const effectiveRisk={...risk,risk_per_trade_pct:Number(risk.risk_per_trade_pct)*({minimo:.25,prudente:.5,normal:1}[riskName]??0)};
     for(const [id,key] of [['riskTrade','risk_per_trade_pct'],['riskPosition','max_position_pct'],['riskExposure','max_total_exposure_pct'],['riskDaily','daily_loss_limit_pct'],['riskWeekly','weekly_loss_limit_pct']]){
       const value=Number(effectiveRisk[key]);

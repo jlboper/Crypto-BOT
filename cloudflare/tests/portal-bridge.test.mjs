@@ -7,7 +7,11 @@ import {webcrypto} from 'node:crypto';
 const source=readFileSync(new URL('../../web/portal-bridge.js',import.meta.url),'utf8');
 
 function node(){
+  const classes=new Set();
   return {hidden:false,disabled:false,textContent:'',value:'',children:[],attributes:{},
+    classList:{add(...names){for(const name of names)classes.add(name);},remove(...names){for(const name of names)classes.delete(name);},
+      toggle(name,force){if(force===undefined){classes.has(name)?classes.delete(name):classes.add(name);}else{force?classes.add(name):classes.delete(name);}},
+      contains(name){return classes.has(name);}},
     append(...items){this.children.push(...items);},replaceChildren(...items){this.children=[...items];},
     scrollIntoView(){},addEventListener(){},
     setAttribute(name,value){this.attributes[name]=String(value);},getAttribute(name){return this.attributes[name];}};
@@ -98,7 +102,19 @@ test('one update search checks GitHub and asks Windows to verify the bot',async(
   assert.deepEqual(instance.calls.map(call=>call.path),['/v1/status','/v1/updates','/v1/jobs']);
   assert.equal(JSON.parse(instance.calls[2].options.body).action,'update_check');
   assert.equal(instance.elements.get('updateMessage').textContent,'Publicación consultada');
-  assert.match(instance.elements.get('botUpdateMessage').textContent,/Windows está verificando el paquete firmado/);
+  assert.match(instance.elements.get('botUpdateMessage').textContent,/firma y el supervisor se están comprobando/);
+});
+
+test('remote Testnet smoke uses the supervised operations control',async()=>{
+  const instance=bridge('paper.example.workers.dev',[
+    {status:200,body:state({snapshot:{mode:'TESTNET',dashboard:{},paper_controls:true,operations_controls:true}})},
+    {status:202,body:{id:44,action:'testnet_smoke',status:'pending'}},
+  ]);
+  const result=await instance.api('/api/operations/testnet-smoke',{method:'POST',body:JSON.stringify({})});
+  assert.equal(result.status,'pending');
+  assert.equal(instance.calls[1].path,'/v1/paper-controls');
+  assert.equal(JSON.parse(instance.calls[1].options.body).action,'testnet_smoke');
+  assert.deepEqual(JSON.parse(instance.calls[1].options.body).payload,{});
 });
 
 test('remote Research Lab uses one authenticated allowlisted job request',async()=>{
