@@ -91,6 +91,9 @@ class RemotePaperControls:
                         'FUTURES_TESTNET_EXECUTION_FAILED': 'Futures Demo no completó la operación; usa Reconciliar Futures antes de repetir',
                     }
                     message = messages.get(code, 'Windows rechazó la acción; revisa el estado local')
+                    detail = response.get('detail') if isinstance(response, dict) else None
+                    if isinstance(detail, str) and detail:
+                        message = (message + ' · ' + detail)[:290]
                     status = 'failed'
                 else:
                     if response.get('ok') is not True:
