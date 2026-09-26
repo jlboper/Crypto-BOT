@@ -124,6 +124,23 @@ class FuturesTestnetLabTests(unittest.TestCase):
         self.assertEqual(self.position_amt, 0.0)
         self.assertEqual(self.lab.ledger.latest()["status"], "COMPLETED")
 
+
+    def test_close_price_falls_back_to_cumquote_without_resubmitting(self):
+        order = {"clientOrderId": "close-1", "avgPrice": "0", "executedQty": "0.001", "cumQuote": "101.25"}
+        with patch("trader.futures_testnet.signed_request", side_effect=AssertionError("no query needed")):
+            price = self.lab._execution_price(order, "BTCUSDT")
+        self.assertEqual(price, Decimal("101250"))
+
+    def test_close_price_queries_filled_order_when_immediate_result_has_no_price(self):
+        order = {"clientOrderId": "close-2", "avgPrice": "0", "executedQty": "0", "cumQuote": "0"}
+        def signed(method, endpoint, fields=None):
+            self.assertEqual((method, endpoint), ("GET", "/fapi/v1/order"))
+            self.assertEqual(fields["origClientOrderId"], "close-2")
+            return {"clientOrderId": "close-2", "avgPrice": "101.5", "executedQty": "0.001", "cumQuote": "0.1015"}
+        with patch("trader.futures_testnet.signed_request", side_effect=signed):
+            price = self.lab._execution_price(order, "BTCUSDT")
+        self.assertEqual(price, Decimal("101.5"))
+
     def test_short_smoke_closes_with_reduce_only(self):
         with patch("trader.futures_testnet.public_request", side_effect=AssertionError("smoke must not use public data")), \
              patch("trader.futures_testnet.signed_request", side_effect=self.signed):
