@@ -17,6 +17,7 @@ from .indicators import atr
 from .strategy import SwingStrategy
 from .spot_preflight import market_quantity_preflight
 from .risk_control import profile_multiplier
+from .futures_forward import FuturesForwardEngine
 
 
 class TradingEngine:
@@ -29,6 +30,7 @@ class TradingEngine:
                        if config.bot.mode == "testnet"
                        else PaperBroker(self.db, config.paper, config.risk))
         self.ai = AIAdvisor(config.ai)
+        self.futures_forward = FuturesForwardEngine(config, self.exchange) if config.bot.mode == "testnet" else None
         self._errors = int(self.db.setting("consecutive_errors", "0"))
         self._candle_cache = {}
 
@@ -52,6 +54,8 @@ class TradingEngine:
             if "BTCUSDT" not in candle_map:
                 raise RuntimeError("BTC regime data unavailable")
             btc_bullish = self.strategy.btc_regime(candle_map["BTCUSDT"])
+            if self.futures_forward is not None:
+                self._run_futures_forward_cycle(candle_map["BTCUSDT"])
 
             try:
                 prices = self.exchange.latest_prices(set(monitored_symbols))
@@ -301,7 +305,39 @@ class TradingEngine:
                 except Exception as exc:
                     self.db.event("WARN", f"Protection price unavailable: {type(exc).__name__}")
 
+
+    def _run_futures_forward_cycle(self, candles: list[Candle]) -> None:
+        try:
+            result = self.futures_forward.cycle(candles)
+            self.futures_forward.ledger.set_setting("forward_consecutive_errors", 0)
+            if result.get("status") in {"OPENED", "CLOSED"}:
+                self.db.event("INFO", "Futures Demo forward: " + str(result.get("status")))
+        except Exception as exc:
+            current = self.futures_forward.ledger.setting("forward_consecutive_errors") or 0
+            count = int(current) + 1
+            self.futures_forward.ledger.set_setting("forward_consecutive_errors", count)
+            self.db.event("WARN", "Futures Demo forward cycle failed: " + type(exc).__name__)
+            if count >= 3:
+                self.futures_forward._halt("three consecutive Futures forward errors")
+
+    def _run_futures_forward_protection(self) -> None:
+        if self.futures_forward is None or not self.config.futures_testnet.forward_enabled:
+            return
+        try:
+            result = self.futures_forward.protection_tick()
+            self.futures_forward.ledger.set_setting("forward_consecutive_errors", 0)
+            if result.get("closed"):
+                self.db.event("INFO", "Futures Demo forward position closed by protection")
+        except Exception as exc:
+            current = self.futures_forward.ledger.setting("forward_consecutive_errors") or 0
+            count = int(current) + 1
+            self.futures_forward.ledger.set_setting("forward_consecutive_errors", count)
+            self.db.event("WARN", "Futures Demo protection failed: " + type(exc).__name__)
+            if count >= 3:
+                self.futures_forward._halt("three consecutive Futures protection errors")
+
     def protection_tick(self):
+        self._run_futures_forward_protection()
         symbols = {position.symbol for position in self.db.positions()}
         if symbols:
             prices = self.exchange.latest_prices(symbols)
