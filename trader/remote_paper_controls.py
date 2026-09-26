@@ -88,7 +88,7 @@ class RemotePaperControls:
                         'FUTURES_TESTNET_CREDENTIALS_UNAVAILABLE': 'Faltan las credenciales separadas de Binance Futures Demo en Windows',
                         'FUTURES_TESTNET_CANNOT_TRADE': 'La cuenta de Binance Futures Demo no tiene trading habilitado',
                         'FUTURES_TESTNET_MARGIN_LOW': 'El saldo ficticio disponible en Futures Demo es insuficiente para la prueba',
-                        'FUTURES_TESTNET_EXECUTION_FAILED': 'Futures Demo no completó la operación; usa Reconciliar Futures antes de repetir',
+                        'FUTURES_TESTNET_EXECUTION_FAILED': 'Futures Demo rechazó o no completó la operación',
                     }
                     message = messages.get(code, 'Windows rechazó la acción; revisa el estado local')
                     detail = response.get('detail') if isinstance(response, dict) else None
