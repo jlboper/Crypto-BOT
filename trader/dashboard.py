@@ -128,7 +128,7 @@ class DashboardServer:
                 if not self._same_origin():
                     self._json({"error": "origin not allowed"}, HTTPStatus.FORBIDDEN)
                     return
-                if path in {"/api/operations/model", "/api/operations/restart", "/api/operations/execution-mode", "/api/operations/testnet-smoke"}:
+                if path in {"/api/operations/model", "/api/operations/restart", "/api/operations/execution-mode", "/api/operations/testnet-smoke", "/api/operations/futures-check", "/api/operations/futures-smoke", "/api/operations/futures-reconcile"}:
                     try:
                         if self.headers.get('Content-Type', '').split(';', 1)[0].strip() != 'application/json':
                             raise ValueError('JSON required')
@@ -141,8 +141,15 @@ class DashboardServer:
                         action = ('ai_model' if path.endswith('/model') else
                                   'execution_mode' if path.endswith('/execution-mode') else
                                   'testnet_smoke' if path.endswith('/testnet-smoke') else
+                                  'futures_testnet_check' if path.endswith('/futures-check') else
+                                  'futures_testnet_smoke' if path.endswith('/futures-smoke') else
+                                  'futures_testnet_reconcile' if path.endswith('/futures-reconcile') else
                                   'restart_engine')
-                        if (action == 'ai_model' and (set(payload) != {'model'} or payload['model'] not in {'gpt-5.6-luna','gpt-6-luna'})) or (action == 'execution_mode' and (set(payload) != {'mode'} or payload['mode'] not in {'paper','testnet'})) or (action in {'restart_engine','testnet_smoke'} and payload):
+                        if (action == 'ai_model' and (set(payload) != {'model'} or payload['model'] not in {'gpt-5.6-luna','gpt-6-luna'})) or (action == 'execution_mode' and (set(payload) != {'mode'} or payload['mode'] not in {'paper','testnet'})) or (action in {'restart_engine','testnet_smoke','futures_testnet_check','futures_testnet_reconcile'} and payload)
+                            or (action == 'futures_testnet_smoke' and (
+                                set(payload) != {'direction','leverage'}
+                                or payload.get('direction') not in {'LONG','SHORT'}
+                                or payload.get('leverage') not in {1,2,3})):
                             raise ValueError('Invalid operational request')
                         script = PROJECT_ROOT / 'scripts/execute_paper_control.py'
                         process = subprocess.Popen([sys.executable, '-I', '-B', str(script), str(PROJECT_ROOT)],
