@@ -1,5 +1,5 @@
 [bot]
-mode = "testnet"
+mode = "paper"
 cycle_seconds = 900
 protection_seconds = 30
 timeframe = "4h"
