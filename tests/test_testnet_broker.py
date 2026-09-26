@@ -10,7 +10,7 @@ from trader.database import Database
 from trader.domain import Signal
 from trader.engine import TradingEngine
 from trader.testnet_broker import BinanceTestnetBroker
-from trader.testnet_execution import TestnetExecutionError
+from trader.testnet_transport import TestnetExecutionError
 
 
 class UnifiedTestnetBrokerTests(unittest.TestCase):
@@ -49,7 +49,7 @@ class UnifiedTestnetBrokerTests(unittest.TestCase):
                 "fills": [{"commission": "0.01", "commissionAsset": "USDT"}],
             }
 
-        with patch("trader.exchange.BinanceClient") as client,              patch("trader.testnet_broker._signed", side_effect=signed):
+        with patch("trader.exchange.BinanceClient") as client,              patch("trader.testnet_broker.signed_request", side_effect=signed):
             client.return_value.testnet_symbol_info.return_value = self.info
             client.return_value.testnet_reference_price.return_value = 100.0
             position = self.broker.buy(self.signal, 0.1, "automatic testnet")
@@ -80,7 +80,7 @@ class UnifiedTestnetBrokerTests(unittest.TestCase):
                 "cummulativeQuoteQty": "0",
             }
 
-        with patch("trader.exchange.BinanceClient") as client,              patch("trader.testnet_broker._signed", side_effect=signed):
+        with patch("trader.exchange.BinanceClient") as client,              patch("trader.testnet_broker.signed_request", side_effect=signed):
             client.return_value.testnet_symbol_info.return_value = self.info
             client.return_value.testnet_reference_price.return_value = 100.0
             with self.assertRaises(TestnetExecutionError):
