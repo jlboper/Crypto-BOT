@@ -204,6 +204,9 @@ def main():
     agent.paper_controls = RemotePaperControls(ROOT,args.source)
     agent.update_provider = lambda: update_candidate(args.source)
     agent.restore_provider = lambda: restore_candidate(args.source)
+    agent.version_provider = lambda: tomllib.loads(
+        (args.source / "pyproject.toml").read_text(encoding="utf-8")
+    )["project"]["version"]
     snapshot = agent.snapshot()
     if args.check:
         print(json.dumps({"mode": snapshot["mode"], "database_readable": True,
