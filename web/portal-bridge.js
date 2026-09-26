@@ -61,8 +61,10 @@ async function portalState(){
     const restore=state.snapshot?.bot_restore;
     document.getElementById('restoreBotVersion').disabled=!(restore?.enabled&&!state.stale&&!activeJob);
     document.getElementById('botUpdateMessage').textContent=usable?
-      `Bot ${candidate.version} · revisión ${candidate.commit} · firma verificada en Windows.${candidate.enabled?'':' Instalación pendiente de preparar en Windows.'}`:
-      'Busca una actualización firmada; la verificación se realizará en Windows.';
+      (candidate.enabled?
+        `Versión ${candidate.version} verificada y lista para instalar.`:
+        `Versión ${candidate.version} verificada, pero Windows debe sincronizar o reparar el supervisor antes de instalar.`):
+      'Listo para buscar una versión firmada.';
     document.getElementById('portalLogin').hidden=true;document.querySelector('.shell').hidden=false;
     return state;
   }).finally(()=>{portalPending=null;});
@@ -227,7 +229,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     }catch(error){message.textContent=error.message;}
     finally{current.value='';next.value='';confirmation.value='';button.disabled=false;}
   };
-  window.addEventListener('portal-ready',()=>{if(location.hash==='#password')document.getElementById('passwordPanel').hidden=false;});
+  window.addEventListener('portal-ready',()=>{if(location.hash==='#password')document.getElementById('passwordPanel').hidden=false;if(location.hash==='#updates')checkAllUpdates();});
   let updatePending=false,lastUpdatesAt=0;
   async function checkAllUpdates(){
     if(!remotePortal){
@@ -239,8 +241,8 @@ document.addEventListener('DOMContentLoaded',()=>{
     if(updatePending || Date.now()-lastUpdatesAt<30000)return;
     updatePending=true;const button=document.getElementById('checkAllUpdates');button.disabled=true;
     const output=document.getElementById('updateMessage'),releases=document.getElementById('updateReleases'),botOutput=document.getElementById('botUpdateMessage');
-    releases.replaceChildren();output.textContent='Consultando versiones y pruebas en GitHub…';
-    botOutput.textContent='Solicitando a Windows la verificación del paquete firmado…';
+    releases.replaceChildren();output.textContent='';
+    botOutput.textContent='Verificando publicación, firma y supervisor de Windows…';
     const epoch=portalEpoch;
     try{
       const state=await portalState();
@@ -269,7 +271,7 @@ document.addEventListener('DOMContentLoaded',()=>{
         }
       }else output.textContent=portalResult.reason.message;
       if(botResult.status==='fulfilled'){
-        portalCacheAt=0;botOutput.textContent='Solicitud enviada. Windows verificará la firma y mostrará aquí la versión disponible.';
+        portalCacheAt=0;botOutput.textContent='Windows está verificando el paquete firmado. El estado se actualizará automáticamente.';
       }else botOutput.textContent=botResult.reason.message;
       if(portalResult.status==='fulfilled'||botResult.status==='fulfilled')lastUpdatesAt=Date.now();
     }catch(error){output.textContent=error.message;}
@@ -278,8 +280,12 @@ document.addEventListener('DOMContentLoaded',()=>{
   function showUpdateCenter(){
     showOptions(false);document.getElementById('passwordPanel').hidden=true;document.getElementById('historyPanel').hidden=true;
     const panel=document.getElementById('updatePanel');panel.hidden=false;
-    if(remotePortal&&document.querySelector('.shell').hidden)document.getElementById('updateMessage').textContent='Inicia sesión para revisar las versiones disponibles.';
-    if(!document.querySelector('.shell').hidden)panel.scrollIntoView({behavior:'smooth',block:'start'});
+    if(remotePortal&&document.querySelector('.shell').hidden){
+      document.getElementById('updateMessage').textContent='Inicia sesión para revisar las versiones disponibles.';
+    }else{
+      panel.scrollIntoView({behavior:'smooth',block:'start'});
+      checkAllUpdates();
+    }
   }
   async function installBotUpdate(){
     if(!remotePortal){window.open('https://crypto-paper-private-portal.jlboper.workers.dev/#updates','_blank','noopener');return;}
@@ -294,7 +300,8 @@ document.addEventListener('DOMContentLoaded',()=>{
       if(!confirm(`¿Instalar el bot ${candidate.version}, revisión ${candidate.commit}? El motor activo se reiniciará y se recuperará la versión anterior si falla el arranque.`))return;
       const body={action:'update_install',request_id:crypto.randomUUID(),release_id:candidate.release_id};
       await portalRequest('/v1/jobs',body);submitted=true;portalCacheAt=0;
-      output.textContent='Solicitud enviada. El resultado aparecerá en las solicitudes remotas.';
+      output.textContent='Instalación solicitada. Windows detendrá y reiniciará el motor de forma supervisada.';
+      document.getElementById('updateDetails').open=false;
     }catch(error){output.textContent=error.message;}
     finally{if(!submitted)button.disabled=false;}
   }
