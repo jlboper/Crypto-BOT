@@ -248,6 +248,7 @@ async function refresh() {
     const modeUpper=currentExecutionMode.toUpperCase();
     document.getElementById('mode').textContent=modeUpper;
     document.getElementById('executionModeChoice').value=currentExecutionMode==='testnet'?'testnet':'paper';
+    document.getElementById('testTestnetExecution').disabled=currentExecutionMode!=='testnet'||!paperControlsAvailable();
     document.getElementById('accountEnvironmentTitle').textContent='Cuenta de prueba · '+modeUpper;
     document.getElementById('riskPanelTitle').textContent='Límites '+modeUpper;
     document.getElementById('financialEvidenceTitle').textContent='Seguimiento financiero '+modeUpper;
@@ -271,7 +272,7 @@ async function refresh() {
     const riskDescription=riskSelected?`${riskSelected[0]} · ${Number.isFinite(riskBudget)?(100*riskBudget*riskSelected[1]).toFixed(3)+'% del capital en pérdida estimada por operación':'presupuesto reducido'}`:'Perfil inválido: nuevas entradas bloqueadas';
     document.getElementById('riskProfileNote').textContent=paperControlsAvailable()?
       `Actual: ${riskDescription}. El cambio afecta nuevas entradas ${modeUpper}; los topes de posición y exposición no aumentan.`:
-      'Esperando conexión y controles PAPER de Windows.';
+      'Esperando conexión y controles del motor en Windows.';
     const effectiveRisk={...risk,risk_per_trade_pct:Number(risk.risk_per_trade_pct)*({minimo:.25,prudente:.5,normal:1}[riskName]??0)};
     for(const [id,key] of [['riskTrade','risk_per_trade_pct'],['riskPosition','max_position_pct'],['riskExposure','max_total_exposure_pct'],['riskDaily','daily_loss_limit_pct'],['riskWeekly','weekly_loss_limit_pct']]){
       const value=Number(effectiveRisk[key]);
