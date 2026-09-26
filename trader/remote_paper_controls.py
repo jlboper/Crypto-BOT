@@ -36,7 +36,7 @@ class RemotePaperControls:
         payload = item.get('payload')
         expires = item.get('expires')
         if (not self.available or type(identifier) is not int or identifier <= 0 or
-                action not in {'risk_profile', 'paper_close', 'ai_model', 'restart_engine', 'execution_mode', 'testnet_buy', 'testnet_close', 'testnet_reconcile', 'testnet_audit'} or not isinstance(payload, dict) or
+                action not in {'risk_profile', 'paper_close', 'ai_model', 'restart_engine', 'execution_mode'} or not isinstance(payload, dict) or
                 type(expires) not in (int, float) or not now < expires <= now + 305):
             raise ValueError('Invalid or unavailable PAPER control')
         expected = {'action': action, 'payload': payload}
@@ -87,11 +87,7 @@ class RemotePaperControls:
                             'paper_close': 'Posición PAPER cerrada: ' + response.get('symbol',''),
                             'ai_model': 'Modelo activo: ' + response.get('model',''),
                             'restart_engine': 'Motor reiniciado y verificado',
-                            'execution_mode': 'Entorno activo: ' + response.get('mode','').upper(),
-                            'testnet_buy': 'Compra de prueba: ' + response.get('status','incierta'),
-                            'testnet_close': 'Cierre de prueba: ' + response.get('status','incierto'),
-                            'testnet_reconcile': 'Orden Testnet conciliada: ' + response.get('status','incierta'),
-                                'testnet_audit': 'Comprobación Binance: ' + response.get('status','pendiente')}[action])
+                            'execution_mode': 'Entorno activo: ' + response.get('mode','').upper()}[action])
                     status = 'completed'
             temp = record.with_suffix('.tmp')
             with temp.open('w', encoding='utf-8') as handle:

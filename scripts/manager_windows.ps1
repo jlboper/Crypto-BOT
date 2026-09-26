@@ -29,6 +29,8 @@ $HeaderLogoPath = Join-Path $ProjectRoot "web\crypto-ai-trader-icon.png"
 $script:RestartManager = $false
 $script:AgentRefreshCheckedVersion = ''
 $script:AgentRefreshNextAttempt = [DateTime]::MinValue
+$script:AgentHealthFailures = 0
+$script:AgentRestartNextAttempt = [DateTime]::MinValue
 
 function Get-InstalledVersion {
     $projectFile = Join-Path $ProjectRoot "pyproject.toml"
@@ -63,10 +65,25 @@ function Invoke-LocalSignedUpdate {
     $arguments = @($pythonFlags) + @($scriptPath, '--source', $ProjectRoot, '--agent-root', $agentRoot, $Action)
     if ($Action -eq '--install') { $arguments += $ApprovedRelease }
     $result = & $python @arguments 2>&1
+    $decoded = $null
+    try { $decoded = (($result | Out-String) | ConvertFrom-Json) } catch { }
     if ($LASTEXITCODE -ne 0) {
-        throw 'La verificación o instalación supervisada falló. No se ha confirmado una versión nueva; revisa el supervisor local.'
+        $messages = @{
+            'SUPERVISOR_DISABLED' = 'El supervisor local no permite instalaciones.'
+            'MAINTENANCE_PENDING' = 'Existe una operación de mantenimiento pendiente; el supervisor debe recuperarla antes de instalar.'
+            'ENGINE_RUNTIME_STALE' = 'El estado cooperativo del motor no coincide con la instalación actual.'
+            'ENGINE_STOPPED' = 'El motor está detenido; debe estar operativo antes de actualizar.'
+            'CANDIDATE_EXITED' = 'La versión candidata no logró arrancar; se conservó o restauró la versión anterior.'
+            'CANDIDATE_HEALTH_FAILED' = 'La versión candidata no superó la comprobación de salud.'
+            'SUPERVISOR_TIMEOUT' = 'El supervisor agotó el tiempo de espera al detener o arrancar el motor.'
+            'LOCAL_CHANNEL_MISSING' = 'Falta parte del canal local firmado de actualizaciones.'
+            'LOCAL_VALIDATION_FAILED' = 'La validación local del paquete o del estado no fue válida.'
+        }
+        $code = if ($decoded -and $decoded.code) { [string]$decoded.code } else { 'UNKNOWN_UPDATE_FAILURE' }
+        $detail = if ($messages.ContainsKey($code)) { $messages[$code] } else { 'La actualización fue rechazada por el supervisor local.' }
+        throw "$code · $detail"
     }
-    return (($result | Out-String) | ConvertFrom-Json)
+    return $decoded
 }
 
 function Show-LocalUpdateCenter {
@@ -82,7 +99,7 @@ function Show-LocalUpdateCenter {
     try {
         $verified = Invoke-LocalSignedUpdate -Action $action
         $confirmation = [System.Windows.Forms.MessageBox]::Show(
-            "Paquete firmado verificado: versión $($verified.version).`nIdentificación: $($verified.release_id)`nRevisión: $($verified.commit)`n`n¿Instalar esta versión exacta? El supervisor comprobará el arranque del motor PAPER y conservará la recuperación automática.",
+            "Paquete firmado verificado: versión $($verified.version).`nIdentificación: $($verified.release_id)`nRevisión: $($verified.commit)`n`n¿Instalar esta versión exacta? El supervisor comprobará el arranque del motor activo y conservará la recuperación automática.",
             'Aprobar versión local exacta',
             [System.Windows.Forms.MessageBoxButtons]::YesNo,
             [System.Windows.Forms.MessageBoxIcon]::Warning
@@ -96,7 +113,7 @@ function Show-LocalUpdateCenter {
         Invoke-AutomaticAgentRefresh
         Update-ManagerStatus
         [System.Windows.Forms.MessageBox]::Show(
-            "Bot $($result.version) instalado y comprobado en PAPER. La conexión del portal se sincroniza automáticamente; si su revisión queda pendiente, utiliza Reparar conexión del portal.",
+            "Bot $($result.version) instalado y comprobado. La conexión del portal se sincroniza automáticamente; si su revisión queda pendiente, utiliza Reparar conexión del portal.",
             'Actualización local completada',
             [System.Windows.Forms.MessageBoxButtons]::OK,
             [System.Windows.Forms.MessageBoxIcon]::Information
@@ -117,7 +134,7 @@ function Show-AgentRefresh {
     $scriptPath = Join-Path $ProjectRoot 'scripts\refresh_windows_agent.ps1'
     try {
         if (-not (Test-Path -LiteralPath $scriptPath)) { throw 'Actualiza el bot antes de reparar la conexión.' }
-        $result = & $scriptPath -SourcePath $ProjectRoot
+        $result = & $scriptPath -SourcePath $ProjectRoot -ForceRestart
         [System.Windows.Forms.MessageBox]::Show(
             ($result | Out-String), 'Conexión del portal',
             [System.Windows.Forms.MessageBoxButtons]::OK,
@@ -145,7 +162,57 @@ function Invoke-AutomaticAgentRefresh {
         $repairAgentItem.Text = 'Reparar conexión del portal'
     } catch {
         # Keep the menu recovery action and retry later. A refresh failure
-        # never reverses a healthy bot installation or stops the PAPER motor.
+        # never reverses a healthy bot installation or stops the trading motor.
+        $repairAgentItem.Text = 'Revisar conexión del portal'
+    }
+}
+
+function Invoke-PortalAgentWatchdog {
+    # The outbound agent is disposable. Repairing it must never stop or restart
+    # the trading engine, alter a ledger, or change credentials.
+    try {
+        $runtimePath = Join-Path $ProjectRoot 'data\engine-runtime.json'
+        if (-not (Test-Path -LiteralPath $runtimePath)) { return }
+        $runtime = Get-Content -LiteralPath $runtimePath -Raw | ConvertFrom-Json
+        $engineMode = ([string]$runtime.mode).ToUpperInvariant()
+        if ($runtime.phase -ne 'running' -or $engineMode -notin @('PAPER','TESTNET')) { return }
+
+        $task = Get-ScheduledTask -TaskName 'Crypto Paper Portal Agent' -ErrorAction Stop
+        if (-not $task.Actions -or -not $task.Actions[0].WorkingDirectory) { return }
+        $agentRoot = (Resolve-Path -LiteralPath $task.Actions[0].WorkingDirectory).Path
+        if ($agentRoot -eq $ProjectRoot) { return }
+        $statusPath = Join-Path $agentRoot 'data\remote-status.json'
+        $needsRepair = $false
+        if (Test-Path -LiteralPath $statusPath) {
+            try {
+                $remote = Get-Content -LiteralPath $statusPath -Raw | ConvertFrom-Json
+                $fresh = ([double]$remote.at) -gt ([DateTimeOffset]::UtcNow.ToUnixTimeSeconds() - 90)
+                $reportedMode = ([string]$remote.mode).ToUpperInvariant()
+                # A fresh HTTPS/auth failure is connectivity, not stale process state.
+                # Repair only when the agent reports the wrong motor mode or stops
+                # updating its heartbeat altogether.
+                $needsRepair = ($reportedMode -ne $engineMode -or -not $fresh)
+                if (-not $needsRepair) {
+                    $script:AgentHealthFailures = 0
+                    return
+                }
+            } catch { $needsRepair = $true }
+        }
+        else { $needsRepair = $true }
+        if (-not $needsRepair) { return }
+        $script:AgentHealthFailures++
+        if ($script:AgentHealthFailures -lt 2 -or [DateTime]::UtcNow -lt $script:AgentRestartNextAttempt) { return }
+        $script:AgentRestartNextAttempt = [DateTime]::UtcNow.AddMinutes(2)
+        $script:AgentHealthFailures = 0
+
+        if ($task.State -eq 'Running') {
+            Stop-ScheduledTask -TaskName 'Crypto Paper Portal Agent' -ErrorAction Stop
+            Start-Sleep -Seconds 2
+        }
+        Start-ScheduledTask -TaskName 'Crypto Paper Portal Agent' -ErrorAction Stop
+        $repairAgentItem.Text = 'Reparar conexión del portal'
+    } catch {
+        # A watchdog failure degrades only remote visibility. Never touch motor state.
         $repairAgentItem.Text = 'Revisar conexión del portal'
     }
 }
@@ -535,6 +602,10 @@ function Update-ManagerStatus {
     $processCount = (Get-TradingProcesses).Count
     try {
         $status = Invoke-RestMethod -Uri ($DashboardUrl + "/api/status") -TimeoutSec 3
+        $activeMode = ([string]$status.mode).ToUpperInvariant()
+        if ($activeMode -in @('PAPER','TESTNET')) {
+            $modeBadge.Text = $activeMode
+        }
         $state = [string]$status.activity.state
         if ($state -eq "operational") {
             $statusLabel.Text = "Motor operativo"
@@ -629,7 +700,8 @@ function Update-ManagerStatus {
         $killButton.BackColor = [System.Drawing.Color]::FromArgb(55, 24, 35)
         $killButton.ForeColor = [System.Drawing.Color]::FromArgb(255, 147, 164)
         $killButton.FlatAppearance.BorderColor = [System.Drawing.Color]::FromArgb(120, 48, 66)
-        $protectionLabel.Text = "✓  Protecciones activas  ·  Simulación sin dinero real"
+        $shownMode = if ($modeBadge.Text -in @('PAPER','TESTNET')) { $modeBadge.Text } else { 'PRUEBA' }
+        $protectionLabel.Text = "✓  Protecciones activas  ·  $shownMode sin dinero real"
         $protectionLabel.ForeColor = [System.Drawing.Color]::FromArgb(92, 215, 171)
     }
     if (Test-CanonicalStartup) {
@@ -687,6 +759,7 @@ $timer.Interval = 15000
 $timer.Add_Tick({
     Update-ManagerStatus
     Invoke-AutomaticAgentRefresh
+    Invoke-PortalAgentWatchdog
 })
 $form.Add_Shown({
     if (-not (Test-Path $StartupOptOutPath) -and -not (Test-CanonicalStartup)) {
@@ -698,6 +771,7 @@ $form.Add_Shown({
     Update-ManagerStatus
     $timer.Start()
     Invoke-AutomaticAgentRefresh
+    Invoke-PortalAgentWatchdog
     if ($Minimized) { Hide-ManagerWindow }
 })
 $form.Add_Resize({

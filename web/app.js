@@ -15,59 +15,6 @@ let lastPositions = [];
 let currentExecutionMode = 'paper';
 const paperControlsAvailable = () => typeof window.paperControlsAvailable === 'function' ? window.paperControlsAvailable() : true;
 
-async function refreshTestnet(){
-  if(document.getElementById('testnetPanel').hidden)return;
-  const label=document.getElementById('testnetStatus');
-  try{
-    const state=await api('/api/testnet/execution');
-    const last=state.orders?.at(-1);
-    label.textContent=last?`Última orden ${last.side==='BUY'?'compra':'venta'} ${last.symbol}: ${last.status} · ejecutado ${last.executed_qty??'pendiente'} BTC · ${last.created_day}.`:
-      'Sin operaciones de Testnet registradas. La primera entrada se realizará solo tras tu confirmación.';
-    const summary=document.getElementById('testnetEvidence');
-    const position=Number(state.position_qty||0),gross=state.gross_closed_quote_usdt;
-    const audit=state.audit;
-    summary.textContent=state.position_qty==null?state.next_step:
-      `Posición registrada: ${num(position,8)} BTC · ${state.closed_cycles} vuelta(s) cerrada(s) · variación bruta cerrada: ${gross==null?'—':Number(gross).toFixed(4)+' USDT'} (comisiones no verificadas). `+
-      (audit?`Binance: ${audit.status==='verified'?'órdenes verificadas':'REVISAR DIFERENCIA'} · saldo libre BTC ${audit.balances?.BTC?.free??'—'}, USDT ${audit.balances?.USDT?.free??'—'} · ${shortTime(audit.checked_at*1000)}.`:'Pulsa «Comprobar órdenes y saldo en Binance» para validar el registro local.');
-    const legacyDisabled=currentExecutionMode==='testnet';
-    document.getElementById('testnetBuy').disabled=legacyDisabled||state.can_buy!==true||audit?.status==='requires_review';
-    document.getElementById('testnetClose').disabled=legacyDisabled||state.can_close!==true||audit?.status==='requires_review';
-    document.getElementById('testnetReconcile').disabled=legacyDisabled||state.needs_reconciliation!==true;
-    document.getElementById('testnetAudit').disabled=legacyDisabled||state.needs_reconciliation===true;
-    document.getElementById('testnetIntro').textContent=legacyDisabled?'Motor unificado activo en Binance Spot Testnet. El piloto manual anterior está bloqueado para evitar órdenes duplicadas. Las posiciones se gestionan desde el motor principal.':'Piloto manual anterior de Binance Spot Testnet. Úsalo solo mientras el motor principal siga en PAPER.';
-  }catch(error){label.textContent='Testnet pendiente de sincronización: '+error.message;
-    for(const id of ['testnetBuy','testnetClose','testnetReconcile','testnetAudit'])document.getElementById(id).disabled=true;}
-}
-window.addEventListener('testnet-open',refreshTestnet);
-for(const [id,path,question] of [
-  ['testnetBuy','/api/testnet/buy','¿Enviar una compra de BTC/USDT por exactamente 25 USDT de prueba a Binance Spot Testnet? Esta orden sí se ejecutará con fondos ficticios de Testnet.'],
-  ['testnetClose','/api/testnet/close','¿Vender en Binance Spot Testnet el BTC adquirido en la última compra de prueba?'],
-  ['testnetReconcile','/api/testnet/reconcile','¿Consultar a Binance Spot Testnet el resultado de la orden pendiente? No reenviará la orden.'],
-  ['testnetAudit','/api/testnet/audit','¿Comprobar en Binance Spot Testnet las últimas órdenes y los saldos BTC/USDT? Es una consulta, no envía órdenes.']]){
-  document.getElementById(id).addEventListener('click',async event=>{
-    if(!confirm(question))return;
-    const startedAt=Date.now()/1000;
-    const button=event.currentTarget,message=document.getElementById('testnetMessage');
-    button.disabled=true;message.textContent='Windows está procesando la solicitud…';
-    try{
-      const result=await api(path,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
-      message.textContent=result.status==='pending'?'Solicitud aceptada. Espera la confirmación en Actividad y vuelve a consultar el registro.':
-        'Windows confirmó el resultado. Comprueba el registro de la orden.';
-    }catch(error){message.textContent=error.message;}
-    finally{
-      setTimeout(refreshTestnet,1500);
-      if(['127.0.0.1','localhost','::1'].includes(location.hostname))setTimeout(async()=>{
-        try{const state=await api('/api/operations/last');
-          if(state.at>startedAt)message.textContent=state.status==='completed'?
-            `Windows confirmó ${state.result?.status||'la solicitud'} en Testnet.`:
-            `Windows no completó la solicitud (${state.reason||'revisar estado'}). Concíliala si figura como incierta.`;
-          refreshTestnet();
-        }catch{}
-      },3500);
-    }
-  });
-}
-
 async function api(path, options={}) {
   if(window.portalApi)return window.portalApi(path,{...options,headers:{...headers,...(options.headers||{})}});
   const response = await fetch(path, {...options, headers:{...headers,...(options.headers||{})}});
@@ -211,7 +158,7 @@ function renderResearch(report, state) {
     <article><span>Activos</span><strong>${Number(summary.assets)}</strong></article>
     <article><span>Estrategias evaluadas</span><strong>${Number(summary.assets)*Number(summary.strategies_per_asset)}</strong></article>
     <article><span>Folds fuera de muestra</span><strong>${Number(summary.total_walk_forward_folds)}</strong></article>
-    <article><span>Prometedores</span><strong>${Number(summary.promising_assets)}</strong></article>
+    <article><span>Candidatos a forward test</span><strong>${Number(summary.forward_test_ready||summary.promotion_candidates||0)}</strong></article>
     <article><span>Portafolio fijo OOS</span><strong class="${Number(portfolio.oos_compounded_return_pct)>=0?'positive':'negative'}">${pct(portfolio.oos_compounded_return_pct)}</strong></article>
     <article><span>Selector + cash gate</span><strong class="${Number(adaptivePortfolio.oos_compounded_return_pct)>=0?'positive':'negative'}">${pct(adaptivePortfolio.oos_compounded_return_pct)}</strong></article>
     <article><span>Efectivo USDT</span><strong>0.00%</strong></article>
@@ -222,8 +169,11 @@ function renderResearch(report, state) {
     const adaptive=asset.adaptive_selector||asset.walk_forward||{};
     const gates=Object.values(asset.qualification?.gates||{});
     const passed=gates.filter(Boolean).length;
-    const promising=asset.status==='PROMISING_RESEARCH_ONLY';
-    return `<tr class="research-row" data-symbol="${esc(asset.symbol)}"><td><strong>${esc(asset.symbol.replace('USDT',''))}</strong><small>/USDT · ver detalle</small></td><td>${esc(asset.champion_candidate)}<small>${esc(asset.champion_family)}</small></td><td class="${Number(fixed.oos_compounded_return_pct)>=0?'positive':'negative'}">${pct(fixed.oos_compounded_return_pct)}</td><td class="${Number(adaptive.oos_compounded_return_pct)>=0?'positive':'negative'}">${pct(adaptive.oos_compounded_return_pct)}<small>${Number(adaptive.cash_folds||0)} folds en cash</small></td><td>0.00%</td><td>${pct(fixed.oos_benchmark_return_pct)}</td><td>${Number(fixed.positive_folds_pct||0).toFixed(0)}%</td><td>${gates.length?`${passed}/${gates.length}`:'—'}</td><td><span class="verdict ${promising?'promising':'insufficient'}">${promising?'PROMETEDOR':'EVIDENCIA INSUFICIENTE'}</span></td></tr>`;
+    const promotion=asset.promotion||{};
+    const stage=promotion.stage||'RESEARCH';
+    const candidate=stage==='CANDIDATE';
+    const label=({RESEARCH:'INVESTIGANDO',CANDIDATE:'CANDIDATO',FORWARD_TEST:'FORWARD TEST',TESTNET:'LISTO TESTNET',APPROVED:'APROBADO',RETIRED:'RETIRADO'})[stage]||stage;
+    return `<tr class="research-row" data-symbol="${esc(asset.symbol)}"><td><strong>${esc(asset.symbol.replace('USDT',''))}</strong><small>/USDT · ver detalle</small></td><td>${esc(asset.champion_candidate)}<small>${esc(asset.champion_family)}</small></td><td class="${Number(fixed.oos_compounded_return_pct)>=0?'positive':'negative'}">${pct(fixed.oos_compounded_return_pct)}</td><td class="${Number(adaptive.oos_compounded_return_pct)>=0?'positive':'negative'}">${pct(adaptive.oos_compounded_return_pct)}<small>${Number(adaptive.cash_folds||0)} folds en cash</small></td><td>0.00%</td><td>${pct(fixed.oos_benchmark_return_pct)}</td><td>${Number(fixed.positive_folds_pct||0).toFixed(0)}%</td><td>${gates.length?`${passed}/${gates.length}`:'—'}</td><td><span class="verdict ${candidate?'promising':'insufficient'}">${esc(label)}</span></td></tr>`;
   }).join(''):emptyRow(9,state.running?'El análisis está trabajando en segundo plano…':'Ejecuta el primer análisis desde este portal.');
   const detail=state.error?`Último error: ${state.error}`:(report.generated_at?`Informe generado ${shortTime(report.generated_at)} · Los candidatos siguen bloqueados para operación automática.`:'El estudio descarga aproximadamente 5,000 velas cerradas por activo y puede tardar varios minutos.');
   document.getElementById('researchUpdated').textContent=detail;
@@ -241,6 +191,11 @@ function renderResearchDetail(asset) {
   const candidates=asset.candidates||[];
   const gateLabels={positive_vs_cash:'Supera efectivo',beats_asset_hold_oos:'Supera mantener el activo OOS',mean_fold_sharpe:'Sharpe OOS',positive_folds:'Consistencia',selection_stability:'Estabilidad de selección',monte_carlo_loss:'Monte Carlo',full_sample_sharpe:'Sharpe de desarrollo',parameter_stability:'Sensibilidad',turnover_control:'Rotación',data_quality:'Calidad de datos',holdout_positive:'Ventana final positiva',holdout_beats_asset_hold:'Ventana final supera mantener el activo',holdout_cost_stress:'Costos duplicados',minimum_oos_evidence:'Actividad OOS mínima'};
   const gates=Object.entries(asset.qualification?.gates||{});
+  const promotion=asset.promotion||{};
+  const stages=['RESEARCH','CANDIDATE','FORWARD_TEST','TESTNET','APPROVED'];
+  const currentStage=promotion.stage||'RESEARCH';
+  const currentIndex=Math.max(0,stages.indexOf(currentStage));
+  const stageLabels={RESEARCH:'Investigación',CANDIDATE:'Candidato',FORWARD_TEST:'Forward test',TESTNET:'Listo para Testnet',APPROVED:'Aprobado'};
   panel.hidden=false;
   panel.innerHTML=`<div class="detail-heading"><div><p class="eyebrow">${esc(asset.symbol)} · DIAGNÓSTICO</p><h3>${esc(asset.champion_candidate)}</h3></div><button class="detail-close" aria-label="Cerrar detalle">×</button></div>
     <div class="detail-metrics">
@@ -255,7 +210,11 @@ function renderResearchDetail(asset) {
       <article><span>Monte Carlo P05</span><strong>${pct(mc.p05_return_pct)}</strong></article>
       <article><span>Drawdown P95</span><strong>${Number(mc.p95_drawdown_pct||0).toFixed(2)}%</strong></article>
     </div>
-    <div class="qualification"><h4>Puertas de promoción</h4><div>${gates.map(([name,ok])=>`<span class="gate ${ok?'gate-pass':'gate-fail'}">${ok?'✓':'×'} ${esc(gateLabels[name]||name)}</span>`).join('')||'<span class="gate">Informe anterior: vuelve a ejecutar el análisis.</span>'}</div></div>
+    <div class="qualification"><h4>Pipeline de promoción</h4><div>${stages.map((stage,index)=>`<span class="gate ${index<currentIndex?'gate-pass':index===currentIndex?'gate-pass':'gate'}">${index<currentIndex?'✓':index===currentIndex?'●':'○'} ${esc(stageLabels[stage])}</span>`).join('')}</div>
+      <p class="research-updated"><strong>Siguiente acción:</strong> ${esc(promotion.recommended_action||'Mantener en investigación')} · ${esc(promotion.reason||'Sin decisión de promoción')}. Toda promoción requiere aprobación del propietario; LIVE nunca se activa desde el laboratorio.</p>
+      ${promotion.forward_test?.required?`<p class="research-updated">Forward test mínimo previsto: ${Number(promotion.forward_test.minimum_observed_days||30)} días y ${Number(promotion.forward_test.minimum_closed_trades||30)} cierres, con retorno neto positivo y ventaja frente al benchmark.</p>`:''}
+    </div>
+    <div class="qualification"><h4>Puertas de investigación</h4><div>${gates.map(([name,ok])=>`<span class="gate ${ok?'gate-pass':'gate-fail'}">${ok?'✓':'×'} ${esc(gateLabels[name]||name)}</span>`).join('')||'<span class="gate">Informe anterior: vuelve a ejecutar el análisis.</span>'}</div></div>
     <h4>Comparación entre estrategias · solo desarrollo OOS</h4>
     <div class="table-wrap"><table class="research-table"><thead><tr><th>Estrategia</th><th>Retorno OOS</th><th>Cierres OOS</th><th>Ventanas +</th><th>Selección</th></tr></thead>
     <tbody>${candidates.map(candidate=>`<tr><td>${esc(candidate.strategy)}</td><td>${candidate.development_oos_return_pct==null?'—':pct(candidate.development_oos_return_pct)}</td><td>${candidate.development_oos_trades==null?'—':Number(candidate.development_oos_trades)}</td><td>${candidate.development_positive_folds_pct==null?'—':pct(candidate.development_positive_folds_pct)}</td><td>${candidate.strategy===asset.champion_candidate?'Fijada en entrenamiento inicial':'Comparación retrospectiva'}</td></tr>`).join('')}</tbody></table></div>
@@ -292,7 +251,6 @@ async function refresh() {
     document.getElementById('accountEnvironmentTitle').textContent='Cuenta de prueba · '+modeUpper;
     document.getElementById('riskPanelTitle').textContent='Límites '+modeUpper;
     document.getElementById('financialEvidenceTitle').textContent='Seguimiento financiero '+modeUpper;
-    refreshTestnet();
     document.getElementById('equity').textContent=money(status.equity);
     document.getElementById('cash').textContent=money(status.cash);
     document.getElementById('exposure').textContent=money(status.exposure);

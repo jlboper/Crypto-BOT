@@ -623,12 +623,31 @@ def research_asset(symbol, candles, btc_candles, config, *, train_bars=600, test
     result["selection_method"] = "fixed_candidate_selected_on_initial_training_only"
     passed = bool(result["qualification"]["passed"])
     result["promotion"] = {
-        "stage": "CANDIDATE" if passed else "RESEARCH_REJECTED",
+        "stage": "CANDIDATE" if passed else "RESEARCH",
+        "decision": "ADVANCE_TO_FORWARD_TEST" if passed else "KEEP_IN_RESEARCH",
         "automatic": False,
-        "forward_test": {"status": "NOT_STARTED", "required": True},
+        "owner_approval_required": True,
+        "forward_test": {
+            "status": "NOT_STARTED",
+            "required": True,
+            "minimum_closed_trades": 30,
+            "minimum_observed_days": 30,
+            "requires_positive_net_return": True,
+            "requires_benchmark_advantage": True,
+        },
         "testnet_eligible": False,
         "live_eligible": False,
         "next_gate": "FORWARD_TEST" if passed else "RESEARCH_GATES",
+        "recommended_action": (
+            "Iniciar forward test sin cambiar la estrategia del motor"
+            if passed else
+            "Mantener en investigación; no promover"
+        ),
+        "reason": (
+            "Todas las puertas de investigación y holdout fueron superadas"
+            if passed else
+            f"Superó {sum(bool(value) for value in gates.values())} de {len(gates)} puertas de investigación"
+        ),
     }
     return result
 
@@ -748,6 +767,7 @@ def build_research_report(
             "strategies_per_asset": len(default_profiles(config)),
             "promising_assets": sum(asset["status"] == "PROMISING_RESEARCH_ONLY" for asset in assets),
             "promotion_candidates": sum(asset.get("promotion", {}).get("stage") == "CANDIDATE" for asset in assets),
+            "forward_test_ready": sum(asset.get("promotion", {}).get("decision") == "ADVANCE_TO_FORWARD_TEST" for asset in assets),
             "testnet_eligible": 0,
             "live_eligible": 0,
             "total_walk_forward_folds": sum(asset["walk_forward"]["folds"] for asset in assets),
@@ -755,14 +775,18 @@ def build_research_report(
         "promotion_pipeline": {
             "stages": ["RESEARCH", "CANDIDATE", "FORWARD_TEST", "TESTNET", "APPROVED", "RETIRED"],
             "automatic_promotion": False,
-            "rule": "Research may nominate a candidate; only future forward-test evidence and explicit owner approval can advance it to Testnet. LIVE remains a separate locked authorization.",
+            "rule": "Research may recommend a candidate for forward test. Forward-test evidence may later make it eligible for Testnet, but every environment promotion requires explicit owner approval. APPROVED never enables LIVE; LIVE remains a separate locked authorization.",
             "candidates": [
                 {
                     "symbol": asset["symbol"],
                     "strategy": asset["champion_candidate"],
                     "family": asset["champion_family"],
                     "stage": asset["promotion"]["stage"],
+                    "decision": asset["promotion"]["decision"],
                     "next_gate": asset["promotion"]["next_gate"],
+                    "recommended_action": asset["promotion"]["recommended_action"],
+                    "reason": asset["promotion"]["reason"],
+                    "owner_approval_required": True,
                     "testnet_eligible": False,
                     "live_eligible": False,
                 }

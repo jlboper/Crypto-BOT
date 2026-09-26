@@ -64,6 +64,27 @@ def run(source: Path, action: str, approved: str | None = None, *, agent_root: P
     return UpdateSupervisor(manager).install(info['package'], info['envelope'], approved)
 
 
+def failure_code(error: Exception) -> str:
+    message = str(error)
+    known = {
+        'Supervised installation is not enabled': 'SUPERVISOR_DISABLED',
+        'Recover previous maintenance before installing': 'MAINTENANCE_PENDING',
+        'Existing engine has no cooperative runtime status': 'ENGINE_RUNTIME_STALE',
+        'Existing engine is stopped; supervised installation requires a running engine': 'ENGINE_STOPPED',
+        'Owned engine exited before readiness': 'CANDIDATE_EXITED',
+        'runtime health check failed; stop candidate before recovery': 'CANDIDATE_HEALTH_FAILED',
+    }
+    if message in known:
+        return known[message]
+    if isinstance(error, TimeoutError):
+        return 'SUPERVISOR_TIMEOUT'
+    if isinstance(error, FileNotFoundError):
+        return 'LOCAL_CHANNEL_MISSING'
+    if isinstance(error, ValueError):
+        return 'LOCAL_VALIDATION_FAILED'
+    return type(error).__name__.upper()
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description='Independent local PAPER update center')
     parser.add_argument('--source', type=Path, required=True)
@@ -83,8 +104,10 @@ def main() -> None:
     try:
         print(json.dumps(run(args.source, action, args.install, agent_root=agent_root), ensure_ascii=False))
     except Exception as error:
-        # Do not print server response bodies, credential paths or raw exception text.
-        print(json.dumps({'status': 'failed', 'error_type': type(error).__name__}), file=sys.stderr)
+        # Emit only an allowlisted machine-readable category. Never expose paths,
+        # credentials, HTTP bodies or raw exception text to the GUI.
+        print(json.dumps({'status': 'failed', 'error_type': type(error).__name__,
+                          'code': failure_code(error)}))
         raise SystemExit(1) from None
 
 

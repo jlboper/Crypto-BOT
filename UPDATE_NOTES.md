@@ -1,3 +1,17 @@
+# Actualización 0.6.22 — auto-recuperación, limpieza y pipeline de promoción
+
+- Añade un watchdog local que compara el modo real del motor con el agente del portal y reinicia únicamente el agente saliente cuando queda desincronizado o su heartbeat se estanca. Un error HTTPS reciente no provoca bucles de reinicio.
+- «Reparar conexión del portal» reinicia el agente incluso cuando sus módulos ya están actualizados, corrigiendo el caso observado en 0.6.20 donde el motor estaba en TESTNET y el agente seguía reportando PAPER.
+- El centro local de actualizaciones devuelve códigos seguros y accionables en vez de mostrar solo `RuntimeError` / `ValueError`.
+- La app de Windows muestra el modo real PAPER/TESTNET leído del motor; ya no deja un badge PAPER estático después de un cambio correcto de entorno.
+- Retira el antiguo piloto manual de órdenes Testnet del portal y de los controles remotos. El único escritor de Binance Spot Testnet es ahora el broker del TradingEngine unificado.
+- Separa el transporte firmado mínimo de Binance Spot Testnet en `trader/testnet_transport.py`, con host fijo de Testnet y sin ruta LIVE.
+- Elimina código/UI ya fuera del build activo (`portal_web/`) y el ZIP histórico v0.5.0 almacenado en el repo. No se borran ledgers, historial financiero ni respaldos operativos.
+- Conserva deliberadamente dos ledgers: `data/trader.db` para PAPER y `data/testnet-trader.db` para TESTNET. No se fusionan para evitar mezclar posiciones, P&L y equity entre entornos.
+- Research Lab muestra un pipeline explícito de promoción: RESEARCH → CANDIDATE → FORWARD_TEST → TESTNET → APPROVED. Una estrategia que supera todas las puertas se recomienda para forward test, pero ninguna etapa se activa automáticamente.
+- La recomendación de cada candidato incluye motivo, siguiente acción y requisitos mínimos previstos del forward test (30 días y 30 cierres, retorno neto positivo y ventaja frente al benchmark). Toda promoción exige aprobación del propietario.
+- `APPROVED` nunca habilita LIVE. Binance LIVE continúa siendo una autorización separada, no implementada por este release.
+
 # Actualización 0.6.21 — corrección de sincronización PAPER ↔ TESTNET
 
 - Corrige el agente remoto para aceptar el cambio supervisado entre `data/trader.db` y `data/testnet-trader.db` dentro de la misma instalación. En 0.6.20 podía rechazar este cambio y dejar el portal mostrando un snapshot PAPER antiguo aunque el motor hubiera cambiado.

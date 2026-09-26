@@ -14,7 +14,7 @@
   <script src="/portal-bridge.js" defer></script>
 </head>
 <body>
-  <form id="portalLogin" hidden><h1>Crypto AI Trader</h1><p>Portal privado · PAPER</p><label for="portalPassword">Contraseña del propietario</label><input id="portalPassword" type="password" autocomplete="current-password" required maxlength="128"><button id="portalLoginButton" type="submit">Entrar</button><p id="portalLoginMessage" role="status"></p></form>
+  <form id="portalLogin" hidden><h1>Crypto AI Trader</h1><p>Portal privado · PAPER / TESTNET</p><label for="portalPassword">Contraseña del propietario</label><input id="portalPassword" type="password" autocomplete="current-password" required maxlength="128"><button id="portalLoginButton" type="submit">Entrar</button><p id="portalLoginMessage" role="status"></p></form>
   <main class="shell">
     <header>
       <div class="brand">
@@ -36,7 +36,6 @@
             <button id="historyButton" role="menuitem">Historial de actividad</button>
             <button id="diagnosticsButton" role="menuitem">Diagnóstico y estrategias</button>
             <button id="modelSettingsButton" role="menuitem">Modelo IA y motor</button>
-            <button id="testnetOptionsButton" role="menuitem">Binance Testnet</button>
             <button id="restoreBotVersion" role="menuitem" disabled>Restaurar versión anterior</button>
             <button id="portalPasswordButton" role="menuitem">Cambiar contraseña</button>
             <button id="portalLogout" role="menuitem" hidden>Cerrar sesión</button>
@@ -79,7 +78,7 @@
     </section>
     <section id="modelSettingsPanel" class="panel" hidden aria-label="Modelo IA y motor">
       <div class="panel-title"><h2>Modelo IA y motor</h2><button id="closeModelSettings" class="secondary">Cerrar</button></div>
-      <p>Windows verifica el modelo y reinicia el motor PAPER. Las claves permanecen en esta PC.</p>
+      <p>Windows verifica el modelo y reinicia el motor activo. Las claves permanecen en esta PC.</p>
       <label for="aiModelChoice">Modelo de revisión</label>
       <select id="aiModelChoice"><option value="gpt-6-luna">GPT-6 Luna</option><option value="gpt-5.6-luna">GPT-5.6 Luna</option></select>
       <button id="applyAiModel" class="secondary" type="button">Aplicar modelo</button>
@@ -89,18 +88,6 @@
       <button id="applyExecutionMode" class="secondary" type="button">Cambiar entorno</button>
       <p id="modelSettingsMessage" role="status">Windows aplicará cambios solo después de verificar el motor. Binance LIVE permanece bloqueado.</p>
     </section>
-    <section id="testnetPanel" class="panel" hidden aria-label="Binance Spot Testnet">
-      <div class="panel-title"><h2>Binance Spot Testnet</h2><button id="closeTestnetPanel" class="secondary">Cerrar</button></div>
-      <p id="testnetIntro">Herramientas del antiguo piloto manual de Binance Spot Testnet. Cuando el motor unificado esté en TESTNET, estas órdenes manuales quedan deshabilitadas para evitar dos sistemas escribiendo sobre la misma cuenta.</p>
-      <p id="testnetStatus">Esperando el registro local de Testnet.</p>
-      <p id="testnetEvidence" role="status">Esperando comprobación de órdenes y saldo de prueba.</p>
-      <button id="testnetBuy" class="secondary" type="button">Comprar 25 USDT de prueba</button>
-      <button id="testnetClose" class="secondary" type="button">Cerrar posición de prueba</button>
-      <button id="testnetReconcile" class="secondary" type="button">Conciliar orden</button>
-      <button id="testnetAudit" class="secondary" type="button">Comprobar órdenes y saldo en Binance</button>
-      <p id="testnetMessage" role="status"></p>
-    </section>
-
     <section class="operation-overview panel" aria-label="Estado de operaciones">
       <div><p class="eyebrow">CENTRO DE OPERACIONES</p><h2 id="accountEnvironmentTitle">Cuenta de prueba · PAPER</h2>
         <p id="operationSummary">Esperando el estado del motor de Windows.</p></div>
@@ -132,7 +119,7 @@
           <label for="riskProfile">Tamaño de riesgo para nuevas entradas</label>
           <select id="riskProfile"><option value="minimo">Mínimo · 25% del límite</option><option value="leve">Leve · 35%</option><option value="prudente">Prudente · 50%</option><option value="moderado">Moderado · 65%</option><option value="alto">Alto · 85%</option><option value="normal">Muy alto · 100% del límite actual</option></select>
           <button id="saveRiskProfile" class="secondary" type="button">Aplicar nivel de riesgo</button>
-          <small id="riskProfileNote">Solo afecta entradas PAPER futuras. «Muy alto» equivale al antiguo «Normal» y nunca supera los topes configurados.</small>
+          <small id="riskProfileNote">Afecta únicamente nuevas entradas del entorno activo. «Muy alto» equivale al antiguo «Normal» y nunca supera los topes configurados.</small>
         </div>
       </article>
     </section>
@@ -140,7 +127,7 @@
     <section class="panel">
       <div class="panel-title"><h2>Posiciones abiertas</h2><span>Protección ATR activa</span></div>
       <div class="table-wrap"><table><thead><tr><th>Par</th><th>Cantidad</th><th>Entrada</th><th>Precio actual</th><th>P&amp;L</th><th>P&amp;L %</th><th>Stop</th><th>Objetivo</th><th>Máximo</th><th>Acción</th></tr></thead><tbody id="positions"></tbody></table></div>
-      <p class="paper-action-note">Cerrar una posición usa una cotización nueva y simula comisiones; bloquea nuevas entradas en ese par durante 24 horas. Disponible solo en el portal local de Windows.</p>
+      <p class="paper-action-note">Cerrar una posición usa el broker del entorno activo y una cotización reciente. Disponible solo bajo los controles supervisados de Windows.</p>
     </section>
 
     <section class="panel paper-scorecard" aria-label="Seguimiento financiero">
@@ -152,9 +139,9 @@
       <details class="finance-details"><summary>Ver métricas, pasos pendientes y resultados por activo</summary>
       <div id="paperMoreMetrics" class="research-summary"></div>
       <div class="readiness-note"><h3>Antes de usar capital real</h3><ul id="readinessChecks"></ul>
-        <p>Después de la evidencia PAPER: probar órdenes en Testnet, validar reglas y mínimos de cada par, conciliar saldos y ejecuciones, y aprobar explícitamente un límite de capital. Esta versión permanece en PAPER.</p>
-        <p id="marketPreflight">Las próximas entradas PAPER se contrastarán con reglas públicas de cantidad y valor mínimo de Binance Spot. Es un diagnóstico; no se envían órdenes.</p>
-        <p id="testnetReadiness"><strong>Testnet:</strong> prueba de órdenes separada del historial PAPER en Opciones. Ninguna orden se envía sin confirmación explícita del propietario.</p>
+        <p>La evidencia se mantiene separada por entorno. Antes de capital real deben validarse reglas del exchange, conciliación de saldos y ejecuciones, y un límite de capital aprobado explícitamente.</p>
+        <p id="marketPreflight">Las nuevas entradas se contrastan con reglas de cantidad y valor mínimo de Binance Spot antes de ejecutarse en el entorno activo.</p>
+        <p id="testnetReadiness"><strong>Testnet:</strong> el motor unificado usa un ledger separado de PAPER y Binance LIVE permanece bloqueado.</p>
       </div>
       <h3>Resultados por activo</h3>
       <div class="table-wrap"><table class="asset-table">
@@ -187,7 +174,7 @@
 
     <details id="diagnosticsPanel" class="advanced-details panel">
       <summary>Diagnóstico y estrategias <span>Investigación, decisiones IA y alertas</span></summary>
-      <p>El motor PAPER sigue una estrategia fija. El estudio histórico sirve para evaluar cambios futuros y no activa estrategias automáticamente.</p>
+      <p>El motor activo sigue una estrategia fija. El estudio histórico sirve para evaluar cambios futuros y no activa estrategias automáticamente.</p>
       <details class="research-lab">
         <summary>Comparar estrategias y ver evaluación histórica</summary>
       <div class="research-heading">
