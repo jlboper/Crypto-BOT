@@ -15,7 +15,17 @@ import tomllib
 from pathlib import Path
 
 
-MODULES = ("scripts/windows_agent.py", "trader/remote_agent.py", "trader/remote_paper_controls.py")
+MODULES = (
+    "scripts/windows_agent.py",
+    "scripts/remote_job.py",
+    "trader/remote_agent.py",
+    "trader/remote_jobs.py",
+    "trader/remote_paper_controls.py",
+    "trader/update_manager.py",
+    "trader/update_supervisor.py",
+    "trader/runtime.py",
+    "trader/runtime_control.py",
+)
 
 
 def _regular(path: Path, root: Path) -> bool:
@@ -40,10 +50,10 @@ def refresh(source: Path, agent_root: Path, *, apply: bool = False) -> dict:
         mode = tomllib.load(stream)["bot"]["mode"]
     with (source / "pyproject.toml").open("rb") as stream:
         version = tomllib.load(stream)["project"]["version"]
-    if (mode != "paper" or record.get("phase") != "committed" or record.get("version") != version or
+    if (mode not in {"paper", "testnet"} or record.get("phase") != "committed" or record.get("version") != version or
             type(record.get("sequence")) is not int or record["sequence"] != committed.get("sequence") or
             re.fullmatch(r"[0-9a-f]{64}", record.get("release_id", "")) is None):
-        raise ValueError("Signed installation not committed for this PAPER version")
+        raise ValueError("Signed installation not committed for this trading version")
     files = record.get("files", {})
     if not isinstance(files, dict):
         raise ValueError("Invalid signed file inventory")
