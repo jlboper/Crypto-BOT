@@ -2,7 +2,7 @@
 
 > Copia de desarrollo aislada de la instalación Windows. El repositorio no contiene credenciales ni datos de la instancia operativa. No inicies un segundo motor. Consulta `BOT_UPDATE_PROGRESS.md` para distinguir versión preparada, publicada e instalada.
 
-Bot de swing trading de varios días/semanas con motor principal en PAPER o Binance Spot Testnet. Consume datos reales de mercado, crea señales cuantitativas y utiliza OpenAI como una segunda barrera de riesgo. Desde 0.7.0 incorpora además un laboratorio separado de Binance USDⓈ-M Futures Testnet para ensayar LONG/SHORT y apalancamiento 1x–3x con fondos ficticios, sin habilitar Binance LIVE.
+Bot de swing trading de varios días/semanas con motor principal en PAPER o Binance Spot Testnet. Consume datos reales de mercado, crea señales cuantitativas y utiliza OpenAI como una segunda barrera de riesgo. Desde 0.7.0 incorpora además un laboratorio separado de Binance USDⓈ-M Futures Demo para ensayar LONG/SHORT y apalancamiento 1x–3x con fondos ficticios, sin habilitar Binance LIVE.
 
 La IA no puede inventar compras, aumentar el tamaño de una posición, eliminar stops ni cambiar límites. Únicamente puede `ALLOW`, `REJECT` o `REDUCE` una entrada que ya pasó las reglas cuantitativas.
 
@@ -14,7 +14,7 @@ La IA no puede inventar compras, aumentar el tamaño de una posición, eliminar 
 - Riesgo objetivo: 0.75% del portafolio por operación.
 - Detención diaria: −2%; semanal: −5%.
 - Stops por ATR, objetivo 2R y trailing stop después de alcanzar 1R.
-- El motor principal Spot no usa margen ni cortos. Futures Testnet vive en un laboratorio separado, limitado a `ISOLATED`, One-way y 1x–3x con fondos ficticios.
+- El motor principal Spot no usa margen ni cortos. Futures Demo vive en un laboratorio separado, limitado a `ISOLATED`, One-way y 1x–3x con fondos ficticios.
 - Kill switch manual y automático después de tres errores consecutivos. Bloquea entradas nuevas, pero el motor continúa vigilando stops y salidas de posiciones existentes.
 
 Todos estos valores están en `config.toml`.
@@ -95,7 +95,7 @@ python -m trader testnet-simulate
 
 A partir de 0.7.0, PAPER queda como entorno de respaldo/CI: se mantiene para regresiones, diagnóstico y fallback, pero las capacidades nuevas se desarrollan sobre Testnet salvo cambios de seguridad necesarios.
 
-El laboratorio paralelo de **USDⓈ-M Futures Testnet** usa credenciales distintas: `BINANCE_FUTURES_TESTNET_API_KEY` y `BINANCE_FUTURES_TESTNET_API_SECRET`. Sus datos se guardan en `data/futures-testnet.db`, separados del ledger Spot. Solo permite margen `ISOLATED`, modo `ONE_WAY` y leverage 1x/2x/3x. La primera fase ofrece verificación de cuenta, smoke LONG/SHORT y reconciliación explícita con cierre `reduceOnly`; todavía no convierte el motor automático Spot en un motor de Futures.
+El laboratorio paralelo de **USDⓈ-M Futures Demo** usa credenciales distintas: `BINANCE_FUTURES_TESTNET_API_KEY` y `BINANCE_FUTURES_TESTNET_API_SECRET`. Sus datos se guardan en `data/futures-testnet.db`, separados del ledger Spot. Solo permite margen `ISOLATED`, modo `ONE_WAY` y leverage 1x/2x/3x. La primera fase ofrece verificación de cuenta, smoke LONG/SHORT y reconciliación explícita con cierre `reduceOnly`; todavía no convierte el motor automático Spot en un motor de Futures.
 
 Usa únicamente claves dedicadas de entornos Testnet, nunca claves de Binance de producción. Guárdalas en la PC con acceso limitado y no las envíes al portal ni al repositorio. Las pruebas de Spot y Futures validan infraestructura, no rentabilidad.
 
@@ -186,7 +186,7 @@ Haz doble clic en `Crypto AI Trader.vbs` para abrir una aplicación gráfica sin
 
 - El dashboard escucha solo en `127.0.0.1`; no abras el puerto 8765 en el router.
 - Si cambias el host para acceder remotamente, define `DASHBOARD_TOKEN` y usa una VPN privada.
-- El motor principal solo permite `paper` y `testnet`; PAPER queda como respaldo/CI. Futures Testnet funciona como laboratorio paralelo con credenciales y ledger separados. Cualquier modo LIVE o desconocido se rechaza y Binance LIVE no está implementado.
+- El motor principal solo permite `paper` y `testnet`; PAPER queda como respaldo/CI. Futures Demo funciona como laboratorio paralelo con credenciales y ledger separados. Cualquier modo LIVE o desconocido se rechaza y Binance LIVE no está implementado.
 - Una simulación favorable no garantiza resultados reales: existen slippage, gaps, cambios de régimen, fallas de conectividad y riesgo de contraparte del exchange.
 
 ## Pruebas locales
