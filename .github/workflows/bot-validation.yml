@@ -28,7 +28,7 @@ jobs:
         if: matrix.os == 'windows-latest'
         shell: pwsh
         run: |
-          foreach ($path in @('scripts/manager_windows.ps1', 'scripts/refresh_windows_agent.ps1')) {
+          foreach ($path in @('scripts/manager_windows.ps1', 'scripts/refresh_windows_agent.ps1', 'scripts/agent_self_heal.ps1', 'scripts/agent_watchdog.ps1', 'scripts/install_agent_autostart.ps1')) {
             $tokens = $null
             $parseErrors = $null
             [void][System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $path).Path, [ref]$tokens, [ref]$parseErrors)
