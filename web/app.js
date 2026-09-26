@@ -15,59 +15,6 @@ let lastPositions = [];
 let currentExecutionMode = 'paper';
 const paperControlsAvailable = () => typeof window.paperControlsAvailable === 'function' ? window.paperControlsAvailable() : true;
 
-async function refreshTestnet(){
-  if(document.getElementById('testnetPanel').hidden)return;
-  const label=document.getElementById('testnetStatus');
-  try{
-    const state=await api('/api/testnet/execution');
-    const last=state.orders?.at(-1);
-    label.textContent=last?`Última orden ${last.side==='BUY'?'compra':'venta'} ${last.symbol}: ${last.status} · ejecutado ${last.executed_qty??'pendiente'} BTC · ${last.created_day}.`:
-      'Sin operaciones de Testnet registradas. La primera entrada se realizará solo tras tu confirmación.';
-    const summary=document.getElementById('testnetEvidence');
-    const position=Number(state.position_qty||0),gross=state.gross_closed_quote_usdt;
-    const audit=state.audit;
-    summary.textContent=state.position_qty==null?state.next_step:
-      `Posición registrada: ${num(position,8)} BTC · ${state.closed_cycles} vuelta(s) cerrada(s) · variación bruta cerrada: ${gross==null?'—':Number(gross).toFixed(4)+' USDT'} (comisiones no verificadas). `+
-      (audit?`Binance: ${audit.status==='verified'?'órdenes verificadas':'REVISAR DIFERENCIA'} · saldo libre BTC ${audit.balances?.BTC?.free??'—'}, USDT ${audit.balances?.USDT?.free??'—'} · ${shortTime(audit.checked_at*1000)}.`:'Pulsa «Comprobar órdenes y saldo en Binance» para validar el registro local.');
-    const legacyDisabled=currentExecutionMode==='testnet';
-    document.getElementById('testnetBuy').disabled=legacyDisabled||state.can_buy!==true||audit?.status==='requires_review';
-    document.getElementById('testnetClose').disabled=legacyDisabled||state.can_close!==true||audit?.status==='requires_review';
-    document.getElementById('testnetReconcile').disabled=legacyDisabled||state.needs_reconciliation!==true;
-    document.getElementById('testnetAudit').disabled=legacyDisabled||state.needs_reconciliation===true;
-    document.getElementById('testnetIntro').textContent=legacyDisabled?'Motor unificado activo en Binance Spot Testnet. El piloto manual anterior está bloqueado para evitar órdenes duplicadas. Las posiciones se gestionan desde el motor principal.':'Piloto manual anterior de Binance Spot Testnet. Úsalo solo mientras el motor principal siga en PAPER.';
-  }catch(error){label.textContent='Testnet pendiente de sincronización: '+error.message;
-    for(const id of ['testnetBuy','testnetClose','testnetReconcile','testnetAudit'])document.getElementById(id).disabled=true;}
-}
-window.addEventListener('testnet-open',refreshTestnet);
-for(const [id,path,question] of [
-  ['testnetBuy','/api/testnet/buy','¿Enviar una compra de BTC/USDT por exactamente 25 USDT de prueba a Binance Spot Testnet? Esta orden sí se ejecutará con fondos ficticios de Testnet.'],
-  ['testnetClose','/api/testnet/close','¿Vender en Binance Spot Testnet el BTC adquirido en la última compra de prueba?'],
-  ['testnetReconcile','/api/testnet/reconcile','¿Consultar a Binance Spot Testnet el resultado de la orden pendiente? No reenviará la orden.'],
-  ['testnetAudit','/api/testnet/audit','¿Comprobar en Binance Spot Testnet las últimas órdenes y los saldos BTC/USDT? Es una consulta, no envía órdenes.']]){
-  document.getElementById(id).addEventListener('click',async event=>{
-    if(!confirm(question))return;
-    const startedAt=Date.now()/1000;
-    const button=event.currentTarget,message=document.getElementById('testnetMessage');
-    button.disabled=true;message.textContent='Windows está procesando la solicitud…';
-    try{
-      const result=await api(path,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
-      message.textContent=result.status==='pending'?'Solicitud aceptada. Espera la confirmación en Actividad y vuelve a consultar el registro.':
-        'Windows confirmó el resultado. Comprueba el registro de la orden.';
-    }catch(error){message.textContent=error.message;}
-    finally{
-      setTimeout(refreshTestnet,1500);
-      if(['127.0.0.1','localhost','::1'].includes(location.hostname))setTimeout(async()=>{
-        try{const state=await api('/api/operations/last');
-          if(state.at>startedAt)message.textContent=state.status==='completed'?
-            `Windows confirmó ${state.result?.status||'la solicitud'} en Testnet.`:
-            `Windows no completó la solicitud (${state.reason||'revisar estado'}). Concíliala si figura como incierta.`;
-          refreshTestnet();
-        }catch{}
-      },3500);
-    }
-  });
-}
-
 async function api(path, options={}) {
   if(window.portalApi)return window.portalApi(path,{...options,headers:{...headers,...(options.headers||{})}});
   const response = await fetch(path, {...options, headers:{...headers,...(options.headers||{})}});
@@ -292,7 +239,6 @@ async function refresh() {
     document.getElementById('accountEnvironmentTitle').textContent='Cuenta de prueba · '+modeUpper;
     document.getElementById('riskPanelTitle').textContent='Límites '+modeUpper;
     document.getElementById('financialEvidenceTitle').textContent='Seguimiento financiero '+modeUpper;
-    refreshTestnet();
     document.getElementById('equity').textContent=money(status.equity);
     document.getElementById('cash').textContent=money(status.cash);
     document.getElementById('exposure').textContent=money(status.exposure);
