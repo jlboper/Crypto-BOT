@@ -249,7 +249,19 @@ async function refresh() {
     const modeUpper=currentExecutionMode.toUpperCase();
     document.getElementById('mode').textContent=modeUpper;
     document.getElementById('executionModeChoice').value=currentExecutionMode==='testnet'?'testnet':'paper';
-    document.getElementById('testTestnetExecution').disabled=currentExecutionMode!=='testnet'||!paperControlsAvailable();
+    const primaryState=document.getElementById('primaryEnvironmentState');
+    if(primaryState)primaryState.textContent=modeUpper;
+    const controlsReady=paperControlsAvailable();
+    document.getElementById('testTestnetExecution').disabled=currentExecutionMode!=='testnet'||!controlsReady;
+    for(const id of ['checkFuturesTestnet','testFuturesExecution','reconcileFutures']){
+      const button=document.getElementById(id);
+      if(button)button.disabled=currentExecutionMode!=='testnet'||!controlsReady;
+    }
+    const futuresState=document.getElementById('futuresState');
+    if(futuresState){
+      futuresState.textContent=currentExecutionMode==='testnet'?'DISPONIBLE':'REQUIERE TESTNET';
+      futuresState.className='state '+(currentExecutionMode==='testnet'?'neutral':'warning');
+    }
     document.getElementById('accountEnvironmentTitle').textContent='Cuenta de prueba · '+modeUpper;
     document.getElementById('riskPanelTitle').textContent='Límites '+modeUpper;
     document.getElementById('financialEvidenceTitle').textContent='Seguimiento financiero '+modeUpper;
