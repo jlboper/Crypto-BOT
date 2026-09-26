@@ -1,3 +1,15 @@
+# Actualización 0.6.25 — limpieza PAPER/TESTNET, updater visual y Smoke Test
+
+- Limpia validaciones, mensajes y documentación heredados que todavía asumían PAPER aunque el motor unificado ya soporte PAPER y Binance Spot Testnet.
+- El updater local y el supervisor usan terminología neutral y reconocen ambos entornos; el bloqueo de archivos usa el ledger efectivo del modo activo.
+- La app y el portal ya no muestran PAPER por defecto mientras esperan el estado real del motor.
+- El seguimiento financiero adapta sus etiquetas al entorno activo y evita presentar costos/operaciones Testnet como si fueran simulación PAPER.
+- Rediseña el Centro de actualizaciones como una sola experiencia compacta: estado principal, una acción relevante y detalles técnicos plegados.
+- Añade una prueba supervisada de ejecución Binance Spot Testnet. Solo funciona en TESTNET, requiere cero posiciones abiertas y ninguna orden pendiente, detiene el motor cooperativamente y usa el mismo BinanceTestnetBroker para una ida y vuelta BTCUSDT pequeña con fondos ficticios.
+- El Smoke Test usa un solo escritor, journal durable e idempotencia del portal; no reintenta escrituras inciertas y siempre vuelve a levantar el motor mediante el supervisor.
+- Binance LIVE sigue sin host, ruta ni modo de escritura implementado. El Smoke Test valida infraestructura, no rentabilidad.
+- Conserva los nombres internos históricos necesarios para compatibilidad, como /v1/paper-controls y paper_close, sin exponerlos como estado efectivo del motor.
+
 # Actualización 0.6.24 — comprobación de updates idempotente
 
 - Corrige la búsqueda de actualizaciones cuando el bot ya está en la versión firmada más reciente: la secuencia actual puede verificarse para descubrimiento sin tratarse como replay ni convertirse en candidata de instalación.
