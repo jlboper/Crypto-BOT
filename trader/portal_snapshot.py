@@ -59,6 +59,10 @@ def dashboard_snapshot(config, report_path=None):
                 'killed': config.futures_testnet.kill_switch_path.exists(),
                 'symbol': config.futures_testnet.forward_symbol,
                 'automatic_leverage': config.futures_testnet.forward_leverage,
+                'daily_loss_limit_pct': config.futures_testnet.forward_daily_loss_limit_pct * 100.0,
+                'weekly_loss_limit_pct': config.futures_testnet.forward_weekly_loss_limit_pct * 100.0,
+                'max_consecutive_errors': config.futures_testnet.forward_max_consecutive_errors,
+                'risk_state': FuturesTestnetLedger(config.futures_testnet.database_path).setting('forward_risk_state'),
                 **FuturesTestnetLedger(config.futures_testnet.database_path).forward_snapshot(),
             },
         }
