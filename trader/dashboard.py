@@ -303,6 +303,18 @@ class DashboardServer:
                         "killed": outer.config.futures_testnet.kill_switch_path.exists(),
                         "symbol": outer.config.futures_testnet.forward_symbol,
                         "automatic_leverage": outer.config.futures_testnet.forward_leverage,
+                        "ai_model": outer.config.ai.model,
+                        "last_ai_review": FuturesTestnetLedger(outer.config.futures_testnet.database_path).setting("forward_last_ai_review"),
+                        "recovery": {
+                            "durable_order_journal": True,
+                            "startup_position_reconciliation": True,
+                            "separate_kill_switch": True,
+                            "native_exchange_stop_orders": False,
+                        },
+                        "live_readiness": {
+                            "enabled": False,
+                            "reason": "Demo observation and exchange-native protective orders are required before LIVE.",
+                        },
                         **snapshot,
                     })
                 elif path == "/api/paper-scorecard":
