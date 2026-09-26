@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 from trader.config import load_config
 from trader.futures_testnet import FuturesTestnetLab
-from trader.futures_testnet_transport import FuturesTestnetExecutionError, HOST, signed_request
+from trader.futures_testnet_transport import FuturesTestnetExecutionError, HOST, PUBLIC_FALLBACK_HOST, signed_request
 
 
 class FuturesTestnetLabTests(unittest.TestCase):
@@ -164,6 +164,7 @@ class FuturesTestnetLabTests(unittest.TestCase):
     def test_transport_has_no_production_host_and_blocks_unknown_endpoint(self):
         self.assertEqual(HOST, "https://testnet.binancefuture.com")
         self.assertNotEqual(HOST, "https://fapi.binance.com")
+        self.assertEqual(PUBLIC_FALLBACK_HOST, "https://fapi.binance.com")
         with self.assertRaisesRegex(FuturesTestnetExecutionError, "endpoint blocked"):
             signed_request("POST", "/fapi/v1/withdraw", {})
 
