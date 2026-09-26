@@ -11,7 +11,7 @@ from unittest.mock import patch
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 
-from scripts.local_update import run
+from scripts.local_update import run, failure_code
 from trader.update_manager import canonical, release_id
 
 
@@ -76,6 +76,12 @@ class LocalUpdateTests(unittest.TestCase):
         (self.source / 'config.toml').write_text('[bot]\nmode="live"\n')
         with self.assertRaises(ValueError):
             run(self.source, 'check-offline', agent_root=self.agent)
+
+    def test_failure_codes_are_actionable_without_exposing_raw_details(self):
+        self.assertEqual(failure_code(RuntimeError('Recover previous maintenance before installing')), 'MAINTENANCE_PENDING')
+        self.assertEqual(failure_code(RuntimeError('Existing engine has no cooperative runtime status')), 'ENGINE_RUNTIME_STALE')
+        self.assertEqual(failure_code(TimeoutError('private path should not surface')), 'SUPERVISOR_TIMEOUT')
+        self.assertEqual(failure_code(ValueError('secret detail')), 'LOCAL_VALIDATION_FAILED')
 
 
 if __name__ == '__main__':
