@@ -298,9 +298,11 @@ async function refresh() {
     }
     const futuresState=document.getElementById('futuresState');
     if(futuresState){
-      futuresState.textContent=currentExecutionMode!=='testnet'?'REQUIERE TESTNET':
-        (!futuresForward?.enabled?'INACTIVO':(futuresForward?.killed?'PAUSADO':'ACTIVO'));
-      futuresState.className='state '+((currentExecutionMode!=='testnet'||futuresForward?.killed)?'warning':'neutral');
+      const futuresDisabledReason=currentExecutionMode!=='testnet'
+        ? 'INACTIVO · MOTOR EN '+currentExecutionMode.toUpperCase()
+        : (!futuresForward?.enabled?'INACTIVO · FORWARD DESHABILITADO':null);
+      futuresState.textContent=futuresDisabledReason || (futuresForward?.killed?'PAUSADO':'ACTIVO');
+      futuresState.className='state '+((futuresDisabledReason||futuresForward?.killed)?'warning':'neutral');
     }
     document.getElementById('accountEnvironmentTitle').textContent='Spot · '+modeUpper;
     const spotEngineState=document.getElementById('spotEngineState');
@@ -316,8 +318,11 @@ async function refresh() {
     const forwardState=document.getElementById('futuresForwardState');
     const forwardPosition=futuresForward?.position;
     if(forwardState){
-      forwardState.textContent=!futuresForward?.enabled?'INACTIVO':(futuresForward.killed?'PAUSADO':(forwardPosition?'POSICIÓN ABIERTA':'ACTIVO · ESPERANDO SEÑAL'));
-      forwardState.className='state '+(futuresForward?.killed?'warning':'neutral');
+      const forwardDisabledReason=currentExecutionMode!=='testnet'
+        ? 'INACTIVO · MOTOR EN '+currentExecutionMode.toUpperCase()
+        : (!futuresForward?.enabled?'INACTIVO · FORWARD DESHABILITADO':null);
+      forwardState.textContent=forwardDisabledReason || (futuresForward.killed?'PAUSADO':(forwardPosition?'POSICIÓN ABIERTA':'ACTIVO · ESPERANDO SEÑAL'));
+      forwardState.className='state '+((forwardDisabledReason||futuresForward?.killed)?'warning':'neutral');
     }
     const fWallet=document.getElementById('futuresForwardWallet');
     if(fWallet){
