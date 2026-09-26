@@ -93,17 +93,57 @@
       <button id="loadMoreHistory" class="secondary" hidden>Ver anteriores</button>
       <p id="historyMessage" role="status"></p>
     </section>
-    <section id="modelSettingsPanel" class="panel" hidden aria-label="Modelo IA y motor">
-      <div class="panel-title"><h2>Modelo IA y motor</h2><button id="closeModelSettings" class="secondary">Cerrar</button></div>
-      <p>Windows verifica el modelo y reinicia el motor activo. Las claves permanecen en esta PC.</p>
-      <label for="aiModelChoice">Modelo de revisión</label>
-      <select id="aiModelChoice"><option value="gpt-6-luna">GPT-6 Luna</option><option value="gpt-5.6-luna">GPT-5.6 Luna</option></select>
-      <button id="applyAiModel" class="secondary" type="button">Aplicar modelo</button>
-      <button id="restartMotor" class="secondary" type="button">Reiniciar motor</button>
-      <label for="executionModeChoice">Entorno de ejecución</label>
-      <select id="executionModeChoice"><option value="paper">PAPER · simulación interna</option><option value="testnet">Binance Spot Testnet · fondos ficticios</option></select>
-      <button id="applyExecutionMode" class="secondary" type="button">Cambiar entorno</button>
-      <button id="testTestnetExecution" class="secondary" type="button">Probar ejecución Testnet</button>
+    <section id="modelSettingsPanel" class="panel" hidden aria-label="Motor y entornos">
+      <div class="panel-title"><div><p class="eyebrow">CONTROL DEL MOTOR</p><h2>Motor y entornos</h2></div><button id="closeModelSettings" class="secondary">Cerrar</button></div>
+      <p class="settings-intro">Spot Testnet es el entorno principal de desarrollo. PAPER queda disponible como respaldo y CI. Futures Testnet funciona en un ledger separado y nunca habilita Binance LIVE.</p>
+      <div class="settings-grid">
+        <article class="settings-card">
+          <div class="settings-card-head"><div><span class="settings-kicker">MOTOR PRINCIPAL</span><h3>Spot / PAPER</h3></div><span class="state neutral" id="primaryEnvironmentState">CARGANDO</span></div>
+          <div class="settings-field">
+            <label for="aiModelChoice">Modelo de revisión IA</label>
+            <select id="aiModelChoice"><option value="gpt-6-luna">GPT-6 Luna</option><option value="gpt-5.6-luna">GPT-5.6 Luna</option></select>
+          </div>
+          <div class="settings-actions">
+            <button id="applyAiModel" class="secondary" type="button">Aplicar modelo</button>
+            <button id="restartMotor" class="secondary" type="button">Reiniciar motor</button>
+          </div>
+          <div class="settings-field">
+            <label for="executionModeChoice">Entorno del motor</label>
+            <select id="executionModeChoice"><option value="testnet">Binance Spot Testnet · principal</option><option value="paper">PAPER · respaldo / CI</option></select>
+          </div>
+          <div class="settings-actions">
+            <button id="applyExecutionMode" class="secondary" type="button">Cambiar entorno</button>
+            <button id="testTestnetExecution" class="secondary" type="button">Probar Spot Testnet</button>
+          </div>
+          <p class="settings-help">PAPER se conserva para regresiones, diagnóstico y fallback. El desarrollo nuevo se valida primero en Testnet.</p>
+        </article>
+
+        <article class="settings-card futures-card">
+          <div class="settings-card-head"><div><span class="settings-kicker">DERIVADOS · EXPERIMENTAL</span><h3>USDⓈ-M Futures Testnet</h3></div><span class="state neutral" id="futuresState">SIN VERIFICAR</span></div>
+          <div class="futures-guardrails">
+            <span>ISOLATED</span><span>ONE-WAY</span><span>1x–3x</span><span>Fondos ficticios</span>
+          </div>
+          <div class="settings-two-col">
+            <div class="settings-field">
+              <label for="futuresDirection">Dirección de prueba</label>
+              <select id="futuresDirection"><option value="LONG">LONG</option><option value="SHORT">SHORT</option></select>
+            </div>
+            <div class="settings-field">
+              <label for="futuresLeverage">Apalancamiento</label>
+              <select id="futuresLeverage"><option value="1">1x</option><option value="2" selected>2x</option><option value="3">3x</option></select>
+            </div>
+          </div>
+          <div class="settings-actions futures-actions">
+            <button id="checkFuturesTestnet" class="secondary" type="button">Verificar Futures</button>
+            <button id="testFuturesExecution" class="primary" type="button">Probar Futures</button>
+            <button id="reconcileFutures" class="secondary" type="button">Reconciliar</button>
+          </div>
+          <div id="futuresMetrics" class="futures-metrics">
+            <div><span>Saldo</span><strong>—</strong></div><div><span>Disponible</span><strong>—</strong></div><div><span>Posiciones</span><strong>—</strong></div><div><span>Última prueba</span><strong>—</strong></div>
+          </div>
+          <p class="settings-help">La prueba abre y cierra una posición pequeña con <code>reduceOnly</code>. Si una respuesta queda incierta, debes reconciliar antes de repetir.</p>
+        </article>
+      </div>
       <p id="modelSettingsMessage" role="status">Windows aplicará cambios solo después de verificar el motor. Binance LIVE permanece bloqueado.</p>
     </section>
     <section class="operation-overview panel" aria-label="Estado de operaciones">
