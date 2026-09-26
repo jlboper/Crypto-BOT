@@ -3,6 +3,7 @@ import json
 import re
 import sqlite3
 from dataclasses import asdict
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from .domain import Position
 from .monitoring import activity_status, position_metrics, usable_price
@@ -19,6 +20,84 @@ def public_text(value):
     return value[:1000]
 
 
+
+def _timestamp(value):
+    try:
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00")) if value else None
+    except ValueError:
+        return None
+
+
+def _spot_observation_health(connection, config, latest, positions, settings):
+    now = datetime.now(UTC)
+    since = now - timedelta(hours=24)
+    since_iso = since.isoformat()
+    first_row = connection.execute("SELECT created_at FROM equity ORDER BY id LIMIT 1").fetchone()
+    first_at = _timestamp(first_row["created_at"]) if first_row else None
+    period_start = max(since, first_at) if first_at else now
+    elapsed = max(0.0, (now - period_start).total_seconds())
+    expected = max(1, int(elapsed / config.bot.cycle_seconds) + 1) if first_at else 0
+    samples = int(connection.execute(
+        "SELECT COUNT(*) AS n FROM equity WHERE created_at>=?", (since_iso,)
+    ).fetchone()["n"])
+    times = [_timestamp(row["created_at"]) for row in connection.execute(
+        "SELECT created_at FROM equity WHERE created_at>=? ORDER BY id DESC LIMIT 200", (since_iso,)
+    )]
+    times = sorted(value for value in times if value is not None)
+    gaps = [(b-a).total_seconds() for a,b in zip(times,times[1:])]
+    errors = int(connection.execute(
+        "SELECT COUNT(*) AS n FROM events WHERE created_at>=? AND level IN ('ERROR','CRITICAL')", (since_iso,)
+    ).fetchone()["n"])
+    warnings = int(connection.execute(
+        "SELECT COUNT(*) AS n FROM events WHERE created_at>=? AND level='WARN'", (since_iso,)
+    ).fetchone()["n"])
+    ai = connection.execute(
+        """SELECT COUNT(*) AS total,
+                  SUM(CASE WHEN verdict='REJECT' THEN 1 ELSE 0 END) AS rejected
+           FROM ai_reviews WHERE created_at>=?""", (since_iso,)
+    ).fetchone()
+    closed = connection.execute(
+        """SELECT COUNT(*) AS total, COALESCE(SUM(realized_pnl),0) AS pnl
+           FROM trades WHERE created_at>=? AND side='SELL'""", (since_iso,)
+    ).fetchone()
+    pending = connection.execute(
+        "SELECT value FROM settings WHERE key='unified_testnet_pending_order'"
+    ).fetchone()
+    pending_order = bool(pending and str(pending["value"]).strip())
+    last_at = _timestamp(latest.get("created_at"))
+    last_age = max(0.0, (now-last_at).total_seconds()) if last_at else None
+    market_at = _timestamp(settings.get("market_prices_at"))
+    market_age = max(0.0, (now-market_at).total_seconds()) if market_at else None
+    coverage = min(100.0, 100.0*samples/expected) if expected else 0.0
+    starting = first_at is None or elapsed < config.bot.cycle_seconds * 2
+    integrity = {
+        "positions_within_limit": len(positions) <= config.risk.max_positions,
+        "order_journal_clear": not pending_order,
+        "market_prices_fresh": market_age is not None and market_age <= config.bot.cycle_seconds * 2,
+    }
+    healthy_integrity = all(integrity.values())
+    state = ("STARTING" if starting else
+             "OK" if coverage >= 90 and errors == 0 and healthy_integrity else
+             "WATCH" if coverage >= 70 and errors < config.risk.max_consecutive_errors and healthy_integrity else
+             "ATTENTION")
+    return {
+        "window_hours": 24,
+        "state": state,
+        "samples": samples,
+        "expected_samples": expected,
+        "cycle_coverage_pct": round(coverage, 1),
+        "average_cycle_gap_seconds": round(sum(gaps)/len(gaps), 1) if gaps else None,
+        "last_cycle_age_seconds": round(last_age, 1) if last_age is not None else None,
+        "errors": errors,
+        "warnings": warnings,
+        "ai_reviews": int(ai["total"] or 0),
+        "ai_rejects": int(ai["rejected"] or 0),
+        "closed_trades": int(closed["total"] or 0),
+        "realized_pnl_usdt": round(float(closed["pnl"] or 0.0), 8),
+        "integrity": integrity,
+    }
+
+
 def dashboard_snapshot(config, report_path=None):
     connection = sqlite3.connect(config.bot.database_path.resolve().as_uri()+'?mode=ro', uri=True, timeout=3)
     connection.row_factory = sqlite3.Row
@@ -28,13 +107,14 @@ def dashboard_snapshot(config, report_path=None):
             return [dict(row) for row in connection.execute(f'SELECT {columns} FROM {table} ORDER BY id DESC LIMIT ?', (limit,))]
         equity = rows('equity','equity,cash,exposure,created_at',300)
         latest = equity[0] if equity else {}
-        settings = dict(connection.execute("SELECT key,value FROM settings WHERE key IN ('market_prices','market_prices_at','paper_cash','paper_risk_profile')"))
+        settings = dict(connection.execute("SELECT key,value FROM settings WHERE key IN ('market_prices','market_prices_at','paper_cash','paper_risk_profile','unified_testnet_pending_order')"))
         prices = json.loads(settings.get('market_prices','{}'))
         positions = [position_metrics(Position(**dict(p)),
                      usable_price(prices.get(p['symbol']), settings.get('market_prices_at'), config.bot.cycle_seconds), config.paper)
                      for p in connection.execute('SELECT * FROM positions LIMIT 100')]
         initial = config.paper.initial_cash_usdt
         current = latest.get('equity',initial)
+        futures_ledger = FuturesTestnetLedger(config.futures_testnet.database_path)
         payload = {
             'status': {'mode':config.bot.mode.upper(),'killed':config.bot.kill_switch_path.exists(),'ai_enabled':config.ai.enabled,
                        'ai_model':config.ai.model,'equity':current,'cash':latest.get('cash',float(settings.get('paper_cash',initial))),
@@ -42,7 +122,8 @@ def dashboard_snapshot(config, report_path=None):
                        'positions':len(positions),'max_positions':config.risk.max_positions,'risk':asdict(config.risk),
                        'paper_risk_profile':settings.get('paper_risk_profile','normal') if settings.get('paper_risk_profile','normal') in PROFILES else 'invalid',
                        'cycle_seconds':config.bot.cycle_seconds,
-                       'activity':activity_status(latest.get('created_at'),config.bot.cycle_seconds)},
+                       'activity':activity_status(latest.get('created_at'),config.bot.cycle_seconds),
+                       'observation_health':_spot_observation_health(connection, config, latest, positions, settings)},
             'positions':positions, 'equity':list(reversed(equity)),
             'trades':rows('trades','id,symbol,side,quantity,price,fee,realized_pnl,reason,created_at',50),
             'reviews':rows('ai_reviews','id,symbol,verdict,confidence,risk_multiplier,reason,created_at',50),
@@ -60,7 +141,8 @@ def dashboard_snapshot(config, report_path=None):
                 'symbol': config.futures_testnet.forward_symbol,
                 'automatic_leverage': config.futures_testnet.forward_leverage,
                 'ai_model': config.ai.model,
-                'last_ai_review': FuturesTestnetLedger(config.futures_testnet.database_path).setting('forward_last_ai_review'),
+                'last_ai_review': futures_ledger.setting('forward_last_ai_review'),
+                'observation_health': futures_ledger.observation_health(config.bot.cycle_seconds),
                 'recovery': {
                     'durable_order_journal': True,
                     'startup_position_reconciliation': True,
@@ -71,7 +153,7 @@ def dashboard_snapshot(config, report_path=None):
                     'enabled': False,
                     'reason': 'Demo observation and exchange-native protective orders are required before LIVE.',
                 },
-                **FuturesTestnetLedger(config.futures_testnet.database_path).forward_snapshot(),
+                **futures_ledger.forward_snapshot(),
             },
         }
         for key in ('trades','reviews','events'):
