@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -34,10 +35,18 @@ class FuturesTestnetLedger:
                 completed_at TEXT
             );
             """)
+    @contextmanager
     def _connect(self):
         db = sqlite3.connect(self.path, timeout=30)
         db.row_factory = sqlite3.Row
-        return db
+        try:
+            yield db
+            db.commit()
+        except BaseException:
+            db.rollback()
+            raise
+        finally:
+            db.close()
     def setting(self, key: str) -> dict | None:
         with self._connect() as db:
             row = db.execute("SELECT value FROM settings WHERE key=?", (key,)).fetchone()
