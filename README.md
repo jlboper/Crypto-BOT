@@ -2,7 +2,7 @@
 
 > Copia de desarrollo aislada de la instalación Windows. El repositorio no contiene credenciales ni datos de la instancia operativa. No inicies un segundo motor. Consulta `BOT_UPDATE_PROGRESS.md` para distinguir versión preparada, publicada e instalada.
 
-Bot de swing trading de varios días/semanas con motor principal en PAPER o Binance Spot Testnet. Consume datos reales de mercado, crea señales cuantitativas y utiliza OpenAI como una segunda barrera de riesgo. Desde 0.8.0, cuando Spot está en TESTNET, corre además un forward test separado de Binance USDⓈ-M Futures Demo: BTCUSDT, LONG/SHORT, 1x automático, máximo una posición, ledger y kill switch propios. Los smoke tests manuales 1x–3x permanecen solo como diagnóstico. Binance LIVE sigue sin implementación.
+Bot de swing trading de varios días/semanas con Binance Spot Testnet como entorno operativo predeterminado; PAPER se conserva como respaldo técnico/CI. Consume datos reales de mercado, crea señales cuantitativas y utiliza OpenAI como una segunda barrera de riesgo. Desde 0.8.0, cuando Spot está en TESTNET, corre además un forward test separado de Binance USDⓈ-M Futures Demo: BTCUSDT, LONG/SHORT, 1x automático, máximo una posición, ledger y kill switch propios. Los smoke tests manuales 1x–3x permanecen solo como diagnóstico. Binance LIVE sigue sin implementación.
 
 La IA no puede inventar compras, aumentar el tamaño de una posición, eliminar stops ni cambiar límites. Únicamente puede `ALLOW`, `REJECT` o `REDUCE` una entrada que ya pasó las reglas cuantitativas.
 
@@ -180,7 +180,7 @@ Desde 0.6.18, la app local sincroniza automáticamente los módulos del agente i
 
 ## Centro de control de Windows
 
-Haz doble clic en `Crypto AI Trader.vbs` para abrir una aplicación gráfica sin consola. Desde allí puedes comprobar el estado, equity, rendimiento, efectivo, exposición, posiciones y último ciclo; abrir el portal local o el remoto; buscar e instalar actualizaciones firmadas directamente desde la PC; reiniciar el motor; manejar el kill switch y configurar el inicio automático. Si Internet falla, el botón puede comprobar un paquete firmado previamente descargado; no puede descubrir versiones que no estén ya en la PC. El supervisor independiente debe estar configurado y la versión debe estar firmada, vigente y ser más reciente. Al minimizar o cerrar, el indicador continúa en el área de notificaciones de Windows y cambia de color según el estado.
+Haz doble clic en `Crypto AI Trader.vbs` para abrir una aplicación gráfica sin consola. Desde allí puedes comprobar el estado conjunto, Spot Equity/Return, Futures Wallet/P&L y último ciclo; abrir el portal local o el remoto; buscar e instalar actualizaciones firmadas directamente desde la PC; reiniciar el motor; manejar el kill switch y configurar el inicio automático. Si Internet falla, el botón puede comprobar un paquete firmado previamente descargado; no puede descubrir versiones que no estén ya en la PC. El supervisor independiente debe estar configurado y la versión debe estar firmada, vigente y ser más reciente. Al minimizar o cerrar, el indicador continúa en el área de notificaciones de Windows y cambia de color según el estado.
 
 ## Seguridad operacional
 
@@ -203,7 +203,7 @@ La siguiente fase debe comenzar solo tras revisar resultados fuera de muestra, c
 - **Spot Testnet:** motor multi-activo existente, sin margen ni posiciones cortas.
 - **Futures Demo:** forward test separado de BTCUSDT, LONG/SHORT, apalancamiento automático fijo en 1x y máximo una posición.
 - Futures tiene ledger, journal de órdenes, historial, métricas y kill switch propios. Un fallo del forward test no debe detener el motor Spot.
-- La entrada Futures usa la misma familia cuantitativa de tendencia/momentum en forma simétrica LONG/SHORT, pero no reutiliza la revisión IA spot-only para cortos.
+- La entrada Futures usa una familia cuantitativa simétrica LONG/SHORT y pasa por una revisión IA final específica para Futures. La IA solo confirma o rechaza la señal; no cambia dirección, tamaño ni leverage.
 - La cantidad inicial es 0.001 BTC, validada con `/order/test`, y la entrada se bloquea si su notional supera el presupuesto automático configurado.
 - Las protecciones de Futures se revisan durante los ticks de protección aunque se pausen nuevas entradas Futures.
 - Ninguna métrica de Testnet autoriza automáticamente LIVE. La evaluación de dinero real es una decisión posterior y separada.

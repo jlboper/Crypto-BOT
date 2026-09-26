@@ -477,10 +477,10 @@ $lastCycleLabel.Font = New-Object System.Drawing.Font("Segoe UI", 9)
 $lastCycleLabel.ForeColor = [System.Drawing.Color]::FromArgb(139, 169, 190)
 $statusPanel.Controls.Add($lastCycleLabel)
 
-$equityCard = New-KpiCard "Equity" 28 210
-$returnCard = New-KpiCard "Rendimiento" 202 210
-$cashCard = New-KpiCard "Efectivo" 376 210
-$exposureCard = New-KpiCard "Exposición" 550 210
+$equityCard = New-KpiCard "Spot Equity" 28 210
+$returnCard = New-KpiCard "Spot Return" 202 210
+$cashCard = New-KpiCard "Futures Wallet" 376 210
+$exposureCard = New-KpiCard "Futures P&L" 550 210
 foreach ($card in @($equityCard, $returnCard, $cashCard, $exposureCard)) {
     $form.Controls.Add($card.Panel)
 }
@@ -627,7 +627,8 @@ function Update-ManagerStatus {
                 if ($futures.killed) { "Futures Demo pausado" }
                 elseif ($futures.position) { "Futures Demo con posición abierta" }
                 else { "Futures Demo activo, esperando señal" }
-            } else { "Futures Demo inactivo" }
+            } elseif ($activeMode -ne 'TESTNET') { "Futures Demo inactivo · motor en $activeMode" }
+              else { "Futures Demo inactivo · forward deshabilitado" }
             $statusDescription.Text = "Spot responde · $futuresText."
             $notifyIcon.Icon = $script:OperationalIcon
             $trayStatusItem.Text = "● Motor operativo"
@@ -661,22 +662,19 @@ function Update-ManagerStatus {
         $returnPct = [math]::Round([double]$status.return_pct, 2)
         $cash = [math]::Round([double]$status.cash, 2)
         $exposure = [math]::Round([double]$status.exposure, 2)
+        $futuresWallet = if ($futures -and $futures.equity -and $futures.equity.Count -gt 0) { [math]::Round([double]$futures.equity[-1].wallet_balance, 2) } else { 0 }
+        $futuresPnl = if ($futures) { [math]::Round([double]$futures.gross_pnl, 2) } else { 0 }
         $equityCard.Value.Text = $equity.ToString("N2")
         $equityCard.Note.Text = "USDT de capital total"
         $returnPrefix = if ($returnPct -ge 0) { "+" } else { "" }
         $returnCard.Value.Text = $returnPrefix + $returnPct.ToString("N2") + "%"
         $returnCard.Value.ForeColor = if ($returnPct -ge 0) { [System.Drawing.Color]::FromArgb(45, 226, 166) } else { [System.Drawing.Color]::FromArgb(255, 120, 140) }
         $returnCard.Note.Text = "Desde el inicio"
-        $cashCard.Value.Text = $cash.ToString("N2")
-        $cashCard.Note.Text = "USDT disponibles"
-        $exposureCard.Value.Text = $exposure.ToString("N2")
-        $exposureCard.Note.Text = "$($status.positions) de $($status.max_positions) posiciones"
-        if ([int]$status.positions -ge [int]$status.max_positions) {
-            $exposureCard.Value.ForeColor = [System.Drawing.Color]::FromArgb(255, 204, 102)
-        }
-        else {
-            $exposureCard.Value.ForeColor = [System.Drawing.Color]::White
-        }
+        $cashCard.Value.Text = if ($futuresWallet -gt 0) { $futuresWallet.ToString("N2") } else { "—" }
+        $cashCard.Note.Text = if ($futures -and $futures.enabled) { "USDT Demo" } else { "Futures inactivo" }
+        $exposureCard.Value.Text = if ($futures) { $futuresPnl.ToString("N2") } else { "—" }
+        $exposureCard.Note.Text = if ($futures) { "$($futures.closed_trades) cierres" } else { "Sin datos" }
+        $exposureCard.Value.ForeColor = if ($futuresPnl -ge 0) { [System.Drawing.Color]::FromArgb(45, 226, 166) } else { [System.Drawing.Color]::FromArgb(255, 120, 140) }
         $lastCycleLabel.Text = "ÚLTIMO CICLO`r`n$lastCycle"
         $notifyIcon.Text = "Crypto AI Trader - $equity USDT"
     }

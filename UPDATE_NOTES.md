@@ -1,3 +1,15 @@
+# Actualización 0.8.3 — consolidación final Spot + Futures
+
+- **Binance Spot Testnet pasa a ser el modo operativo predeterminado** del paquete. PAPER permanece disponible únicamente como respaldo técnico/CI; Binance LIVE sigue sin implementación.
+- El forward test Futures Demo queda habilitado automáticamente cuando el motor está en TESTNET. El portal deja de mostrar un “INACTIVO” ambiguo y explica si el motivo es entorno incorrecto, forward deshabilitado o pausa.
+- Portal local y remoto comparten una sola interfaz consolidada: dos bloques simétricos para Spot y Futures, métricas comparables y una curva independiente por motor.
+- La app de Windows usa la misma jerarquía conceptual: Spot Equity/Return y Futures Wallet/P&L, con estado explícito del segundo motor.
+- Se simplifica el menú normal a Motores e IA, Actualizaciones, Actividad y Diagnóstico avanzado. PAPER y smoke tests quedan plegados como herramientas técnicas.
+- Las pruebas unitarias ahora declaran explícitamente su entorno en vez de depender del modo global, evitando que una prueba PAPER intente tocar Testnet por accidente.
+- El paquete firmado declara su modo real desde config.toml; deja de etiquetarse siempre como PAPER.
+- Se actualiza documentación obsoleta y se preservan deliberadamente ledgers, históricos, rollback, journal durable, kill switches y nombres internos de compatibilidad.
+- La revisión IA final permanece en ambos motores. Los cierres protectores, stops, reconciliación y recuperación nunca esperan a la IA.
+
 # Actualización 0.8.2 — cierre operativo para observación dual
 
 - **Futures Demo usa el mismo modelo IA que Spot** como confirmación final fail-closed antes de una entrada automática. La IA solo puede `ALLOW` o `REJECT`; no crea la operación, no cambia LONG/SHORT, no aumenta tamaño/leverage y no elimina protecciones.

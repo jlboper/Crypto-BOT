@@ -136,6 +136,23 @@ function renderPaperEvidence(report, equity, trades) {
   if (report?.omitted_assets) note.textContent+=` ${report.omitted_assets} activos agrupados en «Otros»; su resultado y cierres están incluidos en el total.`;
 }
 
+function renderFuturesChart(points) {
+  const canvas=document.getElementById('futuresEquityChart');
+  if(!canvas)return;
+  const ctx=canvas.getContext('2d'), dpr=window.devicePixelRatio||1;
+  const width=canvas.clientWidth||520, height=190;
+  canvas.width=width*dpr; canvas.height=height*dpr; ctx.scale(dpr,dpr);
+  ctx.clearRect(0,0,width,height);
+  const rows=(points||[]).map(row=>Number(row.wallet_balance ?? row.equity ?? row.value)).filter(Number.isFinite);
+  if(rows.length<2){ctx.fillStyle='#7890ad';ctx.font='12px Segoe UI';ctx.fillText('Esperando muestras de Futures',14,28);return;}
+  const min=Math.min(...rows), max=Math.max(...rows), span=Math.max(max-min,1);
+  ctx.strokeStyle='#263b55';ctx.lineWidth=1;
+  for(let i=1;i<4;i++){const y=(height-24)*i/4;ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(width,y);ctx.stroke();}
+  ctx.strokeStyle='#4de3b0';ctx.lineWidth=2;ctx.beginPath();
+  rows.forEach((value,i)=>{const x=8+(width-16)*(i/(rows.length-1));const y=8+(height-28)*(1-(value-min)/span);if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);});
+  ctx.stroke();
+}
+
 function renderDualEvidence(spot, futures) {
   const score=futures?.scorecard||{};
   const finite=value=>Number.isFinite(Number(value))?Number(value):0;
@@ -298,9 +315,11 @@ async function refresh() {
     }
     const futuresState=document.getElementById('futuresState');
     if(futuresState){
-      futuresState.textContent=currentExecutionMode!=='testnet'?'REQUIERE TESTNET':
-        (!futuresForward?.enabled?'INACTIVO':(futuresForward?.killed?'PAUSADO':'ACTIVO'));
-      futuresState.className='state '+((currentExecutionMode!=='testnet'||futuresForward?.killed)?'warning':'neutral');
+      const futuresDisabledReason=currentExecutionMode!=='testnet'
+        ? 'INACTIVO · MOTOR EN '+currentExecutionMode.toUpperCase()
+        : (!futuresForward?.enabled?'INACTIVO · FORWARD DESHABILITADO':null);
+      futuresState.textContent=futuresDisabledReason || (futuresForward?.killed?'PAUSADO':'ACTIVO');
+      futuresState.className='state '+((futuresDisabledReason||futuresForward?.killed)?'warning':'neutral');
     }
     document.getElementById('accountEnvironmentTitle').textContent='Spot · '+modeUpper;
     const spotEngineState=document.getElementById('spotEngineState');
@@ -316,8 +335,11 @@ async function refresh() {
     const forwardState=document.getElementById('futuresForwardState');
     const forwardPosition=futuresForward?.position;
     if(forwardState){
-      forwardState.textContent=!futuresForward?.enabled?'INACTIVO':(futuresForward.killed?'PAUSADO':(forwardPosition?'POSICIÓN ABIERTA':'ACTIVO · ESPERANDO SEÑAL'));
-      forwardState.className='state '+(futuresForward?.killed?'warning':'neutral');
+      const forwardDisabledReason=currentExecutionMode!=='testnet'
+        ? 'INACTIVO · MOTOR EN '+currentExecutionMode.toUpperCase()
+        : (!futuresForward?.enabled?'INACTIVO · FORWARD DESHABILITADO':null);
+      forwardState.textContent=forwardDisabledReason || (futuresForward.killed?'PAUSADO':(forwardPosition?'POSICIÓN ABIERTA':'ACTIVO · ESPERANDO SEÑAL'));
+      forwardState.className='state '+((forwardDisabledReason||futuresForward?.killed)?'warning':'neutral');
     }
     const fWallet=document.getElementById('futuresForwardWallet');
     if(fWallet){
@@ -329,7 +351,9 @@ async function refresh() {
     const fPnl=document.getElementById('futuresForwardPnl');
     if(fPnl)fPnl.textContent=money(Number(futuresForward?.gross_pnl||0));
     const fClosed=document.getElementById('futuresForwardClosed');
-    if(fClosed)fClosed.textContent=String(futuresForward?.closed_trades||0);
+    if(fClosed)fClosed.textContent=String(futuresForward?.closed_trades||0)+' cierres';
+    const fReturn=document.getElementById('futuresForwardReturn');
+    if(fReturn)fReturn.textContent=futuresForward?.scorecard?.account_return_pct==null?'—':pct(futuresForward.scorecard.account_return_pct);
     const fAi=document.getElementById('futuresForwardAi');
     if(fAi){
       const review=futuresForward?.last_ai_review;
@@ -403,6 +427,7 @@ async function refresh() {
     renderResearch(research,researchState);
     renderPaperEvidence(paperReport,equity,trades);
     renderDualEvidence(paperReport,futuresForward);
+    renderFuturesChart(futuresForward?.equity||[]);
     document.getElementById('updated').textContent=`Último ciclo ${ageLabel(activity.age_seconds)} · ${shortTime(activity.last_cycle_at)}`;
   } catch(error) {
     const botState=document.getElementById('botState');
@@ -456,7 +481,7 @@ document.getElementById('researchAssets').addEventListener('click',event=>{
 document.getElementById('researchDetail').addEventListener('click',event=>{
   if (event.target.closest('.detail-close')) document.getElementById('researchDetail').hidden=true;
 });
-window.addEventListener('resize',()=>api('/api/equity').then(renderChart).catch(()=>{}));
+window.addEventListener('resize',()=>Promise.all([api('/api/equity'),api('/api/futures-forward')]).then(([spot,futures])=>{renderChart(spot);renderFuturesChart(futures?.equity||[]);}).catch(()=>{}));
 window.addEventListener('portal-ready',refresh);
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('/service-worker.js').catch(()=>{});
 window.addEventListener('DOMContentLoaded',refresh);

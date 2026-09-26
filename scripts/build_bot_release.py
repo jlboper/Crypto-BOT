@@ -44,7 +44,11 @@ def build(root, paths, output, commit, sequence, expires):
     version = tomllib.loads(files['pyproject.toml'].decode())['project']['version']
     if not re.fullmatch(r'\d+\.\d+\.\d+', version) or output.stat().st_size>MAX_PACKAGE:
         raise ValueError('Invalid release metadata')
-    manifest={'app':'crypto-ai-trading-bot','mode':'paper','version':version,'runtime_protocol':1,
+    release_config = tomllib.loads(files['config.toml'].decode()) if 'config.toml' in files else {}
+    release_mode = str(release_config.get('bot', {}).get('mode', 'paper')).lower()
+    if release_mode not in {'paper', 'testnet'}:
+        raise ValueError('Invalid release execution mode')
+    manifest={'app':'crypto-ai-trading-bot','mode':release_mode,'version':version,'runtime_protocol':1,
               'commit':commit,'sequence':sequence,'expires':expires,'size':output.stat().st_size,
               'sha256':hashlib.sha256(output.read_bytes()).hexdigest(),
               'files':{name:hashlib.sha256(content).hexdigest() for name,content in files.items()},

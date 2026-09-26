@@ -21,6 +21,7 @@ class IndependentProjectionTests(unittest.TestCase):
             for name in ('windows_agent.py', 'export_paper_snapshot.py'):
                 shutil.copy2(ROOT / 'scripts' / name, source / 'scripts' / name)
             shutil.copy2(ROOT / 'config.toml', source / 'config.toml')
+            (source / '.env.local').write_text('EXECUTION_MODE=paper\n', encoding='utf-8')
             database = Database(source / 'data/trader.db')
             database.initialize_cash(1000)
             database.record_equity(1000, 1000, 0)

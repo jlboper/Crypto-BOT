@@ -29,7 +29,7 @@ class AccountingTests(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
         config = load_config()
-        self.config = replace(config, bot=replace(config.bot, database_path=self.root/"test.db", kill_switch_path=self.root/"kill"))
+        self.config = replace(config, bot=replace(config.bot, mode='paper', database_path=self.root/"test.db", kill_switch_path=self.root/"kill"))
         self.db = Database(self.config.bot.database_path)
         self.broker = PaperBroker(self.db, config.paper, config.risk)
 

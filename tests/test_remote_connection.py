@@ -98,7 +98,7 @@ class RemoteConnectionTests(unittest.TestCase):
         with patch.object(self.agent.opener, 'open', side_effect=send):
             self.agent.sync()
         self.assertEqual(len(received), 1)
-        self.assertEqual(received[0]['snapshot']['mode'], 'PAPER')
+        self.assertEqual(received[0]['snapshot']['mode'], self.config.bot.mode.upper())
         self.assertEqual(received[0]['snapshot']['bot_update']['version'], '0.6.14')
         self.assertNotIn('dashboard', received[0]['snapshot'])
         self.assertEqual(self.agent.last_error, 'DASHBOARD_UNAVAILABLE:RuntimeError')

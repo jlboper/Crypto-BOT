@@ -23,7 +23,7 @@ class PortalSnapshotTests(unittest.TestCase):
             database.event('WARN','token=TEST_CREDENTIAL https://example.test/private?key=test')
             before=path.read_bytes()
             payload=dashboard_snapshot(config,Path(folder)/'missing.json')
-            self.assertEqual(payload['status']['mode'],'PAPER')
+            self.assertEqual(payload['status']['mode'],'TESTNET')
             self.assertEqual(payload['status']['risk']['max_position_pct'],config.risk.max_position_pct)
             self.assertEqual(payload['research']['assets'],[])
             self.assertEqual(payload['paper_scorecard']['status'],'INSUFFICIENT_EVIDENCE')
