@@ -1,4 +1,4 @@
-"""Explicit bridge to an existing PAPER install; never constructs a trading engine."""
+"""Explicit bridge to an existing trading install; never constructs a trading engine."""
 import argparse
 import json
 import os
@@ -98,7 +98,7 @@ def source_settings(source):
 
 
 def dashboard_from_source(source, config):
-    """Read current installed PAPER code in an isolated process.
+    """Read current installed trading code in an isolated process.
 
     The supervisor is intentionally separate from the bot, so importing its
     own dashboard forever would leave financial projections on an old schema.
@@ -109,19 +109,19 @@ def dashboard_from_source(source, config):
     if not script.is_file():
         return dashboard_snapshot(config, source / 'data/research/latest.json')
     if not script.resolve().is_relative_to(source):
-        raise ValueError('PAPER projection escaped installation')
+        raise ValueError('Trading projection escaped installation')
     python = Path(sys.executable)
     if python.name.lower() == 'pythonw.exe':
         python = python.with_name('python.exe')
     if not python.is_file():
-        raise FileNotFoundError('PAPER projection Python unavailable')
+        raise FileNotFoundError('Trading projection Python unavailable')
     result = subprocess.run(
         [str(python), '-I', '-B', str(script), '--source', str(source)],
         cwd=source, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
         stderr=subprocess.DEVNULL, timeout=15, check=False,
         creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
     if result.returncode != 0 or len(result.stdout) > 480_000:
-        raise RuntimeError('PAPER projection unavailable')
+        raise RuntimeError('Trading projection unavailable')
     payload = json.loads(result.stdout)
     if (not isinstance(payload, dict) or not isinstance(payload.get('status'), dict)
             or payload['status'].get('mode') not in {'PAPER', 'TESTNET'}):
