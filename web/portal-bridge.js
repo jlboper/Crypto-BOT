@@ -347,10 +347,25 @@ document.addEventListener('DOMContentLoaded',()=>{
   let updatePending=false,lastUpdatesAt=0;
   async function checkAllUpdates(force=true){
     if(!remotePortal){
-      const output=document.getElementById('updateMessage');output.replaceChildren();
-      const link=document.createElement('a');link.href='https://crypto-paper-private-portal.jlboper.workers.dev/#updates';
-      link.textContent='Abrir el portal privado para revisar y autorizar con tu sesión segura';
-      link.rel='noopener';link.target='_blank';output.append(link);return;
+      const output=document.getElementById('updateMessage');
+      if(updatePending){output.textContent='La comprobación ya está en curso; no necesitas pulsar de nuevo.';return;}
+      updatePending=true;
+      const button=document.getElementById('checkAllUpdates');button.disabled=true;
+      setUpdateCenterState('searching','Buscando actualización','Windows está descargando y verificando la última release firmada…');
+      try{
+        const candidate=await window.portalApi('/api/local-update/check',{
+          method:'POST',headers:{'Content-Type':'application/json'},body:'{}'
+        });
+        candidate.enabled=true;
+        window.localUpdateCandidate=candidate;
+        setUpdateCenterState('update',`Versión firmada disponible · v${candidate.version}`,
+          'Verificada localmente. Puedes instalarla desde 127.0.0.1 sin abrir el portal remoto.',candidate);
+        output.textContent=`Revisión ${candidate.commit||'verificada'} · paquete firmado listo.`;
+      }catch(error){
+        setUpdateCenterState('warning','No se pudo comprobar',error.message);
+        output.textContent=error.message;
+      }finally{updatePending=false;button.disabled=false;}
+      return;
     }
     const output=document.getElementById('updateMessage');
     if(updatePending){
@@ -409,9 +424,24 @@ document.addEventListener('DOMContentLoaded',()=>{
     }
   }
   async function installBotUpdate(){
-    if(!remotePortal){window.open('https://crypto-paper-private-portal.jlboper.workers.dev/#updates','_blank','noopener');return;}
     const output=document.getElementById('botUpdateMessage');
     const button=document.getElementById('installBotUpdate');
+    if(!remotePortal){
+      const candidate=window.localUpdateCandidate;
+      if(!candidate?.release_id){output.textContent='Primero comprueba la actualización firmada.';return;}
+      if(!confirm(`¿Instalar v${candidate.version} desde esta PC? El supervisor independiente reiniciará y validará el motor automáticamente.`))return;
+      setPortalBusy('installBotUpdate',true,'Procesando…');
+      try{
+        const result=await window.portalApi('/api/local-update/install',{
+          method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({release_id:candidate.release_id})
+        });
+        output.textContent=result.message||'Instalación local iniciada. El portal puede desconectarse unos segundos mientras Windows reinicia el motor.';
+        setUpdateCenterState('searching','Instalando actualización','Windows está aplicando el paquete firmado y comprobará el arranque automáticamente.');
+        document.getElementById('updateDetails').open=false;
+      }catch(error){output.textContent=error.message;setPortalBusy('installBotUpdate',false);}
+      return;
+    }
     if(portalBusyButtons.has('installBotUpdate'))return;
     let submitted=false;setPortalBusy('installBotUpdate',true,'Procesando…');
     try{
