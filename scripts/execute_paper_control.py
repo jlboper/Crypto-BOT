@@ -35,14 +35,34 @@ def main():
     print(json.dumps(result, allow_nan=False))
 
 
+def _safe_failure(error: Exception) -> str:
+    message = str(error)
+    if message == 'Binance Spot Testnet credentials cannot trade':
+        return 'BINANCE_TESTNET_CANNOT_TRADE'
+    if message == 'Healthy installed trading motor required':
+        return 'ENGINE_NOT_HEALTHY'
+    if message in {'Maintenance already in progress', 'Update maintenance in progress'}:
+        return 'MAINTENANCE_BUSY'
+    if message == 'Trading motor did not stop cooperatively':
+        return 'ENGINE_STOP_TIMEOUT'
+    if message == 'New motor did not pass supervised health':
+        return 'ENGINE_START_HEALTH_FAILED'
+    if message == 'Local credential file unavailable':
+        return 'LOCAL_ENV_UNAVAILABLE'
+    if type(error).__name__ == 'ExchangeError':
+        return 'BINANCE_TESTNET_CONNECTION_OR_AUTH_FAILED'
+    return type(error).__name__.upper()
+
+
 if __name__ == '__main__':
     try:
         main()
     except Exception as error:
+        code = _safe_failure(error)
         try:
             atomic_json(ROOT / 'data/operation-last.json', {'status':'failed',
-                         'at':time.time(), 'reason':type(error).__name__})
+                         'at':time.time(), 'reason':code})
         except (OSError, ValueError):
             pass
-        print('PAPER control: ' + type(error).__name__, file=sys.stderr)
+        print(json.dumps({'ok': False, 'reason': code}, separators=(',', ':')))
         raise SystemExit(1) from None

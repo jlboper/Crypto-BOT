@@ -1,3 +1,9 @@
+# Actualización 0.6.21 — corrección de sincronización PAPER ↔ TESTNET
+
+- Corrige el agente remoto para aceptar el cambio supervisado entre `data/trader.db` y `data/testnet-trader.db` dentro de la misma instalación. En 0.6.20 podía rechazar este cambio y dejar el portal mostrando un snapshot PAPER antiguo aunque el motor hubiera cambiado.
+- Añade códigos de fallo seguros y mensajes claros en Actividad para credenciales Binance Testnet, trading deshabilitado, motor no saludable, mantenimiento, timeout de parada, fallo de health-check y configuración local no disponible.
+- Mantiene Binance LIVE bloqueado y no modifica las reglas de riesgo ni la promoción automática de estrategias.
+
 # Actualización 0.6.20 — motor único Binance Spot Testnet y promoción de estrategias
 
 - Añade un único motor con dos entornos permitidos: PAPER y Binance Spot Testnet. Binance LIVE continúa sin implementación ni ruta de escritura.

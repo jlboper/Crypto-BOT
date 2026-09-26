@@ -102,7 +102,8 @@ class RemoteAgent:
         if self.config_provider:
             refreshed = self.config_provider()
             if (refreshed.bot.mode not in {'paper', 'testnet'}
-                    or refreshed.bot.database_path != self.config.bot.database_path):
+                    or refreshed.bot.database_path.parent != self.config.bot.database_path.parent
+                    or refreshed.bot.kill_switch_path != self.config.bot.kill_switch_path):
                 raise ValueError('Trading installation changed unexpectedly')
             self.config = refreshed
         dashboard_issue = None
