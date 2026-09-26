@@ -28,6 +28,29 @@ class RemotePaperControlTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'conflict'):
                 agent.apply({**item, 'payload': {**item['payload'], 'reference_price': 102}})
 
+
+    def test_futures_failure_surfaces_safe_binance_detail(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            script = root / 'bot/scripts/execute_paper_control.py'
+            script.parent.mkdir(parents=True)
+            script.write_text('# signed installed code')
+            agent = RemotePaperControls(root / 'supervisor', root / 'bot')
+            item = {'id': 19, 'action': 'futures_testnet_check', 'expires': time.time() + 200,
+                    'payload': {}}
+            with patch('trader.remote_paper_controls.subprocess.run') as run:
+                run.return_value.returncode = 1
+                run.return_value.stdout = json.dumps({
+                    'ok': False,
+                    'reason': 'FUTURES_TESTNET_EXECUTION_FAILED',
+                    'detail': 'Futures Demo HTTP 400 · Binance -4164: Order notional must be no smaller than 100'
+                })
+                agent.apply(item)
+            result = agent.results()[0]
+            self.assertEqual(result['status'], 'failed')
+            self.assertIn('Binance -4164', result['message'])
+            self.assertLessEqual(len(result['message']), 290)
+
     def test_uncertain_result_fails_closed(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
