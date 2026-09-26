@@ -59,32 +59,30 @@
       </form>
     </section>
     <section id="updatePanel" class="panel update-center" hidden>
-      <div class="panel-title update-center-title">
+      <div class="update-center-bar">
         <div>
-          <p class="eyebrow">MANTENIMIENTO SEGURO</p>
-          <h2>Centro de actualizaciones</h2>
+          <p class="eyebrow">ACTUALIZACIONES</p>
+          <h2>Crypto AI Trader</h2>
         </div>
-        <button id="closeUpdatePanel" class="secondary">Cerrar</button>
+        <button id="closeUpdatePanel" class="icon-close secondary" aria-label="Cerrar centro de actualizaciones">×</button>
       </div>
-      <p class="update-center-copy">Revisa en un solo paso el portal, la versión firmada del bot y la capacidad del supervisor de Windows antes de instalar.</p>
 
-      <div class="update-status-card">
-        <div class="update-status-heading">
-          <span class="update-status-dot" aria-hidden="true"></span>
-          <div>
-            <strong>Estado de actualización</strong>
-            <p id="botUpdateMessage" role="status">Listo para buscar una versión firmada.</p>
-          </div>
-        </div>
-        <div class="update-actions">
-          <button id="checkAllUpdates" class="secondary">Buscar actualizaciones</button>
-          <button id="installBotUpdate" class="primary" disabled>Instalar versión verificada</button>
+      <div id="updateHero" class="update-hero">
+        <div id="updateHeroIcon" class="update-hero-icon" aria-hidden="true">✓</div>
+        <div class="update-hero-copy">
+          <h3 id="updateHeadline">Comprobando actualizaciones…</h3>
+          <p id="botUpdateMessage" role="status">Verificando la versión firmada y el supervisor de Windows.</p>
         </div>
       </div>
 
-      <p id="updateMessage" class="update-summary" role="status"></p>
+      <div class="update-primary-actions">
+        <button id="checkAllUpdates" class="primary">Comprobar ahora</button>
+        <button id="installBotUpdate" class="primary" hidden disabled>Instalar actualización</button>
+      </div>
+
       <details id="updateDetails" class="update-details">
-        <summary>Ver detalles de publicación y pruebas</summary>
+        <summary>Detalles técnicos</summary>
+        <p id="updateMessage" class="update-summary" role="status"></p>
         <div id="updateReleases"></div>
       </details>
     </section>
