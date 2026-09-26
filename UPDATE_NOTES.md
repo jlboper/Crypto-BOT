@@ -1,3 +1,11 @@
+# Actualización 0.8.6 — puente de actualización remota
+
+- Release puente compatible con el updater instalado en 0.8.4: el paquete se publica temporalmente como `PAPER` y no incluye `config.toml`, evitando el `ValueError` del verificador antiguo.
+- Instala el updater/verificador nuevo, que ya acepta releases TESTNET y `config.toml` firmado para versiones posteriores.
+- En modo TESTNET, Futures forward queda habilitado por diseño; la pausa operativa usa exclusivamente el kill switch dedicado. Esto corrige el estado `INACTIVO · FORWARD DESHABILITADO` aun cuando la PC conserve el config histórico.
+- Mantiene firma Ed25519, secuencia anti-downgrade, health-check y rollback supervisado.
+- No modifica credenciales, ledgers, estrategia, leverage ni habilita LIVE.
+
 # Actualización 0.8.5 — Unified Rollout portal + Windows
 
 - Una release aprobada y firmada pasa a ser una actualización integral: el portal se publica y el agente Windows detecta automáticamente si la PC sigue en una versión anterior.
