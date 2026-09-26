@@ -5,6 +5,7 @@
 - El portal sigue automáticamente la solicitud remota hasta que Windows devuelve `completed`, `failed` o `expired`, y muestra el mensaje final sin requerir otro clic.
 - **Instalar actualización** muestra inmediatamente **Instalación solicitada** después de aceptar el job y deja claro que no hay que volver a pulsar.
 - Se conserva el estado fresco de Windows antes de cada acción y la idempotencia por `request_id`.
+- Si Binance omite `avgPrice` en la respuesta inmediata del cierre Futures, el bot usa `cumQuote / executedQty` o consulta la orden firmada por `clientOrderId`; nunca reenvía el cierre.
 - No cambia estrategia, balances, riesgo ni ejecución Binance; LIVE continúa bloqueado.
 
 # Actualización 0.7.8 — smoke Futures 100% privado/Testnet
