@@ -7,6 +7,7 @@ universe_size = 25
 max_parallel_requests = 6
 database_path = "data/trader.db"
 testnet_database_path = "data/testnet-trader.db"
+futures_testnet_database_path = "data/futures-testnet.db"
 kill_switch_path = "data/KILL_SWITCH"
 
 [paper]
@@ -51,3 +52,11 @@ max_reviews_per_day = 30
 [dashboard]
 host = "127.0.0.1"
 port = 8765
+
+[futures_testnet]
+enabled = true
+default_leverage = 2
+max_leverage = 3
+margin_type = "ISOLATED"
+position_mode = "ONE_WAY"
+smoke_margin_usdt = 10.0
