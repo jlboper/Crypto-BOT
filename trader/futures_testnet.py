@@ -59,7 +59,10 @@ class FuturesTestnetLab:
 
     def _trade_probe(self, symbol: str = "BTCUSDT") -> bool:
         """Validate TRADE permission without creating an order."""
-        price, _ = self._reference(symbol)
+        price_payload = public_request("GET", "/fapi/v1/ticker/price", {"symbol": symbol})
+        price = _decimal(price_payload.get("price", "0") if isinstance(price_payload, dict) else "0")
+        if price <= 0:
+            raise FuturesTestnetExecutionError("Invalid Futures Demo probe price")
         info = self._symbol_info(symbol)
         quantity = self._probe_quantity(info, price, Decimal("10"))
         result = signed_request("POST", "/fapi/v1/order/test", {
