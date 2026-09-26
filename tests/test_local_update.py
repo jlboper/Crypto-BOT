@@ -67,7 +67,7 @@ class LocalUpdateTests(unittest.TestCase):
             self.assertEqual(result['status'], 'installed_healthy')
             supervisor.return_value.install.assert_called_once()
 
-    def test_tampering_paper_mode_and_missing_independent_supervisor_fail_closed(self):
+    def test_tampering_unsupported_mode_and_missing_independent_supervisor_fail_closed(self):
         with self.assertRaises(ValueError):
             run(self.agent, 'check-offline', agent_root=self.agent)
         self.package.write_bytes(self.package.read_bytes() + b'tamper')
@@ -76,6 +76,12 @@ class LocalUpdateTests(unittest.TestCase):
         (self.source / 'config.toml').write_text('[bot]\nmode="live"\n')
         with self.assertRaises(ValueError):
             run(self.source, 'check-offline', agent_root=self.agent)
+
+    def test_testnet_source_is_supported_by_local_signed_update_center(self):
+        (self.source / 'config.toml').write_text('[bot]\nmode="testnet"\n', encoding='utf-8')
+        result = run(self.source, 'check-offline', agent_root=self.agent)
+        self.assertEqual(result['version'], '0.6.12')
+        self.assertFalse(result['order_submission_enabled'])
 
     def test_failure_codes_are_actionable_without_exposing_raw_details(self):
         self.assertEqual(failure_code(RuntimeError('Recover previous maintenance before installing')), 'MAINTENANCE_PENDING')
