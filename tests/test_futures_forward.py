@@ -2,6 +2,7 @@ import tempfile
 import unittest
 from dataclasses import replace
 from pathlib import Path
+from unittest.mock import patch
 
 from trader.config import load_config
 from trader.domain import Candle
@@ -84,6 +85,29 @@ class FuturesForwardTests(unittest.TestCase):
         self.assertEqual(score["error_total"], 2)
         self.assertEqual(score["cycle_total"], 100)
         self.assertEqual(score["status"], "INSUFFICIENT_EVIDENCE")
+
+
+    def test_restart_reconstructs_confirmed_open_from_durable_plan(self):
+        pending = {
+            "symbol": "BTCUSDT", "side": "BUY", "quantity": "0.001",
+            "reduce_only": False, "client_order_id": "cait-fwd-test",
+        }
+        plan = {"direction": "LONG", "score": 82, "atr": 2000.0,
+                "opened_at": "2026-09-26T12:00:00+00:00"}
+        self.engine.ledger.set_setting("forward_pending_order", pending)
+        self.engine.ledger.set_setting("forward_open_plan", plan)
+        outcome = {"resolved": True, "status": "FILLED", "pending": pending,
+                   "order": {"clientOrderId": "cait-fwd-test", "avgPrice": "100000",
+                             "executedQty": "0.001"}}
+        row = {"positionAmt": "0.001", "entryPrice": "100000",
+               "liquidationPrice": "1000", "leverage": "1", "marginType": "isolated"}
+        with patch.object(self.engine.lab, "reconcile_forward_pending", return_value=outcome), \
+             patch.object(self.engine, "_actual_rows", return_value=[row]):
+            result = self.engine._recover_journal()
+        self.assertEqual(result["status"], "RECOVERED_OPEN")
+        self.assertEqual(self.engine.ledger.forward_position()["direction"], "LONG")
+        self.assertIsNone(self.engine.ledger.setting("forward_pending_order"))
+        self.assertIsNone(self.engine.ledger.setting("forward_open_plan"))
 
     def test_forward_ledger_is_separate_and_persistent(self):
         ledger = FuturesTestnetLedger(self.config.futures_testnet.database_path)
