@@ -1,4 +1,4 @@
-"""Run exactly one authenticated PAPER control using the installed bot code."""
+"""Run exactly one authenticated supervised control using installed bot code."""
 import json
 import sys
 import time
@@ -21,12 +21,12 @@ def main():
     config = source_settings(ROOT)
     if (config.bot.database_path.parent / 'UPDATE_MAINTENANCE.json').exists():
         raise ValueError('Update maintenance in progress')
-    if request['action'] in {'ai_model', 'restart_engine', 'execution_mode'}:
+    if request['action'] in {'ai_model', 'restart_engine', 'execution_mode', 'testnet_smoke'}:
         from trader.operational_controls import execute as operational_control
         result = operational_control(ROOT, request['action'], request['payload'])
     else:
         result = execute(config, Database(config.bot.database_path), request['action'], request['payload'])
-    if request['action'] in {'ai_model','restart_engine','execution_mode'}:
+    if request['action'] in {'ai_model','restart_engine','execution_mode','testnet_smoke'}:
         atomic_json(ROOT / 'data/operation-last.json', {'action': request['action'],
                     'status': 'completed', 'at': time.time(), 'result': result})
     print(json.dumps(result, allow_nan=False))
