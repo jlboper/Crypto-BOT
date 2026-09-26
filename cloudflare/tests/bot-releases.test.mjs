@@ -46,5 +46,6 @@ test('signing creates verifiable Ed25519 envelopes and rejects sequence substitu
   assert.deepEqual(await signRelease(env,token(),m,now,transport),result);
   await assert.rejects(signRelease(env,token(),{...m,sha256:'d'.repeat(64)},now,transport));
   for(const wrong of [{mode:'live'},{commit:'b'.repeat(40)},{package_url:'https://evil.example/bot.zip'},
-    {files:{...m.files,'config.toml':'e'.repeat(64)}},{expires:now+91*86400}])assert.throws(()=>validateManifest({...m,...wrong},claim,now));
+    {files:{...m.files,'secrets.toml':'e'.repeat(64)}},{expires:now+91*86400}])assert.throws(()=>validateManifest({...m,...wrong},claim,now));
+  assert.doesNotThrow(()=>validateManifest({...m,mode:'testnet',files:{...m.files,'config.toml':'e'.repeat(64)}},claim,now));
 });
