@@ -65,6 +65,8 @@ class FuturesTestnetLabTests(unittest.TestCase):
         if endpoint == "/fapi/v1/leverage":
             self.leverage = int(fields["leverage"])
             return {"symbol": fields["symbol"], "leverage": self.leverage}
+        if endpoint == "/fapi/v1/order/test" and method == "POST":
+            return {}
         if endpoint == "/fapi/v1/order" and method == "POST":
             qty = float(fields["quantity"])
             if fields.get("reduceOnly") == "true":
@@ -76,6 +78,25 @@ class FuturesTestnetLabTests(unittest.TestCase):
             return {"symbol": fields["symbol"], "clientOrderId": fields["newClientOrderId"],
                     "status": "FILLED", "avgPrice": "100", "executedQty": str(qty), "orderId": 1}
         raise AssertionError((method, endpoint, fields))
+
+
+    def test_check_uses_test_order_probe_when_account_flag_is_false(self):
+        def signed(method, endpoint, fields=None):
+            fields = fields or {}
+            if endpoint == "/fapi/v3/account":
+                return {"canTrade": False, "totalWalletBalance": "1000", "availableBalance": "900"}
+            if endpoint == "/fapi/v3/positionRisk":
+                return []
+            if endpoint == "/fapi/v1/order/test" and method == "POST":
+                return {}
+            raise AssertionError((method, endpoint, fields))
+        with patch("trader.futures_testnet.public_request", side_effect=self.public), \
+             patch("trader.futures_testnet.signed_request", side_effect=signed):
+            result = self.lab.check()
+        self.assertTrue(result["can_trade"])
+        self.assertTrue(result["trade_probe"])
+        self.assertFalse(result["reported_can_trade"])
+        self.assertEqual(result["environment"], "USD-M FUTURES DEMO")
 
     def test_long_smoke_is_isolated_bounded_and_flat_after_close(self):
         with patch("trader.futures_testnet.public_request", side_effect=self.public),              patch("trader.futures_testnet.signed_request", side_effect=self.signed):
