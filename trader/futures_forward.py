@@ -125,6 +125,40 @@ class FuturesForwardEngine:
             "unrealized_pnl": unrealized,
         }
 
+    def _loss_circuit_breaker(self, wallet_balance: float) -> dict:
+        """Persist independent daily/weekly baselines and halt only new Futures entries."""
+        now = datetime.now(UTC)
+        day_key = now.date().isoformat()
+        week_start = (now.date() - __import__("datetime").timedelta(days=now.weekday())).isoformat()
+
+        day = self.ledger.setting("forward_daily_baseline")
+        if not isinstance(day, dict) or day.get("key") != day_key:
+            day = {"key": day_key, "wallet": float(wallet_balance)}
+            self.ledger.set_setting("forward_daily_baseline", day)
+        week = self.ledger.setting("forward_weekly_baseline")
+        if not isinstance(week, dict) or week.get("key") != week_start:
+            week = {"key": week_start, "wallet": float(wallet_balance)}
+            self.ledger.set_setting("forward_weekly_baseline", week)
+
+        day_base = float(day.get("wallet", 0) or 0)
+        week_base = float(week.get("wallet", 0) or 0)
+        daily_return = (wallet_balance / day_base - 1.0) if day_base > 0 else 0.0
+        weekly_return = (wallet_balance / week_base - 1.0) if week_base > 0 else 0.0
+        state = {
+            "daily_return_pct": daily_return * 100.0,
+            "weekly_return_pct": weekly_return * 100.0,
+            "daily_limit_pct": self.settings.forward_daily_loss_limit_pct * 100.0,
+            "weekly_limit_pct": self.settings.forward_weekly_loss_limit_pct * 100.0,
+        }
+        self.ledger.set_setting("forward_risk_state", state)
+        if daily_return <= -self.settings.forward_daily_loss_limit_pct:
+            self._halt(f"Futures daily loss limit reached: {daily_return:.2%}")
+            return {**state, "halted": True, "reason": "DAILY_LOSS_LIMIT"}
+        if weekly_return <= -self.settings.forward_weekly_loss_limit_pct:
+            self._halt(f"Futures weekly loss limit reached: {weekly_return:.2%}")
+            return {**state, "halted": True, "reason": "WEEKLY_LOSS_LIMIT"}
+        return {**state, "halted": False}
+
     def _assert_consistent(self, local: dict | None, rows: list[dict]) -> None:
         if local is None and rows:
             raise FuturesTestnetExecutionError("Untracked Futures Demo position; forward test halted")
@@ -201,6 +235,9 @@ class FuturesForwardEngine:
             return {"enabled": True, "status": "PENDING_RECONCILIATION"}
 
         account = self._record_account()
+        risk_state = self._loss_circuit_breaker(account["wallet_balance"])
+        if risk_state.get("halted"):
+            return {"enabled": True, "status": "RISK_HALT", "risk": risk_state, **account}
         local = self.ledger.forward_position()
         rows = self._actual_rows()
         try:
@@ -291,5 +328,9 @@ class FuturesForwardEngine:
             "automatic_leverage": 1,
             "latest_signal": self.ledger.setting("forward_last_signal"),
             "last_error": self.ledger.setting("forward_last_error"),
+            "risk_state": self.ledger.setting("forward_risk_state"),
+            "daily_loss_limit_pct": self.settings.forward_daily_loss_limit_pct * 100.0,
+            "weekly_loss_limit_pct": self.settings.forward_weekly_loss_limit_pct * 100.0,
+            "max_consecutive_errors": self.settings.forward_max_consecutive_errors,
             **data,
         }
