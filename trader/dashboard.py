@@ -293,6 +293,16 @@ class DashboardServer:
                     self._json(outer.db.recent("signals", 50))
                 elif path == "/api/equity":
                     self._json(list(reversed(outer.db.recent("equity", 300))))
+                elif path == "/api/futures-forward":
+                    from .futures_testnet_ledger import FuturesTestnetLedger
+                    snapshot = FuturesTestnetLedger(outer.config.futures_testnet.database_path).forward_snapshot()
+                    self._json({
+                        "enabled": bool(outer.config.bot.mode == "testnet" and outer.config.futures_testnet.forward_enabled),
+                        "killed": outer.config.futures_testnet.kill_switch_path.exists(),
+                        "symbol": outer.config.futures_testnet.forward_symbol,
+                        "automatic_leverage": outer.config.futures_testnet.forward_leverage,
+                        **snapshot,
+                    })
                 elif path == "/api/paper-scorecard":
                     import sqlite3
                     from contextlib import closing
