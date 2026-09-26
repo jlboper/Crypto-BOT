@@ -119,35 +119,54 @@
         </article>
 
         <article class="settings-card futures-card">
-          <div class="settings-card-head"><div><span class="settings-kicker">DERIVADOS · EXPERIMENTAL</span><h3>USDⓈ-M Futures Demo</h3></div><span class="state neutral" id="futuresState">SIN VERIFICAR</span></div>
+          <div class="settings-card-head"><div><span class="settings-kicker">SEGUNDO MOTOR · FORWARD TEST</span><h3>USDⓈ-M Futures Demo</h3></div><span class="state neutral" id="futuresState">CARGANDO</span></div>
           <div class="futures-guardrails">
-            <span>ISOLATED</span><span>ONE-WAY</span><span>1x–3x</span><span>Fondos ficticios</span>
+            <span>BTCUSDT</span><span>AUTO 1x</span><span>ISOLATED</span><span>ONE-WAY</span><span>1 posición máx.</span>
           </div>
-          <div class="settings-two-col">
-            <div class="settings-field">
-              <label for="futuresDirection">Dirección de prueba</label>
-              <select id="futuresDirection"><option value="LONG">LONG</option><option value="SHORT">SHORT</option></select>
+          <p class="settings-help">Corre en paralelo con Spot Testnet, con ledger y kill switch propios. 2x/3x quedan fuera de la ejecución automática.</p>
+          <details class="update-details">
+            <summary>Diagnóstico manual Futures</summary>
+            <div class="settings-two-col">
+              <div class="settings-field">
+                <label for="futuresDirection">Dirección de prueba</label>
+                <select id="futuresDirection"><option value="LONG">LONG</option><option value="SHORT">SHORT</option></select>
+              </div>
+              <div class="settings-field">
+                <label for="futuresLeverage">Apalancamiento manual</label>
+                <select id="futuresLeverage"><option value="1">1x</option><option value="2">2x</option><option value="3">3x</option></select>
+              </div>
             </div>
-            <div class="settings-field">
-              <label for="futuresLeverage">Apalancamiento</label>
-              <select id="futuresLeverage"><option value="1">1x</option><option value="2" selected>2x</option><option value="3">3x</option></select>
+            <div class="settings-actions futures-actions">
+              <button id="checkFuturesTestnet" class="secondary" type="button">Verificar</button>
+              <button id="testFuturesExecution" class="secondary" type="button">Smoke manual</button>
+              <button id="reconcileFutures" class="secondary" type="button">Reconciliar</button>
             </div>
-          </div>
-          <div class="settings-actions futures-actions">
-            <button id="checkFuturesTestnet" class="secondary" type="button">Verificar Futures</button>
-            <button id="testFuturesExecution" class="primary" type="button">Probar Futures</button>
-            <button id="reconcileFutures" class="secondary" type="button">Reconciliar</button>
-          </div>
-          <p id="futuresMessage" class="futures-status" role="status">Aún no se ha verificado la cuenta de Futures Demo desde esta versión.</p>
-          <p class="settings-help">La prueba abre y cierra una posición pequeña con <code>reduceOnly</code>. Si una respuesta queda incierta, debes reconciliar antes de repetir.</p>
+          </details>
+          <p id="futuresMessage" class="futures-status" role="status">Forward test automático con fondos ficticios.</p>
         </article>
       </div>
       <p id="modelSettingsMessage" role="status">Windows aplicará cambios solo después de verificar el motor. Binance LIVE permanece bloqueado.</p>
     </section>
-    <section class="operation-overview panel" aria-label="Estado de operaciones">
-      <div><p class="eyebrow">CENTRO DE OPERACIONES</p><h2 id="accountEnvironmentTitle">Cuenta de prueba · cargando</h2>
-        <p id="operationSummary">Esperando el estado del motor de Windows.</p></div>
-      <div class="operation-next"><strong>Siguiente etapa</strong><span>Ensayar órdenes y conciliación en Binance Spot Testnet. Las operaciones con fondos reales siguen deshabilitadas.</span></div>
+    <section class="dual-engines" aria-label="Motores de prueba">
+      <article class="panel engine-card">
+        <div class="settings-card-head"><div><p class="eyebrow">MOTOR 1</p><h2 id="accountEnvironmentTitle">Spot Testnet</h2></div><span id="spotEngineState" class="state neutral">CARGANDO</span></div>
+        <p id="operationSummary">Motor multi-activo de Spot con estrategia swing y revisión IA.</p>
+        <div class="engine-stats"><span>Posiciones <strong id="spotEnginePositions">—</strong></span><span>Exposición <strong id="spotEngineExposure">—</strong></span></div>
+      </article>
+      <article class="panel engine-card futures-engine-card">
+        <div class="settings-card-head"><div><p class="eyebrow">MOTOR 2</p><h2>Futures Demo · BTCUSDT</h2></div><span id="futuresForwardState" class="state neutral">CARGANDO</span></div>
+        <p>Forward test automático separado · LONG/SHORT · 1x · ISOLATED · una posición máxima.</p>
+        <div class="engine-stats">
+          <span>Wallet <strong id="futuresForwardWallet">—</strong></span>
+          <span>Posición <strong id="futuresForwardPosition">—</strong></span>
+          <span>P&amp;L cerrado <strong id="futuresForwardPnl">—</strong></span>
+          <span>Cierres <strong id="futuresForwardClosed">—</strong></span>
+        </div>
+        <div class="settings-actions">
+          <button id="pauseFuturesForward" class="secondary" type="button">Pausar Futures</button>
+          <button id="resumeFuturesForward" class="secondary" type="button">Reanudar Futures</button>
+        </div>
+      </article>
     </section>
     <section class="metrics" aria-label="Resumen de cuenta">
       <article><span>Equity</span><strong id="equity">—</strong><small id="return">—</small></article>
