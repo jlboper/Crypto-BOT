@@ -35,7 +35,8 @@
             <button id="updateButton" role="menuitem">Actualizaciones</button>
             <button id="historyButton" role="menuitem">Historial de actividad</button>
             <button id="diagnosticsButton" role="menuitem">Diagnóstico y estrategias</button>
-            <button id="modelSettingsButton" role="menuitem">Motores y modelo IA</button>
+            <button id="modelSettingsButton" role="menuitem">Spot y modelo IA</button>
+            <button id="futuresSettingsButton" role="menuitem">Futures Demo</button>
             <button id="restoreBotVersion" role="menuitem" disabled>Restaurar versión anterior</button>
             <button id="portalPasswordButton" role="menuitem">Cambiar contraseña</button>
             <button id="portalLogout" role="menuitem" hidden>Cerrar sesión</button>
@@ -107,18 +108,21 @@
             <button id="applyAiModel" class="secondary" type="button">Aplicar modelo</button>
             <button id="restartMotor" class="secondary" type="button">Reiniciar motor</button>
           </div>
-          <div class="settings-field">
-            <label for="executionModeChoice">Entorno del motor</label>
-            <select id="executionModeChoice"><option value="testnet">Binance Spot Testnet · principal</option><option value="paper">PAPER · respaldo / CI</option></select>
-          </div>
           <div class="settings-actions">
-            <button id="applyExecutionMode" class="secondary" type="button">Cambiar entorno</button>
-            <button id="testTestnetExecution" class="secondary" type="button">Probar Spot Testnet</button>
+            <button id="testTestnetExecution" class="secondary" type="button">Diagnóstico Spot Testnet</button>
           </div>
-          <p class="settings-help">PAPER se conserva para regresiones, diagnóstico y fallback. El desarrollo nuevo se valida primero en Testnet.</p>
+          <details class="update-details technical-fallback">
+            <summary>Respaldo técnico</summary>
+            <div class="settings-field">
+              <label for="executionModeChoice">Entorno de contingencia</label>
+              <select id="executionModeChoice"><option value="testnet">Spot Testnet · operación de prueba</option><option value="paper">PAPER · diagnóstico / CI</option></select>
+            </div>
+            <button id="applyExecutionMode" class="secondary" type="button">Cambiar entorno técnico</button>
+            <p class="settings-help">PAPER se conserva únicamente para regresiones, diagnóstico y recuperación. No forma parte de la vista operativa normal.</p>
+          </details>
         </article>
 
-        <article class="settings-card futures-card">
+        <article class="settings-card futures-card" id="futuresSettingsCard">
           <div class="settings-card-head"><div><span class="settings-kicker">SEGUNDO MOTOR · FORWARD TEST</span><h3>USDⓈ-M Futures Demo</h3></div><span class="state neutral" id="futuresState">CARGANDO</span></div>
           <div class="futures-guardrails">
             <span>BTCUSDT</span><span>AUTO 1x</span><span>ISOLATED</span><span>ONE-WAY</span><span>1 posición máx.</span>
