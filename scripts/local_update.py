@@ -1,4 +1,4 @@
-"""Local, signed PAPER update center for the independent Windows supervisor.
+"""Local, signed update center for the independent Windows supervisor.
 
 No browser session or portal heartbeat is required to install an already
 staged package. The online check still needs Internet to download a release.
@@ -21,8 +21,9 @@ def channel(source: Path, agent_root: Path):
     if source == agent_root:
         raise ValueError('Separate supervisor installation required')
     with (source / 'config.toml').open('rb') as handle:
-        if tomllib.load(handle)['bot']['mode'].lower() != 'paper':
-            raise ValueError('Source must remain PAPER')
+        configured_mode = str(tomllib.load(handle)['bot'].get('mode', 'paper')).lower()
+    if configured_mode not in {'paper', 'testnet'}:
+        raise ValueError('Source execution mode must be PAPER or TESTNET')
     key = agent_root / 'data/trusted-update.pub'
     settings_path = agent_root / 'data/trusted-release.json'
     if not key.is_file() or not settings_path.is_file():
@@ -86,7 +87,7 @@ def failure_code(error: Exception) -> str:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description='Independent local PAPER update center')
+    parser = argparse.ArgumentParser(description='Independent local trading update center')
     parser.add_argument('--source', type=Path, required=True)
     parser.add_argument('--agent-root', type=Path, required=True)
     options = parser.add_mutually_exclusive_group(required=True)
