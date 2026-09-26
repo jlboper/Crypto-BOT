@@ -182,18 +182,24 @@ function Invoke-PortalAgentWatchdog {
         $agentRoot = (Resolve-Path -LiteralPath $task.Actions[0].WorkingDirectory).Path
         if ($agentRoot -eq $ProjectRoot) { return }
         $statusPath = Join-Path $agentRoot 'data\remote-status.json'
-        $healthy = $false
+        $needsRepair = $false
         if (Test-Path -LiteralPath $statusPath) {
             try {
                 $remote = Get-Content -LiteralPath $statusPath -Raw | ConvertFrom-Json
                 $fresh = ([double]$remote.at) -gt ([DateTimeOffset]::UtcNow.ToUnixTimeSeconds() - 90)
-                $healthy = ($remote.sync_ok -eq $true -and ([string]$remote.mode).ToUpperInvariant() -eq $engineMode -and $fresh)
-            } catch { $healthy = $false }
+                $reportedMode = ([string]$remote.mode).ToUpperInvariant()
+                # A fresh HTTPS/auth failure is connectivity, not stale process state.
+                # Repair only when the agent reports the wrong motor mode or stops
+                # updating its heartbeat altogether.
+                $needsRepair = ($reportedMode -ne $engineMode -or -not $fresh)
+                if (-not $needsRepair) {
+                    $script:AgentHealthFailures = 0
+                    return
+                }
+            } catch { $needsRepair = $true }
         }
-        if ($healthy) {
-            $script:AgentHealthFailures = 0
-            return
-        }
+        else { $needsRepair = $true }
+        if (-not $needsRepair) { return }
         $script:AgentHealthFailures++
         if ($script:AgentHealthFailures -lt 2 -or [DateTime]::UtcNow -lt $script:AgentRestartNextAttempt) { return }
         $script:AgentRestartNextAttempt = [DateTime]::UtcNow.AddMinutes(2)
