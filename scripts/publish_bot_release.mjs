@@ -48,4 +48,4 @@ const envelope=await requestReleaseSignature(origin,oidc.value,manifest);
 await writeFile('dist/bot.zip.manifest.json',JSON.stringify(envelope));
 const verified=spawnSync('python',['-m','trader.update_manager','verify','--root','.', '--public-key','release-signing.pub','--package','dist/bot.zip','--manifest','dist/bot.zip.manifest.json'],{stdio:'inherit'});
 if(verified.status!==0)throw Error('Published signature verification failed');
-console.log(`Published signed PAPER bot ${manifest.version} (${sha})`);
+console.log(`Published signed ${String(manifest.mode).toUpperCase()} bot ${manifest.version} (${sha})`);
