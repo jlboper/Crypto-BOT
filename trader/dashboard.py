@@ -97,7 +97,7 @@ class DashboardServer:
                     elif not hasattr(outer, "runtime_token"):
                         self._json({"error": "runtime not supervised"}, HTTPStatus.SERVICE_UNAVAILABLE)
                     else:
-                        self._json({"pid": os.getpid(), "token": outer.runtime_token, "mode": "paper"})
+                        self._json({"pid": os.getpid(), "token": outer.runtime_token, "mode": outer.config.bot.mode})
                     return
                 if path == "/health":
                     equity_rows = outer.db.recent("equity", 1)
@@ -253,7 +253,7 @@ class DashboardServer:
                     activity = activity_status(latest.get("created_at"), outer.config.bot.cycle_seconds)
                     prices, prices_at = outer.db.market_snapshot()
                     self._json({
-                        "mode": "PAPER",
+                        "mode": outer.config.bot.mode.upper(),
                         "killed": outer.config.bot.kill_switch_path.exists(),
                         "ai_enabled": outer.config.ai.enabled,
                         "ai_model": outer.config.ai.model,
