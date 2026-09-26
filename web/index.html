@@ -168,6 +168,43 @@
         </div>
       </article>
     </section>
+    <section class="panel dual-observation" aria-label="Observación comparativa Spot y Futures">
+      <div class="panel-title">
+        <div><p class="eyebrow">FORWARD TEST · SEGUIMIENTO</p><h2>Comportamiento de ambos motores</h2></div>
+        <span id="dualEvidenceState" class="state neutral">ACUMULANDO DATOS</span>
+      </div>
+      <p id="dualEvidenceNote">Los resultados se miden por separado. Ninguna métrica habilita Binance LIVE automáticamente.</p>
+      <div class="dual-scorecards">
+        <article>
+          <h3>Spot Testnet</h3>
+          <dl>
+            <div><dt>Días observados</dt><dd id="spotObservedDays">—</dd></div>
+            <div><dt>Cierres</dt><dd id="spotClosedTrades">—</dd></div>
+            <div><dt>P&amp;L neto</dt><dd id="spotObservedPnl">—</dd></div>
+            <div><dt>Drawdown</dt><dd id="spotObservedDrawdown">—</dd></div>
+          </dl>
+        </article>
+        <article>
+          <h3>Futures Demo · BTCUSDT 1x</h3>
+          <dl>
+            <div><dt>Días observados</dt><dd id="futuresObservedDays">—</dd></div>
+            <div><dt>Cierres</dt><dd id="futuresObservedTrades">—</dd></div>
+            <div><dt>Retorno cuenta observado</dt><dd id="futuresObservedReturn">—</dd></div>
+            <div><dt>P&amp;L realizado bruto</dt><dd id="futuresObservedPnl">—</dd></div>
+            <div><dt>Drawdown</dt><dd id="futuresObservedDrawdown">—</dd></div>
+            <div><dt>Win rate / profit factor</dt><dd id="futuresObservedQuality">—</dd></div>
+            <div><dt>LONG / SHORT</dt><dd id="futuresDirectionSplit">—</dd></div>
+            <div><dt>Errores</dt><dd id="futuresErrorRate">—</dd></div>
+          </dl>
+        </article>
+      </div>
+      <div class="readiness-note">
+        <h3>Regla de observación antes de discutir LIVE</h3>
+        <ul id="dualReadinessChecks"></ul>
+        <p>Se pueden hacer correcciones de seguridad u operativas antes. Los cambios de estrategia, riesgo o leverage deben esperar suficiente evidencia para no sobreajustar a pocos días de datos.</p>
+      </div>
+    </section>
+
     <section class="metrics" aria-label="Resumen de cuenta">
       <article><span>Equity</span><strong id="equity">—</strong><small id="return">—</small></article>
       <article><span>Efectivo</span><strong id="cash">—</strong><small>USDT disponible</small></article>
