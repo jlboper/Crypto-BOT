@@ -102,10 +102,10 @@ class BinanceTestnetBroker(PaperBroker):
         self._save_pending(pending)
         if pending["status"] in {"NEW", "PARTIALLY_FILLED"}:
             return False
-        if pending["status"] == "FILLED":
-            self._apply_terminal_fill(pending)
-        elif pending["status"] not in TERMINAL:
+        if pending["status"] not in TERMINAL:
             return False
+        if Decimal(str(pending.get("executed_qty", "0"))) > 0:
+            self._apply_terminal_fill(pending)
         self._save_pending(None)
         return True
 
@@ -120,8 +120,9 @@ class BinanceTestnetBroker(PaperBroker):
             raise
         pending.update(self._safe_fill(response, pending))
         self._save_pending(pending)
-        if pending["status"] == "FILLED":
-            self._apply_terminal_fill(pending)
+        if pending["status"] in TERMINAL:
+            if Decimal(str(pending.get("executed_qty", "0"))) > 0:
+                self._apply_terminal_fill(pending)
             self._save_pending(None)
         return pending
 
