@@ -101,6 +101,24 @@ test('supervised Testnet smoke control is TESTNET-only and idempotent',async t=>
   assert.deepEqual(delivered.body.paper_controls[0].payload,{});
 });
 
+test('Futures Testnet controls require TESTNET and remain idempotent',async t=>{
+  const f=await fixture(t);await f.login();
+  const command=(action,payload,id)=>({action,payload,request_id:id});
+  await f.sync({snapshot:{...snapshot(),paper_controls:true,operations_controls:true},acks:[]});
+  assert.equal((await f.request('/v1/paper-controls',command('futures_testnet_check',{},'futures-check-paper-01'))).status,409);
+  await f.sync({snapshot:{...snapshot(),mode:'TESTNET',paper_controls:true,operations_controls:true},acks:[]});
+  assert.equal((await f.request('/v1/paper-controls',command('futures_testnet_smoke',{direction:'LONG',leverage:4},'futures-bad-lev-0001'))).status,400);
+  const request=command('futures_testnet_smoke',{direction:'SHORT',leverage:2},'futures-smoke-000001');
+  const created=await f.request('/v1/paper-controls',request);
+  assert.equal(created.status,202);
+  const duplicate=await f.request('/v1/paper-controls',request);
+  assert.equal(duplicate.status,202);
+  assert.equal(duplicate.body.id,created.body.id);
+  const delivered=await f.sync({snapshot:{...snapshot(),mode:'TESTNET',paper_controls:true,operations_controls:true},acks:[]});
+  assert.equal(delivered.body.paper_controls[0].action,'futures_testnet_smoke');
+  assert.deepEqual(delivered.body.paper_controls[0].payload,{direction:'SHORT',leverage:2});
+});
+
 test('activity combines jobs and commands, paginates privately, and rejects unbounded routes',async t=>{
   const f=await fixture(t);
   assert.equal((await f.request('/v1/activity/0')).status,401);
