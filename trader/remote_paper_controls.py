@@ -62,14 +62,28 @@ class RemotePaperControls:
             result = subprocess.run([str(python), '-I', '-B', str(self.script), str(self.source)],
                 input=encoded, text=True, cwd=self.source, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
                 timeout=145, check=False, creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
-            if result.returncode != 0 or len(result.stdout) > 1000:
-                message = 'Windows rechazó la acción PAPER; revisa la posición y vuelve a cargar'
+            if len(result.stdout) > 1000:
+                message = 'Windows rechazó la acción; revisa el estado local'
                 status = 'failed'
             else:
                 response = json.loads(result.stdout)
-                if response.get('ok') is not True:
-                    raise ValueError('Unconfirmed PAPER response')
-                message = ({'risk_profile': 'Perfil PAPER aplicado: ' + response.get('profile',''),
+                if result.returncode != 0:
+                    code = response.get('reason') if isinstance(response, dict) else None
+                    messages = {
+                        'BINANCE_TESTNET_CANNOT_TRADE': 'Binance Testnet rechazó el cambio: la cuenta no tiene trading habilitado',
+                        'BINANCE_TESTNET_CONNECTION_OR_AUTH_FAILED': 'No se pudieron validar las credenciales o conexión de Binance Testnet',
+                        'ENGINE_NOT_HEALTHY': 'El motor instalado no estaba saludable para cambiar de entorno',
+                        'MAINTENANCE_BUSY': 'El motor estaba ocupado con mantenimiento o actualización',
+                        'ENGINE_STOP_TIMEOUT': 'El motor no se detuvo a tiempo para cambiar de entorno',
+                        'ENGINE_START_HEALTH_FAILED': 'El nuevo entorno no superó la comprobación de arranque',
+                        'LOCAL_ENV_UNAVAILABLE': 'Windows no pudo actualizar la configuración local privada',
+                    }
+                    message = messages.get(code, 'Windows rechazó la acción; revisa el estado local')
+                    status = 'failed'
+                else:
+                    if response.get('ok') is not True:
+                        raise ValueError('Unconfirmed PAPER response')
+                    message = ({'risk_profile': 'Perfil PAPER aplicado: ' + response.get('profile',''),
                             'paper_close': 'Posición PAPER cerrada: ' + response.get('symbol',''),
                             'ai_model': 'Modelo activo: ' + response.get('model',''),
                             'restart_engine': 'Motor reiniciado y verificado',
@@ -77,8 +91,8 @@ class RemotePaperControls:
                             'testnet_buy': 'Compra de prueba: ' + response.get('status','incierta'),
                             'testnet_close': 'Cierre de prueba: ' + response.get('status','incierto'),
                             'testnet_reconcile': 'Orden Testnet conciliada: ' + response.get('status','incierta'),
-                            'testnet_audit': 'Comprobación Binance: ' + response.get('status','pendiente')}[action])
-                status = 'completed'
+                                'testnet_audit': 'Comprobación Binance: ' + response.get('status','pendiente')}[action])
+                    status = 'completed'
             temp = record.with_suffix('.tmp')
             with temp.open('w', encoding='utf-8') as handle:
                 json.dump({'id': identifier, 'request': encoded, 'status': status, 'message': message}, handle)
