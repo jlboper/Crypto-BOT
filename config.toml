@@ -1,5 +1,7 @@
 [bot]
-mode = "paper"
+# Primary operating mode: Binance Spot Testnet. LIVE remains unsupported.
+# Futures Demo forward testing is enabled only while this mode is TESTNET.
+mode = "testnet"
 cycle_seconds = 900
 protection_seconds = 30
 timeframe = "4h"
