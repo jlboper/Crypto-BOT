@@ -655,6 +655,12 @@ function Update-ManagerStatus {
         $cashCard.Note.Text = "USDT disponibles"
         $exposureCard.Value.Text = $exposure.ToString("N2")
         $exposureCard.Note.Text = "$($status.positions) de $($status.max_positions) posiciones"
+        if ([int]$status.positions -ge [int]$status.max_positions) {
+            $exposureCard.Value.ForeColor = [System.Drawing.Color]::FromArgb(255, 204, 102)
+        }
+        else {
+            $exposureCard.Value.ForeColor = [System.Drawing.Color]::White
+        }
         $lastCycleLabel.Text = "ÚLTIMO CICLO`r`n$lastCycle"
         $notifyIcon.Text = "Crypto AI Trader - $equity USDT"
     }
@@ -701,7 +707,11 @@ function Update-ManagerStatus {
         $killButton.ForeColor = [System.Drawing.Color]::FromArgb(255, 147, 164)
         $killButton.FlatAppearance.BorderColor = [System.Drawing.Color]::FromArgb(120, 48, 66)
         $shownMode = if ($modeBadge.Text -in @('PAPER','TESTNET')) { $modeBadge.Text } else { 'PRUEBA' }
-        $protectionLabel.Text = "✓  Protecciones activas  ·  $shownMode sin dinero real"
+        $protectionLabel.Text = if ($shownMode -eq 'TESTNET') {
+            "✓  Binance Spot Testnet  ·  Fondos ficticios  ·  LIVE bloqueado"
+        } else {
+            "✓  PAPER  ·  Simulación interna  ·  LIVE bloqueado"
+        }
         $protectionLabel.ForeColor = [System.Drawing.Color]::FromArgb(92, 215, 171)
     }
     if (Test-CanonicalStartup) {

@@ -1,3 +1,12 @@
+# Actualización 0.6.26 — responsive global y Smoke Test aislado
+
+- Unifica el ancho de todos los paneles del portal para que Actualizaciones, Modelo IA, Historial, Diagnóstico y paneles financieros compartan la misma geometría.
+- Añade una capa responsive coherente para desktop, tablet y móvil: tipografías fluidas, grids 4→2→1, botones y selects de ancho completo cuando corresponde, tablas con scroll táctil y zonas de interacción de al menos 44 px.
+- Corrige el panel Modelo IA y motor en móvil para que labels, selects y botones no se deformen ni desborden horizontalmente.
+- La app de Windows identifica de forma explícita Binance Spot Testnet, fondos ficticios y LIVE bloqueado; cuando se alcanza el máximo de posiciones, resalta la exposición en ámbar.
+- El Smoke Test Testnet ya no exige un ledger vacío. Selecciona un símbolo válido que no esté entre las posiciones estratégicas existentes, usa un límite temporal exclusivamente para la prueba y verifica que las posiciones preexistentes queden intactas tras BUY → conciliación → SELL → conciliación.
+- Las órdenes pendientes siguen bloqueando la prueba. Binance LIVE continúa sin rutas de escritura.
+
 # Actualización 0.6.25 — limpieza PAPER/TESTNET, updater visual y Smoke Test
 
 - Limpia validaciones, mensajes y documentación heredados que todavía asumían PAPER aunque el motor unificado ya soporte PAPER y Binance Spot Testnet.

@@ -38,14 +38,15 @@ class _Runtime:
 
 
 class _SmokeDB:
-    def __init__(self):
+    def __init__(self, existing=None):
         self.closed = False
+        self.existing = list(existing or [])
     def positions(self):
-        return []
+        return list(self.existing)
     def cash(self):
         return 1000.0
     def position(self, symbol):
-        return None if self.closed else None
+        return None
 
 
 class _Broker:
@@ -71,6 +72,8 @@ class _Broker:
 class _Client:
     def __init__(self, timeout=10):
         self.timeout = timeout
+    def testnet_symbol_info(self, symbol):
+        return {"symbol":symbol}
     def testnet_reference_price(self, symbol):
         return 100.0
 
@@ -102,6 +105,22 @@ class OperationalControlsTests(unittest.TestCase):
                 execute(source, "testnet_smoke", {})
         self.assertFalse((source/"data/UPDATE_MAINTENANCE.json").exists())
         self.assertEqual(json.loads(status.read_text())["mode"], "paper")
+
+    def test_smoke_can_use_isolated_symbol_with_existing_positions(self):
+        source, config, status = self._fixture("testnet")
+        runtime = _Runtime(source, status, "testnet")
+        existing = [SimpleNamespace(symbol="BTCUSDT"), SimpleNamespace(symbol="ETHUSDT")]
+        db = _SmokeDB(existing)
+        broker = _Broker(db, config.paper, config.risk)
+        with patch.dict(os.environ, {"EXECUTION_MODE":"testnet","OPENAI_MODEL":"gpt-6-luna"}, clear=False), \
+             patch("trader.operational_controls.load_config", return_value=config), \
+             patch("trader.operational_controls.ProcessRuntime", return_value=runtime), \
+             patch("trader.database.Database", return_value=db), \
+             patch("trader.testnet_broker.BinanceTestnetBroker", return_value=broker), \
+             patch("trader.exchange.BinanceClient", _Client):
+            result = execute(source, "testnet_smoke", {})
+        self.assertEqual(result["testnet_smoke"]["symbol"], "BNBUSDT")
+        self.assertEqual([row.symbol for row in db.positions()], ["BTCUSDT","ETHUSDT"])
 
     def test_smoke_exclusively_buys_sells_reconciles_and_restarts(self):
         source, config, status = self._fixture("testnet")

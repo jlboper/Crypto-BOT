@@ -144,16 +144,33 @@ def execute(source: Path, action: str, payload: dict) -> dict:
                 if smoke_config.bot.mode != 'testnet':
                     raise ValueError('Testnet smoke test requires TESTNET mode')
                 smoke_db = Database(smoke_config.bot.database_path)
-                if smoke_db.positions():
-                    raise ValueError('Testnet smoke test requires no open positions')
-                broker = BinanceTestnetBroker(smoke_db, smoke_config.paper, smoke_config.risk)
+                existing_symbols = {position.symbol for position in smoke_db.positions()}
+                smoke_risk = replace(
+                    smoke_config.risk,
+                    max_positions=max(smoke_config.risk.max_positions, len(existing_symbols) + 1),
+                    max_position_pct=max(smoke_config.risk.max_position_pct, 0.05),
+                    max_total_exposure_pct=max(smoke_config.risk.max_total_exposure_pct, 1.0),
+                    risk_per_trade_pct=max(smoke_config.risk.risk_per_trade_pct, 0.01),
+                )
+                broker = BinanceTestnetBroker(smoke_db, smoke_config.paper, smoke_risk)
                 if not broker.reconcile_pending():
                     raise ValueError('Testnet smoke test requires no pending order')
                 client = BinanceClient(timeout=10)
-                symbol = 'BTCUSDT'
-                price = float(client.testnet_reference_price(symbol))
-                if not price > 0:
-                    raise ValueError('Testnet smoke reference price unavailable')
+                symbol = None
+                price = None
+                for candidate in ('BTCUSDT','ETHUSDT','BNBUSDT','SOLUSDT','XRPUSDT','DOGEUSDT','ADAUSDT','LINKUSDT','LTCUSDT','TRXUSDT'):
+                    if candidate in existing_symbols:
+                        continue
+                    try:
+                        client.testnet_symbol_info(candidate)
+                        candidate_price = float(client.testnet_reference_price(candidate))
+                    except Exception:
+                        continue
+                    if candidate_price > 0:
+                        symbol, price = candidate, candidate_price
+                        break
+                if symbol is None or price is None:
+                    raise ValueError('Testnet smoke test found no isolated symbol')
                 quote_target = min(10.0, smoke_db.cash() * 0.05)
                 if quote_target < 6.0:
                     raise ValueError('Testnet smoke allocation too small')
@@ -168,6 +185,8 @@ def execute(source: Path, action: str, payload: dict) -> dict:
                 realized = broker.sell(position, close_price, 'supervised TESTNET smoke SELL')
                 if not broker.reconcile_pending() or smoke_db.position(symbol) is not None:
                     raise RuntimeError('Testnet smoke reconciliation incomplete')
+                if {position.symbol for position in smoke_db.positions()} != existing_symbols:
+                    raise RuntimeError('Testnet smoke changed strategic positions')
                 smoke_result = {
                     'symbol': symbol,
                     'buy_quantity': position.quantity,
