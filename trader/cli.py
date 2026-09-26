@@ -82,7 +82,7 @@ def main() -> None:
                     dashboard.runtime_token = control.token
                     thread = dashboard.start_thread()
                     metadata = tomllib.loads((Path(__file__).resolve().parent.parent/'pyproject.toml').read_text())
-                    control.ready(metadata['project']['version'], dashboard_ready=thread.is_alive())
+                    control.ready(metadata['project']['version'], dashboard_ready=thread.is_alive(), mode=config.bot.mode)
                     control.await_activation()
                     print(f"{config.bot.mode.upper()} dashboard: http://{config.dashboard.host}:{config.dashboard.port}")
                     engine.run_forever(control.should_stop)
