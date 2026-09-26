@@ -62,7 +62,14 @@ def run(source: Path, action: str, approved: str | None = None, *, agent_root: P
         return supervisor.restore(approved)
     if action == 'check-online':
         manager.stage(settings['manifest_url'])
-    info = staged(manager)
+    try:
+        info = staged(manager)
+    except ValueError as error:
+        if action in {'check-online','check-offline'} and str(error) == 'Signed release is not newer than the installed version':
+            installed = tomllib.loads((manager.root / 'pyproject.toml').read_text(encoding='utf-8'))['project']['version']
+            return {'status':'current','version':installed,'restore':supervisor.available_restore(),
+                    'order_submission_enabled':False}
+        raise
     if action != 'install':
         return {'status': 'verified_local_package', 'version': info['version'],
                 'release_id': info['release_id'], 'commit': info['commit'],
