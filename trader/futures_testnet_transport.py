@@ -1,6 +1,6 @@
-"""Minimal transport for Binance USDⓈ-M Futures Testnet.
+"""Minimal transport for Binance USDⓈ-M Futures Demo.
 
-The REST host is fixed to Binance Futures Testnet. Production USDⓈ-M hosts are
+The REST host is fixed to Binance Futures Demo. Production USDⓈ-M hosts are
 not configurable here. Signed writes are never retried automatically.
 """
 from __future__ import annotations
@@ -15,7 +15,7 @@ import urllib.parse
 import urllib.request
 from typing import Any
 
-HOST = "https://testnet.binancefuture.com"
+HOST = "https://demo-fapi.binance.com"
 
 _PUBLIC = {
     ("GET", "/fapi/v1/time"),
