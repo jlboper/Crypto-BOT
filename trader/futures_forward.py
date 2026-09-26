@@ -5,7 +5,7 @@ order journal. Automatic leverage is fixed at 1x. LIVE is not implemented.
 """
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 from .domain import Candle
@@ -129,7 +129,7 @@ class FuturesForwardEngine:
         """Persist independent daily/weekly baselines and halt only new Futures entries."""
         now = datetime.now(UTC)
         day_key = now.date().isoformat()
-        week_start = (now.date() - __import__("datetime").timedelta(days=now.weekday())).isoformat()
+        week_start = (now.date() - timedelta(days=now.weekday())).isoformat()
 
         day = self.ledger.setting("forward_daily_baseline")
         if not isinstance(day, dict) or day.get("key") != day_key:
