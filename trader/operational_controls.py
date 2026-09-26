@@ -49,8 +49,8 @@ def execute(source: Path, action: str, payload: dict) -> dict:
     elif payload:
         raise ValueError('Restart does not accept parameters')
     config = load_config(source / 'config.toml')
-    if config.bot.mode != 'paper':
-        raise ValueError('PAPER motor required')
+    if config.bot.mode not in {'paper', 'testnet'}:
+        raise ValueError('Supported trading motor required')
     data = config.bot.database_path.parent
     control = RuntimeControl(data)
     with (source / 'pyproject.toml').open('rb') as stream:
@@ -60,8 +60,8 @@ def execute(source: Path, action: str, payload: dict) -> dict:
         if control.maintenance.exists():
             raise ValueError('Maintenance already in progress')
         status = json.loads(control.status.read_text(encoding='utf-8'))
-        if status.get('mode') != 'paper' or status.get('phase') != 'running' or status.get('version') != version:
-            raise ValueError('Healthy installed PAPER motor required')
+        if status.get('mode') != config.bot.mode or status.get('phase') != 'running' or status.get('version') != version:
+            raise ValueError('Healthy installed trading motor required')
         old_model = config.ai.model
         if old_model not in MODELS:
             raise ValueError('Active model is not a supported rollback target')
