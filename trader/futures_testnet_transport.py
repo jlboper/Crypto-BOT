@@ -16,6 +16,7 @@ import urllib.request
 from typing import Any
 
 HOST = "https://testnet.binancefuture.com"
+PUBLIC_FALLBACK_HOST = "https://fapi.binance.com"
 
 _PUBLIC = {
     ("GET", "/fapi/v1/time"),
@@ -65,15 +66,22 @@ def public_request(method: str, endpoint: str, fields: dict | None = None) -> An
     if (method, endpoint) not in _PUBLIC:
         raise FuturesTestnetExecutionError("Futures Testnet public endpoint blocked")
     query = urllib.parse.urlencode(fields or {})
-    url = HOST + endpoint + (("?" + query) if query else "")
-    request = urllib.request.Request(url, method=method)
-    try:
-        with _opener().open(request, timeout=10) as response:
-            return _decode(response)
-    except urllib.error.HTTPError as error:
-        raise FuturesTestnetExecutionError("Futures Testnet HTTP " + str(error.code)) from None
-    except (urllib.error.URLError, TimeoutError, ValueError):
-        raise FuturesTestnetExecutionError("Futures Testnet public connection failed") from None
+    last_error = None
+    for host in (HOST, PUBLIC_FALLBACK_HOST):
+        url = host + endpoint + (("?" + query) if query else "")
+        request = urllib.request.Request(url, method=method)
+        try:
+            with _opener().open(request, timeout=10) as response:
+                return _decode(response)
+        except urllib.error.HTTPError as error:
+            last_error = FuturesTestnetExecutionError(
+                "Futures public HTTP " + str(error.code) + " at " + host
+            )
+        except (urllib.error.URLError, TimeoutError, ValueError):
+            last_error = FuturesTestnetExecutionError(
+                "Futures public connection failed at " + host
+            )
+    raise last_error or FuturesTestnetExecutionError("Futures public connection failed")
 
 
 def signed_request(method: str, endpoint: str, fields: dict | None = None) -> Any:
