@@ -190,6 +190,14 @@ document.addEventListener('DOMContentLoaded',()=>{
     const panel=document.getElementById('modelSettingsPanel');panel.hidden=false;
     panel.scrollIntoView({behavior:'smooth',block:'start'});
   };
+  document.getElementById('futuresSettingsButton').onclick=()=>{
+    showOptions(false);
+    const panel=document.getElementById('modelSettingsPanel');panel.hidden=false;
+    const card=document.getElementById('futuresSettingsCard');
+    (card||panel).scrollIntoView({behavior:'smooth',block:'center'});
+    card?.classList.add('settings-card-focus');
+    setTimeout(()=>card?.classList.remove('settings-card-focus'),1400);
+  };
   document.getElementById('closeModelSettings').onclick=()=>document.getElementById('modelSettingsPanel').hidden=true;
   async function operationalAction(path,payload,question){
     if(!confirm(question))return;
