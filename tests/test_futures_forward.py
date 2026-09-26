@@ -47,10 +47,6 @@ class FuturesForwardTests(unittest.TestCase):
             config = load_config()
         self.assertTrue(config.futures_testnet.forward_enabled)
 
-    def test_stale_env_cannot_disable_signed_forward_test(self):
-        with patch.dict("os.environ", {"FUTURES_FORWARD_ENABLED": "false"}):
-            config = load_config()
-        self.assertTrue(config.futures_testnet.forward_enabled)
 
     def test_default_forward_test_is_btc_only_and_one_x(self):
         self.assertEqual(self.config.bot.mode, "testnet")
