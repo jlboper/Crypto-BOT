@@ -100,7 +100,7 @@ class WindowsAssetTests(unittest.TestCase):
         self.assertIn('id="checkFuturesTestnet"', html)
         self.assertIn('id="reconcileFutures"', html)
         self.assertIn('PAPER · respaldo / CI', html)
-        self.assertIn('USDⓈ-M Futures Testnet', html)
+        self.assertIn('USDⓈ-M Futures Demo', html)
         bridge = (PROJECT_ROOT / "web" / "portal-bridge.js").read_text(encoding="utf-8")
         self.assertIn("Nueva versión disponible", bridge)
         self.assertIn("Estás actualizado", bridge)
