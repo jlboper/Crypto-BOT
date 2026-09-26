@@ -189,6 +189,35 @@ function renderDualEvidence(spot, futures) {
     'Ambos motores alcanzaron el mínimo de observación. Esto habilita una revisión humana de resultados, no Binance LIVE.':
     'Se están acumulando datos separados de Spot y Futures. Evitaremos cambiar estrategia o riesgo por ruido de pocos días; solo corregiremos fallos operativos o de seguridad.';
 }
+function renderObservationHealth(spotHealth, futuresHealth) {
+  const set=(id,value)=>{const node=document.getElementById(id);if(node)node.textContent=value;};
+  const stateClass=value=>value==='OK'?'':value==='ATTENTION'?'offline':'warning';
+  const stateLabel=value=>({OK:'ESTABLE',WATCH:'VIGILAR',ATTENTION:'ATENCIÓN',STARTING:'INICIANDO'})[value]||'SIN DATOS';
+  const formatGap=value=>value==null?'—':value<60?Math.round(value)+' s':(value/60).toFixed(1)+' min';
+  const integrityText=value=>{const entries=Object.entries(value||{});if(!entries.length)return '—';const ok=entries.filter(([,passed])=>passed===true).length;return ok===entries.length?'✓ '+ok+'/'+entries.length+' comprobaciones':ok+'/'+entries.length+' correctas';};
+  const renderState=(id,value)=>{const node=document.getElementById(id);if(!node)return;node.textContent=stateLabel(value);node.className='state '+stateClass(value);};
+  renderState('spotHealthState',spotHealth?.state);
+  renderState('futuresHealthState',futuresHealth?.state);
+  set('spotCycleCoverage',spotHealth?Number(spotHealth.cycle_coverage_pct||0).toFixed(1)+'%':'—');
+  set('spotCycleSamples',spotHealth?String(spotHealth.samples||0)+' / '+String(spotHealth.expected_samples||0):'—');
+  set('spotCycleGap',formatGap(spotHealth?.average_cycle_gap_seconds));
+  set('spotDailyErrors',spotHealth?String(spotHealth.errors||0)+' / '+String(spotHealth.warnings||0):'—');
+  set('spotDailyAi',spotHealth?String(spotHealth.ai_reviews||0)+' / '+String(spotHealth.ai_rejects||0):'—');
+  set('spotDailyTrading',spotHealth?String(spotHealth.closed_trades||0)+' · '+money(spotHealth.realized_pnl_usdt||0):'—');
+  set('spotIntegrity',integrityText(spotHealth?.integrity));
+  set('futuresCycleCoverage',futuresHealth?Number(futuresHealth.cycle_coverage_pct||0).toFixed(1)+'%':'—');
+  set('futuresCycleSamples',futuresHealth?String(futuresHealth.samples||0)+' / '+String(futuresHealth.expected_samples||0):'—');
+  set('futuresCycleGap',formatGap(futuresHealth?.average_cycle_gap_seconds));
+  set('futuresDailyErrors',futuresHealth?String(futuresHealth.consecutive_errors||0)+' consecutivos · '+String(futuresHealth.errors_total||0)+' total':'—');
+  set('futuresDailyTrading',futuresHealth?String(futuresHealth.closed_trades||0)+' · '+money(futuresHealth.realized_pnl_usdt||0):'—');
+  set('futuresIntegrity',integrityText(futuresHealth?.integrity));
+  const states=[spotHealth?.state,futuresHealth?.state];
+  const overall=states.includes('ATTENTION')?'ATTENTION':states.includes('WATCH')?'WATCH':states.every(x=>x==='OK')?'OK':'STARTING';
+  renderState('observationHealthState',overall);
+  const note=document.getElementById('observationHealthNote');
+  if(note)note.textContent=overall==='OK'?'La muestra de las últimas 24 h tiene continuidad e integridad operativa suficientes para seguir observando sin intervenir.':overall==='ATTENTION'?'Hay una condición operativa que puede contaminar la muestra. Revisar continuidad, journal o errores antes de interpretar resultados.':'La muestra sigue acumulándose; no cambia estrategia ni riesgo durante esta fase.';
+}
+
 function renderResearch(report, state) {
   lastResearchReport=report;
   const badge=document.getElementById('researchState');
@@ -427,6 +456,7 @@ async function refresh() {
     renderResearch(research,researchState);
     renderPaperEvidence(paperReport,equity,trades);
     renderDualEvidence(paperReport,futuresForward);
+    renderObservationHealth(status?.observation_health,futuresForward?.observation_health);
     renderFuturesChart(futuresForward?.equity||[]);
     document.getElementById('updated').textContent=`Último ciclo ${ageLabel(activity.age_seconds)} · ${shortTime(activity.last_cycle_at)}`;
   } catch(error) {
