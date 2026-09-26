@@ -97,9 +97,10 @@ class FuturesTestnetLab:
     def _symbol_info(symbol: str) -> dict:
         payload = public_request("GET", "/fapi/v1/exchangeInfo", {"symbol": symbol})
         rows = payload.get("symbols", []) if isinstance(payload, dict) else []
-        if not rows or not isinstance(rows[0], dict):
+        row = next((item for item in rows if isinstance(item, dict) and item.get("symbol") == symbol), None)
+        if row is None:
             raise FuturesTestnetExecutionError("Futures Testnet symbol unavailable")
-        return rows[0]
+        return row
 
     @staticmethod
     def _reference(symbol: str) -> tuple[Decimal, float | None]:
@@ -210,10 +211,20 @@ class FuturesTestnetLab:
             return {"ok": True, "pending": False, "position_closed": True, "symbol": symbol, "live_enabled": False}
         if len(rows) != 1:
             raise FuturesTestnetExecutionError("Futures recovery found ambiguous positions")
-        amount = _decimal(rows[0].get("positionAmt", "0"))
+        row = rows[0]
+        amount = _decimal(row.get("positionAmt", "0"))
         if amount == 0:
             self.ledger.set_status(int(latest["id"]), "RECOVERED_FLAT")
             return {"ok": True, "pending": False, "position_closed": True, "symbol": symbol, "live_enabled": False}
+        expected_direction = str(latest.get("direction", ""))
+        expected_sign = 1 if expected_direction == "LONG" else -1
+        actual_sign = 1 if amount > 0 else -1
+        if actual_sign != expected_sign:
+            raise FuturesTestnetExecutionError("Futures recovery direction mismatch")
+        if int(float(row.get("leverage", 0) or 0)) != int(latest.get("leverage", 0)):
+            raise FuturesTestnetExecutionError("Futures recovery leverage mismatch")
+        if str(row.get("marginType", "")).lower() != "isolated":
+            raise FuturesTestnetExecutionError("Futures recovery margin type mismatch")
         side = "SELL" if amount > 0 else "BUY"
         result = self._submit(
             run_id=int(latest["id"]), phase="RECOVERY_CLOSE", symbol=symbol, side=side,
