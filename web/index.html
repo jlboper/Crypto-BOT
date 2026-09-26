@@ -32,10 +32,10 @@
         <div class="options">
           <button id="optionsButton" class="secondary" aria-haspopup="menu" aria-expanded="false">Opciones</button>
           <div id="optionsMenu" class="options-menu" role="menu" hidden>
+            <button id="modelSettingsButton" role="menuitem">Motores e IA</button>
             <button id="updateButton" role="menuitem">Actualizaciones</button>
-            <button id="historyButton" role="menuitem">Historial de actividad</button>
-            <button id="diagnosticsButton" role="menuitem">Diagnóstico y estrategias</button>
-            <button id="modelSettingsButton" role="menuitem">Motores y modelo IA</button>
+            <button id="historyButton" role="menuitem">Actividad</button>
+            <button id="diagnosticsButton" role="menuitem">Diagnóstico avanzado</button>
             <button id="restoreBotVersion" role="menuitem" disabled>Restaurar versión anterior</button>
             <button id="portalPasswordButton" role="menuitem">Cambiar contraseña</button>
             <button id="portalLogout" role="menuitem" hidden>Cerrar sesión</button>
@@ -148,27 +148,35 @@
       </div>
       <p id="modelSettingsMessage" role="status">Windows aplicará cambios solo después de verificar el motor. Binance LIVE permanece bloqueado.</p>
     </section>
-    <section class="dual-engines" aria-label="Motores de prueba">
-      <article class="panel engine-card">
-        <div class="settings-card-head"><div><p class="eyebrow">MOTOR 1</p><h2 id="accountEnvironmentTitle">Spot Testnet</h2></div><span id="spotEngineState" class="state neutral">CARGANDO</span></div>
-        <p id="operationSummary">Motor multi-activo de Spot con estrategia swing y revisión IA.</p>
-        <div class="engine-stats"><span>Posiciones <strong id="spotEnginePositions">—</strong></span><span>Exposición <strong id="spotEngineExposure">—</strong></span></div>
-      </article>
-      <article class="panel engine-card futures-engine-card">
-        <div class="settings-card-head"><div><p class="eyebrow">MOTOR 2</p><h2>Futures Demo · BTCUSDT</h2></div><span id="futuresForwardState" class="state neutral">CARGANDO</span></div>
-        <p>Forward test automático separado · LONG/SHORT · 1x · ISOLATED · una posición máxima · confirmación IA final.</p>
-        <div class="engine-stats">
-          <span>Wallet <strong id="futuresForwardWallet">—</strong></span>
-          <span>Posición <strong id="futuresForwardPosition">—</strong></span>
-          <span>P&amp;L cerrado <strong id="futuresForwardPnl">—</strong></span>
-          <span>Cierres <strong id="futuresForwardClosed">—</strong></span>
-          <span>IA final <strong id="futuresForwardAi">—</strong></span>
-          <span>Recuperación <strong id="futuresForwardRecovery">—</strong></span>
+    <section class="engine-workspace" aria-label="Motores de prueba">
+      <article class="panel engine-console spot-console">
+        <div class="settings-card-head"><div><p class="eyebrow">MOTOR 1 · SPOT</p><h2 id="accountEnvironmentTitle">Binance Spot Testnet</h2></div><span id="spotEngineState" class="state neutral">CARGANDO</span></div>
+        <p id="operationSummary">Swing multi-activo · límites fijos · revisión IA final · fondos ficticios.</p>
+        <div class="engine-kpis">
+          <span><small>Equity</small><strong id="equity">—</strong><em id="return">—</em></span>
+          <span><small>Efectivo</small><strong id="cash">—</strong><em>USDT disponible</em></span>
+          <span><small>Exposición</small><strong id="exposure">—</strong><em id="positionsCount">—</em></span>
+          <span><small>IA final</small><strong id="aiStatus">—</strong><em id="aiModel">—</em></span>
         </div>
+        <div class="engine-chart-head"><span>Curva de equity</span><small id="updated">Esperando primer ciclo</small></div>
+        <canvas id="equityChart" height="190" aria-label="Curva de equity Spot Testnet"></canvas>
+      </article>
+
+      <article class="panel engine-console futures-console">
+        <div class="settings-card-head"><div><p class="eyebrow">MOTOR 2 · FUTURES</p><h2>USDⓈ-M Futures Demo · BTCUSDT</h2></div><span id="futuresForwardState" class="state neutral">CARGANDO</span></div>
+        <p>LONG/SHORT · automático 1x · ISOLATED · una posición máxima · revisión IA final · fondos ficticios.</p>
+        <div class="engine-kpis">
+          <span><small>Wallet</small><strong id="futuresForwardWallet">—</strong><em>USDT Demo</em></span>
+          <span><small>Retorno observado</small><strong id="futuresForwardReturn">—</strong><em id="futuresForwardClosed">—</em></span>
+          <span><small>Posición</small><strong id="futuresForwardPosition">—</strong><em id="futuresForwardRecovery">—</em></span>
+          <span><small>IA final</small><strong id="futuresForwardAi">—</strong><em id="futuresForwardPnl">—</em></span>
+        </div>
+        <div class="engine-chart-head"><span>Curva de wallet / equity</span><small>Forward test independiente</small></div>
+        <canvas id="futuresEquityChart" height="190" aria-label="Curva de equity Futures Demo"></canvas>
         <p id="futuresForwardSafety" class="settings-help">Journal durable, conciliación tras reinicio y kill switch independiente. LIVE bloqueado.</p>
-        <div class="settings-actions">
-          <button id="pauseFuturesForward" class="secondary" type="button">Pausar Futures</button>
-          <button id="resumeFuturesForward" class="secondary" type="button">Reanudar Futures</button>
+        <div class="settings-actions compact-actions">
+          <button id="pauseFuturesForward" class="secondary" type="button">Pausar</button>
+          <button id="resumeFuturesForward" class="secondary" type="button">Reanudar</button>
         </div>
       </article>
     </section>
@@ -209,19 +217,7 @@
       </div>
     </section>
 
-    <section class="metrics" aria-label="Resumen de cuenta">
-      <article><span>Equity</span><strong id="equity">—</strong><small id="return">—</small></article>
-      <article><span>Efectivo</span><strong id="cash">—</strong><small>USDT disponible</small></article>
-      <article><span>Exposición</span><strong id="exposure">—</strong><small id="positionsCount">—</small></article>
-      <article><span>Revisión IA</span><strong id="aiStatus">—</strong><small id="aiModel">—</small></article>
-    </section>
-
-    <section class="grid">
-      <article class="panel chart-panel">
-        <div class="panel-title"><h2>Curva de equity</h2><span id="updated">Esperando primer ciclo</span></div>
-        <canvas id="equityChart" height="230" aria-label="Curva de equity"></canvas>
-      </article>
-      <article class="panel guardrail">
+    <section class="panel guardrail consolidated-guardrail">
         <div class="panel-title"><h2 id="riskPanelTitle">Límites del entorno</h2><span id="killState" class="state">Comprobando</span></div>
         <dl>
           <div><dt>Riesgo / trade</dt><dd id="riskTrade">—</dd></div>
@@ -237,8 +233,7 @@
           <button id="saveRiskProfile" class="secondary" type="button">Aplicar nivel de riesgo</button>
           <small id="riskProfileNote">Afecta únicamente nuevas entradas del entorno activo. «Muy alto» equivale al antiguo «Normal» y nunca supera los topes configurados.</small>
         </div>
-      </article>
-    </section>
+      </section>
 
     <section class="panel">
       <div class="panel-title"><h2>Posiciones abiertas</h2><span>Protección ATR activa</span></div>
@@ -267,9 +262,9 @@
       <h3>Cómo se cerraron las operaciones</h3>
       <div class="table-wrap"><table class="exit-table">
         <thead><tr><th>Motivo de salida</th><th>Cierres</th><th>P&amp;L realizado neto</th></tr></thead>
-        <tbody id="paperExitRows"><tr><td colspan="3" class="empty">Esperando historial PAPER.</td></tr></tbody>
+        <tbody id="paperExitRows"><tr><td colspan="3" class="empty">Esperando historial del entorno activo.</td></tr></tbody>
       </table></div>
-      <p class="research-updated">P&amp;L realizado neto de comisiones; P&amp;L abierto estimado solo con cotizaciones recientes, incluyendo salida simulada. Drawdown muestreado. Sin libro de aportes/retiros; la referencia BTC invierte el 100% y descuenta costos PAPER simulados.</p>
+      <p class="research-updated">P&amp;L realizado neto de comisiones; P&amp;L abierto estimado solo con cotizaciones recientes, incluyendo salida simulada. Drawdown muestreado. Sin libro de aportes/retiros; la referencia BTC invierte el 100% y descuenta costos simulados del entorno.</p>
       </details>
 
     </section>
@@ -295,7 +290,7 @@
         <summary>Comparar estrategias y ver evaluación histórica</summary>
       <div class="research-heading">
         <div>
-          <p class="eyebrow">EVALUACIÓN HISTÓRICA · V0.6.17</p>
+          <p class="eyebrow">EVALUACIÓN HISTÓRICA</p>
           <h2>Comparación multi-cripto</h2>
           <p class="research-copy">Compara cinco estrategias por activo contra efectivo y comprar y mantener ese activo, con costos, walk-forward y ventana final. Solo una estrategia que supere todas las puertas y un forward test posterior puede proponerse para la siguiente fase; ninguna se activa automáticamente.</p>
           <p id="researchCoverage" class="research-copy">Calculando cuántos cierres PAPER corresponden a estos cinco activos.</p>
