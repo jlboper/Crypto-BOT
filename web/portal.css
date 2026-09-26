@@ -69,3 +69,124 @@
 #updateReleases h3{margin:0 0 8px}
 #updateReleases a{display:inline-block;margin:4px 14px 8px 0;color:#70d6ff}
 @media(max-width:640px){.update-hero{align-items:flex-start;padding:20px}.update-primary-actions{display:grid}.update-primary-actions button{width:100%}.update-center{gap:18px}}
+
+
+/* v0.6.26 — unified responsive layer */
+#updatePanel,#historyPanel,#modelSettingsPanel,#passwordPanel,
+.operation-overview,.paper-scorecard,.activity-strip,.advanced-details,
+.shell>.panel,.shell>section{
+  width:100%;
+  max-width:none;
+}
+.update-center{width:100%;max-width:none}
+
+#modelSettingsPanel{
+  display:grid;
+  grid-template-columns:max-content minmax(170px,300px) max-content max-content max-content minmax(260px,1fr) max-content max-content;
+  align-items:center;
+  gap:12px;
+}
+#modelSettingsPanel .panel-title,#modelSettingsPanel>p{grid-column:1/-1}
+#modelSettingsPanel select{min-width:0;max-width:100%}
+
+button,select,input{min-height:44px;font:inherit}
+button{white-space:normal;line-height:1.25}
+select,input{min-width:0}
+.panel,.metrics article,.activity-strip{overflow-wrap:anywhere}
+.panel-title h2,.update-center-bar h2,.operation-overview h2,.research-heading h2{line-height:1.2}
+
+@media(max-width:1100px){
+  .shell{width:min(1460px,96vw)}
+  #modelSettingsPanel{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+  #modelSettingsPanel .panel-title,#modelSettingsPanel>p{grid-column:1/-1}
+  #modelSettingsPanel label,#modelSettingsPanel select,#modelSettingsPanel button{width:100%}
+  .research-summary{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+
+@media(max-width:900px){
+  .shell{width:calc(100% - 28px);padding:22px 0 44px}
+  header{align-items:flex-start;flex-direction:column;gap:16px}
+  .header-actions{width:100%;justify-content:flex-start;gap:10px}
+  .brand{width:100%}
+  .brand-copy{flex:1}
+  .metrics{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .grid,.split,.operation-overview,.detail-columns{grid-template-columns:1fr}
+  .panel-title{align-items:flex-start}
+  .update-center{gap:18px}
+  .update-hero{padding:22px}
+  .table-wrap{
+    width:100%;
+    overflow-x:auto;
+    overscroll-behavior-inline:contain;
+    -webkit-overflow-scrolling:touch;
+  }
+}
+
+@media(max-width:640px){
+  body{font-size:15px}
+  .shell{width:calc(100% - 20px);padding-top:14px}
+  header{margin-bottom:16px}
+  h1{font-size:clamp(1.85rem,9vw,2.55rem);letter-spacing:-.04em}
+  h2{font-size:1rem}
+  .eyebrow{font-size:.7rem;letter-spacing:.13em}
+  .brand{align-items:flex-start}
+  .brand-mark{width:40px;height:40px;flex-basis:40px}
+  .header-actions{display:grid;grid-template-columns:1fr 1fr}
+  .header-actions>.badge,.header-actions>.state{justify-content:center}
+  .header-actions>.danger,.header-actions>.options{width:100%}
+  .options>#optionsButton{width:100%}
+  .options-menu{width:min(320px,calc(100vw - 28px));max-height:70vh;overflow:auto}
+
+  .metrics{grid-template-columns:1fr;gap:10px}
+  .metrics article{min-height:100px;padding:16px}
+  .metrics strong{font-size:1.55rem}
+
+  .panel,.activity-strip{padding:16px;border-radius:12px}
+  .panel-title{gap:10px;margin-bottom:14px}
+  .panel-title span{font-size:.74rem;text-align:right}
+
+  #modelSettingsPanel{display:grid;grid-template-columns:1fr;gap:10px}
+  #modelSettingsPanel .panel-title,#modelSettingsPanel>p,
+  #modelSettingsPanel label,#modelSettingsPanel select,#modelSettingsPanel button{grid-column:1;width:100%}
+  #modelSettingsPanel select{
+    text-overflow:ellipsis;
+    overflow:hidden;
+    white-space:nowrap;
+  }
+
+  .operation-overview{gap:14px}
+  .operation-overview h2{font-size:1.25rem}
+  .operation-next{padding:13px}
+
+  .update-center-bar h2{font-size:1.35rem}
+  .update-hero{align-items:flex-start;gap:14px;padding:18px;border-radius:15px}
+  .update-hero-icon{flex-basis:46px;width:46px;height:46px;font-size:22px}
+  .update-hero-copy h3{font-size:1.16rem}
+  .update-primary-actions{display:grid;grid-template-columns:1fr}
+  .update-primary-actions button{width:100%;min-width:0}
+  .icon-close{width:44px!important;min-width:44px!important}
+
+  .research-heading{gap:14px}
+  .research-actions{display:grid;width:100%}
+  .research-summary,.detail-metrics{grid-template-columns:1fr}
+  .methodology{gap:6px}
+  .methodology span{font-size:.68rem}
+
+  .guardrail dl div{gap:12px}
+  .guardrail dt{max-width:65%}
+  .guardrail dd{text-align:right}
+  .paper-controls select,.paper-controls button{width:100%}
+
+  .feed-item{grid-template-columns:auto minmax(0,1fr);gap:9px}
+  .feed-item time{grid-column:2}
+  table{font-size:.82rem}
+  th,td{padding:10px 8px}
+}
+
+@media(max-width:400px){
+  .shell{width:calc(100% - 14px)}
+  .header-actions{grid-template-columns:1fr}
+  .panel,.activity-strip{padding:14px}
+  .update-hero-icon{display:none}
+  .update-hero{padding:16px}
+}
