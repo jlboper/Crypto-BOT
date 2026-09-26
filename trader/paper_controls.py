@@ -9,6 +9,8 @@ from .risk_control import PROFILES
 
 
 def execute(config, db, action, payload):
+    if config.bot.mode not in {'paper', 'testnet'}:
+        raise ValueError('Unsupported execution mode')
     if not isinstance(payload, dict):
         raise ValueError('Invalid PAPER request')
     if action == 'risk_profile':
@@ -20,6 +22,8 @@ def execute(config, db, action, payload):
         return {'ok': True, 'profile': payload['profile']}
     if action != 'paper_close':
         raise ValueError('Unknown PAPER action')
+    if config.bot.mode != 'paper':
+        raise ValueError('Simulated PAPER close is blocked in Testnet mode')
     if (set(payload) != {'symbol', 'opened_at', 'reference_price'} or
             not isinstance(payload['symbol'], str) or
             re.fullmatch(r'[A-Z0-9]{2,24}USDT', payload['symbol']) is None or
