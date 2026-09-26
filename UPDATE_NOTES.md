@@ -1,3 +1,12 @@
+# Actualización 0.7.9 — acciones de portal de un solo clic
+
+- Las acciones manuales mantienen un estado ocupado persistente desde el primer clic: el botón cambia a **Procesando…** y queda bloqueado mientras Windows trabaja.
+- El refresco periódico del dashboard ya no puede reactivar prematuramente **Verificar Futures**, **Prueba Futures**, **Reconciliar Futures** ni el smoke Spot mientras una acción sigue en curso.
+- El portal sigue automáticamente la solicitud remota hasta que Windows devuelve `completed`, `failed` o `expired`, y muestra el mensaje final sin requerir otro clic.
+- **Instalar actualización** muestra inmediatamente **Instalación solicitada** después de aceptar el job y deja claro que no hay que volver a pulsar.
+- Se conserva el estado fresco de Windows antes de cada acción y la idempotencia por `request_id`.
+- No cambia estrategia, balances, riesgo ni ejecución Binance; LIVE continúa bloqueado.
+
 # Actualización 0.7.8 — smoke Futures 100% privado/Testnet
 
 - La **Prueba Futures** ya no depende de ticker, funding ni exchangeInfo públicos.
