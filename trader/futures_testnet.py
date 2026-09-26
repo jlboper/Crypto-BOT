@@ -246,6 +246,8 @@ class FuturesTestnetLab:
         direction = direction.upper()
         if direction not in {"LONG", "SHORT"}:
             raise ValueError("Futures Testnet direction must be LONG or SHORT")
+        if leverage not in {1, 2, 3} or leverage > self.settings.max_leverage:
+            raise ValueError("Futures Testnet leverage must be 1x, 2x or 3x")
         if not self.settings.enabled:
             raise ValueError("Futures Testnet lab is disabled")
         if self.ledger.setting("pending_order"):
