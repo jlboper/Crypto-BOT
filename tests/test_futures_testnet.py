@@ -80,6 +80,34 @@ class FuturesTestnetLabTests(unittest.TestCase):
         raise AssertionError((method, endpoint, fields))
 
 
+
+    def test_trade_probe_uses_exchange_minimum_quantity_when_ten_usdt_is_too_small(self):
+        captured = {}
+        def public(method, endpoint, fields=None):
+            fields = fields or {}
+            if endpoint == "/fapi/v1/ticker/price":
+                return {"symbol": fields["symbol"], "price": "84000"}
+            if endpoint == "/fapi/v1/premiumIndex":
+                return {"symbol": fields["symbol"], "lastFundingRate": "0"}
+            if endpoint == "/fapi/v1/exchangeInfo":
+                return {"symbols": [{
+                    "symbol": fields["symbol"],
+                    "filters": [
+                        {"filterType": "MARKET_LOT_SIZE", "minQty": "0.001", "maxQty": "1000", "stepSize": "0.001"},
+                        {"filterType": "MIN_NOTIONAL", "notional": "5"},
+                    ],
+                }]}
+            raise AssertionError(endpoint)
+        def signed(method, endpoint, fields=None):
+            self.assertEqual((method, endpoint), ("POST", "/fapi/v1/order/test"))
+            captured.update(fields or {})
+            return {}
+        with patch("trader.futures_testnet.public_request", side_effect=public), \
+             patch("trader.futures_testnet.signed_request", side_effect=signed):
+            self.assertTrue(self.lab._trade_probe("BTCUSDT"))
+        self.assertEqual(captured["quantity"], "0.001")
+        self.assertGreaterEqual(float(captured["quantity"]) * 84000, 5)
+
     def test_check_uses_test_order_probe_when_account_flag_is_false(self):
         def signed(method, endpoint, fields=None):
             fields = fields or {}
