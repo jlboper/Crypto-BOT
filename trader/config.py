@@ -166,6 +166,7 @@ def load_config(path: str | Path | None = None) -> AppConfig:
     if not 0 <= ai["minimum_confidence"] <= 1 or not 1 <= ai["timeout_seconds"] <= 120 or not 0 <= ai["max_reviews_per_cycle"] <= 10:
         raise ValueError("Invalid AI limits")
 
+    selected_database = bot.get("testnet_database_path", "data/testnet-trader.db") if mode == "testnet" else bot["database_path"]
     return AppConfig(
         bot=BotSettings(
             mode=mode,
@@ -173,7 +174,7 @@ def load_config(path: str | Path | None = None) -> AppConfig:
             timeframe=str(bot["timeframe"]),
             universe_size=int(bot["universe_size"]),
             max_parallel_requests=int(bot["max_parallel_requests"]),
-            database_path=_project_path(str(bot["database_path"])),
+            database_path=_project_path(str(selected_database)),
             kill_switch_path=_project_path(str(bot["kill_switch_path"])),
             protection_seconds=max(10, min(300, int(bot.get("protection_seconds", 30)))),
         ),
