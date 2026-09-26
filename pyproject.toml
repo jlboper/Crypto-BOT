@@ -1,6 +1,6 @@
 [project]
 name = "crypto-ai-trading-bot"
-version = "0.7.6"
+version = "0.7.7"
 description = "Safety-first Binance Spot Testnet engine with AI review, research lab and isolated Futures Demo experiments"
 requires-python = ">=3.11"
 dependencies = []
