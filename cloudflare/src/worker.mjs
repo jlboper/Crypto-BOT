@@ -93,12 +93,23 @@ function validateSnapshot(snapshot) {
   if (snapshot.dashboard !== undefined) {
     const d = snapshot.dashboard;
     assert(object(d) && object(d.status) && d.status.mode === snapshot.mode, 'Invalid dashboard');
-    assert(Object.keys(d).every(k=>['status','positions','equity','trades','reviews','events','risk','research','research_state','testnet','testnet_execution','updates','paper_scorecard'].includes(k)), 'Unknown dashboard field');
+    assert(Object.keys(d).every(k=>['status','positions','equity','trades','reviews','events','risk','research','research_state','testnet','testnet_execution','updates','paper_scorecard','futures_forward'].includes(k)), 'Unknown dashboard field');
     if(d.testnet_execution!==undefined){
       const x=d.testnet_execution;
       assert(object(x)&&x.mode==='SPOT_TESTNET'&&Array.isArray(x.orders)&&x.orders.length<=5&&
         typeof x.next_step==='string'&&x.next_step.length<200&&JSON.stringify(x).length<2400,
         'Invalid Testnet execution');
+    }
+    if(d.futures_forward!==undefined){
+      const f=d.futures_forward;
+      assert(object(f)&&typeof f.enabled==='boolean'&&typeof f.killed==='boolean'
+        &&f.symbol==='BTCUSDT'&&f.automatic_leverage===1
+        &&(f.position===null||object(f.position))
+        &&Array.isArray(f.trades)&&f.trades.length<=20
+        &&Array.isArray(f.equity)&&f.equity.length<=120
+        &&Number.isInteger(f.closed_trades)&&f.closed_trades>=0
+        &&typeof f.gross_pnl==='number'&&Number.isFinite(f.gross_pnl)
+        &&JSON.stringify(f).length<40000,'Invalid Futures forward status');
     }
     if(d.paper_scorecard!==undefined){
       const s=d.paper_scorecard;

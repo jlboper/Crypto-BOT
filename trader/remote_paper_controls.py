@@ -36,7 +36,7 @@ class RemotePaperControls:
         payload = item.get('payload')
         expires = item.get('expires')
         if (not self.available or type(identifier) is not int or identifier <= 0 or
-                action not in {'risk_profile', 'paper_close', 'ai_model', 'restart_engine', 'execution_mode', 'testnet_smoke', 'futures_testnet_check', 'futures_testnet_smoke', 'futures_testnet_reconcile'} or not isinstance(payload, dict) or
+                action not in {'risk_profile', 'paper_close', 'ai_model', 'restart_engine', 'execution_mode', 'testnet_smoke', 'futures_testnet_check', 'futures_testnet_smoke', 'futures_testnet_reconcile', 'futures_forward_pause', 'futures_forward_resume'} or not isinstance(payload, dict) or
                 type(expires) not in (int, float) or not now < expires <= now + 305):
             raise ValueError('Invalid or unavailable trading control')
         expected = {'action': action, 'payload': payload}
@@ -115,6 +115,8 @@ class RemotePaperControls:
                             + ' · apertura/cierre reduceOnly conciliados'
                             + ((' · liq ' + str(round(float(liquidation),2))) if liquidation is not None else ''),
                         'futures_testnet_reconcile': 'Futures Demo reconciliado · posición técnica cerrada',
+                        'futures_forward_pause': 'Futures Demo automático pausado · Spot Testnet continúa activo',
+                        'futures_forward_resume': 'Futures Demo automático reanudado · BTCUSDT 1x',
                     }
                     message = messages[action]
                     status = 'completed'

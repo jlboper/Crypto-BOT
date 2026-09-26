@@ -2,7 +2,7 @@
 
 > Copia de desarrollo aislada de la instalación Windows. El repositorio no contiene credenciales ni datos de la instancia operativa. No inicies un segundo motor. Consulta `BOT_UPDATE_PROGRESS.md` para distinguir versión preparada, publicada e instalada.
 
-Bot de swing trading de varios días/semanas con motor principal en PAPER o Binance Spot Testnet. Consume datos reales de mercado, crea señales cuantitativas y utiliza OpenAI como una segunda barrera de riesgo. Desde 0.7.0 incorpora además un laboratorio separado de Binance USDⓈ-M Futures Demo para ensayar LONG/SHORT y apalancamiento 1x–3x con fondos ficticios, sin habilitar Binance LIVE.
+Bot de swing trading de varios días/semanas con motor principal en PAPER o Binance Spot Testnet. Consume datos reales de mercado, crea señales cuantitativas y utiliza OpenAI como una segunda barrera de riesgo. Desde 0.8.0, cuando Spot está en TESTNET, corre además un forward test separado de Binance USDⓈ-M Futures Demo: BTCUSDT, LONG/SHORT, 1x automático, máximo una posición, ledger y kill switch propios. Los smoke tests manuales 1x–3x permanecen solo como diagnóstico. Binance LIVE sigue sin implementación.
 
 La IA no puede inventar compras, aumentar el tamaño de una posición, eliminar stops ni cambiar límites. Únicamente puede `ALLOW`, `REJECT` o `REDUCE` una entrada que ya pasó las reglas cuantitativas.
 
@@ -95,7 +95,7 @@ python -m trader testnet-simulate
 
 A partir de 0.7.0, PAPER queda como entorno de respaldo/CI: se mantiene para regresiones, diagnóstico y fallback, pero las capacidades nuevas se desarrollan sobre Testnet salvo cambios de seguridad necesarios.
 
-El laboratorio paralelo de **USDⓈ-M Futures Demo** usa la API REST de prueba oficial en `https://testnet.binancefuture.com` y credenciales distintas: `BINANCE_FUTURES_TESTNET_API_KEY` y `BINANCE_FUTURES_TESTNET_API_SECRET`. Sus datos se guardan en `data/futures-testnet.db`, separados del ledger Spot. Solo permite margen `ISOLATED`, modo `ONE_WAY` y leverage 1x/2x/3x. La primera fase ofrece verificación de cuenta, smoke LONG/SHORT y reconciliación explícita con cierre `reduceOnly`; todavía no convierte el motor automático Spot en un motor de Futures.
+El laboratorio paralelo de **USDⓈ-M Futures Demo** usa la API REST de prueba oficial en `https://testnet.binancefuture.com` y credenciales distintas: `BINANCE_FUTURES_TESTNET_API_KEY` y `BINANCE_FUTURES_TESTNET_API_SECRET`. Sus datos se guardan en `data/futures-testnet.db`, separados del ledger Spot. Solo permite margen `ISOLATED`, modo `ONE_WAY` y leverage 1x/2x/3x. La v0.8.0 mantiene Spot y Futures como dos pistas separadas dentro del mismo proceso supervisado. Spot Testnet continúa multi-activo. Futures Demo ejecuta un forward test persistente solo en BTCUSDT, con LONG/SHORT, 1x, margen ISOLATED, modo ONE_WAY, una sola posición y cierre `reduceOnly`. Usa `data/futures-testnet.db` y un kill switch independiente. Las pruebas manuales 1x–3x se conservan plegadas en Diagnóstico.
 
 Usa únicamente claves dedicadas de entornos Testnet, nunca claves de Binance de producción. Guárdalas en la PC con acceso limitado y no las envíes al portal ni al repositorio. Las pruebas de Spot y Futures validan infraestructura, no rentabilidad.
 
@@ -196,3 +196,14 @@ python -m unittest discover -s tests -v
 ```
 
 La siguiente fase debe comenzar solo tras revisar resultados fuera de muestra, costos, drawdown, estabilidad por activo y comportamiento durante varias semanas en simulación.
+
+
+## Arquitectura v0.8.0: dos motores de prueba
+
+- **Spot Testnet:** motor multi-activo existente, sin margen ni posiciones cortas.
+- **Futures Demo:** forward test separado de BTCUSDT, LONG/SHORT, apalancamiento automático fijo en 1x y máximo una posición.
+- Futures tiene ledger, journal de órdenes, historial, métricas y kill switch propios. Un fallo del forward test no debe detener el motor Spot.
+- La entrada Futures usa la misma familia cuantitativa de tendencia/momentum en forma simétrica LONG/SHORT, pero no reutiliza la revisión IA spot-only para cortos.
+- La cantidad inicial es 0.001 BTC, validada con `/order/test`, y la entrada se bloquea si su notional supera el presupuesto automático configurado.
+- Las protecciones de Futures se revisan durante los ticks de protección aunque se pausen nuevas entradas Futures.
+- Ninguna métrica de Testnet autoriza automáticamente LIVE. La evaluación de dinero real es una decisión posterior y separada.

@@ -242,8 +242,8 @@ function exportResearchCsv() {
 
 async function refresh() {
   try {
-    const [status,positions,trades,reviews,equity,events,research,researchState,paperReport] = await Promise.all([
-      api('/api/status'),api('/api/positions'),api('/api/trades'),api('/api/ai-reviews'),api('/api/equity'),api('/api/events'),api('/api/research'),api('/api/research/status'),api('/api/paper-scorecard')
+    const [status,positions,trades,reviews,equity,events,research,researchState,paperReport,futuresForward] = await Promise.all([
+      api('/api/status'),api('/api/positions'),api('/api/trades'),api('/api/ai-reviews'),api('/api/equity'),api('/api/events'),api('/api/research'),api('/api/research/status'),api('/api/paper-scorecard'),api('/api/futures-forward')
     ]);
     currentExecutionMode=String(status.mode||'paper').toLowerCase();
     const modeUpper=currentExecutionMode.toUpperCase();
@@ -265,9 +265,41 @@ async function refresh() {
       futuresState.textContent=currentExecutionMode==='testnet'?'DISPONIBLE':'REQUIERE TESTNET';
       futuresState.className='state '+(currentExecutionMode==='testnet'?'neutral':'warning');
     }
-    document.getElementById('accountEnvironmentTitle').textContent='Cuenta de prueba · '+modeUpper;
-    document.getElementById('riskPanelTitle').textContent='Límites '+modeUpper;
-    document.getElementById('financialEvidenceTitle').textContent='Seguimiento financiero '+modeUpper;
+    document.getElementById('accountEnvironmentTitle').textContent='Spot · '+modeUpper;
+    const spotEngineState=document.getElementById('spotEngineState');
+    if(spotEngineState){
+      spotEngineState.textContent=status.killed?'PAUSADO':(status.activity?.state||'ACTIVO');
+      spotEngineState.className='state '+(status.killed?'warning':'neutral');
+    }
+    const spotPositions=document.getElementById('spotEnginePositions');
+    if(spotPositions)spotPositions.textContent=String(status.positions);
+    const spotExposure=document.getElementById('spotEngineExposure');
+    if(spotExposure)spotExposure.textContent=money(status.exposure);
+
+    const forwardState=document.getElementById('futuresForwardState');
+    const forwardPosition=futuresForward?.position;
+    if(forwardState){
+      forwardState.textContent=!futuresForward?.enabled?'INACTIVO':(futuresForward.killed?'PAUSADO':(forwardPosition?'POSICIÓN ABIERTA':'ACTIVO'));
+      forwardState.className='state '+(futuresForward?.killed?'warning':'neutral');
+    }
+    const fWallet=document.getElementById('futuresForwardWallet');
+    if(fWallet){
+      const last=(futuresForward?.equity||[]).at(-1);
+      fWallet.textContent=last?money(last.wallet_balance):'Esperando ciclo';
+    }
+    const fPosition=document.getElementById('futuresForwardPosition');
+    if(fPosition)fPosition.textContent=forwardPosition?`${forwardPosition.direction} · 1x`:'Sin posición';
+    const fPnl=document.getElementById('futuresForwardPnl');
+    if(fPnl)fPnl.textContent=money(Number(futuresForward?.gross_pnl||0));
+    const fClosed=document.getElementById('futuresForwardClosed');
+    if(fClosed)fClosed.textContent=String(futuresForward?.closed_trades||0);
+    const pauseForward=document.getElementById('pauseFuturesForward');
+    const resumeForward=document.getElementById('resumeFuturesForward');
+    if(pauseForward&&!window.portalButtonBusy?.('pauseFuturesForward'))pauseForward.disabled=!futuresForward?.enabled||!!futuresForward?.killed;
+    if(resumeForward&&!window.portalButtonBusy?.('resumeFuturesForward'))resumeForward.disabled=!futuresForward?.enabled||!futuresForward?.killed;
+
+    document.getElementById('riskPanelTitle').textContent='Límites Spot · '+modeUpper;
+    document.getElementById('financialEvidenceTitle').textContent='Seguimiento financiero Spot · '+modeUpper;
     document.getElementById('equity').textContent=money(status.equity);
     document.getElementById('cash').textContent=money(status.cash);
     document.getElementById('exposure').textContent=money(status.exposure);

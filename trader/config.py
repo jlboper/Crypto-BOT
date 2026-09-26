@@ -103,6 +103,15 @@ class FuturesTestnetSettings:
     margin_type: str
     position_mode: str
     smoke_margin_usdt: float
+    forward_enabled: bool
+    forward_symbol: str
+    forward_leverage: int
+    forward_margin_usdt: float
+    forward_min_score: int
+    forward_stop_atr_multiple: float
+    forward_minimum_stop_pct: float
+    forward_reward_to_risk: float
+    kill_switch_path: Path
 
 
 @dataclass(frozen=True)
@@ -183,12 +192,37 @@ def load_config(path: str | Path | None = None) -> AppConfig:
     futures_margin = str(futures_testnet.get("margin_type", "ISOLATED")).upper()
     futures_position_mode = str(futures_testnet.get("position_mode", "ONE_WAY")).upper()
     futures_smoke_margin = float(futures_testnet.get("smoke_margin_usdt", 10.0))
+    futures_forward_enabled = os.getenv(
+        "FUTURES_FORWARD_ENABLED",
+        str(futures_testnet.get("forward_enabled", False)),
+    ).strip().lower() in {"1","true","yes","on"}
+    futures_forward_symbol = str(futures_testnet.get("forward_symbol", "BTCUSDT")).upper()
+    futures_forward_leverage = int(futures_testnet.get("forward_leverage", 1))
+    futures_forward_margin = float(futures_testnet.get("forward_margin_usdt", 10.0))
+    futures_forward_min_score = int(futures_testnet.get("forward_min_score", 75))
+    futures_forward_stop_atr = float(futures_testnet.get("forward_stop_atr_multiple", 2.0))
+    futures_forward_min_stop = float(futures_testnet.get("forward_minimum_stop_pct", 0.025))
+    futures_forward_rr = float(futures_testnet.get("forward_reward_to_risk", 2.0))
     if futures_default not in {1, 2, 3} or futures_max not in {1, 2, 3} or futures_default > futures_max:
         raise ValueError("Futures Testnet leverage must stay within 1x/2x/3x")
     if futures_margin != "ISOLATED" or futures_position_mode != "ONE_WAY":
         raise ValueError("Futures Testnet must remain ISOLATED and ONE_WAY")
     if not math.isfinite(futures_smoke_margin) or not 5 <= futures_smoke_margin <= 25:
         raise ValueError("Invalid Futures Testnet smoke margin")
+    if futures_forward_symbol != "BTCUSDT":
+        raise ValueError("Futures forward test is initially restricted to BTCUSDT")
+    if futures_forward_leverage != 1:
+        raise ValueError("Automatic Futures forward test must stay at 1x")
+    if not math.isfinite(futures_forward_margin) or not 5 <= futures_forward_margin <= 100:
+        raise ValueError("Invalid Futures forward-test margin")
+    if not 60 <= futures_forward_min_score <= 95:
+        raise ValueError("Invalid Futures forward-test score")
+    if not math.isfinite(futures_forward_stop_atr) or not 1 <= futures_forward_stop_atr <= 5:
+        raise ValueError("Invalid Futures forward-test ATR stop")
+    if not math.isfinite(futures_forward_min_stop) or not 0.01 <= futures_forward_min_stop <= 0.10:
+        raise ValueError("Invalid Futures forward-test minimum stop")
+    if not math.isfinite(futures_forward_rr) or not 1 <= futures_forward_rr <= 5:
+        raise ValueError("Invalid Futures forward-test reward/risk")
 
     selected_database = bot.get("testnet_database_path", "data/testnet-trader.db") if mode == "testnet" else bot["database_path"]
     return AppConfig(
@@ -224,6 +258,15 @@ def load_config(path: str | Path | None = None) -> AppConfig:
             margin_type=futures_margin,
             position_mode=futures_position_mode,
             smoke_margin_usdt=futures_smoke_margin,
+            forward_enabled=futures_forward_enabled,
+            forward_symbol=futures_forward_symbol,
+            forward_leverage=futures_forward_leverage,
+            forward_margin_usdt=futures_forward_margin,
+            forward_min_score=futures_forward_min_score,
+            forward_stop_atr_multiple=futures_forward_stop_atr,
+            forward_minimum_stop_pct=futures_forward_min_stop,
+            forward_reward_to_risk=futures_forward_rr,
+            kill_switch_path=_project_path(str(futures_testnet.get("kill_switch_path", "data/FUTURES_KILL_SWITCH"))),
         ),
         research=ResearchSettings(
             symbols=tuple(str(symbol).upper() for symbol in research.get(

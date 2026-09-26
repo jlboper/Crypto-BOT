@@ -21,12 +21,12 @@ def main():
     config = source_settings(ROOT)
     if (config.bot.database_path.parent / 'UPDATE_MAINTENANCE.json').exists():
         raise ValueError('Update maintenance in progress')
-    if request['action'] in {'ai_model', 'restart_engine', 'execution_mode', 'testnet_smoke', 'futures_testnet_check', 'futures_testnet_smoke', 'futures_testnet_reconcile'}:
+    if request['action'] in {'ai_model', 'restart_engine', 'execution_mode', 'testnet_smoke', 'futures_testnet_check', 'futures_testnet_smoke', 'futures_testnet_reconcile', 'futures_forward_pause', 'futures_forward_resume'}:
         from trader.operational_controls import execute as operational_control
         result = operational_control(ROOT, request['action'], request['payload'])
     else:
         result = execute(config, Database(config.bot.database_path), request['action'], request['payload'])
-    if request['action'] in {'ai_model','restart_engine','execution_mode','testnet_smoke','futures_testnet_check','futures_testnet_smoke','futures_testnet_reconcile'}:
+    if request['action'] in {'ai_model','restart_engine','execution_mode','testnet_smoke','futures_testnet_check','futures_testnet_smoke','futures_testnet_reconcile','futures_forward_pause','futures_forward_resume'}:
         atomic_json(ROOT / 'data/operation-last.json', {'action': request['action'],
                     'status': 'completed', 'at': time.time(), 'result': result})
     print(json.dumps(result, allow_nan=False))

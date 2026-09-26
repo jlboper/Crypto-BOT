@@ -128,7 +128,7 @@ class DashboardServer:
                 if not self._same_origin():
                     self._json({"error": "origin not allowed"}, HTTPStatus.FORBIDDEN)
                     return
-                if path in {"/api/operations/model", "/api/operations/restart", "/api/operations/execution-mode", "/api/operations/testnet-smoke", "/api/operations/futures-check", "/api/operations/futures-smoke", "/api/operations/futures-reconcile"}:
+                if path in {"/api/operations/model", "/api/operations/restart", "/api/operations/execution-mode", "/api/operations/testnet-smoke", "/api/operations/futures-check", "/api/operations/futures-smoke", "/api/operations/futures-reconcile", "/api/operations/futures-forward-pause", "/api/operations/futures-forward-resume"}:
                     try:
                         if self.headers.get('Content-Type', '').split(';', 1)[0].strip() != 'application/json':
                             raise ValueError('JSON required')
@@ -144,11 +144,13 @@ class DashboardServer:
                                   'futures_testnet_check' if path.endswith('/futures-check') else
                                   'futures_testnet_smoke' if path.endswith('/futures-smoke') else
                                   'futures_testnet_reconcile' if path.endswith('/futures-reconcile') else
+                                  'futures_forward_pause' if path.endswith('/futures-forward-pause') else
+                                  'futures_forward_resume' if path.endswith('/futures-forward-resume') else
                                   'restart_engine')
                         invalid = (
                             (action == 'ai_model' and (set(payload) != {'model'} or payload['model'] not in {'gpt-5.6-luna','gpt-6-luna'}))
                             or (action == 'execution_mode' and (set(payload) != {'mode'} or payload['mode'] not in {'paper','testnet'}))
-                            or (action in {'restart_engine','testnet_smoke','futures_testnet_check','futures_testnet_reconcile'} and bool(payload))
+                            or (action in {'restart_engine','testnet_smoke','futures_testnet_check','futures_testnet_reconcile','futures_forward_pause','futures_forward_resume'} and bool(payload))
                             or (action == 'futures_testnet_smoke' and (
                                 set(payload) != {'direction','leverage'}
                                 or payload.get('direction') not in {'LONG','SHORT'}
@@ -293,6 +295,16 @@ class DashboardServer:
                     self._json(outer.db.recent("signals", 50))
                 elif path == "/api/equity":
                     self._json(list(reversed(outer.db.recent("equity", 300))))
+                elif path == "/api/futures-forward":
+                    from .futures_testnet_ledger import FuturesTestnetLedger
+                    snapshot = FuturesTestnetLedger(outer.config.futures_testnet.database_path).forward_snapshot()
+                    self._json({
+                        "enabled": bool(outer.config.bot.mode == "testnet" and outer.config.futures_testnet.forward_enabled),
+                        "killed": outer.config.futures_testnet.kill_switch_path.exists(),
+                        "symbol": outer.config.futures_testnet.forward_symbol,
+                        "automatic_leverage": outer.config.futures_testnet.forward_leverage,
+                        **snapshot,
+                    })
                 elif path == "/api/paper-scorecard":
                     import sqlite3
                     from contextlib import closing
