@@ -64,6 +64,20 @@ test('signed rollout automatically queues a newer bot release and does not downg
   assert.equal(newerLocal.body.jobs.length,0);
 });
 
+test('signed rollout skips intermediate versions and installs the latest release',async t=>{
+  const f=await fixture(t);
+  const oldId='1'.repeat(64), latestId='2'.repeat(64);
+  f.env.DB.sqlite.prepare('INSERT INTO bot_releases(sequence,release_id,commit_sha,envelope,created) VALUES(?,?,?,?,?)')
+    .run(20,oldId,'3'.repeat(40),JSON.stringify({manifest:{version:'0.8.7'},signature:'test'}),1);
+  f.env.DB.sqlite.prepare('INSERT INTO bot_releases(sequence,release_id,commit_sha,envelope,created) VALUES(?,?,?,?,?)')
+    .run(21,latestId,'4'.repeat(40),JSON.stringify({manifest:{version:'0.8.8'},signature:'test'}),2);
+  const update=await f.sync({snapshot:{...snapshot(),installed_version:'0.8.6'},acks:[]});
+  assert.equal(update.status,200);
+  assert.equal(update.body.jobs.length,1);
+  assert.equal(update.body.jobs[0].action,'update_install');
+  assert.equal(update.body.jobs[0].release_id,latestId);
+});
+
 test('failed automatic rollout is not retried in a loop',async t=>{
   const f=await fixture(t);
   const releaseId='c'.repeat(64);

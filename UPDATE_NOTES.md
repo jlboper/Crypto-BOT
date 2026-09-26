@@ -1,3 +1,14 @@
+# Actualización 0.8.8 — Self-Healing Rollout
+
+- El motor Windows, después de que una release firmada quede comprometida y activada, lanza una reparación asincrónica del agente remoto. La visibilidad remota nunca bloquea el trading.
+- La tarea `Crypto Paper Portal Agent` pasa a ejecutar un watchdog persistente que relanza únicamente el agente HTTPS con backoff; no inicia ni reinicia el motor de trading.
+- La tarea conserva una política secundaria de hasta 999 reinicios con intervalo de un minuto, evitando agotar tres intentos y quedar desconectada indefinidamente.
+- La autoreparación refresca los módulos del agente desde la instalación firmada, conserva respaldo, reinicia solo el agente y comprueba una nueva sincronización HTTPS.
+- El mismo mecanismo se usa desde la opción manual **Reparar conexión del portal**, eliminando dos rutas de mantenimiento divergentes.
+- Una PC que todavía tenga 0.8.6 y no haya instalado 0.8.7 puede saltar directamente a 0.8.8 cuando el agente vuelva a conectarse: el portal siempre ofrece la última release firmada superior.
+- Corrige la leyenda del publicador para mostrar el modo real de la release (TESTNET/PAPER) en vez de imprimir siempre PAPER.
+- No cambia estrategia, señales, riesgo, sizing, leverage, IA, credenciales, ledgers ni habilita LIVE.
+
 # Actualización 0.8.7 — observabilidad e integridad de la muestra
 
 - Añade un panel **Salud de observación · 24 h** separado para Spot Testnet y Futures Demo.

@@ -3,6 +3,8 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shutil
+import subprocess
 import sys
 import tomllib
 from dataclasses import replace
@@ -21,6 +23,30 @@ from .research import execute_research, report_without_trades
 from .runtime import single_instance
 from .runtime_control import RuntimeControl
 from .testnet import demo_lifecycle, plan_order, validate_test_order
+
+
+def _start_windows_agent_self_heal() -> None:
+    if os.name != "nt":
+        return
+    root = Path(__file__).resolve().parent.parent
+    script = root / "scripts" / "agent_self_heal.ps1"
+    powershell = shutil.which("powershell.exe")
+    if not powershell or not script.is_file():
+        return
+    try:
+        subprocess.Popen(
+            [powershell, "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
+             "-File", str(script), "-SourcePath", str(root)],
+            cwd=root,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            creationflags=(getattr(subprocess, "CREATE_NO_WINDOW", 0)
+                           | getattr(subprocess, "DETACHED_PROCESS", 0)),
+        )
+    except OSError:
+        # Remote visibility must never prevent the trading engine from running.
+        pass
 
 
 def parser() -> argparse.ArgumentParser:
@@ -84,6 +110,7 @@ def main() -> None:
                     metadata = tomllib.loads((Path(__file__).resolve().parent.parent/'pyproject.toml').read_text())
                     control.ready(metadata['project']['version'], dashboard_ready=thread.is_alive(), mode=config.bot.mode)
                     control.await_activation()
+                    _start_windows_agent_self_heal()
                     print(f"{config.bot.mode.upper()} dashboard: http://{config.dashboard.host}:{config.dashboard.port}")
                     engine.run_forever(control.should_stop)
                 finally:
