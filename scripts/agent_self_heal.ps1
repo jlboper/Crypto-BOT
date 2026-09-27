@@ -150,13 +150,10 @@ if (-not $connected) {
 # is non-fatal: the connected refreshed agent remains alive and visible.
 $taskUpgrade = 'already_hardened'
 try {
-    if ($taskNeedsUpgrade) {
-        Set-ScheduledTask -TaskName $taskName -Action $newTaskAction -Trigger @($task.Triggers) -Settings $settings | Out-Null
-        $taskUpgrade = 'upgraded'
-    } else {
-        Set-ScheduledTask -TaskName $taskName -Settings $settings | Out-Null
-        $taskUpgrade = 'settings_refreshed'
-    }
+    # Rewrite the action every time after connectivity is healthy so old visible
+    # PowerShell task definitions are normalized to the hidden watchdog form.
+    Set-ScheduledTask -TaskName $taskName -Action $newTaskAction -Trigger @($task.Triggers) -Settings $settings | Out-Null
+    $taskUpgrade = if ($taskNeedsUpgrade) { 'upgraded' } else { 'normalized_hidden' }
 } catch {
     $taskUpgrade = 'pending'
 }
