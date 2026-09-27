@@ -186,6 +186,7 @@ test('Futures forward pause and resume controls are accepted remotely in TESTNET
     futures_forward:{enabled:true,killed:true,symbols:['BTCUSDT','ETHUSDT','SOLUSDT'],automatic_leverage:1,positions:[],position:null,trades:[],equity:[],closed_trades:0,gross_pnl:0}
   }};
   assert.equal((await f.sync({snapshot:testnet,acks:[]})).status,200);
+  await f.login();
   for(const action of ['futures_forward_pause','futures_forward_resume']){
     const response=await f.request('/v1/paper-controls',{action,payload:{},request_id:action+'-request-0001'});
     assert.equal(response.status,202);
