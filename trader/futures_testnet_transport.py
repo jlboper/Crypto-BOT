@@ -74,7 +74,8 @@ def public_request(method: str, endpoint: str, fields: dict | None = None, *, al
         raise FuturesTestnetExecutionError("Futures Testnet public endpoint blocked")
     query = urllib.parse.urlencode(fields or {})
     last_error = None
-    hosts = (HOST, PUBLIC_FALLBACK_HOST) if allow_fallback else (HOST,)\n    for host in hosts:
+    hosts = (HOST, PUBLIC_FALLBACK_HOST) if allow_fallback else (HOST,)
+    for host in hosts:
         url = host + endpoint + (("?" + query) if query else "")
         request = urllib.request.Request(url, method=method)
         try:
