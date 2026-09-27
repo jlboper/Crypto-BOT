@@ -129,8 +129,9 @@ class FuturesForwardTests(unittest.TestCase):
         outcome = {"resolved": True, "status": "FILLED", "pending": pending,
                    "order": {"clientOrderId": "cait-fwd-test", "avgPrice": "100000",
                              "executedQty": "0.001"}}
-        row = {"positionAmt": "0.001", "entryPrice": "100000",
-               "liquidationPrice": "1000", "leverage": "1", "marginType": "isolated"}
+        row = {"positionAmt": "0.001", "entryPrice": "100000", "markPrice": "100000",
+               "liquidationPrice": "1000", "leverage": "1", "marginType": "isolated",
+               "positionSide": "BOTH"}
         with patch.object(self.engine.lab, "reconcile_forward_pending", return_value=outcome), \
              patch.object(self.engine, "_actual_rows", return_value=[row]):
             result = self.engine._recover_journal()
