@@ -1,3 +1,14 @@
+# Actualización 0.8.12 — cierre de dependencias del supervisor Windows
+
+- Corrige el `ModuleNotFoundError` persistente del updater/agente independiente.
+- Añade `trader/config.py` al conjunto firmado y sincronizado del supervisor; `windows_agent.py` y `remote_agent.py` lo importan directamente.
+- El agente independiente deja de importar `portal_snapshot.py` como fallback al arrancar. La proyección financiera se obtiene únicamente mediante el exportador aislado de la instalación activa.
+- Esto evita que una carpeta histórica como `audit-work-v0.6.2` oculte dependencias antiguas y produzca un supervisor parcialmente actualizado.
+- El self-heal reescribe siempre la acción de Task Scheduler al formato watchdog oculto después de recuperar conectividad, eliminando definiciones heredadas que abren ventanas PowerShell.
+- Mantiene firma, hashes, secuencia anti-downgrade, health-check y rollback.
+- Incluye todos los cambios visuales de 0.8.11 para paridad Spot/Futures.
+- No cambia estrategia, señales, riesgo, leverage, sizing, IA, credenciales, ledgers ni LIVE.
+
 # Actualización 0.8.11 — paridad visual Spot + Futures
 
 - Reorganiza el portal para que los dos motores tengan el mismo peso visual en desktop: Spot a la izquierda y Futures a la derecha; en móvil se apilan.

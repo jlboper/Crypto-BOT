@@ -13,7 +13,6 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 from trader.config import load_config
 from trader.remote_agent import RemoteAgent
-from trader.portal_snapshot import dashboard_snapshot
 from trader.remote_jobs import RemoteJobs
 from trader.remote_paper_controls import RemotePaperControls
 
@@ -21,6 +20,7 @@ from trader.remote_paper_controls import RemotePaperControls
 SUPERVISOR_MODULES = (
     "scripts/windows_agent.py",
     "scripts/remote_job.py",
+    "trader/config.py",
     "trader/remote_agent.py",
     "trader/remote_jobs.py",
     "trader/remote_paper_controls.py",
@@ -107,7 +107,7 @@ def dashboard_from_source(source, config):
     source = Path(source).resolve(strict=True)
     script = source / 'scripts/export_paper_snapshot.py'
     if not script.is_file():
-        return dashboard_snapshot(config, source / 'data/research/latest.json')
+        raise FileNotFoundError('Trading projection exporter unavailable')
     if not script.resolve().is_relative_to(source):
         raise ValueError('Trading projection escaped installation')
     python = Path(sys.executable)

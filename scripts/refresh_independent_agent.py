@@ -18,6 +18,7 @@ from pathlib import Path
 MODULES = (
     "scripts/windows_agent.py",
     "scripts/remote_job.py",
+    "trader/config.py",
     "trader/remote_agent.py",
     "trader/remote_jobs.py",
     "trader/remote_paper_controls.py",
