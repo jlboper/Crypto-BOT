@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from dataclasses import replace
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 import json
 import math
 import secrets
@@ -52,8 +52,11 @@ class BinanceTestnetBroker(PaperBroker):
             or data.get("status") not in TERMINAL | {"NEW", "PARTIALLY_FILLED"}
         ):
             raise TestnetExecutionError("Unified Testnet order identity/status mismatch")
-        qty = Decimal(str(data.get("executedQty", "0")))
-        quote = Decimal(str(data.get("cummulativeQuoteQty", "0")))
+        try:
+            qty = Decimal(str(data.get("executedQty", "0")))
+            quote = Decimal(str(data.get("cummulativeQuoteQty", "0")))
+        except (InvalidOperation, TypeError, ValueError):
+            raise TestnetExecutionError("Invalid unified Testnet fill") from None
         if not qty.is_finite() or not quote.is_finite() or qty < 0 or quote < 0:
             raise TestnetExecutionError("Invalid unified Testnet fill")
         commission_quote = Decimal("0")
@@ -66,7 +69,10 @@ class BinanceTestnetBroker(PaperBroker):
         for fill in fills or []:
             if not isinstance(fill, dict):
                 continue
-            amount = Decimal(str(fill.get("commission", "0")))
+            try:
+                amount = Decimal(str(fill.get("commission", "0")))
+            except (InvalidOperation, TypeError, ValueError):
+                raise TestnetExecutionError("Invalid unified Testnet commission") from None
             if not amount.is_finite() or amount < 0:
                 raise TestnetExecutionError("Invalid unified Testnet commission")
             if fill.get("commissionAsset") == "USDT":
@@ -97,8 +103,11 @@ class BinanceTestnetBroker(PaperBroker):
         for row in account.get("balances", []):
             if row.get("asset") != asset:
                 continue
-            free = Decimal(str(row.get("free", "0")))
-            locked = Decimal(str(row.get("locked", "0")))
+            try:
+                free = Decimal(str(row.get("free", "0")))
+                locked = Decimal(str(row.get("locked", "0")))
+            except (InvalidOperation, TypeError, ValueError):
+                raise TestnetExecutionError(f"Invalid Testnet {asset} balance") from None
             if all(value.is_finite() and value >= 0 for value in (free, locked)):
                 return free
         raise TestnetExecutionError(f"Testnet {asset} balance unavailable")
