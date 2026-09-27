@@ -356,7 +356,7 @@ class DashboardServer:
                     self._json({
                         "enabled": bool(outer.config.bot.mode == "testnet" and outer.config.futures_testnet.forward_enabled),
                         "killed": outer.config.futures_testnet.kill_switch_path.exists(),
-                        "symbol": outer.config.futures_testnet.forward_symbol,
+                        "symbols": list(outer.config.futures_testnet.forward_symbols)s,
                         "automatic_leverage": outer.config.futures_testnet.forward_leverage,
                         "ai_model": outer.config.ai.model,
                         "last_ai_review": FuturesTestnetLedger(outer.config.futures_testnet.database_path).setting("forward_last_ai_review"),
