@@ -5,6 +5,24 @@ param(
 $ErrorActionPreference = 'Stop'
 $taskName = 'Crypto Paper Portal Agent'
 $source = (Resolve-Path -LiteralPath $SourcePath).Path
+$statusPath = Join-Path $source 'data\agent-self-heal.json'
+function Write-HealState([string]$Phase, [string]$Detail = '') {
+    $payload = [PSCustomObject]@{
+        phase = $Phase
+        detail = $Detail
+        at = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
+    } | ConvertTo-Json -Compress
+    $tmp = $statusPath + '.tmp'
+    New-Item -ItemType Directory -Force -Path (Split-Path -Parent $statusPath) | Out-Null
+    Set-Content -LiteralPath $tmp -Value $payload -Encoding utf8
+    Move-Item -LiteralPath $tmp -Destination $statusPath -Force
+}
+trap {
+    try { Write-HealState 'failed' $_.Exception.GetType().Name } catch { }
+    exit 1
+}
+Write-HealState 'starting'
+$taskName = 'Crypto Paper Portal Agent'
 $task = Get-ScheduledTask -TaskName $taskName -ErrorAction Stop
 if ($task.State -eq 'Disabled') {
     [PSCustomObject]@{ status='skipped_disabled'; task=$taskName } | ConvertTo-Json -Compress
@@ -52,7 +70,7 @@ $preview = (($previewRaw | Out-String) | ConvertFrom-Json)
 if ($preview.status -ne 'refresh_available') { throw 'El supervisor no encontró una instalación firmada comprometida.' }
 
 $powershell = (Get-Command powershell.exe -ErrorAction Stop).Source
-$watchdogArgs = '-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + $watchdog +
+$watchdogArgs = '-NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File "' + $watchdog +
                 '" -SourcePath "' + $source + '" -AgentRoot "' + $agentRoot +
                 '" -PythonPath "' + $pythonw + '"'
 $newTaskAction = New-ScheduledTaskAction -Execute $powershell -Argument $watchdogArgs -WorkingDirectory $agentRoot
@@ -60,16 +78,6 @@ $settings = New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -Execution
     -RestartCount 999 -RestartInterval (New-TimeSpan -Minutes 1) -AllowStartIfOnBatteries `
     -DontStopIfGoingOnBatteries -StartWhenAvailable
 $taskNeedsUpgrade = -not $newAction
-if ($taskNeedsUpgrade) {
-    Set-ScheduledTask -TaskName $taskName -Action $newTaskAction -Trigger @($task.Triggers) -Settings $settings | Out-Null
-} else {
-    Set-ScheduledTask -TaskName $taskName -Settings $settings | Out-Null
-}
-
-if ($preview.changes.Count -eq 0 -and -not $ForceRestart -and -not $taskNeedsUpgrade) {
-    [PSCustomObject]@{ status='already_current'; version=$preview.version; restart_policy=999 } | ConvertTo-Json -Compress
-    exit 0
-}
 
 $state = Join-Path $agentRoot 'data'
 New-Item -ItemType Directory -Force -Path $state | Out-Null
@@ -80,6 +88,7 @@ $previousSuccess = 0
 if (Test-Path -LiteralPath $statusFile) {
     try { $previousSuccess = [double]((Get-Content -LiteralPath $statusFile -Raw | ConvertFrom-Json).last_success) } catch { }
 }
+Write-HealState 'stopping_agent'
 Set-Content -LiteralPath $repairMarker -Value 'signed self-heal' -Encoding utf8
 Set-Content -LiteralPath $stopMarker -Value 'refresh outbound agent only' -Encoding utf8
 $result = $null
@@ -92,6 +101,7 @@ try {
         Stop-ScheduledTask -TaskName $taskName -ErrorAction Stop
         Start-Sleep -Seconds 1
     }
+    Write-HealState 'refreshing_modules'
     if ($preview.changes.Count -gt 0) {
         $appliedRaw = & $python $runner --source $source --agent-root $agentRoot --apply
         if ($LASTEXITCODE -ne 0) { throw 'Falló la actualización verificada de módulos del agente.' }
@@ -100,25 +110,58 @@ try {
     } else {
         $result = [PSCustomObject]@{ status='restarted'; backup=$null }
     }
+} catch {
+    Write-HealState 'failed' $_.Exception.GetType().Name
+    throw
 } finally {
     Remove-Item -LiteralPath $repairMarker -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath $stopMarker -ErrorAction SilentlyContinue
-    if ((Get-ScheduledTask -TaskName $taskName).State -ne 'Running') {
-        Start-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
-    }
 }
+
+# Recover connectivity with the already-known task definition first. Task hardening
+# must never be allowed to block the outbound channel.
+Write-HealState 'starting_agent'
+if ((Get-ScheduledTask -TaskName $taskName).State -ne 'Running') {
+    Start-ScheduledTask -TaskName $taskName -ErrorAction Stop
+}
+$connected = $false
+$mode = $null
 for ($attempt=0; $attempt -lt 120; $attempt++) {
     if (Test-Path -LiteralPath $statusFile) {
         try {
             $status = Get-Content -LiteralPath $statusFile -Raw | ConvertFrom-Json
             if ($status.sync_ok -eq $true -and [double]$status.last_success -gt $previousSuccess) {
-                [PSCustomObject]@{ status='healthy'; version=$preview.version; mode=$status.mode;
-                    restart_policy=999; agent_refresh=$result.status } | ConvertTo-Json -Compress
-                exit 0
+                $connected = $true
+                $mode = $status.mode
+                break
             }
         } catch { }
     }
     Start-Sleep -Seconds 1
 }
-[PSCustomObject]@{ status='connection_pending'; version=$preview.version; restart_policy=999;
-    agent_refresh=$result.status } | ConvertTo-Json -Compress
+if (-not $connected) {
+    Write-HealState 'connection_pending'
+    [PSCustomObject]@{ status='connection_pending'; version=$preview.version; restart_policy='unchanged';
+        agent_refresh=$result.status } | ConvertTo-Json -Compress
+    exit 0
+}
+
+# Only after the channel is healthy do we harden the next invocation. Failure here
+# is non-fatal: the connected refreshed agent remains alive and visible.
+$taskUpgrade = 'already_hardened'
+try {
+    if ($taskNeedsUpgrade) {
+        Set-ScheduledTask -TaskName $taskName -Action $newTaskAction -Trigger @($task.Triggers) -Settings $settings | Out-Null
+        $taskUpgrade = 'upgraded'
+    } else {
+        Set-ScheduledTask -TaskName $taskName -Settings $settings | Out-Null
+        $taskUpgrade = 'settings_refreshed'
+    }
+} catch {
+    $taskUpgrade = 'pending'
+}
+Write-HealState 'healthy' $taskUpgrade
+[PSCustomObject]@{ status='healthy'; version=$preview.version; mode=$mode;
+    restart_policy=if($taskUpgrade -eq 'pending'){'current'}else{999};
+    task_upgrade=$taskUpgrade; agent_refresh=$result.status } | ConvertTo-Json -Compress
+exit 0

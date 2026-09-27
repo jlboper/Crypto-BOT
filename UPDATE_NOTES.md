@@ -1,3 +1,13 @@
+# Actualización 0.8.9 — recuperación del agente y diagnóstico persistente
+
+- Corrige un defecto de 0.8.8 donde la autoreparación podía intentar modificar la tarea programada antes de recuperar la conexión HTTPS. Si Windows rechazaba esa modificación, el proceso terminaba antes de refrescar/reiniciar el agente.
+- El orden pasa a ser: detener solo el agente → refrescar módulos firmados → arrancar con la tarea existente → confirmar sincronización HTTPS → endurecer la tarea como paso no bloqueante.
+- El watchdog PowerShell se ejecuta con `-WindowStyle Hidden`; ya no debe quedar una consola visible aparentemente “pegada”.
+- Añade `data/agent-self-heal.json` y `data/agent-watchdog.json` con estados seguros de fase, reintentos y exit code. No almacenan secretos, URLs privadas ni cuerpos de respuestas.
+- Si endurecer Task Scheduler falla por permisos, el agente conectado permanece vivo; la recuperación remota tiene prioridad sobre la mejora de la tarea.
+- Mantiene el watchdog persistente, backoff, refresh firmado del supervisor y rollback del updater.
+- No cambia estrategia, señales, riesgo, leverage, sizing, IA, credenciales, ledgers ni LIVE.
+
 # Actualización 0.8.8 — Self-Healing Rollout
 
 - El motor Windows, después de que una release firmada quede comprometida y activada, lanza una reparación asincrónica del agente remoto. La visibilidad remota nunca bloquea el trading.
