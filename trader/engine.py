@@ -49,13 +49,14 @@ class TradingEngine:
                 self._manage_positions({}, protective_prices)
             symbols = self.exchange.top_usdt_symbols(self.config.bot.universe_size)
             held_symbols = [position.symbol for position in self.db.positions()]
-            monitored_symbols = list(dict.fromkeys([*symbols, *held_symbols, "BTCUSDT"]))
+            futures_symbols = list(self.config.futures_testnet.forward_symbols) if self.futures_forward is not None else []
+            monitored_symbols = list(dict.fromkeys([*symbols, *held_symbols, "BTCUSDT", *futures_symbols]))
             candle_map = self._fetch_candles(monitored_symbols)
             if "BTCUSDT" not in candle_map:
                 raise RuntimeError("BTC regime data unavailable")
             btc_bullish = self.strategy.btc_regime(candle_map["BTCUSDT"])
             if self.futures_forward is not None:
-                self._run_futures_forward_cycle(candle_map["BTCUSDT"])
+                self._run_futures_forward_cycle(candle_map)
 
             try:
                 prices = self.exchange.latest_prices(set(monitored_symbols))
@@ -306,14 +307,15 @@ class TradingEngine:
                     self.db.event("WARN", f"Protection price unavailable: {type(exc).__name__}")
 
 
-    def _run_futures_forward_cycle(self, candles: list[Candle]) -> None:
+    def _run_futures_forward_cycle(self, candle_map: dict[str, list[Candle]]) -> None:
         current_cycles = self.futures_forward.ledger.setting("forward_cycle_total") or 0
         self.futures_forward.ledger.set_setting("forward_cycle_total", int(current_cycles) + 1)
         try:
-            result = self.futures_forward.cycle(candles)
+            result = self.futures_forward.cycle(candle_map)
             self.futures_forward.ledger.set_setting("forward_consecutive_errors", 0)
-            if result.get("status") in {"OPENED", "CLOSED"}:
-                self.db.event("INFO", "Futures Demo forward: " + str(result.get("status")))
+            events = [row for row in result.get("results", []) if row.get("status") in {"OPENED", "CLOSED"}]
+            for row in events:
+                self.db.event("INFO", f"Futures Demo {row.get('symbol')}: {row.get('status')}")
         except Exception as exc:
             current = self.futures_forward.ledger.setting("forward_consecutive_errors") or 0
             count = int(current) + 1
