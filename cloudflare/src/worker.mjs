@@ -340,6 +340,22 @@ export async function handle(request, env, now = Math.floor(Date.now() / 1000)) 
     if(!results(update,0).length)return json({error:'La contraseña cambió en otra sesión; vuelve a entrar'},409);
     return json({ok:true},200,{'Set-Cookie':sessionCookie('',0)});
   }
+  if(path==='/v1/futures-pause-diagnostics' && method==='GET'){
+    const row=await statement(db,'SELECT payload,received_at FROM snapshots WHERE id=1').first();
+    if(!row)return json({installed_version:null,killed:null,has_pause_diagnostics:false,pause_diagnostics:null,received_at:null,stale:true});
+    let snapshot=null;
+    try{snapshot=JSON.parse(row.payload);}catch{throw new HttpError(503,'Stored snapshot unavailable');}
+    const futures=snapshot?.dashboard?.futures_forward;
+    const diagnostics=futures?.pause_diagnostics;
+    return json({
+      installed_version:typeof snapshot?.installed_version==='string'?snapshot.installed_version:null,
+      killed:typeof futures?.killed==='boolean'?futures.killed:null,
+      has_pause_diagnostics:!!(diagnostics&&typeof diagnostics==='object'&&!Array.isArray(diagnostics)),
+      pause_diagnostics:(diagnostics&&typeof diagnostics==='object'&&!Array.isArray(diagnostics))?diagnostics:null,
+      received_at:row.received_at??null,
+      stale:!row.received_at||now-row.received_at>120
+    });
+  }
   if(path==='/v1/updates' && method==='GET')return json(await githubUpdates(env).list());
   const historyPage=path.match(/^\/v1\/activity\/(0|[1-9][0-9]{0,1})$/);
   if(historyPage && method==='GET'){

@@ -58,6 +58,30 @@ test('private portal assets are never served from stale browser cache',async t=>
   assert.equal(app.headers.get('pragma'),'no-cache');
 });
 
+test('authenticated Futures pause diagnostics exposes only the stored safe projection',async t=>{
+  const f=await fixture(t);
+  const s={...snapshot(),mode:'TESTNET',installed_version:'0.9.2',dashboard:{
+    status:{mode:'TESTNET'},
+    positions:[],equity:[],trades:[],reviews:[],events:[],
+    risk:{},research:{assets:[]},research_state:{running:false,error:null},updates:{},
+    futures_forward:{
+      enabled:true,killed:true,symbols:['BTCUSDT','ETHUSDT','SOLUSDT'],automatic_leverage:1,
+      positions:[],position:null,trades:[],equity:[],closed_trades:0,gross_pnl:0,
+      pause_diagnostics:{active:true,label:'3 errores consecutivos del ciclo Futures',detail:'three consecutive Futures forward errors',source:'automatic_safety',paused_at:'2026-09-27T17:00:00+00:00',last_error:{message:'temporary test error',at:'2026-09-27T16:59:00+00:00'},consecutive_errors:3,pending_reconciliation:false}
+    }
+  }};
+  assert.equal((await f.sync({snapshot:s,acks:[]})).status,200);
+  await f.login();
+  const response=await f.request('/v1/futures-pause-diagnostics');
+  assert.equal(response.status,200);
+  assert.equal(response.body.installed_version,'0.9.2');
+  assert.equal(response.body.killed,true);
+  assert.equal(response.body.has_pause_diagnostics,true);
+  assert.equal(response.body.pause_diagnostics.source,'automatic_safety');
+  assert.equal(response.body.pause_diagnostics.consecutive_errors,3);
+  assert.equal(typeof response.body.stale,'boolean');
+});
+
 test('device sync accepts legacy and multi-asset Futures forward dashboard shapes',async t=>{
   const f=await fixture(t);
   const base=snapshot();
