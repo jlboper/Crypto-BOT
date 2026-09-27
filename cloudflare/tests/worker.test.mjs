@@ -46,6 +46,18 @@ async function fixture(t){
 }
 
 
+test('private portal assets are never served from stale browser cache',async t=>{
+  const f=await fixture(t);
+  const root=await f.request('/');
+  assert.equal(root.status,200);
+  assert.match(root.headers.get('cache-control')||'',/no-store/);
+  assert.equal(root.headers.get('clear-site-data'),'"cache"');
+  const app=await f.request('/app.js');
+  assert.equal(app.status,200);
+  assert.match(app.headers.get('cache-control')||'',/no-store/);
+  assert.equal(app.headers.get('pragma'),'no-cache');
+});
+
 test('device sync accepts legacy and multi-asset Futures forward dashboard shapes',async t=>{
   const f=await fixture(t);
   const base=snapshot();
