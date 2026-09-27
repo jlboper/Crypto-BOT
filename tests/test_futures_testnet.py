@@ -58,6 +58,8 @@ class FuturesTestnetLabTests(unittest.TestCase):
                 "liquidationPrice": "70" if self.position_amt > 0 else "130",
                 "leverage": str(self.leverage),
                 "marginType": "isolated",
+                "positionSide": "BOTH",
+                "markPrice": "100",
             }]
         if endpoint == "/fapi/v1/positionSide/dual":
             return {"dualSidePosition": False} if method == "GET" else {"code": 200}
