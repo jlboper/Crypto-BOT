@@ -57,8 +57,12 @@ class BinanceTestnetBroker(PaperBroker):
             raise TestnetExecutionError("Invalid unified Testnet fill")
         commission_quote = Decimal("0")
         commission_base = Decimal("0")
+        commission_other = []
         base_asset = expected.get("base_asset")
-        for fill in data.get("fills", []) or []:
+        fills = data.get("fills", [])
+        if fills is not None and not isinstance(fills, list):
+            raise TestnetExecutionError("Invalid unified Testnet fills")
+        for fill in fills or []:
             if not isinstance(fill, dict):
                 continue
             amount = Decimal(str(fill.get("commission", "0")))
@@ -68,17 +72,27 @@ class BinanceTestnetBroker(PaperBroker):
                 commission_quote += amount
             elif base_asset and fill.get("commissionAsset") == base_asset:
                 commission_base += amount
+            elif amount > 0:
+                commission_other.append({"asset": str(fill.get("commissionAsset") or "")[:20],
+                                         "amount": str(amount)})
+        order_id = data.get("orderId")
+        if order_id is not None and (not isinstance(order_id, int) or order_id <= 0):
+            raise TestnetExecutionError("Invalid unified Testnet order id")
         return {
             "status": str(data["status"]),
             "executed_qty": str(qty),
             "cumulative_quote": str(quote),
             "commission_quote": str(commission_quote),
             "commission_base": str(commission_base),
+            "commission_other": commission_other,
+            "order_id": order_id,
         }
 
     @staticmethod
     def _account_balance(asset: str) -> Decimal:
         account = signed_request("GET", "/api/v3/account", {})
+        if not isinstance(account, dict) or not isinstance(account.get("balances"), list):
+            raise TestnetExecutionError("Invalid Spot Testnet account response")
         for row in account.get("balances", []):
             if row.get("asset") != asset:
                 continue
@@ -98,7 +112,19 @@ class BinanceTestnetBroker(PaperBroker):
             "/api/v3/order",
             {"symbol": pending["symbol"], "origClientOrderId": pending["client_order_id"]},
         )
-        pending.update(self._safe_fill(response, pending))
+        normalized = self._safe_fill(response, pending)
+        if (normalized["status"] in TERMINAL and Decimal(normalized["executed_qty"]) > 0
+                and not response.get("fills")):
+            order_id = normalized.get("order_id")
+            if not isinstance(order_id, int):
+                raise TestnetExecutionError("Terminal Testnet order missing order id for fee reconciliation")
+            trades = signed_request("GET", "/api/v3/myTrades",
+                                    {"symbol": pending["symbol"], "orderId": order_id})
+            if not isinstance(trades, list) or not trades:
+                raise TestnetExecutionError("Testnet trade fills unavailable for reconciliation")
+            response = {**response, "fills": trades}
+            normalized = self._safe_fill(response, pending)
+        pending.update(normalized)
         self._save_pending(pending)
         if pending["status"] in {"NEW", "PARTIALLY_FILLED"}:
             return False
@@ -167,6 +193,8 @@ class BinanceTestnetBroker(PaperBroker):
         info = client.testnet_symbol_info(signal.symbol)
         base_asset = str(info.get("baseAsset", ""))
         reference = client.testnet_reference_price(signal.symbol)
+        if not signal.stop_price < reference < signal.take_profit:
+            raise TestnetExecutionError("Spot Testnet price moved outside signal protection range")
         plan = plan_order(signal.symbol, "BUY", reference, info, quantity=quantity)
         if plan.status != "READY_FOR_MANUAL_REVIEW":
             raise TestnetExecutionError("Testnet filters reject engine quantity")
@@ -203,6 +231,11 @@ class BinanceTestnetBroker(PaperBroker):
             raise TestnetExecutionError("Filled Testnet BUY missing local position")
         return position
 
+    @staticmethod
+    def execution_price(symbol: str) -> float:
+        from .exchange import BinanceClient
+        return BinanceClient(timeout=10).testnet_reference_price(symbol)
+
     def sell(
         self,
         position: Position,
@@ -226,6 +259,8 @@ class BinanceTestnetBroker(PaperBroker):
         info = client.testnet_symbol_info(position.symbol)
         base_asset = str(info.get("baseAsset", ""))
         available = min(Decimal(str(position.quantity)), self._account_balance(base_asset))
+        if available <= 0:
+            raise TestnetExecutionError("No free Spot Testnet balance available to close")
         plan = plan_order(
             position.symbol,
             "SELL",
@@ -275,6 +310,8 @@ class BinanceTestnetBroker(PaperBroker):
         if quantity <= 0 or quote <= 0:
             raise TestnetExecutionError("Filled Testnet order has no execution")
         average = quote / quantity
+        if pending.get("commission_other"):
+            self.db.event("WARN", f"{pending.get('symbol')} Testnet fill used commission asset outside base/USDT")
         if pending["side"] == "BUY":
             signal_data = pending.get("signal") or {}
             net_quantity = quantity - fee_base
@@ -285,12 +322,19 @@ class BinanceTestnetBroker(PaperBroker):
             debit = quote + fee_quote
             if debit > cash + Decimal("0.00000001"):
                 raise TestnetExecutionError("Testnet fill exceeds local allocation")
+            signal_entry = Decimal(str(signal.price))
+            stop_ratio = Decimal(str(signal.stop_price)) / signal_entry
+            take_ratio = Decimal(str(signal.take_profit)) / signal_entry
+            anchored_stop = average * stop_ratio
+            anchored_take = average * take_ratio
+            if not (Decimal("0") < anchored_stop < average < anchored_take):
+                raise TestnetExecutionError("Filled Spot Testnet protection levels are invalid")
             position = Position(
                 symbol=signal.symbol,
                 quantity=float(net_quantity),
                 entry_price=float(average),
-                stop_price=signal.stop_price,
-                take_profit=signal.take_profit,
+                stop_price=float(anchored_stop),
+                take_profit=float(anchored_take),
                 high_water=float(average),
                 atr=signal.atr,
                 entry_fee=float(fee_quote),
