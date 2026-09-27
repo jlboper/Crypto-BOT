@@ -183,11 +183,15 @@ class FuturesForwardTests(unittest.TestCase):
     def test_same_closed_4h_candle_is_processed_only_once(self):
         candles = self.candles(True)
         account = {"wallet_balance": 5000.0, "available_balance": 5000.0, "unrealized_pnl": 0.0}
+        neutral = {"direction": None, "score": 65, "long_score": 65, "short_score": 15,
+                   "price": 100.0, "atr": 2.0, "rsi": 58.0, "ema_fast": 99.0,
+                   "ema_slow": 95.0, "volume_ratio": 1.1}
         with patch.object(self.engine, "_actual_rows", return_value=[]), \
+             patch.object(self.engine, "_signal", return_value=neutral), \
              patch.object(self.engine.ai, "review_futures", side_effect=AssertionError("AI should not run for HOLD")):
             first = self.engine.cycle_symbol("BTCUSDT", candles, account)
             second = self.engine.cycle_symbol("BTCUSDT", candles, account)
-        self.assertIn(first["status"], {"FLAT", "AI_REJECTED", "OPENED"})
+        self.assertEqual(first["status"], "FLAT")
         self.assertEqual(second["status"], "NO_NEW_CANDLE")
 
     def test_shadow_threshold_70_can_open_when_live_75_is_flat(self):
