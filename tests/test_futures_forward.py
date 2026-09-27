@@ -8,6 +8,7 @@ from unittest.mock import patch
 from trader.config import load_config
 from trader.domain import Candle
 from trader.futures_forward import FuturesForwardEngine
+from trader.futures_testnet import FuturesTestnetExecutionError
 from trader.futures_testnet_ledger import FuturesTestnetLedger
 
 
@@ -63,6 +64,19 @@ class FuturesForwardTests(unittest.TestCase):
         self.assertEqual(self.config.futures_testnet.forward_symbols, ("BTCUSDT", "ETHUSDT", "SOLUSDT"))
         self.assertEqual(self.config.futures_testnet.forward_leverage, 1)
         self.assertEqual(self.config.futures_testnet.forward_margin_usdt, 100.0)
+
+    def test_protection_requires_live_futures_mark_price(self):
+        self.engine.ledger.set_forward_position({
+            "symbol": "SOLUSDT", "direction": "LONG", "leverage": 1,
+            "quantity": 0.1, "entry_price": 100.0, "stop_price": 95.0,
+            "take_profit": 110.0, "liquidation_price": 50.0,
+            "signal_score": 80, "opened_at": "2026-09-27T00:00:00+00:00",
+        })
+        row = {"symbol": "SOLUSDT", "positionAmt": "0.1", "entryPrice": "100",
+               "leverage": "1", "marginType": "isolated", "positionSide": "BOTH"}
+        with patch.object(self.engine, "_validated_rows", return_value=[row]):
+            with self.assertRaisesRegex(FuturesTestnetExecutionError, "mark price unavailable"):
+                self.engine.protection_tick()
 
     def test_signal_supports_long_and_short_symmetrically(self):
         long_signal = self.engine._signal(self.candles(True))
