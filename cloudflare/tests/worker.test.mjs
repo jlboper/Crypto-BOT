@@ -45,6 +45,31 @@ async function fixture(t){
   return {env,request,login,sync};
 }
 
+
+test('device sync accepts legacy and multi-asset Futures forward dashboard shapes',async t=>{
+  const f=await fixture(t);
+  const base=snapshot();
+  const legacy={...base,mode:'TESTNET',dashboard:{
+    status:{mode:'TESTNET'},
+    positions:[],equity:[],trades:[],reviews:[],events:[],
+    risk:{},research:{assets:[]},research_state:{running:false,error:null},
+    updates:{},paper_scorecard:{mode:'TESTNET',status:'INSUFFICIENT_EVIDENCE',by_asset:[]},
+    futures_forward:{enabled:true,killed:false,symbol:'BTCUSDT',automatic_leverage:1,position:null,
+      trades:[],equity:[],closed_trades:0,gross_pnl:0}
+  }};
+  assert.equal((await f.sync({snapshot:legacy,acks:[]})).status,200);
+
+  const modern=structuredClone(legacy);
+  modern.dashboard.futures_forward={
+    enabled:true,killed:false,symbols:['BTCUSDT','ETHUSDT','SOLUSDT'],automatic_leverage:1,
+    positions:[],position:null,trades:[],equity:[],closed_trades:0,gross_pnl:0,
+    latest_signals:{},last_ai_reviews:{},shadow_scorecard:[],
+    guardrails:{margin_type:'ISOLATED',position_mode:'ONE_WAY',max_positions:3},
+    recovery:{durable_order_journal:true},live_readiness:{enabled:false}
+  };
+  assert.equal((await f.sync({snapshot:modern,acks:[]})).status,200);
+});
+
 test('signed rollout automatically queues a newer bot release and does not downgrade',async t=>{
   const f=await fixture(t);
   const releaseId='a'.repeat(64);
