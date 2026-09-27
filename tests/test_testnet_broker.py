@@ -102,6 +102,8 @@ class UnifiedTestnetBrokerTests(unittest.TestCase):
         def signed(method, endpoint, fields):
             if endpoint == "/api/v3/account":
                 return {"balances": [{"asset": "USDT", "free": "1000", "locked": "0"}]}
+            if endpoint == "/api/v3/myTrades":
+                return [{"commission": "0", "commissionAsset": "USDT"}]
             return {
                 "symbol": "BTCUSDT", "clientOrderId": fields["newClientOrderId"],
                 "side": "BUY", "status": "FILLED", "executedQty": "0.1",
