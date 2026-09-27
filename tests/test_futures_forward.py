@@ -49,10 +49,10 @@ class FuturesForwardTests(unittest.TestCase):
         self.assertTrue(config.futures_testnet.forward_enabled)
 
 
-    def test_default_forward_test_is_btc_only_and_one_x(self):
+    def test_default_forward_test_is_multi_asset_and_one_x(self):
         self.assertEqual(self.config.bot.mode, "testnet")
         self.assertTrue(self.config.futures_testnet.forward_enabled)
-        self.assertEqual(self.config.futures_testnet.forward_symbol, "BTCUSDT")
+        self.assertEqual(self.config.futures_testnet.forward_symbols, ("BTCUSDT", "ETHUSDT", "SOLUSDT"))
         self.assertEqual(self.config.futures_testnet.forward_leverage, 1)
         self.assertEqual(self.config.futures_testnet.forward_margin_usdt, 100.0)
 
