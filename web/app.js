@@ -451,6 +451,7 @@ async function refresh() {
     ]);
     currentExecutionMode=String(status.mode||'paper').toLowerCase();
     const modeUpper=currentExecutionMode.toUpperCase();
+    const forwardPositions=Array.isArray(futuresForward?.positions)?futuresForward.positions:[];
     document.getElementById('mode').textContent=modeUpper;
     document.getElementById('executionModeChoice').value=currentExecutionMode==='testnet'?'testnet':'paper';
     const primaryState=document.getElementById('primaryEnvironmentState');
