@@ -69,12 +69,12 @@ def _decode(response) -> Any:
         raise FuturesTestnetExecutionError("Invalid Futures Testnet response") from None
 
 
-def public_request(method: str, endpoint: str, fields: dict | None = None) -> Any:
+def public_request(method: str, endpoint: str, fields: dict | None = None, *, allow_fallback: bool = True) -> Any:
     if (method, endpoint) not in _PUBLIC:
         raise FuturesTestnetExecutionError("Futures Testnet public endpoint blocked")
     query = urllib.parse.urlencode(fields or {})
     last_error = None
-    for host in (HOST, PUBLIC_FALLBACK_HOST):
+    hosts = (HOST, PUBLIC_FALLBACK_HOST) if allow_fallback else (HOST,)\n    for host in hosts:
         url = host + endpoint + (("?" + query) if query else "")
         request = urllib.request.Request(url, method=method)
         try:
