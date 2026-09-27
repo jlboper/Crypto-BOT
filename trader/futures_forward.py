@@ -124,13 +124,13 @@ class FuturesForwardEngine:
                 closed=self.ledger.close_forward_position(symbol=symbol,exit_price=float(exit_price),gross_pnl=float(pnl),exit_reason="RECOVERED_CLOSE")
                 self.ledger.set_setting("forward_pending_order",None)
                 return {"resolved":True,"status":"RECOVERED_CLOSE","trade":closed}
-            if local is not None: self._assert_consistent(symbol,local,rows)
+            if local is not None: rows=self._validated_rows(symbol, local)
             return outcome
         if local is None:
             plan=self.ledger.setting("forward_open_plan")
             if not isinstance(plan,dict) or plan.get("symbol")!=symbol or len(rows)!=1:
                 self._halt("uncertain Futures open could not be reconstructed"); raise FuturesTestnetExecutionError("Futures forward recovery requires owner review")
-            row=rows[0]; amount=_decimal(row.get("positionAmt","0")); direction=str(plan["direction"])
+            row=self.lab.ensure_forward_position_configuration(symbol, rows[0]); amount=_decimal(row.get("positionAmt","0")); direction=str(plan["direction"])
             if (direction=="LONG" and amount<=0) or (direction=="SHORT" and amount>=0): raise FuturesTestnetExecutionError("Recovered Futures direction mismatch")
             entry=_decimal(row.get("entryPrice","0"))
             if entry<=0: entry=self.lab._execution_price(order,symbol)
@@ -191,12 +191,13 @@ class FuturesForwardEngine:
         order=self.lab.forward_submit(symbol=symbol,side=side,quantity=quantity,reduce_only=False)
         rows=self._actual_rows(symbol)
         if len(rows)!=1: raise FuturesTestnetExecutionError(f"Futures forward open position not found: {symbol}")
-        amount=_decimal(rows[0]["positionAmt"]); actual_qty=abs(amount); entry=_decimal(rows[0].get("entryPrice",order.get("avgPrice","0")))
+        row=self.lab.ensure_forward_position_configuration(symbol, rows[0])
+        amount=_decimal(row["positionAmt"]); actual_qty=abs(amount); entry=_decimal(row.get("entryPrice",order.get("avgPrice","0")))
         if entry<=0: entry=self.lab._execution_price(order,symbol)
         distance=max(Decimal(str(self.settings.forward_stop_atr_multiple*signal["atr"])),Decimal(str(self.settings.forward_minimum_stop_pct))*entry)
         direction=signal["direction"]; stop=entry-distance if direction=="LONG" else entry+distance
         take=entry+Decimal(str(self.settings.forward_reward_to_risk))*distance if direction=="LONG" else entry-Decimal(str(self.settings.forward_reward_to_risk))*distance
-        liquidation=_decimal(rows[0].get("liquidationPrice","0"))
+        liquidation=_decimal(row.get("liquidationPrice","0"))
         position={"symbol":symbol,"direction":direction,"leverage":1,"quantity":float(actual_qty),"entry_price":float(entry),"stop_price":float(stop),
             "take_profit":float(take),"liquidation_price":float(liquidation) if liquidation>0 else None,"signal_score":int(signal["score"]),"opened_at":plan["opened_at"]}
         self.ledger.set_forward_position(position); self.ledger.set_setting("forward_open_plan",None); self.ledger.set_setting("forward_pending_order",None)
