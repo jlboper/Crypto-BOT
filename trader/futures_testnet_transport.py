@@ -23,6 +23,7 @@ _PUBLIC = {
     ("GET", "/fapi/v1/exchangeInfo"),
     ("GET", "/fapi/v1/ticker/price"),
     ("GET", "/fapi/v1/premiumIndex"),
+    ("GET", "/fapi/v1/klines"),
 }
 _SIGNED = {
     ("GET", "/fapi/v3/account"),
