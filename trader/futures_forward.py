@@ -65,8 +65,8 @@ class FuturesForwardEngine:
                 "price":price,"atr":current_atr,"rsi":current_rsi,"ema_fast":fast,"ema_slow":slow,"volume_ratio":volume_ratio}
 
     @staticmethod
-    def _shadow_variants()->list[dict]:
-        return [{"key":f"s{score}-a{atr_mult}-rr{rr}","score":score,"atr_mult":atr_mult,"rr":rr}
+    def _shadow_variants(timeframe: str)->list[dict]:
+        return [{"key":f"{timeframe}-s{score}-a{atr_mult}-rr{rr}","score":score,"atr_mult":atr_mult,"rr":rr}
                 for score in (70,75,80) for atr_mult in (1.5,2.0,2.5) for rr in (1.5,2.0,2.5)]
 
     def _actual_rows(self,symbol:str)->list[dict]: return self.lab._position_rows(symbol)
@@ -157,9 +157,12 @@ class FuturesForwardEngine:
 
     def cycle_symbol(self,symbol:str,candles:list[Candle],account:dict)->dict:
         local=self.ledger.forward_position(symbol); rows=self._actual_rows(symbol); self._assert_consistent(symbol,local,rows)
+        close_time=int(candles[-1].close_time)
+        if int(self.ledger.setting(f"forward_last_close_{symbol}") or 0) == close_time:
+            return {"symbol":symbol,"status":"NO_NEW_CANDLE","close_time":close_time}
         signal=self._signal(candles); self.ledger.record_signal(symbol,signal)
-        self.ledger.set_setting(f"forward_last_signal_{symbol}",{**signal,"at":datetime.now(UTC).isoformat()})
-        self.ledger.shadow_step(symbol,signal,self._shadow_variants())
+        self.ledger.set_setting(f"forward_last_signal_{symbol}",{**signal,"close_time":close_time,"at":datetime.now(UTC).isoformat()})
+        self.ledger.set_setting(f"forward_last_close_{symbol}",close_time)
         if local:
             opposite=(local["direction"]=="LONG" and signal["short_score"]>=self.settings.forward_min_score) or (local["direction"]=="SHORT" and signal["long_score"]>=self.settings.forward_min_score)
             if opposite:return {"symbol":symbol,"status":"CLOSED","trade":self._close(local,"OPPOSITE_SIGNAL"),"signal":signal}
@@ -193,22 +196,44 @@ class FuturesForwardEngine:
         self.ledger.set_forward_position(position); self.ledger.set_setting("forward_open_plan",None); self.ledger.set_setting("forward_pending_order",None)
         return {"symbol":symbol,"status":"OPENED","position":position,"signal":signal,"ai_review":review}
 
-    def cycle(self,candle_map:dict[str,list[Candle]])->dict:
+    def _run_shadow_timeframes(self,symbol:str)->list[dict]:
+        updates=[]
+        for timeframe in ("1h","2h","4h"):
+            candles=self.lab.candles(symbol,timeframe,250)
+            if not candles:
+                updates.append({"symbol":symbol,"timeframe":timeframe,"status":"NO_DATA"})
+                continue
+            close_time=int(candles[-1].close_time)
+            key=f"shadow_last_close_{symbol}_{timeframe}"
+            if int(self.ledger.setting(key) or 0)==close_time:
+                updates.append({"symbol":symbol,"timeframe":timeframe,"status":"NO_NEW_CANDLE"})
+                continue
+            signal=self._signal(candles)
+            self.ledger.shadow_step(symbol,signal,self._shadow_variants(timeframe))
+            self.ledger.set_setting(key,close_time)
+            updates.append({"symbol":symbol,"timeframe":timeframe,"status":"UPDATED","score":signal["score"]})
+        return updates
+
+    def cycle(self)->dict:
         if not self.settings.forward_enabled:return {"enabled":False,"status":"OFF"}
         if self.killed():return {"enabled":True,"status":"KILLED"}
         pending=self._recover_journal()
         if pending and not pending.get("resolved"):return {"enabled":True,"status":"PENDING_RECONCILIATION"}
-        account=self._record_account(); results=[]
+        account=self._record_account(); results=[]; shadow=[]
         for symbol in self.symbols:
-            candles=candle_map.get(symbol)
-            if not candles: results.append({"symbol":symbol,"status":"NO_DATA"}); continue
-            results.append(self.cycle_symbol(symbol,candles,account))
-        return {"enabled":True,"status":"ACTIVE","results":results,**account}
+            candles=self.lab.candles(symbol,"4h",250)
+            if not candles:
+                results.append({"symbol":symbol,"status":"NO_DATA"})
+            else:
+                results.append(self.cycle_symbol(symbol,candles,account))
+            shadow.extend(self._run_shadow_timeframes(symbol))
+        return {"enabled":True,"status":"ACTIVE","results":results,"shadow_updates":shadow,**account}
 
     def snapshot(self)->dict:
         data=self.ledger.forward_snapshot()
         return {"enabled":self.settings.forward_enabled,"killed":self.killed(),"symbols":list(self.symbols),
-            "automatic_leverage":1,"latest_signals":{s:self.ledger.setting(f"forward_last_signal_{s}") for s in self.symbols},
+            "automatic_leverage":1,"decision_timeframe":"4h","shadow_timeframes":["1h","2h","4h"],
+            "latest_signals":{s:self.ledger.setting(f"forward_last_signal_{s}") for s in self.symbols},
             "last_error":self.ledger.setting("forward_last_error"),"ai_model":self.config.ai.model,
             "last_ai_reviews":{s:self.ledger.setting(f"forward_last_ai_review_{s}") for s in self.symbols},
             "recovery":{"durable_order_journal":True,"startup_position_reconciliation":True,"separate_kill_switch":True,

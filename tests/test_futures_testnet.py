@@ -1,4 +1,5 @@
 import tempfile
+import time
 from decimal import Decimal
 import unittest
 from dataclasses import replace
@@ -80,6 +81,25 @@ class FuturesTestnetLabTests(unittest.TestCase):
                     "status": "FILLED", "avgPrice": "100", "executedQty": str(qty), "orderId": 1}
         raise AssertionError((method, endpoint, fields))
 
+
+
+    def test_futures_candles_use_fapi_and_drop_open_candle(self):
+        now = int(time.time() * 1000)
+        payload = [
+            [now-8*3600_000, "100", "105", "95", "102", "123", now-4*3600_000-1],
+            [now-4*3600_000, "102", "106", "101", "104", "125", now-1],
+            [now, "104", "107", "103", "105", "10", now+4*3600_000],
+        ]
+        def public(method, endpoint, fields=None):
+            self.assertEqual((method, endpoint), ("GET", "/fapi/v1/klines"))
+            self.assertEqual(fields["symbol"], "BTCUSDT")
+            self.assertEqual(fields["interval"], "4h")
+            return payload
+        with patch("trader.futures_testnet.public_request", side_effect=public):
+            rows = self.lab.candles("BTCUSDT", "4h", 250)
+        self.assertEqual(len(rows), 2)
+        self.assertEqual(rows[-1].close, 104.0)
+        self.assertLess(rows[-1].close_time, int(time.time() * 1000))
 
 
     def test_trade_probe_is_signed_only_and_never_uses_public_market_data(self):

@@ -359,6 +359,9 @@ class DashboardServer:
                         "symbols": list(outer.config.futures_testnet.forward_symbols),
                         "automatic_leverage": outer.config.futures_testnet.forward_leverage,
                         "ai_model": outer.config.ai.model,
+                        "decision_timeframe": "4h",
+                        "shadow_timeframes": ["1h","2h","4h"],
+                        "latest_signals": {symbol: FuturesTestnetLedger(outer.config.futures_testnet.database_path).setting(f"forward_last_signal_{symbol}") for symbol in outer.config.futures_testnet.forward_symbols},
                         "last_ai_reviews": {symbol: FuturesTestnetLedger(outer.config.futures_testnet.database_path).setting(f"forward_last_ai_review_{symbol}") for symbol in outer.config.futures_testnet.forward_symbols},
                         "recovery": {
                             "durable_order_journal": True,

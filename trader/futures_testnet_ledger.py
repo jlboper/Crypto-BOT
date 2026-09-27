@@ -199,9 +199,13 @@ class FuturesTestnetLedger:
                             (key,symbol,r["direction"],r["entry_price"],price,pnl,reason,r["opened_at"],now))
                         db.execute("DELETE FROM shadow_positions WHERE strategy_key=? AND symbol=?",(key,symbol))
                     continue
-                if signal.get("direction") is None or int(signal["score"]) < int(v["score"]): continue
+                threshold=int(v["score"])
+                long_score=int(signal["long_score"]); short_score=int(signal["short_score"])
+                best=max(long_score,short_score)
+                if best < threshold or abs(long_score-short_score) < 10:
+                    continue
+                direction="LONG" if long_score>short_score else "SHORT"
                 distance=max(float(v["atr_mult"])*float(signal["atr"]),0.025*price)
-                direction=signal["direction"]
                 stop=price-distance if direction=="LONG" else price+distance
                 take=price+float(v["rr"])*distance if direction=="LONG" else price-float(v["rr"])*distance
                 db.execute("""INSERT OR IGNORE INTO shadow_positions(strategy_key,symbol,direction,entry_price,stop_price,
