@@ -90,6 +90,12 @@ class LocalUpdateTests(unittest.TestCase):
         self.assertEqual(result['version'], '0.6.12')
         self.assertFalse(result['order_submission_enabled'])
 
+    def test_windows_entrypoint_can_relaunch_on_supervisor_runtime(self):
+        source = (Path(__file__).resolve().parents[1] / 'scripts' / 'local_update.py').read_text(encoding='utf-8')
+        self.assertIn('def discover_agent_python()', source)
+        self.assertIn('current_python != supervisor_python', source)
+        self.assertIn('CREATE_NO_WINDOW', source)
+
     def test_failure_codes_are_actionable_without_exposing_raw_details(self):
         self.assertEqual(failure_code(RuntimeError('Recover previous maintenance before installing')), 'MAINTENANCE_PENDING')
         self.assertEqual(failure_code(RuntimeError('Existing engine has no cooperative runtime status')), 'ENGINE_RUNTIME_STALE')
