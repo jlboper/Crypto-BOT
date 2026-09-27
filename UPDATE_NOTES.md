@@ -1,3 +1,13 @@
+# Actualización 0.8.11 — paridad visual Spot + Futures
+
+- Reorganiza el portal para que los dos motores tengan el mismo peso visual en desktop: Spot a la izquierda y Futures a la derecha; en móvil se apilan.
+- **Límites:** añade un panel Futures equivalente con leverage automático, margen, máximo de posiciones, presupuesto de margen, score mínimo, stop mínimo/ATR y reward/risk.
+- **Posiciones:** mantiene la tabla Spot y añade una tarjeta Futures con contrato/dirección, cantidad, entrada, precio estimado actual, P&L no realizado, stop/objetivo, leverage/margen y hora de apertura.
+- **Seguimiento financiero:** añade un panel Futures completo con días observados, cierres, retorno, P&L, drawdown, win rate, profit factor, LONG/SHORT, errores, puertas pendientes y cierres recientes.
+- Los datos Futures provienen exclusivamente de su ledger/configuración independiente. No se mezclan con Spot y no se inventan controles manuales que el motor no soporte.
+- Reduce la tabla Spot para que la comparación sea más legible sin eliminar las protecciones relevantes.
+- No cambia estrategia, señales, riesgo, leverage, sizing, IA, credenciales, ejecución ni LIVE.
+
 # Actualización 0.8.10 — runtime correcto para el updater local de Windows
 
 - Corrige el `ModuleNotFoundError` del centro local de actualizaciones después de introducir el watchdog PowerShell.
