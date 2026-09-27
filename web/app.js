@@ -518,6 +518,23 @@ async function refresh() {
       const rec=futuresForward?.recovery||{};
       fRecovery.textContent=rec.durable_order_journal&&rec.startup_position_reconciliation?'LISTA':'REVISAR';
     }
+    const fPauseReason=document.getElementById('futuresForwardPauseReason');
+    if(fPauseReason){
+      const diag=futuresForward?.pause_diagnostics||{};
+      if(futuresForward?.killed){
+        const parts=[diag.label||'Pausa de seguridad Futures'];
+        if(diag.paused_at)parts.push('desde '+shortTime(diag.paused_at));
+        if(Number(diag.consecutive_errors)>0)parts.push(String(Number(diag.consecutive_errors))+' errores consecutivos');
+        if(diag.pending_reconciliation)parts.push('conciliación pendiente');
+        const last=diag.last_error;
+        if(last?.message && last.message!==diag.detail)parts.push('último error: '+last.message);
+        fPauseReason.textContent='Motivo de pausa · '+parts.join(' · ');
+        fPauseReason.hidden=false;
+      }else{
+        fPauseReason.textContent='';
+        fPauseReason.hidden=true;
+      }
+    }
     const fSafety=document.getElementById('futuresForwardSafety');
     if(fSafety){
       const rec=futuresForward?.recovery||{};
