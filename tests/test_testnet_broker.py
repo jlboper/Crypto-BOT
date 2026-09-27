@@ -60,6 +60,63 @@ class UnifiedTestnetBrokerTests(unittest.TestCase):
         self.assertEqual(self.db.recent("trades", 1)[0]["reason"], "TESTNET automatic testnet")
         self.assertFalse(self.db.setting(self.broker.PENDING_KEY))
 
+    def test_buy_blocks_when_testnet_price_moves_outside_signal_protection(self):
+        with patch("trader.exchange.BinanceClient") as client, \
+             patch("trader.testnet_broker.signed_request", side_effect=AssertionError("no signed write expected")):
+            client.return_value.testnet_symbol_info.return_value = self.info
+            client.return_value.testnet_reference_price.return_value = 120.0
+            with self.assertRaisesRegex(TestnetExecutionError, "outside signal protection range"):
+                self.broker.buy(self.signal, 0.1, "blocked")
+
+    def test_terminal_reconciliation_reads_mytrades_before_accounting_fees(self):
+        pending = {
+            "client_order_id": "cait-auto-test",
+            "symbol": "BTCUSDT",
+            "side": "BUY",
+            "planned_qty": "0.1",
+            "base_asset": "BTC",
+            "reason": "reconciled",
+            "signal": self.signal.to_dict(),
+            "created_at": "2026-09-27T12:00:00+00:00",
+            "status": "UNCERTAIN",
+        }
+        self.broker._save_pending(pending)
+        def signed(method, endpoint, fields):
+            if endpoint == "/api/v3/order":
+                return {
+                    "symbol": "BTCUSDT", "clientOrderId": "cait-auto-test",
+                    "side": "BUY", "status": "FILLED", "executedQty": "0.1",
+                    "cummulativeQuoteQty": "10", "orderId": 77,
+                }
+            if endpoint == "/api/v3/myTrades":
+                self.assertEqual(fields["orderId"], 77)
+                return [{"commission": "0.01", "commissionAsset": "USDT"}]
+            raise AssertionError((method, endpoint, fields))
+        with patch("trader.testnet_broker.signed_request", side_effect=signed):
+            self.assertTrue(self.broker.reconcile_pending())
+        self.assertFalse(self.db.setting(self.broker.PENDING_KEY))
+        self.assertAlmostEqual(self.db.cash(), 989.99)
+        self.assertAlmostEqual(self.db.position("BTCUSDT").entry_fee, 0.01)
+
+    def test_filled_buy_anchors_protection_levels_to_actual_fill(self):
+        def signed(method, endpoint, fields):
+            if endpoint == "/api/v3/account":
+                return {"balances": [{"asset": "USDT", "free": "1000", "locked": "0"}]}
+            return {
+                "symbol": "BTCUSDT", "clientOrderId": fields["newClientOrderId"],
+                "side": "BUY", "status": "FILLED", "executedQty": "0.1",
+                "cummulativeQuoteQty": "10.5", "fills": [],
+                "orderId": 88,
+            }
+        with patch("trader.exchange.BinanceClient") as client, \
+             patch("trader.testnet_broker.signed_request", side_effect=signed):
+            client.return_value.testnet_symbol_info.return_value = self.info
+            client.return_value.testnet_reference_price.return_value = 100.0
+            position = self.broker.buy(self.signal, 0.1, "fill drift")
+        self.assertAlmostEqual(position.entry_price, 105.0)
+        self.assertAlmostEqual(position.stop_price, 99.75)
+        self.assertAlmostEqual(position.take_profit, 115.5)
+
     def test_uncertain_post_is_never_retried_while_exchange_order_is_open(self):
         posts = 0
 
