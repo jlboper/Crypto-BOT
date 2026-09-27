@@ -6,7 +6,7 @@ readiness checks and a small reversible LONG/SHORT smoke round trip using
 """
 from __future__ import annotations
 
-from decimal import Decimal, ROUND_CEILING, ROUND_DOWN
+from decimal import Decimal, InvalidOperation, ROUND_CEILING, ROUND_DOWN
 import math
 import secrets
 
@@ -19,7 +19,10 @@ from .futures_testnet_transport import (
 
 
 def _decimal(value) -> Decimal:
-    result = Decimal(str(value))
+    try:
+        result = Decimal(str(value))
+    except (InvalidOperation, TypeError, ValueError):
+        raise FuturesTestnetExecutionError("Invalid Futures Testnet numeric value") from None
     if not result.is_finite():
         raise FuturesTestnetExecutionError("Invalid Futures Testnet numeric value")
     return result
