@@ -73,6 +73,13 @@ class FuturesForwardEngine:
 
     def _actual_rows(self,symbol:str)->list[dict]: return self.lab._position_rows(symbol)
 
+    def _validated_rows(self, symbol: str, local: dict | None) -> list[dict]:
+        rows = self._actual_rows(symbol)
+        if local is not None and len(rows) == 1:
+            rows = [self.lab.ensure_forward_position_configuration(symbol, rows[0])]
+        self._assert_consistent(symbol, local, rows)
+        return rows
+
     def _record_account(self)->dict:
         account=self.lab._account(); wallet=float(_decimal(account.get("totalWalletBalance","0")))
         available=float(_decimal(account.get("availableBalance","0"))); unrealized=0.0
@@ -92,7 +99,7 @@ class FuturesForwardEngine:
         if str(rows[0].get("marginType","")).lower()!="isolated": raise FuturesTestnetExecutionError("Automatic Futures margin is not isolated")
 
     def _close(self,local:dict,reason:str)->dict:
-        symbol=local["symbol"]; rows=self._actual_rows(symbol); self._assert_consistent(symbol,local,rows)
+        symbol=local["symbol"]; rows=self._validated_rows(symbol, local)
         amount=_decimal(rows[0]["positionAmt"]); side="SELL" if amount>0 else "BUY"
         order=self.lab.forward_submit(symbol=symbol,side=side,quantity=abs(amount),reduce_only=True)
         if self._actual_rows(symbol): raise FuturesTestnetExecutionError(f"Futures forward close left open position: {symbol}")
@@ -136,7 +143,7 @@ class FuturesForwardEngine:
                 "signal_score":int(plan["score"]),"opened_at":str(plan["opened_at"])}
             self.ledger.set_forward_position(reconstructed); self.ledger.set_setting("forward_open_plan",None); self.ledger.set_setting("forward_pending_order",None)
             return {"resolved":True,"status":"RECOVERED_OPEN","position":reconstructed}
-        self._assert_consistent(symbol,local,rows); self.ledger.set_setting("forward_open_plan",None); self.ledger.set_setting("forward_pending_order",None)
+        rows=self._validated_rows(symbol, local); self.ledger.set_setting("forward_open_plan",None); self.ledger.set_setting("forward_pending_order",None)
         return outcome
 
     def protection_tick(self)->dict:
@@ -145,10 +152,10 @@ class FuturesForwardEngine:
         if pending and not pending.get("resolved"): return {"enabled":True,"status":"PENDING_RECONCILIATION"}
         closed=[]
         for local in self.ledger.forward_positions():
-            symbol=local["symbol"]; rows=self._actual_rows(symbol)
-            try:self._assert_consistent(symbol,local,rows)
+            symbol=local["symbol"]
+            try: rows=self._validated_rows(symbol, local)
             except Exception as exc:self._halt(str(exc)); raise
-            mark=_decimal(rows[0].get("markPrice",rows[0].get("entryPrice","0")))
+            mark=_decimal(rows[0].get("markPrice","0"))
             if mark<=0: raise FuturesTestnetExecutionError("Futures mark price unavailable")
             hit=(local["direction"]=="LONG" and (mark<=_decimal(local["stop_price"]) or mark>=_decimal(local["take_profit"]))) or (
                  local["direction"]=="SHORT" and (mark>=_decimal(local["stop_price"]) or mark<=_decimal(local["take_profit"])))
@@ -158,7 +165,7 @@ class FuturesForwardEngine:
         return {"enabled":True,"status":"CLOSED" if closed else ("OPEN" if self.ledger.forward_positions() else "FLAT"),"closed":closed}
 
     def cycle_symbol(self,symbol:str,candles:list[Candle],account:dict)->dict:
-        local=self.ledger.forward_position(symbol); rows=self._actual_rows(symbol); self._assert_consistent(symbol,local,rows)
+        local=self.ledger.forward_position(symbol); rows=self._validated_rows(symbol, local)
         signal=self._signal(candles); self.ledger.record_signal(symbol,signal)
         self.ledger.set_setting(f"forward_last_signal_{symbol}",{**signal,"at":datetime.now(UTC).isoformat()})
         self.ledger.shadow_step(symbol,signal,self._shadow_variants())
@@ -178,7 +185,7 @@ class FuturesForwardEngine:
         budget=Decimal(str(self.settings.forward_margin_usdt))
         if estimated>budget*Decimal("1.25"): raise FuturesTestnetExecutionError(f"{symbol} minimum quantity exceeds Futures forward budget")
         if _decimal(account["available_balance"])<max(budget,estimated)*Decimal("1.25"): raise FuturesTestnetExecutionError("Insufficient Futures Demo margin")
-        self.lab._configure(symbol,1); side="BUY" if signal["direction"]=="LONG" else "SELL"
+        side="BUY" if signal["direction"]=="LONG" else "SELL"
         plan={"symbol":symbol,"direction":signal["direction"],"score":int(signal["score"]),"atr":float(signal["atr"]),"opened_at":datetime.now(UTC).isoformat()}
         self.ledger.set_setting("forward_open_plan",plan)
         order=self.lab.forward_submit(symbol=symbol,side=side,quantity=quantity,reduce_only=False)
