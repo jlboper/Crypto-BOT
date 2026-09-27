@@ -88,15 +88,39 @@ class FuturesForwardEngine:
         self.ledger.record_forward_equity(wallet,available,unrealized)
         return {"wallet_balance":wallet,"available_balance":available,"unrealized_pnl":unrealized}
 
-    def _assert_consistent(self,symbol:str,local:dict|None,rows:list[dict])->None:
+    def _assert_identity(self,symbol:str,local:dict|None,rows:list[dict])->None:
         if local is None and rows: raise FuturesTestnetExecutionError(f"Untracked Futures Demo position: {symbol}")
         if local is None: return
         if len(rows)!=1: raise FuturesTestnetExecutionError(f"Tracked Futures position missing or ambiguous: {symbol}")
         amount=_decimal(rows[0].get("positionAmt","0")); expected=1 if local["direction"]=="LONG" else -1; actual=1 if amount>0 else -1
         if actual!=expected or abs(float(abs(amount))-float(local["quantity"]))>1e-12:
             raise FuturesTestnetExecutionError(f"Futures forward position identity mismatch: {symbol}")
+        position_side=str(rows[0].get("positionSide","")).upper()
+        if position_side and position_side!="BOTH":
+            raise FuturesTestnetExecutionError("Automatic Futures position mode changed from ONE_WAY")
+
+    def _assert_consistent(self,symbol:str,local:dict|None,rows:list[dict])->None:
+        self._assert_identity(symbol,local,rows)
+        if local is None:return
         if int(float(rows[0].get("leverage",0) or 0))!=1: raise FuturesTestnetExecutionError("Automatic Futures leverage changed from 1x")
         if str(rows[0].get("marginType","")).lower()!="isolated": raise FuturesTestnetExecutionError("Automatic Futures margin is not isolated")
+
+    def _repair_cross_position(self,local:dict,row:dict)->dict:
+        symbol=local["symbol"]
+        self._assert_identity(symbol,local,[row])
+        if str(row.get("marginType","")).lower()=="isolated":
+            raise FuturesTestnetExecutionError("Futures configuration repair requested for isolated position")
+        amount=_decimal(row["positionAmt"]); side="SELL" if amount>0 else "BUY"
+        order=self.lab.forward_submit(symbol=symbol,side=side,quantity=abs(amount),reduce_only=True)
+        if self._actual_rows(symbol):
+            raise FuturesTestnetExecutionError(f"Futures configuration repair left open position: {symbol}")
+        exit_price=self.lab._execution_price(order,symbol); entry=_decimal(local["entry_price"]); qty=_decimal(local["quantity"])
+        pnl=(exit_price-entry)*qty if local["direction"]=="LONG" else (entry-exit_price)*qty
+        closed=self.ledger.close_forward_position(symbol=symbol,exit_price=float(exit_price),gross_pnl=float(pnl),exit_reason="CONFIG_REPAIR")
+        self.ledger.set_setting("forward_pending_order",None)
+        self.lab._configure(symbol,1)
+        self.ledger.set_setting("forward_last_config_repair",{"symbol":symbol,"reason":"margin_not_isolated","at":datetime.now(UTC).isoformat()})
+        return closed
 
     def _close(self,local:dict,reason:str)->dict:
         symbol=local["symbol"]; rows=self._validated_rows(symbol, local)
@@ -153,7 +177,13 @@ class FuturesForwardEngine:
         closed=[]
         for local in self.ledger.forward_positions():
             symbol=local["symbol"]
-            try: rows=self._validated_rows(symbol, local)
+            try:
+                raw_rows=self._actual_rows(symbol)
+                self._assert_identity(symbol,local,raw_rows)
+                if str(raw_rows[0].get("marginType","")).lower()!="isolated":
+                    closed.append(self._repair_cross_position(local,raw_rows[0]))
+                    continue
+                rows=self._validated_rows(symbol, local)
             except Exception as exc:self._halt(str(exc)); raise
             mark=_decimal(rows[0].get("markPrice","0"))
             if mark<=0: raise FuturesTestnetExecutionError("Futures mark price unavailable")
