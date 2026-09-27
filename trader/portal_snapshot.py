@@ -28,6 +28,58 @@ def _timestamp(value):
         return None
 
 
+def _futures_pause_diagnostics(config, ledger):
+    path = config.futures_testnet.kill_switch_path
+    killed = path.exists()
+    raw_reason = None
+    paused_at = None
+    if killed:
+        try:
+            if path.stat().st_size <= 4096:
+                raw_reason = path.read_text(encoding='utf-8', errors='replace').strip()
+            paused_at = datetime.fromtimestamp(path.stat().st_mtime, UTC).isoformat()
+        except OSError:
+            raw_reason = 'Futures pause state unavailable'
+    last_error = ledger.setting('forward_last_error')
+    if isinstance(last_error, dict):
+        last_error = {
+            'message': public_text(last_error.get('message', '')),
+            'at': str(last_error.get('at', ''))[:40] or None,
+        }
+    else:
+        last_error = None
+    detail = public_text(raw_reason) if raw_reason else None
+    normalized = (detail or '').lower()
+    if not killed:
+        label = None
+        source = None
+    elif normalized == 'owner pause':
+        label = 'Pausa manual del propietario'
+        source = 'manual'
+    elif 'three consecutive futures protection errors' in normalized:
+        label = '3 errores consecutivos de protección Futures'
+        source = 'automatic_safety'
+    elif 'three consecutive futures forward errors' in normalized:
+        label = '3 errores consecutivos del ciclo Futures'
+        source = 'automatic_safety'
+    elif any(term in normalized for term in ('untracked futures', 'position identity mismatch', 'missing or ambiguous', 'recovery requires owner review', 'could not be reconstructed')):
+        label = 'Inconsistencia o reconciliación de posición Futures'
+        source = 'automatic_safety'
+    else:
+        label = detail or 'Pausa de seguridad Futures'
+        source = 'automatic_safety'
+    return {
+        'active': killed,
+        'label': label,
+        'detail': detail,
+        'source': source,
+        'paused_at': paused_at,
+        'last_error': last_error,
+        'consecutive_errors': int(ledger.setting('forward_consecutive_errors') or 0),
+        'pending_reconciliation': bool(ledger.setting('forward_pending_order')),
+    }
+
+
 def _spot_observation_health(connection, config, latest, positions, settings):
     now = datetime.now(UTC)
     since = now - timedelta(hours=24)
@@ -115,6 +167,7 @@ def dashboard_snapshot(config, report_path=None):
         initial = config.paper.initial_cash_usdt
         current = latest.get('equity',initial)
         futures_ledger = FuturesTestnetLedger(config.futures_testnet.database_path)
+        futures_pause = _futures_pause_diagnostics(config, futures_ledger)
         payload = {
             'status': {'mode':config.bot.mode.upper(),'killed':config.bot.kill_switch_path.exists(),'ai_enabled':config.ai.enabled,
                        'ai_model':config.ai.model,'equity':current,'cash':latest.get('cash',float(settings.get('paper_cash',initial))),
@@ -138,6 +191,7 @@ def dashboard_snapshot(config, report_path=None):
             'futures_forward': {
                 'enabled': bool(config.bot.mode == 'testnet' and config.futures_testnet.forward_enabled),
                 'killed': config.futures_testnet.kill_switch_path.exists(),
+                'pause_diagnostics': futures_pause,
                 'symbols': list(config.futures_testnet.forward_symbols),
                 'automatic_leverage': config.futures_testnet.forward_leverage,
                 'guardrails': {
