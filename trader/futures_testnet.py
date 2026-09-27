@@ -136,9 +136,46 @@ class FuturesTestnetLab:
         if not isinstance(response, dict) or int(response.get("leverage", 0)) != leverage:
             raise FuturesTestnetExecutionError("Futures Testnet leverage confirmation mismatch")
 
+    def ensure_forward_position_configuration(self, symbol: str, row: dict) -> dict:
+        """Repair only a known isolated forward position whose leverage drifted.
+
+        CROSS or hedge-mode positions fail closed; they are never mutated
+        automatically while open. A leverage write is reconciled by rereading
+        positionRisk before protection continues.
+        """
+        if str(row.get("marginType", "")).lower() != "isolated":
+            raise FuturesTestnetExecutionError("Automatic Futures margin is not isolated")
+        position_side = str(row.get("positionSide", "")).upper()
+        if position_side and position_side != "BOTH":
+            raise FuturesTestnetExecutionError("Automatic Futures position mode changed from ONE_WAY")
+        if not position_side:
+            mode = signed_request("GET", "/fapi/v1/positionSide/dual", {})
+            if not isinstance(mode, dict) or "dualSidePosition" not in mode:
+                raise FuturesTestnetExecutionError("Futures Testnet position mode unavailable")
+            if bool(mode["dualSidePosition"]):
+                raise FuturesTestnetExecutionError("Automatic Futures position mode changed from ONE_WAY")
+        leverage = int(float(row.get("leverage", 0) or 0))
+        if leverage == 1:
+            return row
+        if leverage not in {2, 3}:
+            raise FuturesTestnetExecutionError("Automatic Futures leverage is invalid")
+        try:
+            response = signed_request("POST", "/fapi/v1/leverage", {"symbol": symbol, "leverage": 1})
+            if not isinstance(response, dict) or int(response.get("leverage", 0)) != 1:
+                raise FuturesTestnetExecutionError("Futures Testnet leverage confirmation mismatch")
+        except FuturesTestnetExecutionError as exc:
+            if not exc.uncertain:
+                raise
+        refreshed = self._position_rows(symbol)
+        if len(refreshed) != 1 or int(float(refreshed[0].get("leverage", 0) or 0)) != 1:
+            raise FuturesTestnetExecutionError("Automatic Futures leverage repair not confirmed")
+        if str(refreshed[0].get("marginType", "")).lower() != "isolated":
+            raise FuturesTestnetExecutionError("Automatic Futures margin is not isolated")
+        return refreshed[0]
+
     @staticmethod
     def _symbol_info(symbol: str) -> dict:
-        payload = public_request("GET", "/fapi/v1/exchangeInfo", {"symbol": symbol})
+        payload = public_request("GET", "/fapi/v1/exchangeInfo", {"symbol": symbol}, allow_fallback=False)
         rows = payload.get("symbols", []) if isinstance(payload, dict) else []
         row = next((item for item in rows if isinstance(item, dict) and item.get("symbol") == symbol), None)
         if row is None:
@@ -147,11 +184,11 @@ class FuturesTestnetLab:
 
     @staticmethod
     def _reference(symbol: str) -> tuple[Decimal, float | None]:
-        price_payload = public_request("GET", "/fapi/v1/ticker/price", {"symbol": symbol})
+        price_payload = public_request("GET", "/fapi/v1/ticker/price", {"symbol": symbol}, allow_fallback=False)
         price = _decimal(price_payload.get("price", "0") if isinstance(price_payload, dict) else "0")
         if price <= 0:
             raise FuturesTestnetExecutionError("Invalid Futures Testnet reference price")
-        premium = public_request("GET", "/fapi/v1/premiumIndex", {"symbol": symbol})
+        premium = public_request("GET", "/fapi/v1/premiumIndex", {"symbol": symbol}, allow_fallback=False)
         funding = None
         if isinstance(premium, dict):
             try:
