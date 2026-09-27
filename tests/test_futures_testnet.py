@@ -142,6 +142,18 @@ class FuturesTestnetLabTests(unittest.TestCase):
             price = self.lab._execution_price(order, "BTCUSDT")
         self.assertEqual(price, Decimal("101.5"))
 
+    def test_explicit_smoke_symbol_is_honored_and_closed(self):
+        with patch("trader.futures_testnet.public_request", side_effect=AssertionError("smoke must not use public data")), \
+             patch("trader.futures_testnet.signed_request", side_effect=self.signed):
+            result = self.lab.smoke(direction="LONG", leverage=1, symbol="ETHUSDT")
+        self.assertEqual(result["symbol"], "ETHUSDT")
+        self.assertTrue(result["position_closed"])
+        self.assertEqual(self.position_amt, 0.0)
+
+    def test_unknown_explicit_smoke_symbol_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, "Unsupported Futures Testnet smoke symbol"):
+            self.lab.smoke(direction="LONG", leverage=1, symbol="DOGEUSDT")
+
     def test_short_smoke_closes_with_reduce_only(self):
         with patch("trader.futures_testnet.public_request", side_effect=AssertionError("smoke must not use public data")), \
              patch("trader.futures_testnet.signed_request", side_effect=self.signed):

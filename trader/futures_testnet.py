@@ -382,7 +382,7 @@ class FuturesTestnetLab:
             "live_enabled": False,
         }
 
-    def smoke(self, *, direction: str, leverage: int) -> dict:
+    def smoke(self, *, direction: str, leverage: int, symbol: str | None = None) -> dict:
         direction = direction.upper()
         if direction not in {"LONG", "SHORT"}:
             raise ValueError("Futures Testnet direction must be LONG or SHORT")
@@ -390,6 +390,10 @@ class FuturesTestnetLab:
             raise ValueError("Futures Testnet leverage must be 1x, 2x or 3x")
         if not self.settings.enabled:
             raise ValueError("Futures Testnet lab is disabled")
+        if symbol is not None:
+            symbol = symbol.upper()
+            if symbol not in self.SYMBOLS:
+                raise ValueError(f"Unsupported Futures Testnet smoke symbol: {symbol}")
         if self.ledger.setting("pending_order"):
             raise FuturesTestnetExecutionError("Futures Testnet recovery required")
         latest = self.ledger.latest()
@@ -405,9 +409,13 @@ class FuturesTestnetLab:
             raise FuturesTestnetExecutionError("Insufficient Futures Testnet margin")
 
         occupied = {row.get("symbol") for row in self._position_rows()}
-        symbol = next((candidate for candidate in self.SYMBOLS if candidate not in occupied), None)
-        if symbol is None:
-            raise FuturesTestnetExecutionError("No isolated Futures Testnet symbol available")
+        if symbol is not None:
+            if symbol in occupied:
+                raise FuturesTestnetExecutionError(f"Futures Testnet symbol already has an open position: {symbol}")
+        else:
+            symbol = next((candidate for candidate in self.SYMBOLS if candidate not in occupied), None)
+            if symbol is None:
+                raise FuturesTestnetExecutionError("No isolated Futures Testnet symbol available")
 
         self._configure(symbol, leverage)
         quantity = self._validate_smoke_quantity(symbol, direction)
