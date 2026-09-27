@@ -80,6 +80,21 @@ class EngineTests(unittest.TestCase):
                 universe.assert_not_called()
             self.assertEqual(engine.db.recent('trades'), [])
 
+    def test_spot_testnet_protection_uses_testnet_execution_price(self):
+        with tempfile.TemporaryDirectory() as folder:
+            config = load_config()
+            config = replace(config, bot=replace(config.bot, mode='testnet',
+                                                database_path=Path(folder)/'testnet.db',
+                                                kill_switch_path=Path(folder)/'KILL_SWITCH'))
+            engine = TradingEngine(config)
+            engine.db.upsert_position(Position('BTCUSDT', 0.1, 100, 95, 110, 100, 2, 0.0, 'now'))
+            with patch.object(engine, '_run_futures_forward_protection'), \
+                 patch.object(engine.broker, 'execution_price', return_value=94.0) as venue, \
+                 patch.object(engine, '_manage_positions') as manage:
+                engine.protection_tick()
+            venue.assert_called_once_with('BTCUSDT')
+            self.assertEqual(manage.call_args.args[1], {'BTCUSDT': 94.0})
+
     def test_live_price_can_trigger_protective_stop(self):
         with tempfile.TemporaryDirectory() as folder:
             config = load_config()
