@@ -46,6 +46,18 @@ async function fixture(t){
 }
 
 
+test('private portal assets are never served from stale browser cache',async t=>{
+  const f=await fixture(t);
+  const root=await worker.fetch(new Request(origin+'/'),f.env);
+  assert.equal(root.status,200);
+  assert.match(root.headers.get('cache-control')||'',/no-store/);
+  assert.equal(root.headers.get('clear-site-data'),'"cache"');
+  const app=await worker.fetch(new Request(origin+'/app.js'),f.env);
+  assert.equal(app.status,200);
+  assert.match(app.headers.get('cache-control')||'',/no-store/);
+  assert.equal(app.headers.get('pragma'),'no-cache');
+});
+
 test('device sync accepts legacy and multi-asset Futures forward dashboard shapes',async t=>{
   const f=await fixture(t);
   const base=snapshot();
@@ -392,7 +404,7 @@ test('static shell has strict security headers and missing provisioning fails cl
   const f=await fixture(t);
   f.env.ASSETS={fetch:async()=>new Response('<html></html>',{headers:{'cache-control':'public, max-age=0, must-revalidate','content-security-policy':"default-src *"}})};
   const response=await worker.fetch(new Request(origin+'/'),f.env);
-  assert.equal(response.status,200);assert.equal(response.headers.get('cache-control'),'no-store');
+  assert.equal(response.status,200);assert.match(response.headers.get('cache-control')||'',/^no-store(?:,|$)/);
   assert.match(response.headers.get('content-security-policy'),/frame-ancestors 'none'/);
   f.env.PORTAL_ORIGIN='https://portal.invalid';
   assert.equal((await worker.fetch(new Request(origin+'/'),f.env)).status,503);
