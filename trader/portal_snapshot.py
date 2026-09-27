@@ -138,12 +138,12 @@ def dashboard_snapshot(config, report_path=None):
             'futures_forward': {
                 'enabled': bool(config.bot.mode == 'testnet' and config.futures_testnet.forward_enabled),
                 'killed': config.futures_testnet.kill_switch_path.exists(),
-                'symbol': config.futures_testnet.forward_symbol,
+                'symbols': list(config.futures_testnet.forward_symbols),
                 'automatic_leverage': config.futures_testnet.forward_leverage,
                 'guardrails': {
                     'margin_type': config.futures_testnet.margin_type,
                     'position_mode': config.futures_testnet.position_mode,
-                    'max_positions': 1,
+                    'max_positions': config.futures_testnet.forward_max_positions,
                     'forward_margin_usdt': config.futures_testnet.forward_margin_usdt,
                     'forward_min_score': config.futures_testnet.forward_min_score,
                     'forward_stop_atr_multiple': config.futures_testnet.forward_stop_atr_multiple,
