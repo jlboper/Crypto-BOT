@@ -89,7 +89,7 @@ def execute(source: Path, action: str, payload: dict) -> dict:
             paused = False
         return {'ok': True, 'mode': config.bot.mode, 'futures_forward': {
             'enabled': config.futures_testnet.forward_enabled, 'paused': paused,
-            'symbol': config.futures_testnet.forward_symbol, 'automatic_leverage': 1,
+            'symbols': list(config.futures_testnet.forward_symbols), 'automatic_leverage': config.futures_testnet.forward_leverage,
         }}
     data = config.bot.database_path.parent
     control = RuntimeControl(data)

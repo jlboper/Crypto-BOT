@@ -49,10 +49,10 @@ class FuturesForwardTests(unittest.TestCase):
         self.assertTrue(config.futures_testnet.forward_enabled)
 
 
-    def test_default_forward_test_is_btc_only_and_one_x(self):
+    def test_default_forward_test_is_multi_asset_and_one_x(self):
         self.assertEqual(self.config.bot.mode, "testnet")
         self.assertTrue(self.config.futures_testnet.forward_enabled)
-        self.assertEqual(self.config.futures_testnet.forward_symbol, "BTCUSDT")
+        self.assertEqual(self.config.futures_testnet.forward_symbols, ("BTCUSDT", "ETHUSDT", "SOLUSDT"))
         self.assertEqual(self.config.futures_testnet.forward_leverage, 1)
         self.assertEqual(self.config.futures_testnet.forward_margin_usdt, 100.0)
 
@@ -100,7 +100,7 @@ class FuturesForwardTests(unittest.TestCase):
             "symbol": "BTCUSDT", "side": "BUY", "quantity": "0.001",
             "reduce_only": False, "client_order_id": "cait-fwd-test",
         }
-        plan = {"direction": "LONG", "score": 82, "atr": 2000.0,
+        plan = {"symbol": "BTCUSDT", "direction": "LONG", "score": 82, "atr": 2000.0,
                 "opened_at": "2026-09-26T12:00:00+00:00"}
         self.engine.ledger.set_setting("forward_pending_order", pending)
         self.engine.ledger.set_setting("forward_open_plan", plan)
@@ -113,7 +113,7 @@ class FuturesForwardTests(unittest.TestCase):
              patch.object(self.engine, "_actual_rows", return_value=[row]):
             result = self.engine._recover_journal()
         self.assertEqual(result["status"], "RECOVERED_OPEN")
-        self.assertEqual(self.engine.ledger.forward_position()["direction"], "LONG")
+        self.assertEqual(self.engine.ledger.forward_position("BTCUSDT")["direction"], "LONG")
         self.assertIsNone(self.engine.ledger.setting("forward_pending_order"))
         self.assertIsNone(self.engine.ledger.setting("forward_open_plan"))
 
@@ -147,14 +147,38 @@ class FuturesForwardTests(unittest.TestCase):
             "signal_score": 80, "opened_at": "2026-09-26T00:00:00+00:00",
         }
         ledger.set_forward_position(position)
-        self.assertEqual(ledger.forward_position()["direction"], "LONG")
+        self.assertEqual(ledger.forward_position("BTCUSDT")["direction"], "LONG")
         ledger.record_forward_equity(5000.0, 4900.0, 2.0)
-        trade = ledger.close_forward_position(exit_price=101000.0, gross_pnl=1.0, exit_reason="TAKE_PROFIT")
+        trade = ledger.close_forward_position(symbol="BTCUSDT", exit_price=101000.0, gross_pnl=1.0, exit_reason="TAKE_PROFIT")
         self.assertEqual(trade["gross_pnl"], 1.0)
         snapshot = ledger.forward_snapshot()
-        self.assertIsNone(snapshot["position"])
+        self.assertEqual(snapshot["positions"], [])
         self.assertEqual(snapshot["closed_trades"], 1)
         self.assertEqual(snapshot["gross_pnl"], 1.0)
+
+    def test_multi_asset_positions_are_independent(self):
+        ledger = FuturesTestnetLedger(self.config.futures_testnet.database_path)
+        for symbol in ("BTCUSDT", "ETHUSDT", "SOLUSDT"):
+            ledger.set_forward_position({
+                "symbol": symbol, "direction": "LONG", "leverage": 1,
+                "quantity": 0.001, "entry_price": 100.0, "stop_price": 95.0,
+                "take_profit": 110.0, "liquidation_price": 1.0,
+                "signal_score": 80, "opened_at": "2026-09-27T00:00:00+00:00",
+            })
+        self.assertEqual(len(ledger.forward_positions()), 3)
+        ledger.close_forward_position(symbol="ETHUSDT", exit_price=101.0, gross_pnl=1.0, exit_reason="TAKE_PROFIT")
+        self.assertIsNone(ledger.forward_position("ETHUSDT"))
+        self.assertIsNotNone(ledger.forward_position("BTCUSDT"))
+        self.assertIsNotNone(ledger.forward_position("SOLUSDT"))
+
+    def test_signal_history_and_shadow_lab_are_persistent(self):
+        ledger = FuturesTestnetLedger(self.config.futures_testnet.database_path)
+        signal = {"direction":"LONG","score":80,"long_score":80,"short_score":10,
+                  "price":100.0,"atr":2.0,"rsi":60.0,"ema_fast":99.0,"ema_slow":95.0,"volume_ratio":1.3}
+        ledger.record_signal("BTCUSDT", signal)
+        ledger.shadow_step("BTCUSDT", signal, [{"key":"s80-a2.0-rr2.0","score":80,"atr_mult":2.0,"rr":2.0}])
+        snapshot = ledger.forward_snapshot()
+        self.assertEqual(snapshot["signals"][0]["symbol"], "BTCUSDT")
 
 
 if __name__ == "__main__":

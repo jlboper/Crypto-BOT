@@ -122,7 +122,7 @@
         <article class="settings-card futures-card">
           <div class="settings-card-head"><div><span class="settings-kicker">SEGUNDO MOTOR · FORWARD TEST</span><h3>USDⓈ-M Futures Demo</h3></div><span class="state neutral" id="futuresState">CARGANDO</span></div>
           <div class="futures-guardrails">
-            <span>BTCUSDT</span><span>AUTO 1x</span><span>ISOLATED</span><span>ONE-WAY</span><span>1 posición máx.</span>
+            <span>BTC / ETH / SOL</span><span>AUTO 1x</span><span>ISOLATED</span><span>ONE-WAY</span><span>3 posiciones máx.</span>
           </div>
           <p class="settings-help">Corre en paralelo con Spot Testnet, con ledger y kill switch propios. 2x/3x quedan fuera de la ejecución automática.</p>
           <details class="update-details">
@@ -163,8 +163,8 @@
       </article>
 
       <article class="panel engine-console futures-console">
-        <div class="settings-card-head"><div><p class="eyebrow">MOTOR 2 · FUTURES</p><h2>USDⓈ-M Futures Demo · BTCUSDT</h2></div><span id="futuresForwardState" class="state neutral">CARGANDO</span></div>
-        <p>LONG/SHORT · automático 1x · ISOLATED · una posición máxima · revisión IA final · fondos ficticios.</p>
+        <div class="settings-card-head"><div><p class="eyebrow">MOTOR 2 · FUTURES</p><h2>USDⓈ-M Futures Demo · BTC / ETH / SOL</h2></div><span id="futuresForwardState" class="state neutral">CARGANDO</span></div>
+        <p>LONG/SHORT · automático 1x · ISOLATED · hasta tres posiciones · revisión IA final · fondos ficticios.</p>
         <div class="engine-kpis">
           <span><small>Wallet</small><strong id="futuresForwardWallet">—</strong><em>USDT Demo</em></span>
           <span><small>Retorno observado</small><strong id="futuresForwardReturn">—</strong><em id="futuresForwardClosed">—</em></span>
@@ -212,7 +212,7 @@
           </dl>
         </article>
         <article>
-          <h3>Futures Demo · BTCUSDT 1x</h3>
+          <h3>Futures Demo · BTC / ETH / SOL · 1x</h3>
           <dl>
             <div><dt>Días observados</dt><dd id="futuresObservedDays">—</dd></div>
             <div><dt>Cierres</dt><dd id="futuresObservedTrades">—</dd></div>
@@ -262,7 +262,7 @@
           <div><dt>Stop mínimo / ATR</dt><dd id="futuresLimitStop">—</dd></div>
           <div><dt>Reward / Risk</dt><dd id="futuresLimitRR">—</dd></div>
         </dl>
-        <p class="settings-help">Forward test BTCUSDT · ONE_WAY · máximo una posición · kill switch independiente. Los valores automáticos no se modifican desde esta pantalla.</p>
+        <p class="settings-help">Forward test BTC/ETH/SOL · ONE_WAY · hasta tres posiciones aisladas · kill switch independiente. Los valores automáticos no se modifican desde esta pantalla.</p>
       </article>
     </section>
 
@@ -274,7 +274,7 @@
       </article>
 
       <article class="panel">
-        <div class="panel-title"><h2>Posición abierta · Futures</h2><span id="futuresPositionState" class="state neutral">SIN POSICIÓN</span></div>
+        <div class="panel-title"><h2>Posiciones abiertas · Futures</h2><span id="futuresPositionState" class="state neutral">SIN POSICIÓN</span></div>
         <div class="futures-position-card" id="futuresPositionCard">
           <dl>
             <div><dt>Contrato / dirección</dt><dd id="futuresPositionContract">—</dd></div>
@@ -286,7 +286,14 @@
             <div><dt>Abierta desde</dt><dd id="futuresPositionOpened">—</dd></div>
           </dl>
         </div>
-        <p class="paper-action-note">La posición Futures la gestiona el forward test automático. Pausar Futures bloquea nuevas entradas pero mantiene la protección/reconciliación de una posición existente.</p>
+        <div id="futuresMultiAsset" class="futures-asset-grid"></div>
+        <details class="finance-details"><summary>Señales recientes y estrategias sombra</summary>
+          <h3>Señales por activo</h3>
+          <div id="futuresSignalGrid" class="futures-asset-grid"></div>
+          <h3>Shadow strategies</h3>
+          <div id="futuresShadowStrategies" class="research-summary"></div>
+        </details>
+        <p class="paper-action-note">Las posiciones Futures las gestiona el forward test automático. Pausar Futures bloquea nuevas entradas pero mantiene la protección/reconciliación de una posición existente.</p>
       </article>
     </section>
 
@@ -321,7 +328,7 @@
       <article class="panel futures-scorecard" aria-label="Seguimiento financiero Futures">
         <div class="panel-title"><h2>Seguimiento financiero Futures · DEMO</h2><span id="futuresEvidenceState" class="state neutral">SIN DATOS</span></div>
         <p id="futuresEvidenceNote">Los resultados observados de Futures no autorizan operar con dinero real.</p>
-        <p class="finance-strategy">Estrategia actual: BTCUSDT LONG/SHORT, 1x automático, ISOLATED, máximo una posición y revisión IA final.</p>
+        <p class="finance-strategy">Estrategia actual: BTC/ETH/SOL LONG/SHORT, 1x automático, ISOLATED, hasta tres posiciones y revisión IA final.</p>
         <div id="futuresEvidenceMetrics" class="research-summary"></div>
         <div id="futuresEvidenceSummary" class="benchmark-note">Esperando muestras suficientes del forward test.</div>
         <details class="finance-details"><summary>Ver métricas, puertas pendientes y cierres Futures</summary>

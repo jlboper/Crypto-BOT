@@ -193,7 +193,8 @@ function renderFuturesParity(futures) {
   const set=(id,value)=>{const node=document.getElementById(id);if(node)node.textContent=value;};
   const score=futures?.scorecard||{};
   const guard=futures?.guardrails||{};
-  const pos=futures?.position||null;
+  const positions=Array.isArray(futures?.positions)?futures.positions:[];
+  const pos=positions[0]||futures?.position||null;
   const last=(futures?.equity||[]).at(-1)||{};
   const finite=value=>Number.isFinite(Number(value))?Number(value):0;
 
@@ -213,8 +214,8 @@ function renderFuturesParity(futures) {
 
   const positionState=document.getElementById('futuresPositionState');
   if(positionState){
-    positionState.textContent=pos?(String(pos.direction)+' ABIERTA'):'SIN POSICIÓN';
-    positionState.className='state '+(pos?'warning':'neutral');
+    positionState.textContent=positions.length?(String(positions.length)+' ABIERTA'+(positions.length===1?'':'S')):'SIN POSICIÓN';
+    positionState.className='state '+(positions.length?'warning':'neutral');
   }
   if(pos){
     const qty=Number(pos.quantity);
@@ -270,9 +271,44 @@ function renderFuturesParity(futures) {
     checks.replaceChildren();
     for(const [ok,label] of rows){const li=document.createElement('li');li.textContent=(ok?'✓':'○')+' '+label;checks.append(li);}
   }
+  const assetGrid=document.getElementById('futuresMultiAsset');
+  if(assetGrid){
+    const symbols=Array.isArray(futures?.symbols)?futures.symbols:['BTCUSDT','ETHUSDT','SOLUSDT'];
+    const bySymbol=score.by_symbol_direction||{};
+    assetGrid.innerHTML=symbols.map(symbol=>{
+      const p=positions.find(row=>row.symbol===symbol);
+      const split=bySymbol[symbol]||{};
+      const long=split.LONG||{}, short=split.SHORT||{};
+      return '<article class="futures-asset-card"><h4>'+esc(symbol.replace('USDT',''))+'</h4><dl>'+
+        '<div><dt>Estado</dt><dd>'+(p?esc(p.direction)+' · '+esc(String(p.leverage||1))+'x':'ESPERANDO')+'</dd></div>'+
+        '<div><dt>LONG</dt><dd>'+String(long.trades||0)+' · '+money(long.gross_pnl_usdt||0)+'</dd></div>'+
+        '<div><dt>SHORT</dt><dd>'+String(short.trades||0)+' · '+money(short.gross_pnl_usdt||0)+'</dd></div>'+
+        '<div><dt>Score</dt><dd>'+esc(String((futures?.latest_signals||{})[symbol]?.long_score??'—'))+' / '+esc(String((futures?.latest_signals||{})[symbol]?.short_score??'—'))+'</dd></div>'+
+      '</dl></article>';
+    }).join('');
+  }
+  const signalGrid=document.getElementById('futuresSignalGrid');
+  if(signalGrid){
+    const symbols=Array.isArray(futures?.symbols)?futures.symbols:[];
+    signalGrid.innerHTML=symbols.map(symbol=>{
+      const s=(futures?.latest_signals||{})[symbol]||{};
+      const r=(futures?.last_ai_reviews||{})[symbol]||{};
+      return '<article class="futures-asset-card"><h4>'+esc(symbol)+'</h4><dl>'+
+        '<div><dt>LONG / SHORT</dt><dd>'+esc(String(s.long_score??'—'))+' / '+esc(String(s.short_score??'—'))+'</dd></div>'+
+        '<div><dt>Dirección</dt><dd>'+esc(s.direction||'SIN SEÑAL')+'</dd></div>'+
+        '<div><dt>RSI</dt><dd>'+(s.rsi==null?'—':num(s.rsi,1))+'</dd></div>'+
+        '<div><dt>IA</dt><dd>'+esc(r.verdict||'SIN REVISIÓN')+'</dd></div>'+
+      '</dl></article>';
+    }).join('');
+  }
+  const shadow=document.getElementById('futuresShadowStrategies');
+  if(shadow){
+    const rows=(futures?.shadow_scorecard||[]).slice(0,9);
+    shadow.innerHTML=rows.length?rows.map(row=>'<div><small>'+esc(row.strategy_key)+'</small><strong>'+num(row.pnl_pct||0,2)+'% · '+String(row.trades||0)+' trades</strong></div>').join(''):'<div><small>Shadow lab</small><strong>Acumulando muestras</strong></div>';
+  }
   const body=document.getElementById('futuresTradeRows');
   const rows=(futures?.trades||[]).slice(0,12);
-  if(body)body.innerHTML=rows.length?rows.map(t=>'<tr><td><strong>'+esc(t.direction)+'</strong></td><td>'+num(t.quantity,6)+'</td><td>'+num(t.entry_price,2)+'</td><td>'+num(t.exit_price,2)+'</td><td class="'+(Number(t.gross_pnl)>=0?'positive':'negative')+'">'+(Number(t.gross_pnl)>=0?'+':'')+num(t.gross_pnl,2)+'</td><td>'+esc(t.exit_reason||'—')+'</td></tr>').join(''):emptyRow(6,'Aún no hay cierres Futures.');
+  if(body)body.innerHTML=rows.length?rows.map(t=>'<tr><td><strong>'+esc(t.symbol)+' '+esc(t.direction)+'</strong></td><td>'+num(t.quantity,6)+'</td><td>'+num(t.entry_price,2)+'</td><td>'+num(t.exit_price,2)+'</td><td class="'+(Number(t.gross_pnl)>=0?'positive':'negative')+'">'+(Number(t.gross_pnl)>=0?'+':'')+num(t.gross_pnl,2)+'</td><td>'+esc(t.exit_reason||'—')+'</td></tr>').join(''):emptyRow(6,'Aún no hay cierres Futures.');
 }
 
 function renderObservationHealth(spotHealth, futuresHealth) {
@@ -453,7 +489,7 @@ async function refresh() {
       const forwardDisabledReason=currentExecutionMode!=='testnet'
         ? 'INACTIVO · MOTOR EN '+currentExecutionMode.toUpperCase()
         : (!futuresForward?.enabled?'INACTIVO · FORWARD DESHABILITADO':null);
-      forwardState.textContent=forwardDisabledReason || (futuresForward.killed?'PAUSADO':(forwardPosition?'POSICIÓN ABIERTA':'ACTIVO · ESPERANDO SEÑAL'));
+      forwardState.textContent=forwardDisabledReason || (futuresForward.killed?'PAUSADO':(forwardPositions.length?forwardPositions.length+' POSICIÓN'+(forwardPositions.length===1?' ABIERTA':'ES ABIERTAS'):'ACTIVO · ESPERANDO SEÑAL'));
       forwardState.className='state '+((forwardDisabledReason||futuresForward?.killed)?'warning':'neutral');
     }
     const fWallet=document.getElementById('futuresForwardWallet');
@@ -462,7 +498,7 @@ async function refresh() {
       fWallet.textContent=last?money(last.wallet_balance):'Esperando ciclo';
     }
     const fPosition=document.getElementById('futuresForwardPosition');
-    if(fPosition)fPosition.textContent=forwardPosition?`${forwardPosition.direction} · 1x`:'Sin posición';
+    if(fPosition)fPosition.textContent=forwardPositions.length?forwardPositions.map(p=>`${String(p.symbol).replace('USDT','')} ${p.direction}`).join(' · '):'Sin posición';
     const fPnl=document.getElementById('futuresForwardPnl');
     if(fPnl)fPnl.textContent=money(Number(futuresForward?.gross_pnl||0));
     const fClosed=document.getElementById('futuresForwardClosed');
@@ -471,7 +507,8 @@ async function refresh() {
     if(fReturn)fReturn.textContent=futuresForward?.scorecard?.account_return_pct==null?'—':pct(futuresForward.scorecard.account_return_pct);
     const fAi=document.getElementById('futuresForwardAi');
     if(fAi){
-      const review=futuresForward?.last_ai_review;
+      const reviews=futuresForward?.last_ai_reviews||{};
+      const review=Object.values(reviews).filter(Boolean).at(-1);
       fAi.textContent=review?`${review.verdict} · ${Math.round(Number(review.confidence||0)*100)}%`:
         `${futuresForward?.ai_model||status.ai_model} · esperando señal`;
     }

@@ -138,12 +138,12 @@ def dashboard_snapshot(config, report_path=None):
             'futures_forward': {
                 'enabled': bool(config.bot.mode == 'testnet' and config.futures_testnet.forward_enabled),
                 'killed': config.futures_testnet.kill_switch_path.exists(),
-                'symbol': config.futures_testnet.forward_symbol,
+                'symbols': list(config.futures_testnet.forward_symbols),
                 'automatic_leverage': config.futures_testnet.forward_leverage,
                 'guardrails': {
                     'margin_type': config.futures_testnet.margin_type,
                     'position_mode': config.futures_testnet.position_mode,
-                    'max_positions': 1,
+                    'max_positions': config.futures_testnet.forward_max_positions,
                     'forward_margin_usdt': config.futures_testnet.forward_margin_usdt,
                     'forward_min_score': config.futures_testnet.forward_min_score,
                     'forward_stop_atr_multiple': config.futures_testnet.forward_stop_atr_multiple,
@@ -151,7 +151,7 @@ def dashboard_snapshot(config, report_path=None):
                     'forward_reward_to_risk': config.futures_testnet.forward_reward_to_risk,
                 },
                 'ai_model': config.ai.model,
-                'last_ai_review': futures_ledger.setting('forward_last_ai_review'),
+                'last_ai_reviews': {symbol: futures_ledger.setting(f'forward_last_ai_review_{symbol}') for symbol in config.futures_testnet.forward_symbols},
                 'observation_health': futures_ledger.observation_health(config.bot.cycle_seconds),
                 'recovery': {
                     'durable_order_journal': True,
