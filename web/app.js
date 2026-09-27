@@ -189,6 +189,92 @@ function renderDualEvidence(spot, futures) {
     'Ambos motores alcanzaron el mínimo de observación. Esto habilita una revisión humana de resultados, no Binance LIVE.':
     'Se están acumulando datos separados de Spot y Futures. Evitaremos cambiar estrategia o riesgo por ruido de pocos días; solo corregiremos fallos operativos o de seguridad.';
 }
+function renderFuturesParity(futures) {
+  const set=(id,value)=>{const node=document.getElementById(id);if(node)node.textContent=value;};
+  const score=futures?.scorecard||{};
+  const guard=futures?.guardrails||{};
+  const pos=futures?.position||null;
+  const last=(futures?.equity||[]).at(-1)||{};
+  const finite=value=>Number.isFinite(Number(value))?Number(value):0;
+
+  const limitState=document.getElementById('futuresLimitState');
+  if(limitState){
+    limitState.textContent=futures?.killed?'PAUSADO':(futures?.enabled?'PROTECCIONES ACTIVAS':'INACTIVO');
+    limitState.className='state '+((futures?.killed||!futures?.enabled)?'warning':'neutral');
+  }
+  set('futuresLimitLeverage',futures?.automatic_leverage==null?'—':String(futures.automatic_leverage)+'x');
+  set('futuresLimitMarginType',guard.margin_type?String(guard.margin_type).toUpperCase():'—');
+  set('futuresLimitPositions',guard.max_positions==null?'—':String(guard.max_positions));
+  set('futuresLimitBudget',guard.forward_margin_usdt==null?'—':money(guard.forward_margin_usdt));
+  set('futuresLimitScore',guard.forward_min_score==null?'—':String(guard.forward_min_score)+'/100');
+  set('futuresLimitStop',(guard.forward_minimum_stop_pct==null?'—':(100*Number(guard.forward_minimum_stop_pct)).toFixed(1)+'%')+
+      (guard.forward_stop_atr_multiple==null?'':' · '+Number(guard.forward_stop_atr_multiple).toFixed(1)+'× ATR'));
+  set('futuresLimitRR',guard.forward_reward_to_risk==null?'—':'1 : '+Number(guard.forward_reward_to_risk).toFixed(1));
+
+  const positionState=document.getElementById('futuresPositionState');
+  if(positionState){
+    positionState.textContent=pos?(String(pos.direction)+' ABIERTA'):'SIN POSICIÓN';
+    positionState.className='state '+(pos?'warning':'neutral');
+  }
+  if(pos){
+    const qty=Number(pos.quantity);
+    const entry=Number(pos.entry_price);
+    const unrealized=Number(last.unrealized_pnl||0);
+    const direction=String(pos.direction||'—');
+    const mark=Number.isFinite(qty)&&qty>0&&Number.isFinite(entry)?
+      (direction==='SHORT'?entry-unrealized/qty:entry+unrealized/qty):null;
+    set('futuresPositionContract',String(pos.symbol||futures?.symbol||'BTCUSDT')+' · '+direction);
+    set('futuresPositionQty',Number.isFinite(qty)?num(qty,6):'—');
+    set('futuresPositionPrices',num(entry,2)+' / '+(Number.isFinite(mark)?num(mark,2):'—'));
+    set('futuresPositionUnrealized',(unrealized>=0?'+':'')+money(unrealized));
+    const pnlNode=document.getElementById('futuresPositionUnrealized');
+    if(pnlNode)pnlNode.className=unrealized>=0?'positive':'negative';
+    set('futuresPositionProtection',num(pos.stop_price,2)+' / '+num(pos.take_profit,2));
+    set('futuresPositionLeverage',String(pos.leverage||futures?.automatic_leverage||1)+'x · '+String(guard.margin_type||'ISOLATED').toUpperCase());
+    set('futuresPositionOpened',pos.opened_at?shortTime(pos.opened_at):'—');
+  } else {
+    for(const id of ['futuresPositionContract','futuresPositionQty','futuresPositionPrices','futuresPositionUnrealized','futuresPositionProtection','futuresPositionLeverage','futuresPositionOpened'])set(id,'—');
+    const pnlNode=document.getElementById('futuresPositionUnrealized');if(pnlNode)pnlNode.className='';
+  }
+
+  const days=finite(score.observed_days), trades=finite(score.closed_trades);
+  const ready=days>=30&&trades>=30&&finite(score.consecutive_errors)===0;
+  const evidence=document.getElementById('futuresEvidenceState');
+  if(evidence){evidence.textContent=ready?'LISTO PARA REVISIÓN':'EVIDENCIA INSUFICIENTE';evidence.className='state '+(ready?'warning':'neutral');}
+  set('futuresEvidenceNote',
+    'Historial Futures Demo: '+days.toFixed(1)+' días y '+trades.toFixed(0)+' cierres. 30 días y 30 cierres son solo evidencia operativa; nunca activan dinero real automáticamente.');
+  const metrics=document.getElementById('futuresEvidenceMetrics');
+  if(metrics)metrics.innerHTML=
+    '<div><small>Días observados</small><strong>'+days.toFixed(1)+'</strong></div>'+
+    '<div><small>Operaciones cerradas</small><strong>'+trades.toFixed(0)+'</strong></div>'+
+    '<div><small>P&amp;L realizado bruto</small><strong>'+money(score.gross_realized_pnl_usdt||0)+'</strong></div>'+
+    '<div><small>Drawdown muestreado</small><strong>'+finite(score.sampled_max_drawdown_pct).toFixed(2)+'%</strong></div>';
+  set('futuresEvidenceSummary',
+    'Retorno observado '+(score.account_return_pct==null?'—':pct(score.account_return_pct))+
+    ' · win rate '+(score.win_rate_pct==null?'—':finite(score.win_rate_pct).toFixed(1)+'%')+
+    ' · profit factor '+(score.profit_factor==null?'—':finite(score.profit_factor).toFixed(2))+
+    ' · LONG '+finite(score.long_closed_trades).toFixed(0)+' / SHORT '+finite(score.short_closed_trades).toFixed(0)+'.');
+  const more=document.getElementById('futuresMoreMetrics');
+  if(more)more.innerHTML=
+    '<div><small>LONG P&amp;L</small><strong>'+money(score.long_gross_pnl_usdt||0)+'</strong></div>'+
+    '<div><small>SHORT P&amp;L</small><strong>'+money(score.short_gross_pnl_usdt||0)+'</strong></div>'+
+    '<div><small>Errores totales</small><strong>'+finite(score.error_total).toFixed(0)+'</strong></div>'+
+    '<div><small>Errores consecutivos</small><strong>'+finite(score.consecutive_errors).toFixed(0)+'</strong></div>';
+  const checks=document.getElementById('futuresReadinessChecks');
+  if(checks){
+    const rows=[[days>=30,days.toFixed(1)+' / 30 días'],[trades>=30,trades.toFixed(0)+' / 30 cierres'],
+      [finite(score.consecutive_errors)===0,'Sin errores consecutivos activos'],
+      [futures?.recovery?.durable_order_journal===true,'Journal durable'],
+      [futures?.recovery?.startup_position_reconciliation===true,'Reconciliación al reiniciar'],
+      [futures?.recovery?.native_exchange_stop_orders===true,'Stops nativos persistentes del exchange']];
+    checks.replaceChildren();
+    for(const [ok,label] of rows){const li=document.createElement('li');li.textContent=(ok?'✓':'○')+' '+label;checks.append(li);}
+  }
+  const body=document.getElementById('futuresTradeRows');
+  const rows=(futures?.trades||[]).slice(0,12);
+  if(body)body.innerHTML=rows.length?rows.map(t=>'<tr><td><strong>'+esc(t.direction)+'</strong></td><td>'+num(t.quantity,6)+'</td><td>'+num(t.entry_price,2)+'</td><td>'+num(t.exit_price,2)+'</td><td class="'+(Number(t.gross_pnl)>=0?'positive':'negative')+'">'+(Number(t.gross_pnl)>=0?'+':'')+num(t.gross_pnl,2)+'</td><td>'+esc(t.exit_reason||'—')+'</td></tr>').join(''):emptyRow(6,'Aún no hay cierres Futures.');
+}
+
 function renderObservationHealth(spotHealth, futuresHealth) {
   const set=(id,value)=>{const node=document.getElementById(id);if(node)node.textContent=value;};
   const stateClass=value=>value==='OK'?'':value==='ATTENTION'?'offline':'warning';
@@ -447,7 +533,7 @@ async function refresh() {
     botState.classList.toggle('offline',activity.state==='offline');
 
     lastPositions=positions;
-    document.getElementById('positions').innerHTML=positions.length?positions.map(p=>`<tr><td><strong>${esc(p.symbol)}</strong></td><td>${num(p.quantity)}</td><td>${num(p.entry_price,4)}</td><td>${p.market_price==null?'—':num(p.market_price,4)}</td><td class="${p.unrealized_pnl==null?'':p.unrealized_pnl>=0?'positive':'negative'}">${p.unrealized_pnl==null?'—':`${p.unrealized_pnl>=0?'+':''}${num(p.unrealized_pnl,2)}`}</td><td class="${p.unrealized_pct==null?'':p.unrealized_pct>=0?'positive':'negative'}">${p.unrealized_pct==null?'—':`${p.unrealized_pct>=0?'+':''}${num(p.unrealized_pct,2)}%`}</td><td>${num(p.stop_price,4)}</td><td>${num(p.take_profit,4)}</td><td>${num(p.high_water,4)}</td><td><button class="secondary paper-close" data-symbol="${esc(p.symbol)}" ${p.market_price==null||!paperControlsAvailable()?'disabled':''}>Cerrar ${currentExecutionMode==='testnet'?'TESTNET':'PAPER'}</button></td></tr>`).join(''):emptyRow(10,'Sin posiciones abiertas');
+    document.getElementById('positions').innerHTML=positions.length?positions.map(p=>`<tr><td><strong>${esc(p.symbol)}</strong></td><td>${num(p.quantity)}</td><td>${num(p.entry_price,4)}</td><td>${p.market_price==null?'—':num(p.market_price,4)}</td><td class="${p.unrealized_pnl==null?'':p.unrealized_pnl>=0?'positive':'negative'}">${p.unrealized_pnl==null?'—':`${p.unrealized_pnl>=0?'+':''}${num(p.unrealized_pnl,2)}`}</td><td class="${p.unrealized_pct==null?'':p.unrealized_pct>=0?'positive':'negative'}">${p.unrealized_pct==null?'—':`${p.unrealized_pct>=0?'+':''}${num(p.unrealized_pct,2)}%`}</td><td>${num(p.stop_price,4)}</td><td>${num(p.take_profit,4)}</td><td><button class="secondary paper-close" data-symbol="${esc(p.symbol)}" ${p.market_price==null||!paperControlsAvailable()?'disabled':''}>Cerrar</button></td></tr>`).join(''):emptyRow(9,'Sin posiciones abiertas');
     document.getElementById('trades').innerHTML=trades.length?trades.slice(0,8).map(t=>`<div class="feed-item"><strong class="${esc(t.side.toLowerCase())}">${esc(t.side)}</strong><div><strong>${esc(t.symbol)} · ${num(t.quantity)}</strong><p>${esc(t.reason)}</p></div><time>${shortTime(t.created_at)}</time></div>`).join(''):feedEmpty('Aún no hay operaciones');
     document.getElementById('reviews').innerHTML=reviews.length?reviews.slice(0,8).map(r=>`<div class="feed-item"><strong class="${esc(r.verdict.toLowerCase())}">${esc(r.verdict)}</strong><div><strong>${esc(r.symbol)} · ${(r.confidence*100).toFixed(0)}%</strong><p>${esc(r.reason)}</p></div><time>${shortTime(r.created_at)}</time></div>`).join(''):feedEmpty('Aún no hay revisiones');
     const important=events.filter(e=>['WARN','ERROR','CRITICAL'].includes(e.level)).slice(0,10);
@@ -456,6 +542,7 @@ async function refresh() {
     renderResearch(research,researchState);
     renderPaperEvidence(paperReport,equity,trades);
     renderDualEvidence(paperReport,futuresForward);
+    renderFuturesParity(futuresForward);
     renderObservationHealth(status?.observation_health,futuresForward?.observation_health);
     renderFuturesChart(futuresForward?.equity||[]);
     document.getElementById('updated').textContent=`Último ciclo ${ageLabel(activity.age_seconds)} · ${shortTime(activity.last_cycle_at)}`;
