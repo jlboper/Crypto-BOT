@@ -208,11 +208,16 @@ async function matchesPassword(value,credential,bootstrap){
 
 export async function handle(request, env, now = Math.floor(Date.now() / 1000)) {
   const url = new URL(request.url);
+  const method = request.method, path = url.pathname;
   // No inferred Host, forwarded origin, or fallback credentials in production.
   if (!env.PORTAL_ORIGIN || new URL(env.PORTAL_ORIGIN).origin !== env.PORTAL_ORIGIN || !env.PORTAL_ORIGIN.startsWith('https://') || env.PORTAL_ORIGIN.endsWith('.invalid')) return json({ error: 'Portal not provisioned' }, 503);
   if (url.origin !== env.PORTAL_ORIGIN) return json({ error: 'Origin not allowed' }, 403);
-  if (url.search) return json({ error: 'Query parameters not accepted' }, 400);
-  const method = request.method, path = url.pathname;
+  if (url.search) {
+    if (method === 'GET' && path === '/' && url.searchParams.size === 1 && url.searchParams.has('v')) {
+      return Response.redirect(env.PORTAL_ORIGIN + '/', 302);
+    }
+    return json({ error: 'Query parameters not accepted' }, 400);
+  }
   if (!['GET', 'POST'].includes(method)) return json({ error: 'Method not allowed' }, 405, { Allow: 'GET, POST' });
   if(path==='/v1/health' && method==='GET'){
     await statement(env.DB,'SELECT id FROM jobs LIMIT 1').all();
@@ -224,7 +229,6 @@ export async function handle(request, env, now = Math.floor(Date.now() / 1000)) 
     for (const [name, value] of Object.entries(security)) headers.set(name, value);
     headers.set('Cache-Control','no-store, max-age=0');
     headers.set('Pragma','no-cache');
-    if(path==='/')headers.set('Clear-Site-Data','"cache"');
     return new Response(asset.body, { status: asset.status, headers });
   }
   if (!HASH.test(env.OWNER_KEY_HASH || '') || !HASH.test(env.DEVICE_KEY_HASH || '') || env.OWNER_KEY_HASH === env.DEVICE_KEY_HASH) return json({ error: 'Portal not provisioned' }, 503);
