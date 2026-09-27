@@ -116,7 +116,7 @@ class RemotePaperControls:
                             + ((' · liq ' + str(round(float(liquidation),2))) if liquidation is not None else ''),
                         'futures_testnet_reconcile': 'Futures Demo reconciliado · posición técnica cerrada',
                         'futures_forward_pause': 'Futures Demo automático pausado · Spot Testnet continúa activo',
-                        'futures_forward_resume': 'Futures Demo automático reanudado · BTCUSDT 1x',
+                        'futures_forward_resume': 'Futures Demo automático reanudado · BTC / ETH / SOL · 1x',
                     }
                     message = messages[action]
                     status = 'completed'
