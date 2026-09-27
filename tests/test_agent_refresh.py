@@ -33,6 +33,13 @@ class AgentRefreshTests(unittest.TestCase):
             "sequence": 17, "release_id": "a" * 64, "files": files}))
         (state / "sequence.json").write_text(json.dumps({"sequence": 17}))
 
+    def test_signed_supervisor_module_set_is_dependency_closed_for_imports(self):
+        self.assertIn("trader/config.py", MODULES)
+        agent_source = (Path(__file__).resolve().parents[1] / "scripts" / "windows_agent.py").read_text(encoding="utf-8")
+        self.assertNotIn("from trader.portal_snapshot import dashboard_snapshot", agent_source)
+        self.assertIn("from trader.config import load_config", agent_source)
+        self.assertIn("trader/config.py", agent_source)
+
     def test_preview_and_bounded_refresh_preserve_backup(self):
         before = refresh(self.source, self.agent)
         self.assertEqual(before["changes"], list(MODULES))
