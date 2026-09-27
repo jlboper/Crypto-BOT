@@ -208,6 +208,7 @@ async function matchesPassword(value,credential,bootstrap){
 
 export async function handle(request, env, now = Math.floor(Date.now() / 1000)) {
   const url = new URL(request.url);
+  const method = request.method, path = url.pathname;
   // No inferred Host, forwarded origin, or fallback credentials in production.
   if (!env.PORTAL_ORIGIN || new URL(env.PORTAL_ORIGIN).origin !== env.PORTAL_ORIGIN || !env.PORTAL_ORIGIN.startsWith('https://') || env.PORTAL_ORIGIN.endsWith('.invalid')) return json({ error: 'Portal not provisioned' }, 503);
   if (url.origin !== env.PORTAL_ORIGIN) return json({ error: 'Origin not allowed' }, 403);
@@ -217,7 +218,6 @@ export async function handle(request, env, now = Math.floor(Date.now() / 1000)) 
     }
     return json({ error: 'Query parameters not accepted' }, 400);
   }
-  const method = request.method, path = url.pathname;
   if (!['GET', 'POST'].includes(method)) return json({ error: 'Method not allowed' }, 405, { Allow: 'GET, POST' });
   if(path==='/v1/health' && method==='GET'){
     await statement(env.DB,'SELECT id FROM jobs LIMIT 1').all();
