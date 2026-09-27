@@ -8,6 +8,7 @@ from unittest.mock import patch
 from trader.config import load_config
 from trader.domain import Candle
 from trader.futures_forward import FuturesForwardEngine
+from trader.futures_testnet import FuturesTestnetExecutionError
 from trader.futures_testnet_ledger import FuturesTestnetLedger
 
 
@@ -64,6 +65,19 @@ class FuturesForwardTests(unittest.TestCase):
         self.assertEqual(self.config.futures_testnet.forward_leverage, 1)
         self.assertEqual(self.config.futures_testnet.forward_margin_usdt, 100.0)
 
+    def test_protection_requires_live_futures_mark_price(self):
+        self.engine.ledger.set_forward_position({
+            "symbol": "SOLUSDT", "direction": "LONG", "leverage": 1,
+            "quantity": 0.1, "entry_price": 100.0, "stop_price": 95.0,
+            "take_profit": 110.0, "liquidation_price": 50.0,
+            "signal_score": 80, "opened_at": "2026-09-27T00:00:00+00:00",
+        })
+        row = {"symbol": "SOLUSDT", "positionAmt": "0.1", "entryPrice": "100",
+               "leverage": "1", "marginType": "isolated", "positionSide": "BOTH"}
+        with patch.object(self.engine, "_validated_rows", return_value=[row]):
+            with self.assertRaisesRegex(FuturesTestnetExecutionError, "mark price unavailable"):
+                self.engine.protection_tick()
+
     def test_signal_supports_long_and_short_symmetrically(self):
         long_signal = self.engine._signal(self.candles(True))
         short_signal = self.engine._signal(self.candles(False))
@@ -115,8 +129,9 @@ class FuturesForwardTests(unittest.TestCase):
         outcome = {"resolved": True, "status": "FILLED", "pending": pending,
                    "order": {"clientOrderId": "cait-fwd-test", "avgPrice": "100000",
                              "executedQty": "0.001"}}
-        row = {"positionAmt": "0.001", "entryPrice": "100000",
-               "liquidationPrice": "1000", "leverage": "1", "marginType": "isolated"}
+        row = {"positionAmt": "0.001", "entryPrice": "100000", "markPrice": "100000",
+               "liquidationPrice": "1000", "leverage": "1", "marginType": "isolated",
+               "positionSide": "BOTH"}
         with patch.object(self.engine.lab, "reconcile_forward_pending", return_value=outcome), \
              patch.object(self.engine, "_actual_rows", return_value=[row]):
             result = self.engine._recover_journal()

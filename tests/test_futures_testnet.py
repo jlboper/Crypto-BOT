@@ -58,6 +58,8 @@ class FuturesTestnetLabTests(unittest.TestCase):
                 "liquidationPrice": "70" if self.position_amt > 0 else "130",
                 "leverage": str(self.leverage),
                 "marginType": "isolated",
+                "positionSide": "BOTH",
+                "markPrice": "100",
             }]
         if endpoint == "/fapi/v1/positionSide/dual":
             return {"dualSidePosition": False} if method == "GET" else {"code": 200}
@@ -164,25 +166,51 @@ class FuturesTestnetLabTests(unittest.TestCase):
         self.assertEqual(self.position_amt, 0.0)
 
 
-    def test_forward_order_journal_survives_fill_until_business_commit(self):
-        def signed(method, endpoint, fields=None):
-            self.assertEqual((method, endpoint), ("POST", "/fapi/v1/order"))
-            return {
-                "symbol": fields["symbol"],
-                "clientOrderId": fields["newClientOrderId"],
-                "status": "FILLED",
-                "avgPrice": "100000",
-                "executedQty": fields["quantity"],
-                "orderId": 77,
-            }
-        with patch("trader.futures_testnet.signed_request", side_effect=signed):
+    def test_forward_open_forces_one_x_before_order_and_journal_survives_fill(self):
+        self.leverage = 2
+        with patch("trader.futures_testnet.signed_request", side_effect=self.signed):
             result = self.lab.forward_submit(
                 symbol="BTCUSDT", side="BUY", quantity=Decimal("0.001"), reduce_only=False
             )
         self.assertEqual(result["status"], "FILLED")
+        self.assertEqual(self.leverage, 1)
         pending = self.lab.ledger.setting("forward_pending_order")
         self.assertEqual(pending["symbol"], "BTCUSDT")
         self.assertFalse(pending["reduce_only"])
+
+    def test_forward_reduce_only_close_does_not_reconfigure_symbol(self):
+        self.position_amt = 0.001
+        self.leverage = 3
+        with patch.object(self.lab, "_configure", side_effect=AssertionError("close must not reconfigure")), \
+             patch("trader.futures_testnet.signed_request", side_effect=self.signed):
+            result = self.lab.forward_submit(
+                symbol="BTCUSDT", side="SELL", quantity=Decimal("0.001"), reduce_only=True
+            )
+        self.assertEqual(result["status"], "FILLED")
+        self.assertEqual(self.leverage, 3)
+
+    def test_known_isolated_forward_position_repairs_leverage_to_one_x(self):
+        self.position_amt = 0.1
+        self.leverage = 3
+        row = {
+            "symbol": "BTCUSDT", "positionAmt": "0.1", "entryPrice": "100",
+            "liquidationPrice": "70", "leverage": "3", "marginType": "isolated",
+            "positionSide": "BOTH",
+        }
+        with patch("trader.futures_testnet.signed_request", side_effect=self.signed):
+            refreshed = self.lab.ensure_forward_position_configuration("BTCUSDT", row)
+        self.assertEqual(self.leverage, 1)
+        self.assertEqual(int(refreshed["leverage"]), 1)
+
+    def test_open_forward_position_never_auto_repairs_cross_or_hedge_mode(self):
+        cross = {"symbol": "BTCUSDT", "positionAmt": "0.1", "leverage": "2",
+                 "marginType": "cross", "positionSide": "BOTH"}
+        with self.assertRaisesRegex(FuturesTestnetExecutionError, "margin is not isolated"):
+            self.lab.ensure_forward_position_configuration("BTCUSDT", cross)
+        hedge = {"symbol": "BTCUSDT", "positionAmt": "0.1", "leverage": "2",
+                 "marginType": "isolated", "positionSide": "LONG"}
+        with self.assertRaisesRegex(FuturesTestnetExecutionError, "ONE_WAY"):
+            self.lab.ensure_forward_position_configuration("BTCUSDT", hedge)
 
     def test_leverage_above_three_is_rejected_before_write(self):
         with self.assertRaisesRegex(ValueError, "1x, 2x or 3x"):

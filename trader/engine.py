@@ -44,7 +44,7 @@ class TradingEngine:
             # Protect holdings before universe/regime downloads can fail.
             held_symbols = [position.symbol for position in self.db.positions()]
             if held_symbols:
-                protective_prices = self.exchange.latest_prices(set(held_symbols))
+                protective_prices = self._position_execution_prices(held_symbols)
                 self._require_spot_prices(protective_prices, held_symbols)
                 self._manage_positions({}, protective_prices)
             symbols = self.exchange.top_usdt_symbols(self.config.bot.universe_size)
@@ -63,10 +63,12 @@ class TradingEngine:
                 self._require_spot_prices(prices, [*held_symbols, "BTCUSDT"])
             except Exception as exc:
                 raise RuntimeError("Fresh prices unavailable; entries blocked") from exc
-            self.db.record_market_snapshot(prices)
-            self._manage_positions(candle_map, prices)
+            held_symbols = [position.symbol for position in self.db.positions()]
+            execution_prices = self._position_execution_prices(held_symbols, prices)
+            self.db.record_market_snapshot(execution_prices)
+            self._manage_positions(candle_map, execution_prices)
             positions = self.db.positions()
-            equity, cash, exposure = self.broker.equity(prices)
+            equity, cash, exposure = self.broker.equity(execution_prices)
             self._prune_diagnostics_if_due()
             if self.killed():
                 self.db.record_equity(equity, cash, exposure, prices["BTCUSDT"])
@@ -97,7 +99,9 @@ class TradingEngine:
             opened: list[str] = []
             for signal in candidates:
                 positions = self.db.positions()
-                equity, cash, exposure = self.broker.equity(prices)
+                held_now = [position.symbol for position in positions]
+                valuation_prices = self._position_execution_prices(held_now, prices)
+                equity, cash, exposure = self.broker.equity(valuation_prices)
                 if len(positions) >= self.config.risk.max_positions:
                     break
                 if equity <= 0 or exposure / equity >= self.config.risk.max_total_exposure_pct:
@@ -132,7 +136,9 @@ class TradingEngine:
                 self.broker.buy(signal, quantity, f"score={signal.score}; AI={review.verdict}: {review.reason}")
                 opened.append(signal.symbol)
 
-            equity, cash, exposure = self.broker.equity(prices)
+            held_final = [position.symbol for position in self.db.positions()]
+            final_prices = self._position_execution_prices(held_final, prices)
+            equity, cash, exposure = self.broker.equity(final_prices)
             self.db.record_equity(equity, cash, exposure, prices["BTCUSDT"])
             self.db.event("INFO", f"Cycle complete: {len(symbols)} symbols, {len(candidates)} buys, opened {len(opened)}")
             self._errors = 0
@@ -184,6 +190,17 @@ class TradingEngine:
     @staticmethod
     def _valid_spot(price: object) -> bool:
         return type(price) in (int, float) and math.isfinite(price) and price > 0
+
+    def _position_execution_prices(self, symbols: list[str] | set[str] | tuple[str, ...],
+                                   base: dict[str, float] | None = None) -> dict[str, float]:
+        prices = dict(base or {})
+        if self.config.bot.mode != "testnet":
+            if not prices and symbols:
+                prices = self.exchange.latest_prices(set(symbols))
+            return prices
+        for symbol in symbols:
+            prices[symbol] = self.broker.execution_price(symbol)
+        return prices
 
     @classmethod
     def _require_spot_prices(cls, prices: dict[str, float], held_symbols: list[str]) -> None:
@@ -363,7 +380,7 @@ class TradingEngine:
         self._run_futures_forward_protection()
         symbols = {position.symbol for position in self.db.positions()}
         if symbols:
-            prices = self.exchange.latest_prices(symbols)
+            prices = self._position_execution_prices(symbols)
             self._require_spot_prices(prices, list(symbols))
             self._manage_positions({}, prices)
             self.db.record_market_snapshot(prices)
