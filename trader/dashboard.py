@@ -352,14 +352,17 @@ class DashboardServer:
                     self._json(list(reversed(outer.db.recent("equity", 300))))
                 elif path == "/api/futures-forward":
                     from .futures_testnet_ledger import FuturesTestnetLedger
-                    snapshot = FuturesTestnetLedger(outer.config.futures_testnet.database_path).forward_snapshot()
+                    from .portal_snapshot import _futures_pause_diagnostics
+                    ledger = FuturesTestnetLedger(outer.config.futures_testnet.database_path)
+                    snapshot = ledger.forward_snapshot()
                     self._json({
                         "enabled": bool(outer.config.bot.mode == "testnet" and outer.config.futures_testnet.forward_enabled),
                         "killed": outer.config.futures_testnet.kill_switch_path.exists(),
+                        "pause_diagnostics": _futures_pause_diagnostics(outer.config, ledger),
                         "symbols": list(outer.config.futures_testnet.forward_symbols),
                         "automatic_leverage": outer.config.futures_testnet.forward_leverage,
                         "ai_model": outer.config.ai.model,
-                        "last_ai_reviews": {symbol: FuturesTestnetLedger(outer.config.futures_testnet.database_path).setting(f"forward_last_ai_review_{symbol}") for symbol in outer.config.futures_testnet.forward_symbols},
+                        "last_ai_reviews": {symbol: ledger.setting(f"forward_last_ai_review_{symbol}") for symbol in outer.config.futures_testnet.forward_symbols},
                         "recovery": {
                             "durable_order_journal": True,
                             "startup_position_reconciliation": True,

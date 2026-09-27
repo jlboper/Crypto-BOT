@@ -19,6 +19,19 @@ from .runtime_control import RuntimeControl
 from .update_manager import atomic_json, release_id, verify
 
 
+def _unlink_with_retry(path, attempts=20, delay=0.05):
+    for attempt in range(attempts):
+        try:
+            path.unlink()
+            return
+        except FileNotFoundError:
+            return
+        except PermissionError:
+            if attempt + 1 >= attempts:
+                raise
+            time.sleep(delay)
+
+
 class ProcessRuntime:
     def __init__(self, root, python=None):
         self.root = root
@@ -164,7 +177,7 @@ class UpdateSupervisor:
                 self.manager.commit_pending(approved, lambda: self.ready(child, token, manifest['version'], 'candidate'))
                 # The durable commit precedes permission to execute financial cycles.
                 atomic_json(self.control.activation, {'token': token, 'release_id': approved})
-                self.control.maintenance.unlink()
+                _unlink_with_retry(self.control.maintenance)
                 self.wait_ready(child, token, manifest['version'], 'running')
                 atomic_json(self.record, {**state, 'phase': 'completed'})
                 return {'status': 'installed_healthy', 'version': manifest['version'], 'release_id': approved}

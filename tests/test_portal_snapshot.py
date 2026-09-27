@@ -10,6 +10,7 @@ from trader.config import load_config
 from trader.database import Database
 from trader.portal_snapshot import dashboard_snapshot, public_text
 from trader.paper_scorecard import paper_scorecard
+from trader.futures_testnet_ledger import FuturesTestnetLedger
 
 class PortalSnapshotTests(unittest.TestCase):
     def test_projection_reads_without_mutating_and_redacts_event_credentials(self):
@@ -40,6 +41,34 @@ class PortalSnapshotTests(unittest.TestCase):
             self.assertNotIn('TEST_CREDENTIAL',json.dumps(payload))
             self.assertNotIn('example.test',json.dumps(payload))
             self.assertEqual(path.read_bytes(),before)
+
+    def test_futures_pause_diagnostics_expose_bounded_remote_reason(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder)
+            spot=root/'spot.db'
+            futures=root/'futures.db'
+            kill=root/'FUTURES_KILL_SWITCH'
+            config=load_config()
+            config=replace(config,
+                bot=replace(config.bot,database_path=spot,kill_switch_path=root/'SPOT_KILL_SWITCH'),
+                futures_testnet=replace(config.futures_testnet,database_path=futures,kill_switch_path=kill))
+            db=Database(spot)
+            db.initialize_cash(1000)
+            db.record_equity(1000,1000,0)
+            ledger=FuturesTestnetLedger(futures)
+            ledger.set_setting('forward_consecutive_errors',3)
+            ledger.set_setting('forward_last_error',{'message':'Untracked Futures Demo position: SOLUSDT','at':'2026-09-27T16:40:24+00:00'})
+            ledger.set_setting('forward_pending_order',{'symbol':'SOLUSDT'})
+            kill.write_text('three consecutive Futures protection errors\n',encoding='utf-8')
+            payload=dashboard_snapshot(config,root/'missing.json')
+            diag=payload['futures_forward']['pause_diagnostics']
+            self.assertTrue(diag['active'])
+            self.assertEqual(diag['source'],'automatic_safety')
+            self.assertEqual(diag['label'],'3 errores consecutivos de protección Futures')
+            self.assertEqual(diag['consecutive_errors'],3)
+            self.assertTrue(diag['pending_reconciliation'])
+            self.assertEqual(diag['last_error']['message'],'Untracked Futures Demo position: SOLUSDT')
+            self.assertIsNotNone(diag['paused_at'])
 
     def test_known_credentials_are_removed_from_text(self):
         self.assertNotIn('abc123',public_text('sk-abc123'))

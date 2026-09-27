@@ -65,9 +65,17 @@ test('device sync accepts legacy and multi-asset Futures forward dashboard shape
     positions:[],position:null,trades:[],equity:[],closed_trades:0,gross_pnl:0,
     latest_signals:{},last_ai_reviews:{},shadow_scorecard:[],
     guardrails:{margin_type:'ISOLATED',position_mode:'ONE_WAY',max_positions:3},
-    recovery:{durable_order_journal:true},live_readiness:{enabled:false}
+    recovery:{durable_order_journal:true},live_readiness:{enabled:false},
+    pause_diagnostics:{active:true,label:'3 errores consecutivos de protección Futures',
+      detail:'three consecutive Futures protection errors',source:'automatic_safety',
+      paused_at:'2026-09-27T16:40:24+00:00',
+      last_error:{message:'Untracked Futures Demo position: SOLUSDT',at:'2026-09-27T16:40:20+00:00'},
+      consecutive_errors:3,pending_reconciliation:true}
   };
   assert.equal((await f.sync({snapshot:modern,acks:[]})).status,200);
+  const invalid=structuredClone(modern);
+  invalid.dashboard.futures_forward.pause_diagnostics.source='arbitrary';
+  assert.equal((await f.sync({snapshot:invalid,acks:[]})).status,400);
 });
 
 test('signed rollout automatically queues a newer bot release and does not downgrade',async t=>{
