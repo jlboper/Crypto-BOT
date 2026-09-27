@@ -112,6 +112,10 @@ function validateSnapshot(snapshot) {
         &&f.positions.every(p=>object(p)&&typeof p.symbol==='string'&&/^[A-Z0-9]{2,30}$/.test(p.symbol));
       if(f.pause_diagnostics!==undefined){
         const p=f.pause_diagnostics;
+        const validLastError=p.last_error===null||(object(p.last_error)
+          &&Object.keys(p.last_error).every(k=>['message','at'].includes(k))
+          &&typeof p.last_error.message==='string'&&p.last_error.message.length<=240
+          &&(p.last_error.at===null||(typeof p.last_error.at==='string'&&p.last_error.at.length<=40&&Number.isFinite(Date.parse(p.last_error.at)))));
         assert(object(p)&&Object.keys(p).every(k=>['active','label','detail','source','paused_at','last_error','consecutive_errors','pending_reconciliation'].includes(k))
           &&typeof p.active==='boolean'
           &&(p.label===null||(typeof p.label==='string'&&p.label.length<=240))
@@ -119,11 +123,7 @@ function validateSnapshot(snapshot) {
           &&(p.source===null||['manual','automatic_safety'].includes(p.source))
           &&(p.paused_at===null||(typeof p.paused_at==='string'&&p.paused_at.length<=40&&Number.isFinite(Date.parse(p.paused_at))))
           &&Number.isInteger(p.consecutive_errors)&&p.consecutive_errors>=0&&p.consecutive_errors<=100000
-          &&typeof p.pending_reconciliation==='boolean'
-          &&(p.last_error===null||(object(p.last_error)
-            &&Object.keys(p.last_error).every(k=>['message','at'].includes(k))
-            &&typeof p.last_error.message==='string'&&p.last_error.message.length<=240
-            &&(p.last_error.at===null||(typeof p.last_error.at==='string'&&p.last_error.at.length<=40&&Number.isFinite(Date.parse(p.last_error.at))))),
+          &&typeof p.pending_reconciliation==='boolean'&&validLastError,
           'Invalid Futures pause diagnostics');
       }
       assert(object(f)&&typeof f.enabled==='boolean'&&typeof f.killed==='boolean'
