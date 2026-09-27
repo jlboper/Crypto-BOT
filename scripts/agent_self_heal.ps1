@@ -36,31 +36,32 @@ if ($agentRoot -eq $source) { throw 'El agente remoto debe permanecer fuera de l
 $currentExecute = [Environment]::ExpandEnvironmentVariables([string]$task.Actions[0].Execute)
 $currentArgs = [string]$task.Actions[0].Arguments
 $agentScript = Join-Path $agentRoot 'scripts\windows_agent.py'
-$watchdog = Join-Path $source 'scripts\agent_watchdog.ps1'
 $runner = Join-Path $source 'scripts\refresh_independent_agent.py'
-if (-not (Test-Path -LiteralPath $agentScript) -or -not (Test-Path -LiteralPath $watchdog) -or -not (Test-Path -LiteralPath $runner)) {
+if (-not (Test-Path -LiteralPath $agentScript) -or -not (Test-Path -LiteralPath $runner)) {
     throw 'Faltan componentes firmados de recuperación del agente.'
 }
-$oldAction = ($currentExecute -match '(?i)pythonw?\.exe$' -and
-              $currentArgs.Contains($agentScript) -and $currentArgs.Contains($source) -and
-              $currentArgs.Contains('--autostart'))
-$newAction = ($currentExecute -match '(?i)powershell\.exe$' -and
-              $currentArgs.Contains($watchdog) -and $currentArgs.Contains($source) -and
-              $currentArgs.Contains($agentRoot))
-if (-not $oldAction -and -not $newAction) {
+
+# Accept both the legacy direct-python task and the temporary PowerShell watchdog
+# task so existing installations can migrate safely to the final direct-python model.
+$directAction = ($currentExecute -match '(?i)pythonw?\.exe$' -and
+                 $currentArgs.Contains($agentScript) -and $currentArgs.Contains($source) -and
+                 $currentArgs.Contains('--autostart'))
+$legacyWatchdogAction = ($currentExecute -match '(?i)powershell\.exe$' -and
+                         $currentArgs.Contains('agent_watchdog.ps1') -and
+                         $currentArgs.Contains($source) -and $currentArgs.Contains($agentRoot))
+if (-not $directAction -and -not $legacyWatchdogAction) {
     throw 'La tarea existente no coincide con un agente conocido; se requiere revisión local.'
 }
+
 $pythonw = ''
-if ($oldAction) {
+if ($directAction) {
     $pythonw = $currentExecute
 } elseif ($currentArgs -match '(?i)-PythonPath\s+"([^"]+)"') {
     $pythonw = [Environment]::ExpandEnvironmentVariables($Matches[1])
 }
 if (-not $pythonw -or -not (Test-Path -LiteralPath $pythonw)) {
-    $candidate = Get-Command pythonw.exe -ErrorAction SilentlyContinue
-    if ($candidate) { $pythonw = $candidate.Source }
+    throw 'No se encontró el runtime Python ya aprobado para el agente.'
 }
-if (-not $pythonw -or -not (Test-Path -LiteralPath $pythonw)) { throw 'No se encontró pythonw.exe para el agente.' }
 $python = if ($pythonw -match '(?i)pythonw\.exe$') { Join-Path (Split-Path -Parent $pythonw) 'python.exe' } else { $pythonw }
 if (-not (Test-Path -LiteralPath $python)) { throw 'No se encontró python.exe para verificar módulos firmados.' }
 
@@ -69,15 +70,11 @@ if ($LASTEXITCODE -ne 0) { throw 'No se pudo validar la instalación firmada ant
 $preview = (($previewRaw | Out-String) | ConvertFrom-Json)
 if ($preview.status -ne 'refresh_available') { throw 'El supervisor no encontró una instalación firmada comprometida.' }
 
-$powershell = (Get-Command powershell.exe -ErrorAction Stop).Source
-$watchdogArgs = '-NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File "' + $watchdog +
-                '" -SourcePath "' + $source + '" -AgentRoot "' + $agentRoot +
-                '" -PythonPath "' + $pythonw + '"'
-$newTaskAction = New-ScheduledTaskAction -Execute $powershell -Argument $watchdogArgs -WorkingDirectory $agentRoot
+$directArgs = '"' + $agentScript + '" --source "' + $source + '" --autostart'
+$newTaskAction = New-ScheduledTaskAction -Execute $pythonw -Argument $directArgs -WorkingDirectory $agentRoot
 $settings = New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -ExecutionTimeLimit ([TimeSpan]::Zero) `
     -RestartCount 999 -RestartInterval (New-TimeSpan -Minutes 1) -AllowStartIfOnBatteries `
     -DontStopIfGoingOnBatteries -StartWhenAvailable
-$taskNeedsUpgrade = -not $newAction
 
 $state = Join-Path $agentRoot 'data'
 New-Item -ItemType Directory -Force -Path $state | Out-Null
@@ -88,19 +85,20 @@ $previousSuccess = 0
 if (Test-Path -LiteralPath $statusFile) {
     try { $previousSuccess = [double]((Get-Content -LiteralPath $statusFile -Raw | ConvertFrom-Json).last_success) } catch { }
 }
+
 Write-HealState 'stopping_agent'
 Set-Content -LiteralPath $repairMarker -Value 'signed self-heal' -Encoding utf8
 Set-Content -LiteralPath $stopMarker -Value 'refresh outbound agent only' -Encoding utf8
 $result = $null
 try {
-    for ($attempt=0; $attempt -lt 240; $attempt++) {
-        if ((Get-ScheduledTask -TaskName $taskName).State -ne 'Running') { break }
-        Start-Sleep -Milliseconds 500
-    }
     if ((Get-ScheduledTask -TaskName $taskName).State -eq 'Running') {
         Stop-ScheduledTask -TaskName $taskName -ErrorAction Stop
-        Start-Sleep -Seconds 1
     }
+    # A legacy watchdog may have left pythonw detached from Task Scheduler.
+    # The cooperative stop marker lets that process exit without killing an
+    # unrelated PID.
+    Start-Sleep -Seconds 3
+
     Write-HealState 'refreshing_modules'
     if ($preview.changes.Count -gt 0) {
         $appliedRaw = & $python $runner --source $source --agent-root $agentRoot --apply
@@ -108,8 +106,13 @@ try {
         $result = (($appliedRaw | Out-String) | ConvertFrom-Json)
         if ($result.status -notin @('refreshed','already_current')) { throw 'El refresco del agente no fue confirmado.' }
     } else {
-        $result = [PSCustomObject]@{ status='restarted'; backup=$null }
+        $result = [PSCustomObject]@{ status='already_current'; backup=$null }
     }
+
+    # Reconfigure while the task is stopped. Rewriting a running task can
+    # terminate its PowerShell host and orphan the child agent.
+    Write-HealState 'configuring_task'
+    Set-ScheduledTask -TaskName $taskName -Action $newTaskAction -Trigger @($task.Triggers) -Settings $settings | Out-Null
 } catch {
     Write-HealState 'failed' $_.Exception.GetType().Name
     throw
@@ -118,47 +121,39 @@ try {
     Remove-Item -LiteralPath $stopMarker -ErrorAction SilentlyContinue
 }
 
-# Recover connectivity with the already-known task definition first. Task hardening
-# must never be allowed to block the outbound channel.
 Write-HealState 'starting_agent'
-if ((Get-ScheduledTask -TaskName $taskName).State -ne 'Running') {
-    Start-ScheduledTask -TaskName $taskName -ErrorAction Stop
-}
-$connected = $false
+Start-ScheduledTask -TaskName $taskName -ErrorAction Stop
+
+# Require two distinct successful HTTPS heartbeats after the restart and keep
+# the task itself Running. One successful sync is not enough to call this healthy.
+$successes = 0
+$lastSeenSuccess = $previousSuccess
 $mode = $null
 for ($attempt=0; $attempt -lt 120; $attempt++) {
+    $taskState = (Get-ScheduledTask -TaskName $taskName).State
     if (Test-Path -LiteralPath $statusFile) {
         try {
             $status = Get-Content -LiteralPath $statusFile -Raw | ConvertFrom-Json
-            if ($status.sync_ok -eq $true -and [double]$status.last_success -gt $previousSuccess) {
-                $connected = $true
+            $successAt = [double]$status.last_success
+            if ($taskState -eq 'Running' -and $status.sync_ok -eq $true -and $successAt -gt $lastSeenSuccess) {
+                $successes++
+                $lastSeenSuccess = $successAt
                 $mode = $status.mode
-                break
+                if ($successes -ge 2) { break }
             }
         } catch { }
     }
     Start-Sleep -Seconds 1
 }
-if (-not $connected) {
-    Write-HealState 'connection_pending'
-    [PSCustomObject]@{ status='connection_pending'; version=$preview.version; restart_policy='unchanged';
-        agent_refresh=$result.status } | ConvertTo-Json -Compress
+if ($successes -lt 2 -or (Get-ScheduledTask -TaskName $taskName).State -ne 'Running') {
+    Write-HealState 'connection_pending' ('heartbeats=' + $successes)
+    [PSCustomObject]@{ status='connection_pending'; version=$preview.version; restart_policy=999;
+        heartbeats=$successes; agent_refresh=$result.status } | ConvertTo-Json -Compress
     exit 0
 }
 
-# Only after the channel is healthy do we harden the next invocation. Failure here
-# is non-fatal: the connected refreshed agent remains alive and visible.
-$taskUpgrade = 'already_hardened'
-try {
-    # Rewrite the action every time after connectivity is healthy so old visible
-    # PowerShell task definitions are normalized to the hidden watchdog form.
-    Set-ScheduledTask -TaskName $taskName -Action $newTaskAction -Trigger @($task.Triggers) -Settings $settings | Out-Null
-    $taskUpgrade = if ($taskNeedsUpgrade) { 'upgraded' } else { 'normalized_hidden' }
-} catch {
-    $taskUpgrade = 'pending'
-}
-Write-HealState 'healthy' $taskUpgrade
+Write-HealState 'healthy' 'direct_pythonw'
 [PSCustomObject]@{ status='healthy'; version=$preview.version; mode=$mode;
-    restart_policy=if($taskUpgrade -eq 'pending'){'current'}else{999};
-    task_upgrade=$taskUpgrade; agent_refresh=$result.status } | ConvertTo-Json -Compress
+    restart_policy=999; task_upgrade='direct_pythonw'; heartbeats=$successes;
+    agent_refresh=$result.status } | ConvertTo-Json -Compress
 exit 0
