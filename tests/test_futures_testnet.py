@@ -164,25 +164,28 @@ class FuturesTestnetLabTests(unittest.TestCase):
         self.assertEqual(self.position_amt, 0.0)
 
 
-    def test_forward_order_journal_survives_fill_until_business_commit(self):
-        def signed(method, endpoint, fields=None):
-            self.assertEqual((method, endpoint), ("POST", "/fapi/v1/order"))
-            return {
-                "symbol": fields["symbol"],
-                "clientOrderId": fields["newClientOrderId"],
-                "status": "FILLED",
-                "avgPrice": "100000",
-                "executedQty": fields["quantity"],
-                "orderId": 77,
-            }
-        with patch("trader.futures_testnet.signed_request", side_effect=signed):
+    def test_forward_open_forces_one_x_before_order_and_journal_survives_fill(self):
+        self.leverage = 2
+        with patch("trader.futures_testnet.signed_request", side_effect=self.signed):
             result = self.lab.forward_submit(
                 symbol="BTCUSDT", side="BUY", quantity=Decimal("0.001"), reduce_only=False
             )
         self.assertEqual(result["status"], "FILLED")
+        self.assertEqual(self.leverage, 1)
         pending = self.lab.ledger.setting("forward_pending_order")
         self.assertEqual(pending["symbol"], "BTCUSDT")
         self.assertFalse(pending["reduce_only"])
+
+    def test_forward_reduce_only_close_does_not_reconfigure_symbol(self):
+        self.position_amt = 0.001
+        self.leverage = 3
+        with patch.object(self.lab, "_configure", side_effect=AssertionError("close must not reconfigure")), \
+             patch("trader.futures_testnet.signed_request", side_effect=self.signed):
+            result = self.lab.forward_submit(
+                symbol="BTCUSDT", side="SELL", quantity=Decimal("0.001"), reduce_only=True
+            )
+        self.assertEqual(result["status"], "FILLED")
+        self.assertEqual(self.leverage, 3)
 
     def test_leverage_above_three_is_rejected_before_write(self):
         with self.assertRaisesRegex(ValueError, "1x, 2x or 3x"):
