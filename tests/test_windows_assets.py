@@ -108,6 +108,12 @@ class WindowsAssetTests(unittest.TestCase):
         self.assertIn(".brand{display:flex;align-items:center", css)
         self.assertIn(".brand-mark{float:none;margin:0;flex:0 0 44px}", css)
 
+    def test_portal_declares_multi_asset_forward_positions_before_render(self):
+        app = (PROJECT_ROOT / "web" / "app.js").read_text(encoding="utf-8")
+        declaration = "const forwardPositions=Array.isArray(futuresForward?.positions)?futuresForward.positions:[];"
+        self.assertIn(declaration, app)
+        self.assertLess(app.index(declaration), app.index("forwardPositions.length"))
+
     def test_portal_keeps_spot_and_futures_detail_panels_in_parity(self):
         html = (PROJECT_ROOT / "web" / "index.html").read_text(encoding="utf-8")
         app = (PROJECT_ROOT / "web" / "app.js").read_text(encoding="utf-8")
