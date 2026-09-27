@@ -104,7 +104,8 @@ class FuturesTestnetSettings:
     position_mode: str
     smoke_margin_usdt: float
     forward_enabled: bool
-    forward_symbol: str
+    forward_symbols: tuple[str, ...]
+    forward_max_positions: int
     forward_leverage: int
     forward_margin_usdt: float
     forward_min_score: int
@@ -196,7 +197,11 @@ def load_config(path: str | Path | None = None) -> AppConfig:
     # Runtime pausing uses the dedicated Futures kill switch. A stale local
     # FUTURES_FORWARD_ENABLED override must not silently disable the motor.
     futures_forward_enabled = mode == "testnet" or bool(futures_testnet.get("forward_enabled", False))
-    futures_forward_symbol = str(futures_testnet.get("forward_symbol", "BTCUSDT")).upper()
+    raw_forward_symbols = futures_testnet.get("forward_symbols", [futures_testnet.get("forward_symbol", "BTCUSDT")])
+    if not isinstance(raw_forward_symbols, list) or not raw_forward_symbols:
+        raise ValueError("Futures forward symbols must be a non-empty list")
+    futures_forward_symbols = tuple(dict.fromkeys(str(value).upper() for value in raw_forward_symbols))
+    futures_forward_max_positions = int(futures_testnet.get("forward_max_positions", len(futures_forward_symbols)))
     futures_forward_leverage = int(futures_testnet.get("forward_leverage", 1))
     futures_forward_margin = float(futures_testnet.get("forward_margin_usdt", 10.0))
     futures_forward_min_score = int(futures_testnet.get("forward_min_score", 75))
@@ -209,8 +214,11 @@ def load_config(path: str | Path | None = None) -> AppConfig:
         raise ValueError("Futures Testnet must remain ISOLATED and ONE_WAY")
     if not math.isfinite(futures_smoke_margin) or not 5 <= futures_smoke_margin <= 25:
         raise ValueError("Invalid Futures Testnet smoke margin")
-    if futures_forward_symbol != "BTCUSDT":
-        raise ValueError("Futures forward test is initially restricted to BTCUSDT")
+    allowed_forward_symbols = {"BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT"}
+    if any(symbol not in allowed_forward_symbols for symbol in futures_forward_symbols):
+        raise ValueError("Unsupported Futures forward symbol")
+    if not 1 <= futures_forward_max_positions <= len(futures_forward_symbols):
+        raise ValueError("Invalid Futures forward max positions")
     if futures_forward_leverage != 1:
         raise ValueError("Automatic Futures forward test must stay at 1x")
     if not math.isfinite(futures_forward_margin) or not 5 <= futures_forward_margin <= 100:
@@ -259,7 +267,8 @@ def load_config(path: str | Path | None = None) -> AppConfig:
             position_mode=futures_position_mode,
             smoke_margin_usdt=futures_smoke_margin,
             forward_enabled=futures_forward_enabled,
-            forward_symbol=futures_forward_symbol,
+            forward_symbols=futures_forward_symbols,
+            forward_max_positions=futures_forward_max_positions,
             forward_leverage=futures_forward_leverage,
             forward_margin_usdt=futures_forward_margin,
             forward_min_score=futures_forward_min_score,
