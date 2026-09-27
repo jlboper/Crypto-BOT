@@ -104,19 +104,6 @@ class BinanceTestnetBroker(PaperBroker):
         raise TestnetExecutionError(f"Testnet {asset} balance unavailable")
 
     def _normalize_fill_with_trades(self, response: dict, pending: dict) -> dict:
-        normalized = self._normalize_fill_with_trades(response, pending)
-        return normalized
-
-    def reconcile_pending(self) -> bool:
-        """Return True only when no unresolved exchange write remains."""
-        pending = self._pending()
-        if not pending:
-            return True
-        response = signed_request(
-            "GET",
-            "/api/v3/order",
-            {"symbol": pending["symbol"], "origClientOrderId": pending["client_order_id"]},
-        )
         normalized = self._safe_fill(response, pending)
         if (normalized["status"] in TERMINAL and Decimal(normalized["executed_qty"]) > 0
                 and not response.get("fills")):
@@ -129,7 +116,19 @@ class BinanceTestnetBroker(PaperBroker):
                 raise TestnetExecutionError("Testnet trade fills unavailable for reconciliation")
             response = {**response, "fills": trades}
             normalized = self._safe_fill(response, pending)
-        pending.update(normalized)
+        return normalized
+
+    def reconcile_pending(self) -> bool:
+        """Return True only when no unresolved exchange write remains."""
+        pending = self._pending()
+        if not pending:
+            return True
+        response = signed_request(
+            "GET",
+            "/api/v3/order",
+            {"symbol": pending["symbol"], "origClientOrderId": pending["client_order_id"]},
+        )
+        pending.update(self._normalize_fill_with_trades(response, pending))
         self._save_pending(pending)
         if pending["status"] in {"NEW", "PARTIALLY_FILLED"}:
             return False
