@@ -17,3 +17,9 @@ test('CI fails closed for pending migrations and rolls back failed health',()=>{
   assert.match(deploy,/attempt<8/);
 });
 
+
+test('production approval is blocked by bot release version preflight',()=>{
+  assert.match(workflow,/Check bot release version consistency before approval/);
+  assert.match(workflow,/node scripts\/check_bot_release_consistency\.mjs/);
+  assert.ok(workflow.indexOf('Check bot release version consistency before approval') < workflow.indexOf('environment: portal-production'));
+});
