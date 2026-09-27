@@ -1,3 +1,11 @@
+# Actualización 0.8.10 — runtime correcto para el updater local de Windows
+
+- Corrige el `ModuleNotFoundError` del centro local de actualizaciones después de introducir el watchdog PowerShell.
+- Si la tarea `Crypto Paper Portal Agent` ejecuta `powershell.exe`, el updater extrae el `-PythonPath` firmado/configurado en los argumentos de la tarea y deriva el `python.exe` correspondiente.
+- El updater deja de caer silenciosamente a `py -3` u otro Python del sistema, evitando ejecutar el supervisor con un entorno sin sus dependencias.
+- Si no puede identificar el runtime exacto del supervisor, falla de forma cerrada con un mensaje claro en vez de intentar otro intérprete.
+- No cambia estrategia, señales, riesgo, leverage, sizing, IA, credenciales, ledgers ni LIVE.
+
 # Actualización 0.8.9 — recuperación del agente y diagnóstico persistente
 
 - Corrige un defecto de 0.8.8 donde la autoreparación podía intentar modificar la tarea programada antes de recuperar la conexión HTTPS. Si Windows rechazaba esa modificación, el proceso terminaba antes de refrescar/reiniciar el agente.
