@@ -25,10 +25,12 @@ class FuturesForwardEngine:
 
     def killed(self)->bool: return self.settings.kill_switch_path.exists()
 
-    def _halt(self,reason:str)->None:
+    def _halt(self,reason:str,*,overwrite_last_error:bool=True)->None:
         self.settings.kill_switch_path.parent.mkdir(parents=True,exist_ok=True)
-        self.settings.kill_switch_path.write_text(str(reason)[:200]+"\n",encoding="utf-8")
-        self.ledger.set_setting("forward_last_error",{"message":str(reason)[:200],"at":datetime.now(UTC).isoformat()})
+        if not self.settings.kill_switch_path.exists():
+            self.settings.kill_switch_path.write_text(str(reason)[:200]+"\n",encoding="utf-8")
+        if overwrite_last_error:
+            self.ledger.set_setting("forward_last_error",{"message":str(reason)[:200],"at":datetime.now(UTC).isoformat()})
 
     def _signal(self,candles:list[Candle])->dict:
         s=self.config.strategy
