@@ -9,8 +9,10 @@ from __future__ import annotations
 from decimal import Decimal, ROUND_CEILING, ROUND_DOWN
 import math
 import secrets
+import time
 
 from .futures_testnet_ledger import FuturesTestnetLedger
+from .domain import Candle
 from .futures_testnet_transport import (
     FuturesTestnetExecutionError,
     public_request,
@@ -144,6 +146,42 @@ class FuturesTestnetLab:
         if row is None:
             raise FuturesTestnetExecutionError("Futures Testnet symbol unavailable")
         return row
+
+    @staticmethod
+    def candles(symbol: str, interval: str, limit: int = 250) -> list[Candle]:
+        payload = public_request("GET", "/fapi/v1/klines", {
+            "symbol": symbol,
+            "interval": interval,
+            "limit": limit,
+        })
+        if not isinstance(payload, list):
+            raise FuturesTestnetExecutionError("Invalid Futures Testnet kline response")
+        now_ms = int(time.time() * 1000)
+        rows: list[Candle] = []
+        for row in payload:
+            if not isinstance(row, list) or len(row) < 7:
+                continue
+            candle = Candle(
+                open_time=int(row[0]),
+                open=float(row[1]),
+                high=float(row[2]),
+                low=float(row[3]),
+                close=float(row[4]),
+                volume=float(row[5]),
+                close_time=int(row[6]),
+            )
+            if candle.close_time >= now_ms:
+                continue
+            if not all(math.isfinite(v) for v in (candle.open, candle.high, candle.low, candle.close, candle.volume)):
+                raise FuturesTestnetExecutionError("Invalid Futures Testnet OHLCV data")
+            if not 0 < candle.low <= min(candle.open, candle.close) <= max(candle.open, candle.close) <= candle.high:
+                raise FuturesTestnetExecutionError("Invalid Futures Testnet OHLCV range")
+            if candle.volume < 0:
+                raise FuturesTestnetExecutionError("Invalid Futures Testnet volume")
+            rows.append(candle)
+        if any(b.open_time <= a.open_time for a, b in zip(rows, rows[1:])):
+            raise FuturesTestnetExecutionError("Unordered Futures Testnet candles")
+        return rows
 
     @staticmethod
     def _reference(symbol: str) -> tuple[Decimal, float | None]:
