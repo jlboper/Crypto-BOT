@@ -78,6 +78,49 @@ class FuturesForwardTests(unittest.TestCase):
             with self.assertRaisesRegex(FuturesTestnetExecutionError, "mark price unavailable"):
                 self.engine.protection_tick()
 
+    def test_cross_margin_repair_flattens_only_tracked_position_and_restores_one_x(self):
+        local = {
+            "symbol": "SOLUSDT", "direction": "LONG", "leverage": 1,
+            "quantity": 0.1, "entry_price": 100.0, "stop_price": 95.0,
+            "take_profit": 110.0, "liquidation_price": 50.0,
+            "signal_score": 80, "opened_at": "2026-09-27T00:00:00+00:00",
+        }
+        self.engine.ledger.set_forward_position(local)
+        row = {
+            "symbol": "SOLUSDT", "positionAmt": "0.1", "entryPrice": "100",
+            "leverage": "1", "marginType": "cross", "positionSide": "BOTH",
+        }
+        order = {"clientOrderId": "repair-close", "avgPrice": "101",
+                 "executedQty": "0.1", "status": "FILLED"}
+        with patch.object(self.engine.lab, "forward_submit", return_value=order) as submit, \
+             patch.object(self.engine, "_actual_rows", return_value=[]), \
+             patch.object(self.engine.lab, "_execution_price", return_value=101), \
+             patch.object(self.engine.lab, "_configure") as configure:
+            closed = self.engine._repair_cross_position(local, row)
+        submit.assert_called_once_with(symbol="SOLUSDT", side="SELL", quantity=__import__("decimal").Decimal("0.1"), reduce_only=True)
+        configure.assert_called_once_with("SOLUSDT", 1)
+        self.assertIsNone(self.engine.ledger.forward_position("SOLUSDT"))
+        self.assertEqual(closed["exit_reason"], "CONFIG_REPAIR")
+        self.assertEqual(self.engine.ledger.setting("forward_last_config_repair")["symbol"], "SOLUSDT")
+
+    def test_cross_margin_repair_refuses_identity_or_hedge_mismatch_before_order(self):
+        local = {
+            "symbol": "SOLUSDT", "direction": "LONG", "leverage": 1,
+            "quantity": 0.1, "entry_price": 100.0, "stop_price": 95.0,
+            "take_profit": 110.0, "liquidation_price": 50.0,
+            "signal_score": 80, "opened_at": "2026-09-27T00:00:00+00:00",
+        }
+        wrong = {"symbol": "SOLUSDT", "positionAmt": "-0.1", "leverage": "1",
+                 "marginType": "cross", "positionSide": "BOTH"}
+        hedge = {"symbol": "SOLUSDT", "positionAmt": "0.1", "leverage": "1",
+                 "marginType": "cross", "positionSide": "LONG"}
+        with patch.object(self.engine.lab, "forward_submit") as submit:
+            with self.assertRaisesRegex(FuturesTestnetExecutionError, "identity mismatch"):
+                self.engine._repair_cross_position(local, wrong)
+            with self.assertRaisesRegex(FuturesTestnetExecutionError, "ONE_WAY"):
+                self.engine._repair_cross_position(local, hedge)
+            submit.assert_not_called()
+
     def test_signal_supports_long_and_short_symmetrically(self):
         long_signal = self.engine._signal(self.candles(True))
         short_signal = self.engine._signal(self.candles(False))
