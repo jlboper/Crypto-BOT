@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import tomllib
 import subprocess
@@ -38,6 +39,35 @@ def discover_agent_root() -> Path:
     return path
 
 
+def discover_agent_python() -> Path:
+    if sys.platform != "win32":
+        raise RuntimeError("Automatic supervisor runtime discovery requires Windows")
+    result = subprocess.run(
+        ["schtasks.exe", "/Query", "/TN", "Crypto Paper Portal Agent", "/XML"],
+        stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, check=False,
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+    )
+    if result.returncode != 0 or not result.stdout:
+        raise FileNotFoundError("Independent supervisor task not found")
+    root = ET.fromstring(result.stdout.decode("utf-16", errors="strict"))
+    ns = {"t": "http://schemas.microsoft.com/windows/2004/02/mit/task"}
+    execute = root.findtext(".//t:Exec/t:Command", namespaces=ns) or ""
+    arguments = root.findtext(".//t:Exec/t:Arguments", namespaces=ns) or ""
+    executable = Path(os.path.expandvars(execute.strip('"')))
+    if executable.name.lower() == "pythonw.exe":
+        candidate = executable.with_name("python.exe")
+    elif executable.name.lower() == "python.exe":
+        candidate = executable
+    else:
+        import re
+        match = re.search(r'(?i)-PythonPath\s+"([^"]+)"', arguments)
+        if not match:
+            raise FileNotFoundError("Independent supervisor runtime unavailable")
+        configured = Path(os.path.expandvars(match.group(1)))
+        candidate = configured.with_name("python.exe") if configured.name.lower() == "pythonw.exe" else configured
+    return candidate.resolve(strict=True)
+
+
 def channel(source: Path, agent_root: Path):
     from trader.update_manager import UpdateManager
     source = source.resolve(strict=True)
@@ -58,31 +88,37 @@ def channel(source: Path, agent_root: Path):
     return UpdateManager(source, key, state_dir=agent_root / 'data/remote-updates'), settings
 
 
-def staged(manager) -> dict:
+def staged(manager, *, allow_current: bool = False) -> dict:
     from trader.update_manager import release_id, verify
     package = manager.state / 'staged.zip'
     envelope = manager.state / 'staged.zip.manifest.json'
     minimum = json.loads(manager.sequence.read_text())['sequence'] if manager.sequence.exists() else 0
-    manifest = verify(package, envelope, manager.public_key, minimum)
+    verification_minimum = minimum - 1 if allow_current and minimum > 0 else minimum
+    manifest = verify(package, envelope, manager.public_key, verification_minimum)
     installed = tomllib.loads((manager.root / 'pyproject.toml').read_text(encoding='utf-8'))['project']['version']
-    if tuple(map(int, manifest['version'].split('.'))) <= tuple(map(int, installed.split('.'))):
+    candidate = tuple(map(int, manifest['version'].split('.')))
+    active = tuple(map(int, installed.split('.')))
+    if candidate < active:
+        raise ValueError('Signed release is older than the installed version')
+    if candidate == active and not allow_current:
         raise ValueError('Signed release is not newer than the installed version')
     if manifest.get('runtime_protocol') != 1 or 'trader/runtime_control.py' not in manifest['files']:
         raise ValueError('Signed release lacks supervised runtime')
     return {'version': manifest['version'], 'release_id': release_id(manifest),
-            'commit': manifest.get('commit'), 'package': package, 'envelope': envelope}
+            'commit': manifest.get('commit'), 'package': package, 'envelope': envelope,
+            'current': candidate == active}
 
 
 def run(source: Path, action: str, approved: str | None = None, *, agent_root: Path = ROOT) -> dict:
     from trader.update_supervisor import UpdateSupervisor
     manager, settings = channel(source, agent_root)
     if action == 'check-online':
-        manager.stage(settings['manifest_url'])
-    info = staged(manager)
+        manager.stage(settings['manifest_url'], allow_current=True)
+    info = staged(manager, allow_current=action != 'install')
     if action != 'install':
-        return {'status': 'verified_local_package', 'version': info['version'],
-                'release_id': info['release_id'], 'commit': info['commit'],
-                'order_submission_enabled': False}
+        return {'status': 'up_to_date' if info['current'] else 'verified_local_package',
+                'version': info['version'], 'release_id': info['release_id'],
+                'commit': info['commit'], 'order_submission_enabled': False}
     if approved != info['release_id']:
         raise ValueError('Exact signed release approval required')
     # The supervisor re-verifies the signature/hash and all runtime gates.
@@ -127,6 +163,17 @@ def main() -> None:
     if args.delay_seconds:
         import time
         time.sleep(args.delay_seconds)
+    if sys.platform == "win32":
+        supervisor_python = discover_agent_python()
+        current_python = Path(sys.executable).resolve()
+        if current_python != supervisor_python:
+            completed = subprocess.run(
+                [str(supervisor_python), str(Path(__file__).resolve()), *sys.argv[1:]],
+                stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            )
+            sys.stdout.buffer.write(completed.stdout)
+            raise SystemExit(completed.returncode)
     agent_root = args.agent_root.resolve(strict=True) if args.agent_root else discover_agent_root()
     if not (agent_root / 'scripts/windows_agent.py').is_file():
         raise SystemExit('Independent supervisor not found')

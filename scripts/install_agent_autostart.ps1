@@ -12,12 +12,10 @@ $portalUser = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
 if (-not $portalPython -or -not (Test-Path -LiteralPath $portalPython)) { throw 'Pass -PythonPath with the reviewed pythonw.exe runtime' }
 $portalExisting = Get-ScheduledTask -TaskName $portalTaskName -ErrorAction SilentlyContinue
 if ($portalExisting) { throw 'Task already exists; inspect it before changing it' }
-$watchdog = Join-Path $portalSource 'scripts\agent_watchdog.ps1'
-if (-not (Test-Path -LiteralPath $watchdog)) { throw 'Falta el watchdog firmado del agente.' }
-$powershell = (Get-Command powershell.exe -ErrorAction Stop).Source
-$portalArguments = '-NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File "' + $watchdog +
-    '" -SourcePath "' + $portalSource + '" -AgentRoot "' + $portalRoot + '" -PythonPath "' + $portalPython + '"'
-$portalAction = New-ScheduledTaskAction -Execute $powershell -Argument $portalArguments -WorkingDirectory $portalRoot
+$agentScript = Join-Path $portalRoot 'scripts\windows_agent.py'
+if (-not (Test-Path -LiteralPath $agentScript)) { throw 'Falta windows_agent.py en el supervisor independiente.' }
+$portalArguments = '"' + $agentScript + '" --source "' + $portalSource + '" --autostart'
+$portalAction = New-ScheduledTaskAction -Execute $portalPython -Argument $portalArguments -WorkingDirectory $portalRoot
 $portalTrigger = New-ScheduledTaskTrigger -AtLogOn -User $portalUser
 $portalTrigger.Delay = 'PT30S'
 $portalPrincipal = New-ScheduledTaskPrincipal -UserId $portalUser -LogonType Interactive -RunLevel Limited

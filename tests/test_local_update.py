@@ -56,6 +56,13 @@ class LocalUpdateTests(unittest.TestCase):
         self.assertFalse(result['order_submission_enabled'])
         self.assertEqual((self.source/'pyproject.toml').read_text(), '[project]\nversion="0.6.11"\n')
 
+    def test_current_signed_release_is_reported_as_up_to_date(self):
+        (self.source / 'pyproject.toml').write_text('[project]\nversion="0.6.12"\n', encoding='utf-8')
+        with patch('trader.update_manager.UpdateManager.stage', return_value={'status': 'staged_current'}):
+            result = run(self.source, 'check-online', agent_root=self.agent)
+        self.assertEqual(result['status'], 'up_to_date')
+        self.assertEqual(result['version'], '0.6.12')
+
     def test_exact_release_is_required_and_supervisor_is_the_only_installer(self):
         with patch('trader.update_supervisor.UpdateSupervisor') as supervisor:
             with self.assertRaisesRegex(ValueError, 'Exact signed release'):
@@ -82,6 +89,12 @@ class LocalUpdateTests(unittest.TestCase):
         result = run(self.source, 'check-offline', agent_root=self.agent)
         self.assertEqual(result['version'], '0.6.12')
         self.assertFalse(result['order_submission_enabled'])
+
+    def test_windows_entrypoint_can_relaunch_on_supervisor_runtime(self):
+        source = (Path(__file__).resolve().parents[1] / 'scripts' / 'local_update.py').read_text(encoding='utf-8')
+        self.assertIn('def discover_agent_python()', source)
+        self.assertIn('current_python != supervisor_python', source)
+        self.assertIn('CREATE_NO_WINDOW', source)
 
     def test_failure_codes_are_actionable_without_exposing_raw_details(self):
         self.assertEqual(failure_code(RuntimeError('Recover previous maintenance before installing')), 'MAINTENANCE_PENDING')

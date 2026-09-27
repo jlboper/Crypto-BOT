@@ -1,3 +1,16 @@
+# Actualización 0.8.13 — arquitectura Windows estable sin PowerShell en el agente
+
+- Corrige la causa demostrada del supervisor inestable: el self-heal podía arrancar el watchdog y luego reescribir la tarea con `Set-ScheduledTask`, terminando el host PowerShell con `0xC000013A` y dejando `pythonw.exe` huérfano.
+- La tarea `Crypto Paper Portal Agent` pasa a ejecutar **`pythonw.exe windows_agent.py` directamente**. PowerShell deja de formar parte de la ruta normal del agente remoto.
+- Task Scheduler conserva `RestartCount=999`, por lo que si el agente termina, Windows lo relanza sin abrir consola.
+- El self-heal ahora sigue un orden cerrado: detener agente → refrescar módulos firmados → reconfigurar la tarea mientras está detenida → arrancar → exigir **dos heartbeats HTTPS consecutivos** con la tarea en estado `Running`.
+- Un único heartbeat ya no basta para declarar el agente saludable.
+- El updater local se relanza automáticamente con el **mismo Python del supervisor** aunque lo invoque la app o el portal local, eliminando diferencias de runtime y errores de dependencias.
+- Buscar actualizaciones estando en la release actual devuelve **`up_to_date` / “Ya estás actualizado”** en vez de `LOCAL_VALIDATION_FAILED`.
+- El portal local acepta ese estado como éxito y no muestra 503 por estar ya actualizado.
+- Mantiene firma Ed25519, hash, secuencia anti-downgrade, health-check, rollback, ledgers y credenciales sin cambios.
+- No cambia estrategia, señales, riesgo, leverage, sizing, IA ni LIVE.
+
 # Actualización 0.8.12 — cierre de dependencias del supervisor Windows
 
 - Corrige el `ModuleNotFoundError` persistente del updater/agente independiente.

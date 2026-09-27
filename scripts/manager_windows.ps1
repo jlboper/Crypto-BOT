@@ -112,6 +112,15 @@ function Show-LocalUpdateCenter {
     $updateButton.Enabled = $false
     try {
         $verified = Invoke-LocalSignedUpdate -Action $action
+        if ($verified.status -eq 'up_to_date') {
+            [System.Windows.Forms.MessageBox]::Show(
+                "Ya estás actualizado. Versión instalada y firma verificada: $($verified.version).",
+                'Centro de actualizaciones local',
+                [System.Windows.Forms.MessageBoxButtons]::OK,
+                [System.Windows.Forms.MessageBoxIcon]::Information
+            ) | Out-Null
+            return
+        }
         $confirmation = [System.Windows.Forms.MessageBox]::Show(
             "Paquete firmado verificado: versión $($verified.version).`nIdentificación: $($verified.release_id)`nRevisión: $($verified.commit)`n`n¿Instalar esta versión exacta? El supervisor comprobará el arranque del motor activo y conservará la recuperación automática.",
             'Aprobar versión local exacta',

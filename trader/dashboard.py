@@ -156,9 +156,9 @@ class DashboardServer:
                             if result.returncode != 0 or len(result.stdout) > 8192:
                                 raise RuntimeError("Local update verification failed")
                             verified = json.loads(result.stdout)
-                            if verified.get("status") != "verified_local_package":
+                            if verified.get("status") not in {"verified_local_package", "up_to_date"}:
                                 raise RuntimeError("Local update verification failed")
-                            self._json({**verified, "enabled": True})
+                            self._json({**verified, "enabled": verified.get("status") == "verified_local_package"})
                         else:
                             release_id = payload.get("release_id")
                             if set(payload) != {"release_id"} or not isinstance(release_id, str) or len(release_id) != 64 or any(ch not in "0123456789abcdef" for ch in release_id):
