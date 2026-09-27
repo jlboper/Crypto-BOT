@@ -55,7 +55,27 @@ function Invoke-LocalSignedUpdate {
     }
     $taskExecutable = [Environment]::ExpandEnvironmentVariables([string]$task.Actions[0].Execute)
     $taskArguments = [Environment]::ExpandEnvironmentVariables([string]$task.Actions[0].Arguments)
-    $python = if ($taskExecutable -match '(?i)pythonw\.exe
+    $python = ''
+    if ($taskExecutable -match '(?i)pythonw\.exe$') {
+        $python = Join-Path (Split-Path -Parent $taskExecutable) 'python.exe'
+    } elseif ($taskExecutable -match '(?i)python\.exe$') {
+        $python = $taskExecutable
+    } elseif ($taskExecutable -match '(?i)powershell\.exe$') {
+        $pythonPathPattern = '(?i)-PythonPath\s+"([^"]+)"'
+        if ($taskArguments -match $pythonPathPattern) {
+            $pythonw = [Environment]::ExpandEnvironmentVariables($Matches[1])
+            if ($pythonw -match '(?i)pythonw\.exe$') {
+                $python = Join-Path (Split-Path -Parent $pythonw) 'python.exe'
+            } elseif ($pythonw -match '(?i)python\.exe$') {
+                $python = $pythonw
+            }
+        }
+    }
+    if ($python -and -not (Test-Path -LiteralPath $python)) { $python = '' }
+    if (-not $python) {
+        throw 'No se encontró el mismo runtime Python verificado que usa el supervisor independiente.'
+    }
+    $pythonFlags = @()
     $arguments = @($pythonFlags) + @($scriptPath, '--source', $ProjectRoot, '--agent-root', $agentRoot, $Action)
     if ($Action -eq '--install') { $arguments += $ApprovedRelease }
     $result = & $python @arguments 2>&1
