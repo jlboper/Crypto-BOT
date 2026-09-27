@@ -43,6 +43,14 @@ class FuturesForwardTests(unittest.TestCase):
             ))
         return rows
 
+    def test_halt_preserves_first_reason_and_can_preserve_original_error(self):
+        self.engine.ledger.set_setting("forward_last_error", {"message": "original failure", "at": "2026-09-27T18:00:00+00:00"})
+        self.engine._halt("three consecutive Futures protection errors", overwrite_last_error=False)
+        first = self.config.futures_testnet.kill_switch_path.read_text(encoding="utf-8")
+        self.engine._halt("different later reason", overwrite_last_error=False)
+        self.assertEqual(self.config.futures_testnet.kill_switch_path.read_text(encoding="utf-8"), first)
+        self.assertEqual(self.engine.ledger.setting("forward_last_error")["message"], "original failure")
+
     def test_stale_env_cannot_disable_signed_forward_test(self):
         with patch.dict("os.environ", {"FUTURES_FORWARD_ENABLED": "false"}):
             config = load_config()

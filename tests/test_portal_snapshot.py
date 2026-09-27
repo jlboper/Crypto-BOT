@@ -56,8 +56,10 @@ class PortalSnapshotTests(unittest.TestCase):
             db.initialize_cash(1000)
             db.record_equity(1000,1000,0)
             ledger=FuturesTestnetLedger(futures)
-            ledger.set_setting('forward_consecutive_errors',3)
-            ledger.set_setting('forward_last_error',{'message':'Untracked Futures Demo position: SOLUSDT','at':'2026-09-27T16:40:24+00:00'})
+            ledger.set_setting('forward_consecutive_errors',18)
+            ledger.set_setting('forward_protection_consecutive_errors',3)
+            ledger.set_setting('forward_last_error',{'message':'three consecutive Futures protection errors','at':'2026-09-27T16:40:24+00:00'})
+            ledger.set_setting('forward_last_protection_error',{'message':'FuturesTestnetExecutionError: Futures mark price unavailable','at':'2026-09-27T16:40:23+00:00'})
             ledger.set_setting('forward_pending_order',{'symbol':'SOLUSDT'})
             kill.write_text('three consecutive Futures protection errors\n',encoding='utf-8')
             payload=dashboard_snapshot(config,root/'missing.json')
@@ -67,7 +69,7 @@ class PortalSnapshotTests(unittest.TestCase):
             self.assertEqual(diag['label'],'3 errores consecutivos de protección Futures')
             self.assertEqual(diag['consecutive_errors'],3)
             self.assertTrue(diag['pending_reconciliation'])
-            self.assertEqual(diag['last_error']['message'],'Untracked Futures Demo position: SOLUSDT')
+            self.assertEqual(diag['last_error']['message'],'FuturesTestnetExecutionError: Futures mark price unavailable')
             self.assertIsNotNone(diag['paused_at'])
 
     def test_known_credentials_are_removed_from_text(self):

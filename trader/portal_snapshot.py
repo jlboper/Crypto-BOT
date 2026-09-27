@@ -40,7 +40,39 @@ def _futures_pause_diagnostics(config, ledger):
             paused_at = datetime.fromtimestamp(path.stat().st_mtime, UTC).isoformat()
         except OSError:
             raw_reason = 'Futures pause state unavailable'
-    last_error = ledger.setting('forward_last_error')
+    detail = public_text(raw_reason) if raw_reason else None
+    normalized = (detail or '').lower()
+    if not killed:
+        label = None
+        source = None
+        error_key = 'forward_last_error'
+        counter_key = 'forward_consecutive_errors'
+    elif normalized == 'owner pause':
+        label = 'Pausa manual del propietario'
+        source = 'manual'
+        error_key = 'forward_last_error'
+        counter_key = 'forward_consecutive_errors'
+    elif 'three consecutive futures protection errors' in normalized:
+        label = '3 errores consecutivos de protección Futures'
+        source = 'automatic_safety'
+        error_key = 'forward_last_protection_error'
+        counter_key = 'forward_protection_consecutive_errors'
+    elif 'three consecutive futures forward errors' in normalized:
+        label = '3 errores consecutivos del ciclo Futures'
+        source = 'automatic_safety'
+        error_key = 'forward_last_cycle_error'
+        counter_key = 'forward_cycle_consecutive_errors'
+    elif any(term in normalized for term in ('untracked futures', 'position identity mismatch', 'missing or ambiguous', 'recovery requires owner review', 'could not be reconstructed')):
+        label = 'Inconsistencia o reconciliación de posición Futures'
+        source = 'automatic_safety'
+        error_key = 'forward_last_error'
+        counter_key = 'forward_consecutive_errors'
+    else:
+        label = detail or 'Pausa de seguridad Futures'
+        source = 'automatic_safety'
+        error_key = 'forward_last_error'
+        counter_key = 'forward_consecutive_errors'
+    last_error = ledger.setting(error_key) or ledger.setting('forward_last_error')
     if isinstance(last_error, dict):
         last_error = {
             'message': public_text(last_error.get('message', '')),
@@ -48,26 +80,9 @@ def _futures_pause_diagnostics(config, ledger):
         }
     else:
         last_error = None
-    detail = public_text(raw_reason) if raw_reason else None
-    normalized = (detail or '').lower()
-    if not killed:
-        label = None
-        source = None
-    elif normalized == 'owner pause':
-        label = 'Pausa manual del propietario'
-        source = 'manual'
-    elif 'three consecutive futures protection errors' in normalized:
-        label = '3 errores consecutivos de protección Futures'
-        source = 'automatic_safety'
-    elif 'three consecutive futures forward errors' in normalized:
-        label = '3 errores consecutivos del ciclo Futures'
-        source = 'automatic_safety'
-    elif any(term in normalized for term in ('untracked futures', 'position identity mismatch', 'missing or ambiguous', 'recovery requires owner review', 'could not be reconstructed')):
-        label = 'Inconsistencia o reconciliación de posición Futures'
-        source = 'automatic_safety'
-    else:
-        label = detail or 'Pausa de seguridad Futures'
-        source = 'automatic_safety'
+    consecutive = ledger.setting(counter_key)
+    if consecutive is None:
+        consecutive = ledger.setting('forward_consecutive_errors')
     return {
         'active': killed,
         'label': label,
@@ -75,7 +90,7 @@ def _futures_pause_diagnostics(config, ledger):
         'source': source,
         'paused_at': paused_at,
         'last_error': last_error,
-        'consecutive_errors': int(ledger.setting('forward_consecutive_errors') or 0),
+        'consecutive_errors': int(consecutive or 0),
         'pending_reconciliation': bool(ledger.setting('forward_pending_order')),
     }
 
