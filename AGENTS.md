@@ -5,10 +5,16 @@ at https://crypto-paper-private-portal.jlboper.workers.dev/. Work prepares chang
 the protected GitHub workflow publishes them; the Windows agent installs only
 the exact signed version approved by the owner through the portal or app.
 
-- Before each update, start from current `main`, use an isolated branch, read
-  this file plus `README.md`, `pyproject.toml`, `BOT_RELEASE_OPERATIONS.md` and
-  `BOT_UPDATE_PROGRESS.md`, then inspect recent commits and GitHub Actions. Treat
-  documentation as context, not proof of what is currently published or installed.
+- Before each update, start from current `main`, use an isolated branch, and read
+  `PROJECT_HANDOVER.md`, `PROJECT_HISTORY.md`, `WORK_CONTEXT.md`, this file,
+  `README.md`, `pyproject.toml`, `BOT_RELEASE_OPERATIONS.md` and
+  `BOT_UPDATE_PROGRESS.md`. Then inspect recent commits, open PRs/issues and
+  GitHub Actions. Treat documentation as context, not proof of what is currently
+  published or installed.
+- Preserve project memory. When a change introduces a new architectural decision,
+  permanently abandons an approach, changes the safety model, or materially alters
+  the future roadmap, update `PROJECT_HISTORY.md` or `PROJECT_HANDOVER.md`.
+  Release-specific implementation details belong in `UPDATE_NOTES.md`.
 - Finish each update with a PR and relevant test results. If checks pass and no
   conflicts remain, merge through the repository's normal flow, then provide the
   exact protected publication approval URL. Keep prepared, published and installed
