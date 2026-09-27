@@ -307,42 +307,57 @@ class TradingEngine:
                     self.db.event("WARN", f"Protection price unavailable: {type(exc).__name__}")
 
 
+    def _sync_futures_legacy_error_counter(self) -> None:
+        cycle = int(self.futures_forward.ledger.setting("forward_cycle_consecutive_errors") or 0)
+        protection = int(self.futures_forward.ledger.setting("forward_protection_consecutive_errors") or 0)
+        self.futures_forward.ledger.set_setting("forward_consecutive_errors", max(cycle, protection))
+
     def _run_futures_forward_cycle(self, candle_map: dict[str, list[Candle]]) -> None:
         current_cycles = self.futures_forward.ledger.setting("forward_cycle_total") or 0
         self.futures_forward.ledger.set_setting("forward_cycle_total", int(current_cycles) + 1)
         try:
             result = self.futures_forward.cycle(candle_map)
-            self.futures_forward.ledger.set_setting("forward_consecutive_errors", 0)
+            self.futures_forward.ledger.set_setting("forward_cycle_consecutive_errors", 0)
+            self._sync_futures_legacy_error_counter()
             events = [row for row in result.get("results", []) if row.get("status") in {"OPENED", "CLOSED"}]
             for row in events:
                 self.db.event("INFO", f"Futures Demo {row.get('symbol')}: {row.get('status')}")
         except Exception as exc:
-            current = self.futures_forward.ledger.setting("forward_consecutive_errors") or 0
+            current = self.futures_forward.ledger.setting("forward_cycle_consecutive_errors") or 0
             count = int(current) + 1
-            self.futures_forward.ledger.set_setting("forward_consecutive_errors", count)
+            detail = {"message": (type(exc).__name__ + ": " + str(exc))[:200], "at": datetime.now(UTC).isoformat()}
+            self.futures_forward.ledger.set_setting("forward_cycle_consecutive_errors", count)
+            self.futures_forward.ledger.set_setting("forward_last_cycle_error", detail)
+            self.futures_forward.ledger.set_setting("forward_last_error", detail)
+            self._sync_futures_legacy_error_counter()
             total = self.futures_forward.ledger.setting("forward_error_total") or 0
             self.futures_forward.ledger.set_setting("forward_error_total", int(total) + 1)
             self.db.event("WARN", "Futures Demo forward cycle failed: " + type(exc).__name__)
             if count >= 3:
-                self.futures_forward._halt("three consecutive Futures forward errors")
+                self.futures_forward._halt("three consecutive Futures forward errors", overwrite_last_error=False)
 
     def _run_futures_forward_protection(self) -> None:
         if self.futures_forward is None or not self.config.futures_testnet.forward_enabled:
             return
         try:
             result = self.futures_forward.protection_tick()
-            self.futures_forward.ledger.set_setting("forward_consecutive_errors", 0)
+            self.futures_forward.ledger.set_setting("forward_protection_consecutive_errors", 0)
+            self._sync_futures_legacy_error_counter()
             if result.get("closed"):
                 self.db.event("INFO", "Futures Demo forward position closed by protection")
         except Exception as exc:
-            current = self.futures_forward.ledger.setting("forward_consecutive_errors") or 0
+            current = self.futures_forward.ledger.setting("forward_protection_consecutive_errors") or 0
             count = int(current) + 1
-            self.futures_forward.ledger.set_setting("forward_consecutive_errors", count)
+            detail = {"message": (type(exc).__name__ + ": " + str(exc))[:200], "at": datetime.now(UTC).isoformat()}
+            self.futures_forward.ledger.set_setting("forward_protection_consecutive_errors", count)
+            self.futures_forward.ledger.set_setting("forward_last_protection_error", detail)
+            self.futures_forward.ledger.set_setting("forward_last_error", detail)
+            self._sync_futures_legacy_error_counter()
             total = self.futures_forward.ledger.setting("forward_error_total") or 0
             self.futures_forward.ledger.set_setting("forward_error_total", int(total) + 1)
             self.db.event("WARN", "Futures Demo protection failed: " + type(exc).__name__)
             if count >= 3:
-                self.futures_forward._halt("three consecutive Futures protection errors")
+                self.futures_forward._halt("three consecutive Futures protection errors", overwrite_last_error=False)
 
     def protection_tick(self):
         self._run_futures_forward_protection()
