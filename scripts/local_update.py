@@ -58,31 +58,37 @@ def channel(source: Path, agent_root: Path):
     return UpdateManager(source, key, state_dir=agent_root / 'data/remote-updates'), settings
 
 
-def staged(manager) -> dict:
+def staged(manager, *, allow_current: bool = False) -> dict:
     from trader.update_manager import release_id, verify
     package = manager.state / 'staged.zip'
     envelope = manager.state / 'staged.zip.manifest.json'
     minimum = json.loads(manager.sequence.read_text())['sequence'] if manager.sequence.exists() else 0
-    manifest = verify(package, envelope, manager.public_key, minimum)
+    verification_minimum = minimum - 1 if allow_current and minimum > 0 else minimum
+    manifest = verify(package, envelope, manager.public_key, verification_minimum)
     installed = tomllib.loads((manager.root / 'pyproject.toml').read_text(encoding='utf-8'))['project']['version']
-    if tuple(map(int, manifest['version'].split('.'))) <= tuple(map(int, installed.split('.'))):
+    candidate = tuple(map(int, manifest['version'].split('.')))
+    active = tuple(map(int, installed.split('.')))
+    if candidate < active:
+        raise ValueError('Signed release is older than the installed version')
+    if candidate == active and not allow_current:
         raise ValueError('Signed release is not newer than the installed version')
     if manifest.get('runtime_protocol') != 1 or 'trader/runtime_control.py' not in manifest['files']:
         raise ValueError('Signed release lacks supervised runtime')
     return {'version': manifest['version'], 'release_id': release_id(manifest),
-            'commit': manifest.get('commit'), 'package': package, 'envelope': envelope}
+            'commit': manifest.get('commit'), 'package': package, 'envelope': envelope,
+            'current': candidate == active}
 
 
 def run(source: Path, action: str, approved: str | None = None, *, agent_root: Path = ROOT) -> dict:
     from trader.update_supervisor import UpdateSupervisor
     manager, settings = channel(source, agent_root)
     if action == 'check-online':
-        manager.stage(settings['manifest_url'])
-    info = staged(manager)
+        manager.stage(settings['manifest_url'], allow_current=True)
+    info = staged(manager, allow_current=action != 'install')
     if action != 'install':
-        return {'status': 'verified_local_package', 'version': info['version'],
-                'release_id': info['release_id'], 'commit': info['commit'],
-                'order_submission_enabled': False}
+        return {'status': 'up_to_date' if info['current'] else 'verified_local_package',
+                'version': info['version'], 'release_id': info['release_id'],
+                'commit': info['commit'], 'order_submission_enabled': False}
     if approved != info['release_id']:
         raise ValueError('Exact signed release approval required')
     # The supervisor re-verifies the signature/hash and all runtime gates.
