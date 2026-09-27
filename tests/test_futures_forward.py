@@ -74,7 +74,8 @@ class FuturesForwardTests(unittest.TestCase):
         })
         row = {"symbol": "SOLUSDT", "positionAmt": "0.1", "entryPrice": "100",
                "leverage": "1", "marginType": "isolated", "positionSide": "BOTH"}
-        with patch.object(self.engine, "_validated_rows", return_value=[row]):
+        with patch.object(self.engine, "_actual_rows", return_value=[row]), \
+             patch.object(self.engine, "_validated_rows", return_value=[row]):
             with self.assertRaisesRegex(FuturesTestnetExecutionError, "mark price unavailable"):
                 self.engine.protection_tick()
 
