@@ -187,6 +187,29 @@ class FuturesTestnetLabTests(unittest.TestCase):
         self.assertEqual(result["status"], "FILLED")
         self.assertEqual(self.leverage, 3)
 
+    def test_known_isolated_forward_position_repairs_leverage_to_one_x(self):
+        self.position_amt = 0.1
+        self.leverage = 3
+        row = {
+            "symbol": "BTCUSDT", "positionAmt": "0.1", "entryPrice": "100",
+            "liquidationPrice": "70", "leverage": "3", "marginType": "isolated",
+            "positionSide": "BOTH",
+        }
+        with patch("trader.futures_testnet.signed_request", side_effect=self.signed):
+            refreshed = self.lab.ensure_forward_position_configuration("BTCUSDT", row)
+        self.assertEqual(self.leverage, 1)
+        self.assertEqual(int(refreshed["leverage"]), 1)
+
+    def test_open_forward_position_never_auto_repairs_cross_or_hedge_mode(self):
+        cross = {"symbol": "BTCUSDT", "positionAmt": "0.1", "leverage": "2",
+                 "marginType": "cross", "positionSide": "BOTH"}
+        with self.assertRaisesRegex(FuturesTestnetExecutionError, "margin is not isolated"):
+            self.lab.ensure_forward_position_configuration("BTCUSDT", cross)
+        hedge = {"symbol": "BTCUSDT", "positionAmt": "0.1", "leverage": "2",
+                 "marginType": "isolated", "positionSide": "LONG"}
+        with self.assertRaisesRegex(FuturesTestnetExecutionError, "ONE_WAY"):
+            self.lab.ensure_forward_position_configuration("BTCUSDT", hedge)
+
     def test_leverage_above_three_is_rejected_before_write(self):
         with self.assertRaisesRegex(ValueError, "1x, 2x or 3x"):
             self.lab.smoke(direction="LONG", leverage=4)
