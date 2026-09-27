@@ -105,14 +105,18 @@ function validateSnapshot(snapshot) {
     }
     if(d.futures_forward!==undefined){
       const f=d.futures_forward;
+      const oldShape=f.symbol==='BTCUSDT'&&(f.position===null||object(f.position));
+      const newShape=Array.isArray(f.symbols)&&f.symbols.length>=1&&f.symbols.length<=5
+        &&f.symbols.every(s=>typeof s==='string'&&/^[A-Z0-9]{2,30}$/.test(s))
+        &&Array.isArray(f.positions)&&f.positions.length<=5
+        &&f.positions.every(p=>object(p)&&typeof p.symbol==='string'&&/^[A-Z0-9]{2,30}$/.test(p.symbol));
       assert(object(f)&&typeof f.enabled==='boolean'&&typeof f.killed==='boolean'
-        &&f.symbol==='BTCUSDT'&&f.automatic_leverage===1
-        &&(f.position===null||object(f.position))
-        &&Array.isArray(f.trades)&&f.trades.length<=20
+        &&(oldShape||newShape)&&f.automatic_leverage===1
+        &&Array.isArray(f.trades)&&f.trades.length<=50
         &&Array.isArray(f.equity)&&f.equity.length<=120
         &&Number.isInteger(f.closed_trades)&&f.closed_trades>=0
         &&typeof f.gross_pnl==='number'&&Number.isFinite(f.gross_pnl)
-        &&JSON.stringify(f).length<40000,'Invalid Futures forward status');
+        &&JSON.stringify(f).length<80000,'Invalid Futures forward status');
     }
     if(d.paper_scorecard!==undefined){
       const s=d.paper_scorecard;
