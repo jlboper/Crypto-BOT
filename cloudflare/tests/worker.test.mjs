@@ -175,6 +175,26 @@ test('supervised Testnet smoke control is TESTNET-only and idempotent',async t=>
   assert.deepEqual(delivered.body.paper_controls[0].payload,{});
 });
 
+
+test('Futures forward pause and resume controls are accepted remotely in TESTNET',async t=>{
+  const f=await fixture(t);
+  const base=snapshot();
+  const testnet={...base,mode:'TESTNET',operations_controls:true,paper_controls:true,dashboard:{
+    status:{mode:'TESTNET'},positions:[],equity:[],trades:[],reviews:[],events:[],
+    risk:{},research:{assets:[]},research_state:{running:false,error:null},
+    updates:{},paper_scorecard:{mode:'TESTNET',status:'INSUFFICIENT_EVIDENCE',by_asset:[]},
+    futures_forward:{enabled:true,killed:true,symbols:['BTCUSDT','ETHUSDT','SOLUSDT'],automatic_leverage:1,positions:[],position:null,trades:[],equity:[],closed_trades:0,gross_pnl:0}
+  }};
+  assert.equal((await f.sync({snapshot:testnet,acks:[]})).status,200);
+  for(const action of ['futures_forward_pause','futures_forward_resume']){
+    const response=await f.request('/v1/paper-controls',{action,payload:{},request_id:action+'-request-0001'});
+    assert.equal(response.status,202);
+    assert.equal(response.body.action,action);
+    assert.equal(response.body.status,'pending');
+    f.env.DB.sqlite.prepare("UPDATE jobs SET status='completed'").run();
+  }
+});
+
 test('Futures Testnet controls require TESTNET and remain idempotent',async t=>{
   const f=await fixture(t);await f.login();
   const command=(action,payload,id)=>({action,payload,request_id:id});
