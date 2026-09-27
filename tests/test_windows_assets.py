@@ -130,6 +130,14 @@ class WindowsAssetTests(unittest.TestCase):
         self.assertIn("futures?.position", app)
         self.assertIn(".dual-detail-grid", css)
 
+    def test_portal_renders_futures_pause_diagnostics(self):
+        html = (PROJECT_ROOT / "web" / "index.html").read_text(encoding="utf-8")
+        app = (PROJECT_ROOT / "web" / "app.js").read_text(encoding="utf-8")
+        self.assertIn('id="futuresForwardPauseReason"', html)
+        self.assertIn("pause_diagnostics", app)
+        self.assertIn("Motivo de pausa", app)
+        self.assertIn("pending_reconciliation", app)
+
     def test_portal_uses_one_options_menu_and_one_update_search(self):
         html = (PROJECT_ROOT / "web" / "index.html").read_text(encoding="utf-8")
         self.assertIn('id="optionsButton"', html)
