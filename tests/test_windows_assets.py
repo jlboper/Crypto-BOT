@@ -57,6 +57,7 @@ class WindowsAssetTests(unittest.TestCase):
         self.assertIn("refresh_independent_agent.py", self_heal)
         self.assertIn("agent_watchdog.ps1", self_heal)
         self.assertIn("-WindowStyle Hidden", self_heal)
+        self.assertIn("normalized_hidden", self_heal)
         self.assertIn("agent-self-heal.json", self_heal)
         self.assertIn("Write-HealState 'starting_agent'", self_heal)
         self.assertIn("if (-not $connected)", self_heal)
