@@ -28,6 +28,8 @@ jobs:
       - run: pnpm install --frozen-lockfile --ignore-scripts && pnpm rebuild esbuild workerd
         working-directory: cloudflare
       - run: python scripts/build_unified_portal.py
+      - name: Check bot release version consistency before approval
+        run: node scripts/check_bot_release_consistency.mjs
       - name: Check portal JavaScript syntax
         run: node --check web/app.js
       - run: node --test tests/*.test.mjs
