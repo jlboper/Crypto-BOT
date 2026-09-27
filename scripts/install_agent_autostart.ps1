@@ -15,7 +15,7 @@ if ($portalExisting) { throw 'Task already exists; inspect it before changing it
 $watchdog = Join-Path $portalSource 'scripts\agent_watchdog.ps1'
 if (-not (Test-Path -LiteralPath $watchdog)) { throw 'Falta el watchdog firmado del agente.' }
 $powershell = (Get-Command powershell.exe -ErrorAction Stop).Source
-$portalArguments = '-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + $watchdog +
+$portalArguments = '-NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File "' + $watchdog +
     '" -SourcePath "' + $portalSource + '" -AgentRoot "' + $portalRoot + '" -PythonPath "' + $portalPython + '"'
 $portalAction = New-ScheduledTaskAction -Execute $powershell -Argument $portalArguments -WorkingDirectory $portalRoot
 $portalTrigger = New-ScheduledTaskTrigger -AtLogOn -User $portalUser
