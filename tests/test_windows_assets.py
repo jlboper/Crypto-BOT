@@ -114,7 +114,7 @@ class WindowsAssetTests(unittest.TestCase):
         css = (PROJECT_ROOT / "web" / "monitoring.css").read_text(encoding="utf-8")
         for value in (
             "Límites Spot", "Límites Futures · DEMO",
-            "Posiciones abiertas · Spot", "Posición abierta · Futures",
+            "Posiciones abiertas · Spot", "Posiciones abiertas · Futures",
             "Seguimiento financiero Futures · DEMO",
             'id="futuresTradeRows"', 'id="futuresLimitBudget"',
         ):
