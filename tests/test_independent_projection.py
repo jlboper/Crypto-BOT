@@ -59,10 +59,8 @@ class IndependentProjectionTests(unittest.TestCase):
                 (agent / SUPERVISOR_MODULES[-1]).write_text('stale', encoding='utf-8')
                 self.assertFalse(supervisor_modules_current(source))
 
-    def test_older_installation_keeps_existing_projection(self):
+    def test_missing_projection_exporter_fails_closed(self):
         with tempfile.TemporaryDirectory() as directory:
-            from unittest.mock import patch
             source = Path(directory)
-            with patch('scripts.windows_agent.dashboard_snapshot', return_value={'status': {'mode': 'PAPER'}}) as fallback:
-                self.assertEqual(dashboard_from_source(source, object())['status']['mode'], 'PAPER')
-                fallback.assert_called_once()
+            with self.assertRaises(FileNotFoundError):
+                dashboard_from_source(source, object())
