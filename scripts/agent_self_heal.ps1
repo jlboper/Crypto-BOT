@@ -66,7 +66,7 @@ $preview = (($previewRaw | Out-String) | ConvertFrom-Json)
 if ($preview.status -ne 'refresh_available') { throw 'El supervisor no encontró una instalación firmada comprometida.' }
 
 $powershell = (Get-Command powershell.exe -ErrorAction Stop).Source
-$watchdogArgs = '-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + $watchdog +
+$watchdogArgs = '-NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File "' + $watchdog +
                 '" -SourcePath "' + $source + '" -AgentRoot "' + $agentRoot +
                 '" -PythonPath "' + $pythonw + '"'
 $newTaskAction = New-ScheduledTaskAction -Execute $powershell -Argument $watchdogArgs -WorkingDirectory $agentRoot
