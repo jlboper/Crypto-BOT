@@ -17,6 +17,10 @@ function Write-HealState([string]$Phase, [string]$Detail = '') {
     Set-Content -LiteralPath $tmp -Value $payload -Encoding utf8
     Move-Item -LiteralPath $tmp -Destination $statusPath -Force
 }
+trap {
+    try { Write-HealState 'failed' $_.Exception.GetType().Name } catch { }
+    exit 1
+}
 Write-HealState 'starting'
 $taskName = 'Crypto Paper Portal Agent'
 $task = Get-ScheduledTask -TaskName $taskName -ErrorAction Stop
