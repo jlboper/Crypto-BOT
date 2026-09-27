@@ -35,6 +35,7 @@ class AgentRefreshTests(unittest.TestCase):
 
     def test_signed_supervisor_module_set_is_dependency_closed_for_imports(self):
         self.assertIn("trader/config.py", MODULES)
+        self.assertEqual(MODULES.count("trader/config.py"), 1)
         agent_source = (Path(__file__).resolve().parents[1] / "scripts" / "windows_agent.py").read_text(encoding="utf-8")
         self.assertNotIn("from trader.portal_snapshot import dashboard_snapshot", agent_source)
         self.assertIn("from trader.config import load_config", agent_source)
