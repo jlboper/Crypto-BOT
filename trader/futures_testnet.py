@@ -390,6 +390,10 @@ class FuturesTestnetLab:
             raise ValueError("Futures Testnet leverage must be 1x, 2x or 3x")
         if not self.settings.enabled:
             raise ValueError("Futures Testnet lab is disabled")
+        if symbol is not None:
+            symbol = symbol.upper()
+            if symbol not in self.SYMBOLS:
+                raise ValueError(f"Unsupported Futures Testnet smoke symbol: {symbol}")
         if self.ledger.setting("pending_order"):
             raise FuturesTestnetExecutionError("Futures Testnet recovery required")
         latest = self.ledger.latest()
@@ -406,9 +410,6 @@ class FuturesTestnetLab:
 
         occupied = {row.get("symbol") for row in self._position_rows()}
         if symbol is not None:
-            symbol = symbol.upper()
-            if symbol not in self.SYMBOLS:
-                raise ValueError(f"Unsupported Futures Testnet smoke symbol: {symbol}")
             if symbol in occupied:
                 raise FuturesTestnetExecutionError(f"Futures Testnet symbol already has an open position: {symbol}")
         else:
