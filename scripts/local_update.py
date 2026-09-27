@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import tomllib
 import subprocess
@@ -36,6 +37,35 @@ def discover_agent_root() -> Path:
     if not (path / "scripts" / "windows_agent.py").is_file():
         raise FileNotFoundError("Independent supervisor installation unavailable")
     return path
+
+
+def discover_agent_python() -> Path:
+    if sys.platform != "win32":
+        raise RuntimeError("Automatic supervisor runtime discovery requires Windows")
+    result = subprocess.run(
+        ["schtasks.exe", "/Query", "/TN", "Crypto Paper Portal Agent", "/XML"],
+        stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, check=False,
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+    )
+    if result.returncode != 0 or not result.stdout:
+        raise FileNotFoundError("Independent supervisor task not found")
+    root = ET.fromstring(result.stdout.decode("utf-16", errors="strict"))
+    ns = {"t": "http://schemas.microsoft.com/windows/2004/02/mit/task"}
+    execute = root.findtext(".//t:Exec/t:Command", namespaces=ns) or ""
+    arguments = root.findtext(".//t:Exec/t:Arguments", namespaces=ns) or ""
+    executable = Path(os.path.expandvars(execute.strip('"')))
+    if executable.name.lower() == "pythonw.exe":
+        candidate = executable.with_name("python.exe")
+    elif executable.name.lower() == "python.exe":
+        candidate = executable
+    else:
+        import re
+        match = re.search(r'(?i)-PythonPath\s+"([^"]+)"', arguments)
+        if not match:
+            raise FileNotFoundError("Independent supervisor runtime unavailable")
+        configured = Path(os.path.expandvars(match.group(1)))
+        candidate = configured.with_name("python.exe") if configured.name.lower() == "pythonw.exe" else configured
+    return candidate.resolve(strict=True)
 
 
 def channel(source: Path, agent_root: Path):
@@ -133,6 +163,17 @@ def main() -> None:
     if args.delay_seconds:
         import time
         time.sleep(args.delay_seconds)
+    if sys.platform == "win32":
+        supervisor_python = discover_agent_python()
+        current_python = Path(sys.executable).resolve()
+        if current_python != supervisor_python:
+            completed = subprocess.run(
+                [str(supervisor_python), str(Path(__file__).resolve()), *sys.argv[1:]],
+                stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            )
+            sys.stdout.buffer.write(completed.stdout)
+            raise SystemExit(completed.returncode)
     agent_root = args.agent_root.resolve(strict=True) if args.agent_root else discover_agent_root()
     if not (agent_root / 'scripts/windows_agent.py').is_file():
         raise SystemExit('Independent supervisor not found')
