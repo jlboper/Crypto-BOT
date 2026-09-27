@@ -58,8 +58,7 @@ class LocalUpdateTests(unittest.TestCase):
 
     def test_current_signed_release_is_reported_as_up_to_date(self):
         (self.source / 'pyproject.toml').write_text('[project]\nversion="0.6.12"\n', encoding='utf-8')
-        with patch.object(type(__import__('trader.update_manager', fromlist=['UpdateManager']).UpdateManager), 'stage', autospec=True) as stage:
-            stage.return_value = {'status': 'staged_current'}
+        with patch('trader.update_manager.UpdateManager.stage', return_value={'status': 'staged_current'}):
             result = run(self.source, 'check-online', agent_root=self.agent)
         self.assertEqual(result['status'], 'up_to_date')
         self.assertEqual(result['version'], '0.6.12')
