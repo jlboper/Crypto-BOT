@@ -232,8 +232,9 @@
       </div>
     </section>
 
-    <section class="panel guardrail consolidated-guardrail">
-        <div class="panel-title"><h2 id="riskPanelTitle">Límites del entorno</h2><span id="killState" class="state">Comprobando</span></div>
+    <section class="dual-detail-grid" aria-label="Límites Spot y Futures">
+      <article class="panel guardrail consolidated-guardrail">
+        <div class="panel-title"><h2 id="riskPanelTitle">Límites Spot</h2><span id="killState" class="state">Comprobando</span></div>
         <dl>
           <div><dt>Riesgo / trade</dt><dd id="riskTrade">—</dd></div>
           <div><dt>Máx. posición</dt><dd id="riskPosition">—</dd></div>
@@ -246,17 +247,51 @@
           <label for="riskProfile">Tamaño de riesgo para nuevas entradas</label>
           <select id="riskProfile"><option value="minimo">Mínimo · 25% del límite</option><option value="leve">Leve · 35%</option><option value="prudente">Prudente · 50%</option><option value="moderado">Moderado · 65%</option><option value="alto">Alto · 85%</option><option value="normal">Muy alto · 100% del límite actual</option></select>
           <button id="saveRiskProfile" class="secondary" type="button">Aplicar nivel de riesgo</button>
-          <small id="riskProfileNote">Afecta únicamente nuevas entradas del entorno activo. «Muy alto» equivale al antiguo «Normal» y nunca supera los topes configurados.</small>
+          <small id="riskProfileNote">Afecta únicamente nuevas entradas Spot. «Muy alto» equivale al antiguo «Normal» y nunca supera los topes configurados.</small>
         </div>
-      </section>
+      </article>
 
-    <section class="panel">
-      <div class="panel-title"><h2>Posiciones abiertas</h2><span>Protección ATR activa</span></div>
-      <div class="table-wrap"><table><thead><tr><th>Par</th><th>Cantidad</th><th>Entrada</th><th>Precio actual</th><th>P&amp;L</th><th>P&amp;L %</th><th>Stop</th><th>Objetivo</th><th>Máximo</th><th>Acción</th></tr></thead><tbody id="positions"></tbody></table></div>
-      <p class="paper-action-note">Cerrar una posición usa el broker del entorno activo y una cotización reciente. Disponible solo bajo los controles supervisados de Windows.</p>
+      <article class="panel guardrail consolidated-guardrail futures-guardrail">
+        <div class="panel-title"><h2>Límites Futures · DEMO</h2><span id="futuresLimitState" class="state neutral">Comprobando</span></div>
+        <dl>
+          <div><dt>Apalancamiento automático</dt><dd id="futuresLimitLeverage">—</dd></div>
+          <div><dt>Margen</dt><dd id="futuresLimitMarginType">—</dd></div>
+          <div><dt>Máx. posiciones</dt><dd id="futuresLimitPositions">—</dd></div>
+          <div><dt>Presupuesto de margen</dt><dd id="futuresLimitBudget">—</dd></div>
+          <div><dt>Score mínimo de entrada</dt><dd id="futuresLimitScore">—</dd></div>
+          <div><dt>Stop mínimo / ATR</dt><dd id="futuresLimitStop">—</dd></div>
+          <div><dt>Reward / Risk</dt><dd id="futuresLimitRR">—</dd></div>
+        </dl>
+        <p class="settings-help">Forward test BTCUSDT · ONE_WAY · máximo una posición · kill switch independiente. Los valores automáticos no se modifican desde esta pantalla.</p>
+      </article>
     </section>
 
-    <section class="panel paper-scorecard" aria-label="Seguimiento financiero">
+    <section class="dual-detail-grid positions-grid" aria-label="Posiciones Spot y Futures">
+      <article class="panel">
+        <div class="panel-title"><h2>Posiciones abiertas · Spot</h2><span>Protección ATR activa</span></div>
+        <div class="table-wrap compact-engine-table"><table><thead><tr><th>Par</th><th>Cant.</th><th>Entrada</th><th>Actual</th><th>P&amp;L</th><th>P&amp;L %</th><th>Stop</th><th>Objetivo</th><th>Acción</th></tr></thead><tbody id="positions"></tbody></table></div>
+        <p class="paper-action-note">Cerrar una posición usa Spot Testnet y una cotización reciente bajo controles supervisados de Windows.</p>
+      </article>
+
+      <article class="panel">
+        <div class="panel-title"><h2>Posición abierta · Futures</h2><span id="futuresPositionState" class="state neutral">SIN POSICIÓN</span></div>
+        <div class="futures-position-card" id="futuresPositionCard">
+          <dl>
+            <div><dt>Contrato / dirección</dt><dd id="futuresPositionContract">—</dd></div>
+            <div><dt>Cantidad</dt><dd id="futuresPositionQty">—</dd></div>
+            <div><dt>Entrada / estimado actual</dt><dd id="futuresPositionPrices">—</dd></div>
+            <div><dt>P&amp;L no realizado</dt><dd id="futuresPositionUnrealized">—</dd></div>
+            <div><dt>Stop / objetivo</dt><dd id="futuresPositionProtection">—</dd></div>
+            <div><dt>Apalancamiento / margen</dt><dd id="futuresPositionLeverage">—</dd></div>
+            <div><dt>Abierta desde</dt><dd id="futuresPositionOpened">—</dd></div>
+          </dl>
+        </div>
+        <p class="paper-action-note">La posición Futures la gestiona el forward test automático. Pausar Futures bloquea nuevas entradas pero mantiene la protección/reconciliación de una posición existente.</p>
+      </article>
+    </section>
+
+    <section class="dual-detail-grid finance-grid" aria-label="Seguimiento financiero Spot y Futures">
+      <article class="panel paper-scorecard" aria-label="Seguimiento financiero Spot">
       <div class="panel-title"><h2 id="financialEvidenceTitle">Seguimiento financiero</h2><span id="paperEvidenceState" class="state neutral">SIN DATOS</span></div>
       <p id="paperEvidenceNote">Los resultados observados no autorizan operar con dinero real.</p>
       <p class="finance-strategy">Estrategia actual: swing multi-activo con límites fijos, paradas de protección y revisión IA. Las pruebas históricas no cambian sus decisiones.</p>
@@ -282,15 +317,27 @@
       <p class="research-updated">P&amp;L realizado neto de comisiones; P&amp;L abierto estimado solo con cotizaciones recientes, incluyendo salida simulada. Drawdown muestreado. Sin libro de aportes/retiros; la referencia BTC invierte el 100% y descuenta costos simulados del entorno.</p>
       </details>
 
+      </article>
+      <article class="panel futures-scorecard" aria-label="Seguimiento financiero Futures">
+        <div class="panel-title"><h2>Seguimiento financiero Futures · DEMO</h2><span id="futuresEvidenceState" class="state neutral">SIN DATOS</span></div>
+        <p id="futuresEvidenceNote">Los resultados observados de Futures no autorizan operar con dinero real.</p>
+        <p class="finance-strategy">Estrategia actual: BTCUSDT LONG/SHORT, 1x automático, ISOLATED, máximo una posición y revisión IA final.</p>
+        <div id="futuresEvidenceMetrics" class="research-summary"></div>
+        <div id="futuresEvidenceSummary" class="benchmark-note">Esperando muestras suficientes del forward test.</div>
+        <details class="finance-details"><summary>Ver métricas, puertas pendientes y cierres Futures</summary>
+          <div id="futuresMoreMetrics" class="research-summary"></div>
+          <div class="readiness-note"><h3>Antes de usar capital real</h3><ul id="futuresReadinessChecks"></ul>
+            <p>El forward test debe acumular evidencia y mantener reconciliación/integridad sin errores. LIVE continúa bloqueado y los stops nativos persistentes del exchange siguen pendientes.</p>
+          </div>
+          <h3>Cierres recientes Futures</h3>
+          <div class="table-wrap"><table class="asset-table">
+            <thead><tr><th>Dirección</th><th>Cantidad</th><th>Entrada</th><th>Salida</th><th>P&amp;L</th><th>Motivo</th></tr></thead>
+            <tbody id="futuresTradeRows"><tr><td colspan="6" class="empty">Aún no hay cierres Futures.</td></tr></tbody>
+          </table></div>
+          <p class="research-updated">P&amp;L bruto según fills del entorno Demo. Spot y Futures conservan ledgers completamente separados.</p>
+        </details>
+      </article>
     </section>
-
-
-
-
-
-
-
-
 
 
     <section class="activity-strip" aria-label="Actividad reciente">

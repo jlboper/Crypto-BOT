@@ -109,6 +109,22 @@ class WindowsAssetTests(unittest.TestCase):
         self.assertIn(".brand{display:flex;align-items:center", css)
         self.assertIn(".brand-mark{float:none;margin:0;flex:0 0 44px}", css)
 
+    def test_portal_keeps_spot_and_futures_detail_panels_in_parity(self):
+        html = (PROJECT_ROOT / "web" / "index.html").read_text(encoding="utf-8")
+        app = (PROJECT_ROOT / "web" / "app.js").read_text(encoding="utf-8")
+        css = (PROJECT_ROOT / "web" / "monitoring.css").read_text(encoding="utf-8")
+        for value in (
+            "Límites Spot", "Límites Futures · DEMO",
+            "Posiciones abiertas · Spot", "Posición abierta · Futures",
+            "Seguimiento financiero Futures · DEMO",
+            'id="futuresTradeRows"', 'id="futuresLimitBudget"',
+        ):
+            self.assertIn(value, html)
+        self.assertIn("function renderFuturesParity", app)
+        self.assertIn("futures?.guardrails", app)
+        self.assertIn("futures?.position", app)
+        self.assertIn(".dual-detail-grid", css)
+
     def test_portal_uses_one_options_menu_and_one_update_search(self):
         html = (PROJECT_ROOT / "web" / "index.html").read_text(encoding="utf-8")
         self.assertIn('id="optionsButton"', html)
