@@ -245,6 +245,8 @@ class FuturesTestnetLab:
         existing = self.ledger.setting("forward_pending_order")
         if existing:
             raise FuturesTestnetExecutionError("Futures forward order requires reconciliation")
+        if not reduce_only:
+            self._configure(symbol, 1)
         client_id = "cait-fwd-" + secrets.token_hex(8)
         pending = {
             "symbol": symbol,
