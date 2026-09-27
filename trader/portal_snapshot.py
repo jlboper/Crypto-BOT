@@ -151,7 +151,7 @@ def dashboard_snapshot(config, report_path=None):
                     'forward_reward_to_risk': config.futures_testnet.forward_reward_to_risk,
                 },
                 'ai_model': config.ai.model,
-                'last_ai_review': futures_ledger.setting('forward_last_ai_review'),
+                'last_ai_reviews': {symbol: futures_ledger.setting(f'forward_last_ai_review_{symbol}') for symbol in config.futures_testnet.forward_symbols},
                 'observation_health': futures_ledger.observation_health(config.bot.cycle_seconds),
                 'recovery': {
                     'durable_order_journal': True,
