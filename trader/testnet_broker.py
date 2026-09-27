@@ -8,6 +8,7 @@ another write. There is deliberately no production host or LIVE mode here.
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from dataclasses import replace
 from decimal import Decimal
 import json
 import math
@@ -102,6 +103,10 @@ class BinanceTestnetBroker(PaperBroker):
                 return free
         raise TestnetExecutionError(f"Testnet {asset} balance unavailable")
 
+    def _normalize_fill_with_trades(self, response: dict, pending: dict) -> dict:
+        normalized = self._normalize_fill_with_trades(response, pending)
+        return normalized
+
     def reconcile_pending(self) -> bool:
         """Return True only when no unresolved exchange write remains."""
         pending = self._pending()
@@ -144,7 +149,7 @@ class BinanceTestnetBroker(PaperBroker):
         except Exception:
             # Never retry a write. The next cycle/read-only reconciliation decides.
             raise
-        pending.update(self._safe_fill(response, pending))
+        pending.update(self._normalize_fill_with_trades(response, pending))
         self._save_pending(pending)
         if pending["status"] in TERMINAL:
             if Decimal(str(pending.get("executed_qty", "0"))) > 0:
@@ -195,6 +200,12 @@ class BinanceTestnetBroker(PaperBroker):
         reference = client.testnet_reference_price(signal.symbol)
         if not signal.stop_price < reference < signal.take_profit:
             raise TestnetExecutionError("Spot Testnet price moved outside signal protection range")
+        stop_ratio = signal.stop_price / signal.price
+        take_ratio = signal.take_profit / signal.price
+        execution_signal = replace(signal, price=reference,
+                                   stop_price=reference * stop_ratio,
+                                   take_profit=reference * take_ratio)
+        self._validate_buy(execution_signal, quantity)
         plan = plan_order(signal.symbol, "BUY", reference, info, quantity=quantity)
         if plan.status != "READY_FOR_MANUAL_REVIEW":
             raise TestnetExecutionError("Testnet filters reject engine quantity")
@@ -209,7 +220,7 @@ class BinanceTestnetBroker(PaperBroker):
             "planned_qty": plan.quantity,
             "base_asset": base_asset,
             "reason": reason,
-            "signal": signal.to_dict(),
+            "signal": execution_signal.to_dict(),
             "created_at": datetime.now(UTC).isoformat(),
             "status": "UNCERTAIN",
         }
