@@ -222,6 +222,9 @@ export async function handle(request, env, now = Math.floor(Date.now() / 1000)) 
     const asset = await env.ASSETS.fetch(request);
     const headers = new Headers(asset.headers);
     for (const [name, value] of Object.entries(security)) headers.set(name, value);
+    headers.set('Cache-Control','no-store, max-age=0');
+    headers.set('Pragma','no-cache');
+    if(path==='/')headers.set('Clear-Site-Data','"cache"');
     return new Response(asset.body, { status: asset.status, headers });
   }
   if (!HASH.test(env.OWNER_KEY_HASH || '') || !HASH.test(env.DEVICE_KEY_HASH || '') || env.OWNER_KEY_HASH === env.DEVICE_KEY_HASH) return json({ error: 'Portal not provisioned' }, 503);
