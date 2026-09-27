@@ -1,3 +1,13 @@
+# Actualización 0.8.14 — portabilidad y memoria durable del proyecto
+
+- Añade `PROJECT_HANDOVER.md` como punto de entrada obligatorio para futuros mantenedores o modelos de IA: misión, arquitectura, invariantes, estado, ideas futuras y checklist de toma de control.
+- Añade `PROJECT_HISTORY.md` para conservar decisiones arquitectónicas, enfoques abandonados, lecciones de seguridad y razones detrás de la evolución PAPER → Spot Testnet + Futures Demo.
+- Añade `PORTABILITY.md` con separación explícita entre código, secretos, estado persistente y supervisor del host.
+- Añade bootstrap reproducible para Windows y Linux, más un preflight de portabilidad de solo lectura. No inicia el motor, no crea credenciales y no habilita LIVE.
+- `AGENTS.md` obliga a futuras sesiones de Work/IA a leer el handover e historial antes de cambiar el proyecto y a actualizar esa memoria cuando cambie la arquitectura o el roadmap.
+- El objetivo es que ni la PC actual ni el historial de este chat sean puntos únicos de conocimiento: el proyecto debe poder reconstruirse y comprenderse desde el repositorio.
+- No cambia estrategia, señales, riesgo, leverage, sizing, IA de decisión, credenciales, ledgers ni LIVE.
+
 # Actualización 0.8.13 — arquitectura Windows estable sin PowerShell en el agente
 
 - Corrige la causa demostrada del supervisor inestable: el self-heal podía arrancar el watchdog y luego reescribir la tarea con `Set-ScheduledTask`, terminando el host PowerShell con `0xC000013A` y dejando `pythonw.exe` huérfano.
