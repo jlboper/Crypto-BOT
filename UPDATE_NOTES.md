@@ -1,3 +1,11 @@
+# Actualización 0.10.8 — publicación firmada compatible con PR aprobada
+
+- El portal ya pudo desplegarse y superar el health check desde la PR aprobada.
+- Corrige el último guard heredado: el publicador del paquete firmado del bot exigía todavía un `push` directo a `main`, aunque el nuevo flujo de release usa una PR `release/*` aprobada.
+- El publicador firmado ahora acepta únicamente el SHA validado de una PR del mismo flujo seguro: evento `pull_request`, base `main`, rama `release/*` y SHA explícito de 40 caracteres.
+- Mantiene intactas la firma, verificación, rama `bot-releases`, rollback del portal y bloqueo de LIVE.
+- No cambia estrategia, Spot, Futures, IA ni riesgo. Conserva las animaciones ligeras ya desplegadas en el portal.
+
 # Actualización 0.10.7 — guard de publicación compatible con PR aprobada
 
 - Corrige el fallo posterior a la aprobación de `portal-production`: el script de despliegue aceptaba únicamente `refs/heads/main`, aunque el workflow aprobado de una PR usa `refs/pull/<n>/merge`.
