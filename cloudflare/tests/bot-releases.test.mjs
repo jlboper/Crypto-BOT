@@ -24,6 +24,16 @@ const manifest=()=>({app:'crypto-ai-trading-bot',mode:'paper',version:'0.6.3',ru
   files:Object.fromEntries(['trader/__main__.py','trader/runtime_control.py','pyproject.toml'].map(p=>[p,'c'.repeat(64)]))});
 test('publisher identity binds protected environment, repository, workflow, revision and lifetime',async()=>{
   assert.equal((await authorizePublisher(token(),origin,now,transport)).sha,claim.sha);
+  const prSha='d'.repeat(40), prRef='refs/pull/86/merge';
+  const prClaim={ref:prRef,event_name:'pull_request',base_ref:'main',head_ref:'release/v0106-approval-before-merge',
+    workflow_ref:`${repo}/.github/workflows/portal-release.yml@${prRef}`,sha:prSha};
+  assert.equal((await authorizePublisher(token(prClaim),origin,now,transport)).sha,prSha);
+  for(const wrong of [
+    {...prClaim,base_ref:'other'},
+    {...prClaim,head_ref:'feature/not-release'},
+    {...prClaim,ref:'refs/pull/86/head'},
+    {...prClaim,workflow_ref:`${repo}/.github/workflows/portal-release.yml@refs/heads/main`}
+  ]) await assert.rejects(authorizePublisher(token(wrong),origin,now,transport));
   for(const wrong of [{repository_id:'1'},{repository_owner_id:'1'},
     {sub:'repo:jlboper/Crypto-BOT:environment:portal-production'},
     {sub:claim.sub.replace('@328148059','@1')},{sub:claim.sub.replace('@1366739763','@1')},
