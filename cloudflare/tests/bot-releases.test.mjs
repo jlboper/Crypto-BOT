@@ -28,11 +28,16 @@ test('publisher identity binds protected environment, repository, workflow, revi
   const prClaim={ref:prRef,event_name:'pull_request',base_ref:'main',head_ref:'release/v0106-approval-before-merge',
     workflow_ref:`jlboper/Crypto-BOT/.github/workflows/portal-release.yml@${prRef}`,sha:prSha};
   assert.equal((await authorizePublisher(token(prClaim),origin,now,transport)).sha,prSha);
+  assert.equal((await authorizePublisher(token({...prClaim,
+    workflow_ref:'jlboper/Crypto-BOT/.github/workflows/portal-release.yml@refs/heads/main'}),origin,now,transport)).sha,prSha);
   for(const wrong of [
     {...prClaim,base_ref:'other'},
     {...prClaim,head_ref:'feature/not-release'},
+    {...prClaim,head_ref:'release/'},
     {...prClaim,ref:'refs/pull/86/head'},
-    {...prClaim,workflow_ref:'jlboper/Crypto-BOT/.github/workflows/portal-release.yml@refs/heads/main'}
+    {...prClaim,ref:'refs/pull/086/merge'},
+    {...prClaim,ref:'refs/pull/not-a-number/merge'},
+    {...prClaim,workflow_ref:'jlboper/Crypto-BOT/.github/workflows/other.yml@refs/heads/main'}
   ]) await assert.rejects(authorizePublisher(token(wrong),origin,now,transport));
   for(const wrong of [{repository_id:'1'},{repository_owner_id:'1'},
     {sub:'repo:jlboper/Crypto-BOT:environment:portal-production'},
