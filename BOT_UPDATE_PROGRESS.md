@@ -1,4 +1,8 @@
 
+## v0.10.3 protected publish retry
+
+Retry after fixing the merged-PR publication trigger to use `pull_request_target`, so the environment gate runs against the merged commit on `main` and keeps owner approval mandatory.
+
 ## v0.10.3 publication trigger
 
 Visual-only portal motion release merged to main; this note exists only to emit the normal protected publication push. No runtime or trading behavior changes.
