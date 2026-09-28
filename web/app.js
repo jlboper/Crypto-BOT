@@ -524,8 +524,10 @@ async function refresh() {
       if(futuresForward?.killed){
         const parts=[diag.label||'Pausa de seguridad Futures'];
         if(diag.paused_at)parts.push('desde '+shortTime(diag.paused_at));
-        if(Number(diag.consecutive_errors)>0)parts.push(String(Number(diag.consecutive_errors))+' errores consecutivos');
+        if(Number(diag.consecutive_errors)>0)parts.push(String(Number(diag.consecutive_errors))+' errores consecutivos (umbral de seguridad)');
         if(diag.pending_reconciliation)parts.push('conciliación pendiente');
+        const incident=diag.incident;
+        if(incident?.id)parts.push('incidente '+incident.id+(Number(incident.repetitions)>1?' · '+Number(incident.repetitions)+' repeticiones':''));
         const last=diag.last_error;
         if(last?.message && last.message!==diag.detail)parts.push('último error: '+last.message);
         fPauseReason.textContent='Motivo de pausa · '+parts.join(' · ');
@@ -538,7 +540,11 @@ async function refresh() {
     const fSafety=document.getElementById('futuresForwardSafety');
     if(fSafety){
       const rec=futuresForward?.recovery||{};
-      fSafety.textContent=`Journal ${rec.durable_order_journal?'✓':'—'} · conciliación al reiniciar ${rec.startup_position_reconciliation?'✓':'—'} · kill switch propio ${rec.separate_kill_switch?'✓':'—'} · IA final: ${futuresForward?.ai_model||status.ai_model}. Stops nativos persistentes aún pendientes; LIVE bloqueado.`;
+      const symbolHealth=futuresForward?.symbol_health||{};
+      const blocked=Object.entries(symbolHealth).filter(([,row])=>row?.status==='BLOCKED').map(([symbol])=>symbol.replace('USDT',''));
+      const repair=rec.automatic_config_repair?'autorreparación config ✓':'autorreparación config —';
+      const resume=rec.automatic_safe_resume?'auto-reanudación segura ✓':'auto-reanudación segura —';
+      fSafety.textContent=`Journal ${rec.durable_order_journal?'✓':'—'} · conciliación al reiniciar ${rec.startup_position_reconciliation?'✓':'—'} · ${repair} · ${resume}${blocked.length?' · bloqueados: '+blocked.join(', '):''} · IA final: ${futuresForward?.ai_model||status.ai_model}. Stops nativos persistentes aún pendientes; LIVE bloqueado.`;
     }
     const pauseForward=document.getElementById('pauseFuturesForward');
     const resumeForward=document.getElementById('resumeFuturesForward');
