@@ -3,12 +3,12 @@ on:
   push:
     branches: [main]
   pull_request:
-    paths: ['cloudflare/**', 'web/**', 'scripts/build_unified_portal.py', '.github/workflows/portal-release.yml']
+    types: [opened, synchronize, reopened, closed]
 permissions:
   contents: read
   actions: read
 concurrency:
-  group: portal-release-${{ github.event_name }}-${{ github.event_name == 'push' && 'main' || github.ref }}
+  group: portal-release-${{ github.event_name }}-${{ github.event_name == 'push' && 'main' || github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 jobs:
   validate:
@@ -58,7 +58,7 @@ jobs:
             if ($parseErrors.Count -gt 0) { throw "$path : $($parseErrors -join '; ')" }
           }
   publish:
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true)
     needs: [validate, validate-windows]
     environment: portal-production
     permissions:
