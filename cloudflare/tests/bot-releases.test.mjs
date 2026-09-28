@@ -26,13 +26,13 @@ test('publisher identity binds protected environment, repository, workflow, revi
   assert.equal((await authorizePublisher(token(),origin,now,transport)).sha,claim.sha);
   const prSha='d'.repeat(40), prRef='refs/pull/86/merge';
   const prClaim={ref:prRef,event_name:'pull_request',base_ref:'main',head_ref:'release/v0106-approval-before-merge',
-    workflow_ref:`${repo}/.github/workflows/portal-release.yml@${prRef}`,sha:prSha};
+    workflow_ref:`jlboper/Crypto-BOT/.github/workflows/portal-release.yml@${prRef}`,sha:prSha};
   assert.equal((await authorizePublisher(token(prClaim),origin,now,transport)).sha,prSha);
   for(const wrong of [
     {...prClaim,base_ref:'other'},
     {...prClaim,head_ref:'feature/not-release'},
     {...prClaim,ref:'refs/pull/86/head'},
-    {...prClaim,workflow_ref:`${repo}/.github/workflows/portal-release.yml@refs/heads/main`}
+    {...prClaim,workflow_ref:'jlboper/Crypto-BOT/.github/workflows/portal-release.yml@refs/heads/main'}
   ]) await assert.rejects(authorizePublisher(token(wrong),origin,now,transport));
   for(const wrong of [{repository_id:'1'},{repository_owner_id:'1'},
     {sub:'repo:jlboper/Crypto-BOT:environment:portal-production'},
