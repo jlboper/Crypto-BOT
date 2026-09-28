@@ -102,6 +102,12 @@ Permanent recovery rules:
 - manual pauses never auto-resume;
 - automatic pauses may auto-resume only after journal reconciliation, position identity checks, required Futures configuration and account reads all pass.
 
+## 2026-09 — Flat reduce-only journal rule
+
+A follow-up to the Futures recovery work showed that querying an old Binance order first can itself block recovery, even when the only remaining durable record is a `reduceOnly` close and both local accounting and current exchange exposure are already flat.
+
+Permanent rule: a reduce-only close journal may be cleared without historical-order lookup only when local position state is absent and a fresh Binance position read confirms zero exposure for that exact symbol. This cannot be generalized to opening orders or any non-flat state. No order is resent during this cleanup.
+
 ## Ideas intentionally deferred
 
 The following have been discussed but should remain deferred until their prerequisites are met:

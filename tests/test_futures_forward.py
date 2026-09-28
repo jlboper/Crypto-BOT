@@ -140,6 +140,32 @@ class FuturesForwardTests(unittest.TestCase):
             preflight.assert_not_called()
         self.assertTrue(self.engine.killed())
 
+    def test_flat_reduce_only_journal_clears_without_querying_old_order(self):
+        pending = {
+            "symbol": "SOLUSDT", "side": "SELL", "quantity": "0.1",
+            "reduce_only": True, "client_order_id": "cait-fwd-expired-close",
+        }
+        self.engine.ledger.set_setting("forward_pending_order", pending)
+        with patch.object(self.engine, "_actual_rows", return_value=[]), \
+             patch.object(self.engine.lab, "reconcile_forward_pending") as reconcile:
+            result = self.engine._recover_journal()
+        reconcile.assert_not_called()
+        self.assertEqual(result["status"], "RECOVERED_CLOSE_ALREADY_FLAT")
+        self.assertIsNone(self.engine.ledger.setting("forward_pending_order"))
+        self.assertEqual(self.engine.ledger.setting("forward_last_journal_recovery")["status"], "CLEARED_FLAT_REDUCE_ONLY")
+
+    def test_open_journal_never_uses_flat_reduce_only_shortcut(self):
+        pending = {
+            "symbol": "SOLUSDT", "side": "BUY", "quantity": "0.1",
+            "reduce_only": False, "client_order_id": "cait-fwd-open",
+        }
+        self.engine.ledger.set_setting("forward_pending_order", pending)
+        with patch.object(self.engine.lab, "reconcile_forward_pending", return_value={"resolved":False,"status":"NEW","pending":pending}) as reconcile:
+            result = self.engine._recover_journal()
+        reconcile.assert_called_once()
+        self.assertFalse(result["resolved"])
+        self.assertIsNotNone(self.engine.ledger.setting("forward_pending_order"))
+
     def test_automatic_pause_reconciles_stale_filled_close_journal_before_resume(self):
         self.engine._halt("three consecutive Futures protection errors", overwrite_last_error=False)
         pending = {

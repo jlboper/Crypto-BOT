@@ -198,9 +198,25 @@ class FuturesForwardEngine:
     def _recover_journal(self)->dict|None:
         pending_before=self.ledger.setting("forward_pending_order")
         if not pending_before: return None
+        symbol=str(pending_before["symbol"])
+        local=self.ledger.forward_position(symbol)
+        # A reduce-only close cannot create exposure. If both durable local
+        # accounting and Binance are already flat, the remaining journal entry
+        # is stale bookkeeping and can be cleared without querying an old order
+        # that Binance may no longer retain. Never apply this shortcut to opens.
+        if pending_before.get("reduce_only") and local is None:
+            rows=self._actual_rows(symbol)
+            if not rows:
+                self.ledger.set_setting("forward_open_plan",None)
+                self.ledger.set_setting("forward_pending_order",None)
+                self.ledger.set_setting("forward_last_journal_recovery",{
+                    "status":"CLEARED_FLAT_REDUCE_ONLY",
+                    "symbol":symbol,
+                    "at":datetime.now(UTC).isoformat(),
+                })
+                return {"resolved":True,"status":"RECOVERED_CLOSE_ALREADY_FLAT"}
         outcome=self.lab.reconcile_forward_pending()
         if not outcome or not outcome.get("resolved"): return outcome
-        symbol=str(pending_before["symbol"])
         if outcome.get("status")!="FILLED":
             self.ledger.set_setting("forward_open_plan",None); return outcome
         pending=outcome["pending"]; order=outcome["order"]; local=self.ledger.forward_position(symbol); rows=self._actual_rows(symbol)
@@ -212,6 +228,11 @@ class FuturesForwardEngine:
                 # flat. This is a stale journal entry, not an unresolved trade.
                 self.ledger.set_setting("forward_open_plan",None)
                 self.ledger.set_setting("forward_pending_order",None)
+                self.ledger.set_setting("forward_last_journal_recovery",{
+                    "status":"CONFIRMED_CLOSE_ALREADY_FLAT",
+                    "symbol":symbol,
+                    "at":datetime.now(UTC).isoformat(),
+                })
                 return {"resolved":True,"status":"RECOVERED_CLOSE_ALREADY_FLAT"}
             if not rows:
                 exit_price=self.lab._execution_price(order,symbol); entry=_decimal(local["entry_price"]); qty=_decimal(local["quantity"])

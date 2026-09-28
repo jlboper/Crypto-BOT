@@ -73,6 +73,12 @@ class WindowsAssetTests(unittest.TestCase):
         self.assertIn("Start-ScheduledTask -TaskName 'Crypto Paper Portal Agent'", source)
         self.assertIn("Invoke-TradingEngineWatchdog", source)
 
+    def test_spot_positions_table_keeps_standard_desktop_typography(self):
+        css = (PROJECT_ROOT / "web" / "monitoring.css").read_text(encoding="utf-8")
+        self.assertIn(".compact-engine-table table{min-width:760px}", css)
+        self.assertIn(".compact-engine-table th,.compact-engine-table td{padding-left:10px;padding-right:10px}", css)
+        self.assertNotIn(".compact-engine-table table{min-width:0;table-layout:fixed;font-size:11px}", css)
+
     def test_manager_retires_sha_only_update_installer(self):
         source = (PROJECT_ROOT / "scripts" / "manager_windows.ps1").read_text(encoding="utf-8-sig")
         self.assertNotIn("raw.githubusercontent.com/jlboper/Crypto-BOT", source)
