@@ -335,7 +335,8 @@ class TradingEngine:
         message = (type(exc).__name__ + ": " + str(exc))[:200]
         fingerprint = source + "|" + message
         active = self.futures_forward.ledger.setting("forward_active_incident")
-        if isinstance(active, dict) and active.get("fingerprint") == fingerprint:
+        new_incident = not (isinstance(active, dict) and active.get("fingerprint") == fingerprint)
+        if not new_incident:
             incident = {**active, "repetitions": int(active.get("repetitions", 1)) + 1, "last_at": now}
         else:
             sequence = int(self.futures_forward.ledger.setting("forward_incident_sequence") or 0) + 1
@@ -351,7 +352,24 @@ class TradingEngine:
             }
         self.futures_forward.ledger.set_setting("forward_active_incident", incident)
         self.futures_forward.ledger.set_setting("forward_last_incident", incident)
-        return {"message": message, "at": now}
+        return {"message": message, "at": now, "incident_id": incident["id"], "new_incident": new_incident}
+
+    def _emit_futures_warning(self, source: str, message: str, *, force: bool = False) -> None:
+        key = "forward_last_warning_" + source
+        prior = self.futures_forward.ledger.setting(key)
+        now = datetime.now(UTC)
+        emit = force
+        if isinstance(prior, dict) and prior.get("message") == message:
+            try:
+                then = datetime.fromisoformat(str(prior.get("at","")).replace("Z","+00:00"))
+                emit = emit or (now-then).total_seconds() >= 900
+            except ValueError:
+                emit = True
+        else:
+            emit = True
+        if emit:
+            self.db.event("WARN", message)
+            self.futures_forward.ledger.set_setting(key, {"message":message,"at":now.isoformat()})
 
     def _resolve_futures_incident(self, source: str) -> None:
         active = self.futures_forward.ledger.setting("forward_active_incident")
@@ -379,9 +397,10 @@ class TradingEngine:
             self.futures_forward.ledger.set_setting("forward_last_cycle_error", detail)
             self.futures_forward.ledger.set_setting("forward_last_error", detail)
             self._sync_futures_legacy_error_counter()
-            total = self.futures_forward.ledger.setting("forward_error_total") or 0
-            self.futures_forward.ledger.set_setting("forward_error_total", int(total) + 1)
-            self.db.event("WARN", "Futures Demo forward cycle failed: " + type(exc).__name__)
+            attempts = self.futures_forward.ledger.setting("forward_failure_attempt_total") or 0
+            self.futures_forward.ledger.set_setting("forward_failure_attempt_total", int(attempts) + 1)
+            self._emit_futures_warning("cycle", "Futures Demo forward cycle failed: " + type(exc).__name__,
+                                       force=bool(detail.get("new_incident")))
             if count >= 3:
                 self.futures_forward._halt("three consecutive Futures forward errors", overwrite_last_error=False)
 
@@ -403,9 +422,10 @@ class TradingEngine:
             self.futures_forward.ledger.set_setting("forward_last_protection_error", detail)
             self.futures_forward.ledger.set_setting("forward_last_error", detail)
             self._sync_futures_legacy_error_counter()
-            total = self.futures_forward.ledger.setting("forward_error_total") or 0
-            self.futures_forward.ledger.set_setting("forward_error_total", int(total) + 1)
-            self.db.event("WARN", "Futures Demo protection failed: " + type(exc).__name__)
+            attempts = self.futures_forward.ledger.setting("forward_failure_attempt_total") or 0
+            self.futures_forward.ledger.set_setting("forward_failure_attempt_total", int(attempts) + 1)
+            self._emit_futures_warning("protection", "Futures Demo protection failed: " + type(exc).__name__,
+                                       force=bool(detail.get("new_incident")))
             if count >= 3:
                 self.futures_forward._halt("three consecutive Futures protection errors", overwrite_last_error=False)
 
