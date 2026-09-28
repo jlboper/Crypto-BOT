@@ -10,6 +10,7 @@ import subprocess
 import sys
 import threading
 import time
+import tomllib
 from datetime import UTC, datetime
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -319,6 +320,7 @@ class DashboardServer:
                     prices, prices_at = outer.db.market_snapshot()
                     self._json({
                         "mode": outer.config.bot.mode.upper(),
+                        "installed_version": tomllib.loads((PROJECT_ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]["version"],
                         "killed": outer.config.bot.kill_switch_path.exists(),
                         "ai_enabled": outer.config.ai.enabled,
                         "ai_model": outer.config.ai.model,

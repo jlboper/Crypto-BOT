@@ -103,10 +103,19 @@ class WindowsAssetTests(unittest.TestCase):
     def test_portal_brand_keeps_logo_and_title_aligned(self):
         html = (PROJECT_ROOT / "web" / "index.html").read_text(encoding="utf-8")
         css = (PROJECT_ROOT / "web" / "portal.css").read_text(encoding="utf-8")
+        shared_css = (PROJECT_ROOT / "web" / "styles.css").read_text(encoding="utf-8")
+        app = (PROJECT_ROOT / "web" / "app.js").read_text(encoding="utf-8")
+        bridge = (PROJECT_ROOT / "web" / "portal-bridge.js").read_text(encoding="utf-8")
+        dashboard = (PROJECT_ROOT / "trader" / "dashboard.py").read_text(encoding="utf-8")
         self.assertIn('<div class="brand">', html)
         self.assertIn('<div class="brand-copy">', html)
+        self.assertIn('id="botVersion"', html)
         self.assertIn(".brand{display:flex;align-items:center", css)
         self.assertIn(".brand-mark{float:none;margin:0;flex:0 0 44px}", css)
+        self.assertIn(".bot-version{", shared_css)
+        self.assertIn("status.installed_version", app)
+        self.assertIn("state.snapshot?.installed_version", bridge)
+        self.assertIn('"installed_version": tomllib.loads', dashboard)
 
     def test_portal_declares_multi_asset_forward_positions_before_render(self):
         app = (PROJECT_ROOT / "web" / "app.js").read_text(encoding="utf-8")

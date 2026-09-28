@@ -1,3 +1,12 @@
+# Actualización 0.9.7 — contrato portal/Windows y versión visible
+
+- Corrige el HTTP 400 de sincronización introducido al añadir `pause_diagnostics.incident` en 0.9.6: el agente Windows ya emitía el campo, pero el validador del Worker todavía no lo aceptaba.
+- El Worker acepta ahora el objeto `incident` únicamente con su forma acotada y validada, conserva compatibilidad con snapshots anteriores sin ese campo y rechaza formas malformadas.
+- Añade pruebas de regresión específicas para que el contrato de diagnóstico Futures actual y el legado sean aceptados por el portal antes de publicar.
+- Regla permanente: todo campo nuevo del snapshot remoto debe actualizar en la misma PR el validador del portal y una prueba de compatibilidad. Una release no debe romper los heartbeats por evolución unilateral del esquema.
+- El encabezado compartido del portal muestra en letra pequeña la versión instalada junto al nombre **Crypto AI Trader**. En remoto toma `installed_version` del heartbeat; en local la obtiene del `pyproject.toml` instalado.
+- No cambia estrategia, señales, riesgo, leverage, sizing, credenciales, ledgers ni LIVE.
+
 # Actualización 0.8.14 — portabilidad y memoria durable del proyecto
 
 - Añade `PROJECT_HANDOVER.md` como punto de entrada obligatorio para futuros mantenedores o modelos de IA: misión, arquitectura, invariantes, estado, ideas futuras y checklist de toma de control.

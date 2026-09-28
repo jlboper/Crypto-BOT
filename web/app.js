@@ -453,6 +453,8 @@ async function refresh() {
     const modeUpper=currentExecutionMode.toUpperCase();
     const forwardPositions=Array.isArray(futuresForward?.positions)?futuresForward.positions:[];
     document.getElementById('mode').textContent=modeUpper;
+    const versionNode=document.getElementById('botVersion');
+    if(versionNode)versionNode.textContent=/^\d+\.\d+\.\d+$/.test(String(status.installed_version||''))?'v'+status.installed_version:'v—';
     document.getElementById('executionModeChoice').value=currentExecutionMode==='testnet'?'testnet':'paper';
     const primaryState=document.getElementById('primaryEnvironmentState');
     if(primaryState)primaryState.textContent=modeUpper;
