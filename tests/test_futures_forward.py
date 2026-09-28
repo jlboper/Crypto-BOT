@@ -166,6 +166,73 @@ class FuturesForwardTests(unittest.TestCase):
         self.assertFalse(result["resolved"])
         self.assertIsNotNone(self.engine.ledger.setting("forward_pending_order"))
 
+    def test_pending_open_cross_position_is_reconstructed_then_closed_safely(self):
+        self.engine._halt("three consecutive Futures protection errors", overwrite_last_error=False)
+        pending = {
+            "symbol":"SOLUSDT","side":"BUY","quantity":"0.1","reduce_only":False,
+            "client_order_id":"cait-fwd-cross-open",
+        }
+        plan = {"symbol":"SOLUSDT","direction":"LONG","score":80,"atr":2.0,
+                "opened_at":"2026-09-27T00:00:00+00:00"}
+        row = {"symbol":"SOLUSDT","positionAmt":"0.1","entryPrice":"100",
+               "markPrice":"100","liquidationPrice":"50","leverage":"1",
+               "marginType":"cross","positionSide":"BOTH"}
+        close_order={"clientOrderId":"repair-close","avgPrice":"101","executedQty":"0.1","status":"FILLED"}
+        self.engine.ledger.set_setting("forward_pending_order", pending)
+        self.engine.ledger.set_setting("forward_open_plan", plan)
+        calls={"rows":0}
+        def actual(symbol):
+            calls["rows"] += 1
+            return [row] if calls["rows"] <= 2 else []
+        with patch.object(self.engine, "_actual_rows", side_effect=actual), \
+             patch.object(self.engine.lab, "forward_submit", return_value=close_order), \
+             patch.object(self.engine.lab, "_execution_price", return_value=101), \
+             patch.object(self.engine.lab, "ensure_flat_forward_configuration",
+                          return_value={"symbol":"SOLUSDT","positionAmt":"0","leverage":"1",
+                                        "marginType":"isolated","positionSide":"BOTH"}):
+            result=self.engine._recover_journal()
+        self.assertEqual(result["status"], "RECOVERED_OPEN_CROSS_CLOSED")
+        self.assertIsNone(self.engine.ledger.forward_position("SOLUSDT"))
+        self.assertIsNone(self.engine.ledger.setting("forward_pending_order"))
+        self.assertIsNone(self.engine.ledger.setting("forward_open_plan"))
+        self.assertEqual(self.engine.ledger.setting("forward_last_journal_recovery")["status"],
+                         "RECOVERED_UNTRACKED_OPEN_CROSS_CLOSED")
+
+    def test_missing_historical_open_order_can_quarantine_only_when_currently_flat(self):
+        pending = {
+            "symbol":"SOLUSDT","side":"BUY","quantity":"0.1","reduce_only":False,
+            "client_order_id":"cait-fwd-old-open",
+        }
+        self.engine.ledger.set_setting("forward_pending_order", pending)
+        self.engine.ledger.set_setting("forward_open_plan", {
+            "symbol":"SOLUSDT","direction":"LONG","score":80,"atr":2.0,
+            "opened_at":"2026-09-27T00:00:00+00:00",
+        })
+        outcome={"resolved":False,"status":"ORDER_NOT_FOUND","pending":pending}
+        with patch.object(self.engine, "_actual_rows", return_value=[]), \
+             patch.object(self.engine.lab, "reconcile_forward_pending", return_value=outcome):
+            result=self.engine._recover_journal()
+        self.assertEqual(result["status"], "QUARANTINED_ORPHANED_OPEN_FLAT")
+        self.assertIsNone(self.engine.ledger.setting("forward_pending_order"))
+        self.assertEqual(self.engine.ledger.setting("forward_evidence_gap")["status"], "ORPHANED_OPEN_FLAT")
+
+    def test_missing_historical_open_order_with_exposure_never_clears_journal(self):
+        pending = {
+            "symbol":"SOLUSDT","side":"BUY","quantity":"0.1","reduce_only":False,
+            "client_order_id":"cait-fwd-old-open",
+        }
+        self.engine.ledger.set_setting("forward_pending_order", pending)
+        row={"symbol":"SOLUSDT","positionAmt":"0.2","entryPrice":"100","leverage":"1",
+             "marginType":"isolated","positionSide":"BOTH"}
+        self.engine.ledger.set_setting("forward_open_plan", {
+            "symbol":"SOLUSDT","direction":"LONG","score":80,"atr":2.0,
+            "opened_at":"2026-09-27T00:00:00+00:00",
+        })
+        with patch.object(self.engine, "_actual_rows", return_value=[row]):
+            with self.assertRaisesRegex(FuturesTestnetExecutionError, "quantity mismatch"):
+                self.engine._recover_journal()
+        self.assertIsNotNone(self.engine.ledger.setting("forward_pending_order"))
+
     def test_automatic_pause_reconciles_stale_filled_close_journal_before_resume(self):
         self.engine._halt("three consecutive Futures protection errors", overwrite_last_error=False)
         pending = {
