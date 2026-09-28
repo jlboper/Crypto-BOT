@@ -118,9 +118,68 @@ class FuturesForwardEngine:
         pnl=(exit_price-entry)*qty if local["direction"]=="LONG" else (entry-exit_price)*qty
         closed=self.ledger.close_forward_position(symbol=symbol,exit_price=float(exit_price),gross_pnl=float(pnl),exit_reason="CONFIG_REPAIR")
         self.ledger.set_setting("forward_pending_order",None)
-        self.lab._configure(symbol,1)
+        self.lab.ensure_flat_forward_configuration(symbol)
         self.ledger.set_setting("forward_last_config_repair",{"symbol":symbol,"reason":"margin_not_isolated","at":datetime.now(UTC).isoformat()})
         return closed
+
+    def _preflight_flat_symbols(self)->dict[str,dict]:
+        """Repair harmless flat-symbol drift without taking the whole motor down."""
+        health={}
+        local_symbols={row["symbol"] for row in self.ledger.forward_positions()}
+        for symbol in self.symbols:
+            if symbol in local_symbols:
+                health[symbol]={"status":"OPEN","at":datetime.now(UTC).isoformat()}
+                continue
+            try:
+                if self._actual_rows(symbol):
+                    raise FuturesTestnetExecutionError(f"Untracked Futures Demo position: {symbol}")
+                state=self.lab.ensure_flat_forward_configuration(symbol)
+                health[symbol]={"status":"READY","margin_type":str(state.get("marginType","")).upper(),
+                                "leverage":int(float(state.get("leverage",0) or 0)),
+                                "at":datetime.now(UTC).isoformat()}
+            except Exception as exc:
+                health[symbol]={"status":"BLOCKED","error":(type(exc).__name__+": "+str(exc))[:180],
+                                "at":datetime.now(UTC).isoformat()}
+        self.ledger.set_setting("forward_symbol_health",health)
+        return health
+
+    def _automatic_pause_reason(self)->str|None:
+        if not self.killed(): return None
+        try: reason=self.settings.kill_switch_path.read_text(encoding="utf-8",errors="replace").strip().lower()
+        except OSError:return None
+        return reason if reason.startswith("three consecutive futures ") else None
+
+    def _attempt_auto_recovery(self)->bool:
+        """Auto-resume only automatic error pauses after full safe reconciliation."""
+        if not self._automatic_pause_reason(): return False
+        if self.ledger.setting("forward_pending_order"): return False
+        try:
+            # Existing tracked exposure must be reconciled first. CROSS is safely
+            # flattened by the same identity-first repair used by protection_tick.
+            for local in list(self.ledger.forward_positions()):
+                rows=self._actual_rows(local["symbol"])
+                self._assert_identity(local["symbol"],local,rows)
+                if str(rows[0].get("marginType","")).lower()!="isolated":
+                    self._repair_cross_position(local,rows[0])
+                else:
+                    self._validated_rows(local["symbol"],local)
+            health=self._preflight_flat_symbols()
+            if any(row.get("status")=="BLOCKED" for row in health.values()):
+                return False
+            self._record_account()
+        except Exception as exc:
+            self.ledger.set_setting("forward_last_recovery_error",{
+                "message":(type(exc).__name__+": "+str(exc))[:200],
+                "at":datetime.now(UTC).isoformat(),
+            })
+            return False
+        try:self.settings.kill_switch_path.unlink()
+        except FileNotFoundError:pass
+        self.ledger.set_setting("forward_cycle_consecutive_errors",0)
+        self.ledger.set_setting("forward_protection_consecutive_errors",0)
+        self.ledger.set_setting("forward_consecutive_errors",0)
+        self.ledger.set_setting("forward_last_auto_recovery",{"status":"RESUMED","at":datetime.now(UTC).isoformat()})
+        return True
 
     def _close(self,local:dict,reason:str)->dict:
         symbol=local["symbol"]; rows=self._validated_rows(symbol, local)
@@ -235,15 +294,20 @@ class FuturesForwardEngine:
 
     def cycle(self,candle_map:dict[str,list[Candle]])->dict:
         if not self.settings.forward_enabled:return {"enabled":False,"status":"OFF"}
-        if self.killed():return {"enabled":True,"status":"KILLED"}
+        if self.killed() and not self._attempt_auto_recovery():
+            return {"enabled":True,"status":"KILLED"}
         pending=self._recover_journal()
         if pending and not pending.get("resolved"):return {"enabled":True,"status":"PENDING_RECONCILIATION"}
+        health=self._preflight_flat_symbols()
         account=self._record_account(); results=[]
         for symbol in self.symbols:
+            if health.get(symbol,{}).get("status")=="BLOCKED" and self.ledger.forward_position(symbol) is None:
+                results.append({"symbol":symbol,"status":"BLOCKED","error":health[symbol].get("error")})
+                continue
             candles=candle_map.get(symbol)
             if not candles: results.append({"symbol":symbol,"status":"NO_DATA"}); continue
             results.append(self.cycle_symbol(symbol,candles,account))
-        return {"enabled":True,"status":"ACTIVE","results":results,**account}
+        return {"enabled":True,"status":"ACTIVE","results":results,"symbol_health":health,**account}
 
     def snapshot(self)->dict:
         data=self.ledger.forward_snapshot()
@@ -251,5 +315,8 @@ class FuturesForwardEngine:
             "automatic_leverage":1,"latest_signals":{s:self.ledger.setting(f"forward_last_signal_{s}") for s in self.symbols},
             "last_error":self.ledger.setting("forward_last_error"),"ai_model":self.config.ai.model,
             "last_ai_reviews":{s:self.ledger.setting(f"forward_last_ai_review_{s}") for s in self.symbols},
+            "symbol_health":self.ledger.setting("forward_symbol_health") or {},
+            "last_auto_recovery":self.ledger.setting("forward_last_auto_recovery"),
             "recovery":{"durable_order_journal":True,"startup_position_reconciliation":True,"separate_kill_switch":True,
+                        "automatic_config_repair":True,"automatic_safe_resume":True,
                         "native_exchange_stop_orders":False},**data}

@@ -363,10 +363,14 @@ class DashboardServer:
                         "automatic_leverage": outer.config.futures_testnet.forward_leverage,
                         "ai_model": outer.config.ai.model,
                         "last_ai_reviews": {symbol: ledger.setting(f"forward_last_ai_review_{symbol}") for symbol in outer.config.futures_testnet.forward_symbols},
+                        "symbol_health": ledger.setting("forward_symbol_health") or {},
+                        "last_auto_recovery": ledger.setting("forward_last_auto_recovery"),
                         "recovery": {
                             "durable_order_journal": True,
                             "startup_position_reconciliation": True,
                             "separate_kill_switch": True,
+                            "automatic_config_repair": True,
+                            "automatic_safe_resume": True,
                             "native_exchange_stop_orders": False,
                         },
                         "live_readiness": {
