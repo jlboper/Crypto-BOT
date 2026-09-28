@@ -1,3 +1,21 @@
+# Actualización 0.10.0 — auditoría integral Futures y recuperación por estado real
+
+Esta versión nace de una auditoría completa del flujo Futures Demo después de observar una pausa persistente con cientos de repeticiones del mismo incidente. El hallazgo principal es que el problema no era un único error de margen: era una interacción entre el journal durable, la ventana de crash entre Binance y SQLite, la caducidad de consultas históricas de órdenes y la recuperación de una apertura confirmada que podía reaparecer como posición CROSS antes de quedar registrada localmente.
+
+Cambios de raíz:
+
+- **Estado actual primero:** la recuperación deja de depender exclusivamente de que Binance todavía conserve una orden histórica. Antes de decidir, contrasta journal, posición local y exposición actual del exchange para el símbolo exacto.
+- **Apertura confirmada + posición CROSS sin posición local:** si el journal de apertura, el plan durable, la dirección y la cantidad coinciden con una única exposición actual, reconstruye primero la posición local. Si esa exposición está en CROSS, limpia el journal de apertura ya confirmado y ejecuta un único cierre `reduceOnly` identificado; luego restaura el símbolo plano a ONE_WAY / ISOLATED / 1x. Esto corrige específicamente el ciclo que producía `Automatic Futures margin is not isolated` sin poder avanzar.
+- **Crash después del commit local:** si la posición local ya existe pero quedó el journal de apertura, valida identidad contra Binance, elimina solo el journal obsoleto y repara configuración de forma segura.
+- **Órdenes históricas expiradas:** Binance `-2013 Order does not exist` deja de ser una excepción infinita. Si una apertura antigua no puede consultarse y la exposición actual es cero, el journal se pone en cuarentena y se limpia, dejando una marca explícita de brecha de evidencia. Si existe exposición, no se limpia.
+- **Cierres `reduceOnly`:** mantienen la regla anterior: solo se elimina un journal antiguo sin consultar la orden cuando local y exchange están inequívocamente planos.
+- **Reanudar deja de ser un simple borrado del kill switch:** la acción ahora pasa por mantenimiento supervisado, detiene cooperativamente el motor, reconcilia journal, valida identidad, corrige/neutraliza exposición CROSS permitida, ejecuta preflight de todos los símbolos y solo entonces quita la pausa y reinicia el motor.
+- **Anti-spam operativo:** un mismo fallo repetido se conserva como un incidente con contador, pero los WARN idénticos del motor se limitan a uno cada 15 minutos. Se separan `incidentes`, `intentos fallidos` y `ciclos` para no volver a presentar cientos de chequeos de protección como cientos de causas distintas.
+- **Diagnóstico durable:** el portal recibe la última recuperación de journal y cualquier brecha de evidencia sin secretos, para que una recuperación no quede invisible.
+- **Spot Testnet auditado:** el broker Spot ya reconcilia su journal por `clientOrderId` antes de cada ciclo, protege posiciones con precio de ejecución Testnet y mantiene su ledger separado. No se encontró el patrón de bloqueo de Futures ni se cambió su estrategia/riesgo.
+- La tipografía de **Posiciones abiertas · Spot** permanece en el tamaño estándar restaurado en 0.9.9; el scroll horizontal es intencional para conservar homologación visual.
+- No habilita LIVE ni cambia estrategia, scores, riesgo, leverage automático 1x, sizing, credenciales o límites financieros.
+
 # Actualización 0.9.9 — cierre definitivo del journal Futures plano
 
 - Corrige el caso que todavía podía mantener Futures en **PAUSADO + conciliación pendiente** después de 0.9.8: un journal `reduceOnly` antiguo podía quedar huérfano cuando Binance y el ledger local ya estaban planos, pero la consulta histórica de esa orden fallaba antes de que el motor comprobara ese estado seguro.
