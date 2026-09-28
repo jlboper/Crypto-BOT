@@ -28,8 +28,12 @@ export async function authorizePublisher(token,origin,now,transport=fetch){
   require(claim.iss===issuer&&claim.aud===origin+'/bot-releases','Invalid publisher audience');
   // Repositories created after July 15, 2026 use immutable GitHub subjects.
   require(claim.sub===`repo:jlboper@328148059/Crypto-BOT@${repositoryId}:environment:portal-production`,'Invalid publisher subject');
-  require(claim.repository===repo&&claim.repository_id===repositoryId&&claim.repository_owner_id==='328148059'&&claim.ref==='refs/heads/main'&&claim.environment==='portal-production','Invalid publisher repository');
-  require(claim.workflow_ref===`${repo}/.github/workflows/portal-release.yml@refs/heads/main`&&claim.event_name==='push','Invalid publisher workflow');
+  const mainPublisher=claim.ref==='refs/heads/main'&&claim.event_name==='push'&&claim.workflow_ref===`${repo}/.github/workflows/portal-release.yml@refs/heads/main`;
+  const prPublisher=/^refs\\/pull\\/[1-9][0-9]*\\/merge$/.test(claim.ref||'')&&claim.event_name==='pull_request'
+    &&claim.base_ref==='main'&&/^release\\//.test(claim.head_ref||'')
+    &&claim.workflow_ref===`${repo}/.github/workflows/portal-release.yml@${claim.ref}`;
+  require(claim.repository===repo&&claim.repository_id===repositoryId&&claim.repository_owner_id==='328148059'&&claim.environment==='portal-production'&&(mainPublisher||prPublisher),'Invalid publisher repository');
+  require(mainPublisher||prPublisher,'Invalid publisher workflow');
   require(Number.isInteger(claim.exp)&&claim.exp>now&&claim.exp<=now+900&&Number.isInteger(claim.nbf)&&claim.nbf<=now+30,'Expired publisher token');
   require(/^[a-f0-9]{40}$/.test(claim.sha)&&/^[1-9][0-9]{0,14}$/.test(claim.run_id),'Invalid publisher revision');
   return claim;
