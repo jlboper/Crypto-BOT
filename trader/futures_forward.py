@@ -195,44 +195,141 @@ class FuturesForwardEngine:
         closed=self.ledger.close_forward_position(symbol=symbol,exit_price=float(exit_price),gross_pnl=float(pnl),exit_reason=reason)
         self.ledger.set_setting("forward_pending_order",None); return closed
 
+    def _mark_evidence_gap(self, status: str, symbol: str, detail: str) -> None:
+        self.ledger.set_setting("forward_evidence_gap", {
+            "status": status,
+            "symbol": symbol,
+            "detail": str(detail)[:180],
+            "at": datetime.now(UTC).isoformat(),
+        })
+
+    def _reconstruct_open_position(self, symbol: str, pending: dict, plan: dict, row: dict, order: dict | None = None) -> dict:
+        direction=str(plan.get("direction",""))
+        amount=_decimal(row.get("positionAmt","0"))
+        expected=1 if direction=="LONG" else -1 if direction=="SHORT" else 0
+        actual=1 if amount>0 else -1 if amount<0 else 0
+        if expected==0 or actual!=expected:
+            raise FuturesTestnetExecutionError("Recovered Futures direction mismatch")
+        pending_qty=_decimal(pending.get("quantity","0"))
+        if pending_qty<=0 or abs(float(abs(amount))-float(pending_qty))>1e-12:
+            raise FuturesTestnetExecutionError("Recovered Futures quantity mismatch")
+        position_side=str(row.get("positionSide","")).upper()
+        if position_side and position_side!="BOTH":
+            raise FuturesTestnetExecutionError("Automatic Futures position mode changed from ONE_WAY")
+        entry=_decimal(row.get("entryPrice","0"))
+        if entry<=0 and order is not None:
+            entry=self.lab._execution_price(order,symbol)
+        if entry<=0:
+            raise FuturesTestnetExecutionError("Recovered Futures entry price unavailable")
+        atr_value=float(plan.get("atr",0) or 0)
+        if atr_value<=0:
+            raise FuturesTestnetExecutionError("Recovered Futures ATR unavailable")
+        distance=max(Decimal(str(self.settings.forward_stop_atr_multiple*atr_value)),
+                     Decimal(str(self.settings.forward_minimum_stop_pct))*entry)
+        stop=entry-distance if direction=="LONG" else entry+distance
+        take=entry+Decimal(str(self.settings.forward_reward_to_risk))*distance if direction=="LONG" else entry-Decimal(str(self.settings.forward_reward_to_risk))*distance
+        liquidation=_decimal(row.get("liquidationPrice","0"))
+        return {"symbol":symbol,"direction":direction,"leverage":1,"quantity":float(abs(amount)),
+                "entry_price":float(entry),"stop_price":float(stop),"take_profit":float(take),
+                "liquidation_price":float(liquidation) if liquidation>0 else None,
+                "signal_score":int(plan.get("score",0) or 0),"opened_at":str(plan.get("opened_at") or datetime.now(UTC).isoformat())}
+
     def _recover_journal(self)->dict|None:
-        pending_before=self.ledger.setting("forward_pending_order")
-        if not pending_before: return None
-        symbol=str(pending_before["symbol"])
+        pending=self.ledger.setting("forward_pending_order")
+        if not pending:
+            return None
+        symbol=str(pending.get("symbol") or "")
+        if symbol not in self.symbols:
+            raise FuturesTestnetExecutionError("Futures forward journal symbol is invalid")
         local=self.ledger.forward_position(symbol)
-        # A reduce-only close cannot create exposure. If both durable local
-        # accounting and Binance are already flat, the remaining journal entry
-        # is stale bookkeeping and can be cleared without querying an old order
-        # that Binance may no longer retain. Never apply this shortcut to opens.
-        if pending_before.get("reduce_only") and local is None:
-            rows=self._actual_rows(symbol)
-            if not rows:
+        rows=self._actual_rows(symbol)
+        reduce_only=bool(pending.get("reduce_only"))
+        plan=self.ledger.setting("forward_open_plan")
+
+        # A reduce-only close cannot create exposure. Current local + exchange
+        # flatness is authoritative enough to remove stale bookkeeping even if
+        # Binance no longer retains the historical order lookup.
+        if reduce_only and local is None and not rows:
+            self.ledger.set_setting("forward_open_plan",None)
+            self.ledger.set_setting("forward_pending_order",None)
+            self.ledger.set_setting("forward_last_journal_recovery",{
+                "status":"CLEARED_FLAT_REDUCE_ONLY","symbol":symbol,"at":datetime.now(UTC).isoformat()})
+            return {"resolved":True,"status":"RECOVERED_CLOSE_ALREADY_FLAT"}
+
+        # Local accounting is only created after a confirmed open fill. If it
+        # exists while the OPEN journal remains, this is a crash-window journal.
+        # Verify current exchange identity, clear the stale open journal, then
+        # repair configuration if needed.
+        if not reduce_only and local is not None:
+            self._assert_identity(symbol,local,rows)
+            self.ledger.set_setting("forward_open_plan",None)
+            self.ledger.set_setting("forward_pending_order",None)
+            if str(rows[0].get("marginType","")).lower()!="isolated":
+                closed=self._repair_cross_position(local,rows[0])
+                self.ledger.set_setting("forward_last_journal_recovery",{
+                    "status":"RECOVERED_TRACKED_OPEN_CROSS_CLOSED","symbol":symbol,"at":datetime.now(UTC).isoformat()})
+                return {"resolved":True,"status":"RECOVERED_OPEN_CROSS_CLOSED","trade":closed}
+            self._validated_rows(symbol,local)
+            self.ledger.set_setting("forward_last_journal_recovery",{
+                "status":"CLEARED_CONFIRMED_OPEN_JOURNAL","symbol":symbol,"at":datetime.now(UTC).isoformat()})
+            return {"resolved":True,"status":"RECOVERED_OPEN","position":local}
+
+        # If an OPEN journal has no local position but Binance has exactly one
+        # matching exposure, the exchange itself proves the fill survived the
+        # crash. Reconstruct local accounting before clearing the old journal.
+        if not reduce_only and local is None and rows:
+            if not isinstance(plan,dict) or plan.get("symbol")!=symbol or len(rows)!=1:
+                self._halt("uncertain Futures open could not be reconstructed")
+                raise FuturesTestnetExecutionError("Futures forward recovery requires owner review")
+            reconstructed=self._reconstruct_open_position(symbol,pending,plan,rows[0])
+            self.ledger.set_forward_position(reconstructed)
+            self.ledger.set_setting("forward_open_plan",None)
+            self.ledger.set_setting("forward_pending_order",None)
+            if str(rows[0].get("marginType","")).lower()!="isolated":
+                closed=self._repair_cross_position(reconstructed,rows[0])
+                self.ledger.set_setting("forward_last_journal_recovery",{
+                    "status":"RECOVERED_UNTRACKED_OPEN_CROSS_CLOSED","symbol":symbol,"at":datetime.now(UTC).isoformat()})
+                return {"resolved":True,"status":"RECOVERED_OPEN_CROSS_CLOSED","trade":closed}
+            refreshed=self.lab.ensure_forward_position_configuration(symbol,rows[0])
+            self._assert_identity(symbol,reconstructed,[refreshed])
+            self.ledger.set_setting("forward_last_journal_recovery",{
+                "status":"RECONSTRUCTED_CONFIRMED_OPEN","symbol":symbol,"at":datetime.now(UTC).isoformat()})
+            return {"resolved":True,"status":"RECOVERED_OPEN","position":reconstructed}
+
+        outcome=self.lab.reconcile_forward_pending()
+        if not outcome:
+            return None
+
+        # Binance Demo may forget an old client-order lookup. Current flatness
+        # still lets us recover an OPEN journal safely, but the historical fill
+        # outcome is unknown, so preserve an explicit evidence warning.
+        if outcome.get("status")=="ORDER_NOT_FOUND":
+            if not reduce_only and local is None and not rows:
+                self._mark_evidence_gap("ORPHANED_OPEN_FLAT",symbol,"Historical Binance order lookup expired while current exposure is zero")
                 self.ledger.set_setting("forward_open_plan",None)
                 self.ledger.set_setting("forward_pending_order",None)
                 self.ledger.set_setting("forward_last_journal_recovery",{
-                    "status":"CLEARED_FLAT_REDUCE_ONLY",
-                    "symbol":symbol,
-                    "at":datetime.now(UTC).isoformat(),
-                })
-                return {"resolved":True,"status":"RECOVERED_CLOSE_ALREADY_FLAT"}
-        outcome=self.lab.reconcile_forward_pending()
-        if not outcome or not outcome.get("resolved"): return outcome
+                    "status":"QUARANTINED_ORPHANED_OPEN_FLAT","symbol":symbol,"at":datetime.now(UTC).isoformat()})
+                return {"resolved":True,"status":"QUARANTINED_ORPHANED_OPEN_FLAT"}
+            return outcome
+
+        if not outcome.get("resolved"):
+            return outcome
         if outcome.get("status")!="FILLED":
-            self.ledger.set_setting("forward_open_plan",None); return outcome
-        pending=outcome["pending"]; order=outcome["order"]; local=self.ledger.forward_position(symbol); rows=self._actual_rows(symbol)
-        if pending.get("reduce_only"):
+            self.ledger.set_setting("forward_open_plan",None)
+            return outcome
+
+        order=outcome["order"]
+        local=self.ledger.forward_position(symbol)
+        rows=self._actual_rows(symbol)
+        if reduce_only:
             if local is None:
                 if rows:
                     raise FuturesTestnetExecutionError(f"Futures close recovery found untracked exposure: {symbol}")
-                # The exchange confirms the close and local accounting is already
-                # flat. This is a stale journal entry, not an unresolved trade.
                 self.ledger.set_setting("forward_open_plan",None)
                 self.ledger.set_setting("forward_pending_order",None)
                 self.ledger.set_setting("forward_last_journal_recovery",{
-                    "status":"CONFIRMED_CLOSE_ALREADY_FLAT",
-                    "symbol":symbol,
-                    "at":datetime.now(UTC).isoformat(),
-                })
+                    "status":"CONFIRMED_CLOSE_ALREADY_FLAT","symbol":symbol,"at":datetime.now(UTC).isoformat()})
                 return {"resolved":True,"status":"RECOVERED_CLOSE_ALREADY_FLAT"}
             if not rows:
                 exit_price=self.lab._execution_price(order,symbol); entry=_decimal(local["entry_price"]); qty=_decimal(local["quantity"])
@@ -240,30 +337,19 @@ class FuturesForwardEngine:
                 closed=self.ledger.close_forward_position(symbol=symbol,exit_price=float(exit_price),gross_pnl=float(pnl),exit_reason="RECOVERED_CLOSE")
                 self.ledger.set_setting("forward_pending_order",None)
                 return {"resolved":True,"status":"RECOVERED_CLOSE","trade":closed}
-            # A FILLED reduce-only order can be briefly visible before the
-            # position endpoint catches up. Keep the journal and retry without
-            # converting a transient exchange lag into repeated protection errors.
             self._assert_identity(symbol,local,rows)
             return {"resolved":False,"status":"FILLED_POSITION_STILL_VISIBLE","pending":pending}
-        if local is None:
-            plan=self.ledger.setting("forward_open_plan")
-            if not isinstance(plan,dict) or plan.get("symbol")!=symbol or len(rows)!=1:
-                self._halt("uncertain Futures open could not be reconstructed"); raise FuturesTestnetExecutionError("Futures forward recovery requires owner review")
-            row=self.lab.ensure_forward_position_configuration(symbol, rows[0]); amount=_decimal(row.get("positionAmt","0")); direction=str(plan["direction"])
-            if (direction=="LONG" and amount<=0) or (direction=="SHORT" and amount>=0): raise FuturesTestnetExecutionError("Recovered Futures direction mismatch")
-            entry=_decimal(row.get("entryPrice","0"))
-            if entry<=0: entry=self.lab._execution_price(order,symbol)
-            distance=max(Decimal(str(self.settings.forward_stop_atr_multiple*float(plan["atr"]))),Decimal(str(self.settings.forward_minimum_stop_pct))*entry)
-            stop=entry-distance if direction=="LONG" else entry+distance
-            take=entry+Decimal(str(self.settings.forward_reward_to_risk))*distance if direction=="LONG" else entry-Decimal(str(self.settings.forward_reward_to_risk))*distance
-            liquidation=_decimal(row.get("liquidationPrice","0"))
-            reconstructed={"symbol":symbol,"direction":direction,"leverage":1,"quantity":float(abs(amount)),"entry_price":float(entry),
-                "stop_price":float(stop),"take_profit":float(take),"liquidation_price":float(liquidation) if liquidation>0 else None,
-                "signal_score":int(plan["score"]),"opened_at":str(plan["opened_at"])}
-            self.ledger.set_forward_position(reconstructed); self.ledger.set_setting("forward_open_plan",None); self.ledger.set_setting("forward_pending_order",None)
-            return {"resolved":True,"status":"RECOVERED_OPEN","position":reconstructed}
-        rows=self._validated_rows(symbol, local); self.ledger.set_setting("forward_open_plan",None); self.ledger.set_setting("forward_pending_order",None)
-        return outcome
+
+        # A FILLED opening order with no remaining exposure is operationally
+        # safe but cannot be represented as an open position. Quarantine the
+        # accounting gap rather than trapping Futures forever.
+        if local is None and not rows:
+            self._mark_evidence_gap("FILLED_OPEN_NOW_FLAT",symbol,"Opening order was FILLED but current exchange exposure is zero")
+            self.ledger.set_setting("forward_open_plan",None)
+            self.ledger.set_setting("forward_pending_order",None)
+            return {"resolved":True,"status":"QUARANTINED_FILLED_OPEN_NOW_FLAT"}
+
+        return {"resolved":False,"status":"RECOVERY_STATE_CHANGED","pending":pending}
 
     def protection_tick(self)->dict:
         if not self.settings.forward_enabled: return {"enabled":False}
