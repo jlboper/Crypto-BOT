@@ -101,6 +101,14 @@ class WindowsAssetTests(unittest.TestCase):
         self.assertNotIn("push:\n    branches: [main]", workflow)
 
 
+    def test_options_menu_stays_above_engine_panels(self):
+        css = (PROJECT_ROOT / "web" / "portal.css").read_text(encoding="utf-8")
+        self.assertIn("header{position:relative;z-index:100;overflow:visible}", css)
+        self.assertIn(".header-actions{position:relative;z-index:110;overflow:visible}", css)
+        self.assertIn(".options{position:relative;z-index:120}", css)
+        self.assertIn(".options-menu{z-index:1000}", css)
+        self.assertIn(".engine-workspace,.engine-console{position:relative;z-index:1}", css)
+
     def test_manager_retires_sha_only_update_installer(self):
         source = (PROJECT_ROOT / "scripts" / "manager_windows.ps1").read_text(encoding="utf-8-sig")
         self.assertNotIn("raw.githubusercontent.com/jlboper/Crypto-BOT", source)
