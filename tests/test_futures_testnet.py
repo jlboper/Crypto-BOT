@@ -49,18 +49,17 @@ class FuturesTestnetLabTests(unittest.TestCase):
         if endpoint == "/fapi/v3/account":
             return {"canTrade": True, "totalWalletBalance": "1000", "availableBalance": "900"}
         if endpoint == "/fapi/v3/positionRisk":
-            if self.position_amt == 0:
-                return []
-            return [{
+            row = {
                 "symbol": fields.get("symbol", "BTCUSDT"),
                 "positionAmt": str(self.position_amt),
-                "entryPrice": "100",
-                "liquidationPrice": "70" if self.position_amt > 0 else "130",
+                "entryPrice": "100" if self.position_amt else "0",
+                "liquidationPrice": ("70" if self.position_amt > 0 else "130") if self.position_amt else "0",
                 "leverage": str(self.leverage),
                 "marginType": "isolated",
                 "positionSide": "BOTH",
                 "markPrice": "100",
-            }]
+            }
+            return [row]
         if endpoint == "/fapi/v1/positionSide/dual":
             return {"dualSidePosition": False} if method == "GET" else {"code": 200}
         if endpoint == "/fapi/v1/marginType":
@@ -188,6 +187,16 @@ class FuturesTestnetLabTests(unittest.TestCase):
             )
         self.assertEqual(result["status"], "FILLED")
         self.assertEqual(self.leverage, 3)
+
+    def test_flat_forward_preflight_repairs_to_isolated_one_x_and_confirms(self):
+        self.position_amt = 0.0
+        self.leverage = 2
+        with patch("trader.futures_testnet.signed_request", side_effect=self.signed):
+            state = self.lab.ensure_flat_forward_configuration("BTCUSDT")
+        self.assertEqual(self.leverage, 1)
+        self.assertEqual(state["marginType"], "isolated")
+        self.assertEqual(int(state["leverage"]), 1)
+        self.assertEqual(state["positionSide"], "BOTH")
 
     def test_known_isolated_forward_position_repairs_leverage_to_one_x(self):
         self.position_amt = 0.1
