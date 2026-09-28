@@ -96,10 +96,10 @@ class FuturesForwardTests(unittest.TestCase):
         with patch.object(self.engine.lab, "forward_submit", return_value=order) as submit, \
              patch.object(self.engine, "_actual_rows", return_value=[]), \
              patch.object(self.engine.lab, "_execution_price", return_value=101), \
-             patch.object(self.engine.lab, "_configure") as configure:
+             patch.object(self.engine.lab, "ensure_flat_forward_configuration", return_value={"symbol":"SOLUSDT","positionAmt":"0","leverage":"1","marginType":"isolated","positionSide":"BOTH"}) as configure:
             closed = self.engine._repair_cross_position(local, row)
         submit.assert_called_once_with(symbol="SOLUSDT", side="SELL", quantity=__import__("decimal").Decimal("0.1"), reduce_only=True)
-        configure.assert_called_once_with("SOLUSDT", 1)
+        configure.assert_called_once_with("SOLUSDT")
         self.assertIsNone(self.engine.ledger.forward_position("SOLUSDT"))
         self.assertEqual(closed["exit_reason"], "CONFIG_REPAIR")
         self.assertEqual(self.engine.ledger.setting("forward_last_config_repair")["symbol"], "SOLUSDT")
@@ -121,6 +121,43 @@ class FuturesForwardTests(unittest.TestCase):
             with self.assertRaisesRegex(FuturesTestnetExecutionError, "ONE_WAY"):
                 self.engine._repair_cross_position(local, hedge)
             submit.assert_not_called()
+
+    def test_automatic_pause_recovers_only_after_all_symbols_are_safe(self):
+        self.engine._halt("three consecutive Futures protection errors", overwrite_last_error=False)
+        ready = {"symbol":"BTCUSDT","positionAmt":"0","leverage":"1","marginType":"isolated","positionSide":"BOTH"}
+        with patch.object(self.engine, "_actual_rows", return_value=[]), \
+             patch.object(self.engine.lab, "ensure_flat_forward_configuration", return_value=ready), \
+             patch.object(self.engine, "_record_account", return_value={"wallet_balance":5000,"available_balance":5000,"unrealized_pnl":0}):
+            self.assertTrue(self.engine._attempt_auto_recovery())
+        self.assertFalse(self.engine.killed())
+        self.assertEqual(self.engine.ledger.setting("forward_consecutive_errors"), 0)
+        self.assertEqual(self.engine.ledger.setting("forward_last_auto_recovery")["status"], "RESUMED")
+
+    def test_manual_pause_never_auto_resumes(self):
+        self.engine._halt("owner pause", overwrite_last_error=False)
+        with patch.object(self.engine.lab, "ensure_flat_forward_configuration") as preflight:
+            self.assertFalse(self.engine._attempt_auto_recovery())
+            preflight.assert_not_called()
+        self.assertTrue(self.engine.killed())
+
+    def test_flat_symbol_failure_is_quarantined_instead_of_crashing_cycle(self):
+        account={"wallet_balance":5000,"available_balance":5000,"unrealized_pnl":0}
+        health={
+            "BTCUSDT":{"status":"READY"},
+            "ETHUSDT":{"status":"BLOCKED","error":"margin repair unavailable"},
+            "SOLUSDT":{"status":"READY"},
+        }
+        with patch.object(self.engine, "_preflight_flat_symbols", return_value=health), \
+             patch.object(self.engine, "_record_account", return_value=account), \
+             patch.object(self.engine, "cycle_symbol", return_value={"status":"FLAT"}) as cycle_symbol:
+            result=self.engine.cycle({
+                "BTCUSDT": self.candles(True),
+                "ETHUSDT": self.candles(True),
+                "SOLUSDT": self.candles(True),
+            })
+        eth=next(row for row in result["results"] if row["symbol"]=="ETHUSDT")
+        self.assertEqual(eth["status"], "BLOCKED")
+        self.assertEqual(cycle_symbol.call_count, 2)
 
     def test_signal_supports_long_and_short_symmetrically(self):
         long_signal = self.engine._signal(self.candles(True))
