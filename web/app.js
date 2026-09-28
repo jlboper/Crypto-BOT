@@ -169,7 +169,7 @@ function renderDualEvidence(spot, futures) {
   set('futuresObservedQuality', (score.win_rate_pct==null?'—':finite(score.win_rate_pct).toFixed(1)+'%')+' / '+(score.profit_factor==null?'—':finite(score.profit_factor).toFixed(2)));
   set('futuresDirectionSplit','L '+finite(score.long_closed_trades).toFixed(0)+' ('+money(score.long_gross_pnl_usdt||0)+') · S '+finite(score.short_closed_trades).toFixed(0)+' ('+money(score.short_gross_pnl_usdt||0)+')');
   const cycles=finite(score.cycle_total),errors=finite(score.error_total);
-  set('futuresErrorRate',errors.toFixed(0)+' / '+cycles.toFixed(0)+' ciclos'+(cycles?' · '+(100*errors/cycles).toFixed(2)+'%':''));
+  set('futuresErrorRate',errors.toFixed(0)+' eventos históricos · '+cycles.toFixed(0)+' ciclos');
   const spotDays=finite(spot?.observed_days),spotTrades=finite(spot?.closed_trades);
   const futuresDays=finite(score.observed_days),futuresTrades=finite(score.closed_trades);
   const checks=[
@@ -502,10 +502,12 @@ async function refresh() {
     }
     const fPosition=document.getElementById('futuresForwardPosition');
     if(fPosition)fPosition.textContent=forwardPositions.length?forwardPositions.map(p=>`${String(p.symbol).replace('USDT','')} ${p.direction}`).join(' · '):'Sin posición';
-    const fPnl=document.getElementById('futuresForwardPnl');
-    if(fPnl)fPnl.textContent=money(Number(futuresForward?.gross_pnl||0));
     const fClosed=document.getElementById('futuresForwardClosed');
-    if(fClosed)fClosed.textContent=String(futuresForward?.closed_trades||0)+' cierres';
+    if(fClosed){
+      const closed=Number(futuresForward?.closed_trades||0);
+      const pnl=Number(futuresForward?.gross_pnl||0);
+      fClosed.textContent=closed+' '+(closed===1?'cierre':'cierres')+' · '+(pnl>=0?'+':'')+money(pnl);
+    }
     const fReturn=document.getElementById('futuresForwardReturn');
     if(fReturn)fReturn.textContent=futuresForward?.scorecard?.account_return_pct==null?'—':pct(futuresForward.scorecard.account_return_pct);
     const fAi=document.getElementById('futuresForwardAi');
@@ -513,8 +515,10 @@ async function refresh() {
       const reviews=futuresForward?.last_ai_reviews||{};
       const review=Object.values(reviews).filter(Boolean).at(-1);
       fAi.textContent=review?`${review.verdict} · ${Math.round(Number(review.confidence||0)*100)}%`:
-        `${futuresForward?.ai_model||status.ai_model} · esperando señal`;
+        (status.ai_enabled?'Activa':'Desactivada');
     }
+    const fAiModel=document.getElementById('futuresForwardAiModel');
+    if(fAiModel)fAiModel.textContent=futuresForward?.ai_model||status.ai_model||'—';
     const fRecovery=document.getElementById('futuresForwardRecovery');
     if(fRecovery){
       const rec=futuresForward?.recovery||{};
