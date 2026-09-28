@@ -97,4 +97,5 @@ jobs:
       - name: Publish signed bot if its version changed
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          RELEASE_SHA: ${{ github.event.pull_request.head.sha }}
         run: node scripts/publish_bot_release.mjs
