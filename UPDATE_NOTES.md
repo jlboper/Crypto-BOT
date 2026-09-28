@@ -1,3 +1,11 @@
+# Actualización 0.10.5 — un solo disparador de publicación protegida
+
+- Elimina la duplicidad de publicaciones que podía ocurrir al mantener simultáneamente `push main` y `pull_request_target closed`.
+- La publicación protegida queda ligada a un único evento: PR mergeada. Esto evita que dos jobs intenten publicar la misma versión y que uno termine marcado como fallo aunque el otro haya avanzado.
+- Las PR abiertas/sincronizadas siguen ejecutando validaciones normales antes del merge.
+- Tras el merge, el workflow toma exactamente el `merge_commit_sha`, vuelve a validar y espera la aprobación obligatoria de `portal-production` antes de publicar.
+- Conserva las animaciones ligeras del portal y no cambia contenido, estrategia, riesgo, Spot, Futures, IA, credenciales ni LIVE.
+
 # Actualización 0.10.4 — publicación protegida y animaciones
 
 - Mantiene la capa visual de animaciones ligeras introducida en 0.10.3.
