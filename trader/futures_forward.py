@@ -202,7 +202,8 @@ class FuturesForwardEngine:
         health=self._preflight_flat_symbols()
         blocked={symbol:row for symbol,row in health.items() if row.get("status")=="BLOCKED"}
         if blocked:
-            raise FuturesTestnetExecutionError("Futures safe resume blocked by symbol preflight")
+            detail="; ".join(f"{symbol}: {row.get('error','blocked')}" for symbol,row in blocked.items())
+            raise FuturesTestnetExecutionError(("Futures safe resume blocked by symbol preflight · "+detail)[:500])
         self._record_account()
         try:self.settings.kill_switch_path.unlink()
         except FileNotFoundError:pass
