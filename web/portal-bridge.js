@@ -165,8 +165,14 @@ window.portalApi=async(path,options={})=>{
   const data=state.snapshot?.dashboard;
   if(!data)throw new Error('Esperando la primera sincronización del panel completo');
   if(!portalRoute[path])throw new Error('Ruta no disponible');
-  return structuredClone(data[portalRoute[path]]??{});
+  const result=structuredClone(data[portalRoute[path]]??{});
+  if(path==='/api/status'&&objectLike(result)){
+    const version=state.snapshot?.installed_version;
+    if(typeof version==='string'&&/^\d+\.\d+\.\d+$/.test(version))result.installed_version=version;
+  }
+  return result;
 };
+function objectLike(value){return value!==null&&typeof value==='object'&&!Array.isArray(value);}
 window.paperControlsAvailable=()=>!remotePortal || !!(portalCache&&!portalCache.stale&&portalCache.snapshot?.paper_controls===true);
 document.addEventListener('DOMContentLoaded',()=>{
   if(!remotePortal)document.getElementById('installBotUpdate').disabled=false;
