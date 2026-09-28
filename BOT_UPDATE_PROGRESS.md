@@ -1,3 +1,7 @@
+
+## v0.10.3 publication trigger
+
+Visual-only portal motion release merged to main; this note exists only to emit the normal protected publication push. No runtime or trading behavior changes.
 # 0.9.7 publication handoff
 
 Version 0.9.7 is merged on `main`. The functional PR was merged through the GitHub API, which may not emit the protected `push` publication run in this repository. This documentation-only follow-up PR exists solely to be merged by the owner in the GitHub web UI so the normal `main` push event can trigger `portal-release.yml`. It does not change bot behavior, strategy, risk, leverage, credentials, ledgers, or LIVE state.
