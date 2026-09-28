@@ -161,6 +161,17 @@ class FuturesForwardTests(unittest.TestCase):
         self.assertFalse(self.engine.killed())
         self.assertEqual(self.engine.ledger.setting("forward_last_auto_recovery")["status"], "RESUMED")
 
+    def test_flat_automatic_pause_can_recover_from_protection_tick(self):
+        self.engine._halt("three consecutive Futures protection errors", overwrite_last_error=False)
+        ready = {"symbol":"BTCUSDT","positionAmt":"0","leverage":"1",
+                 "marginType":"isolated","positionSide":"BOTH"}
+        with patch.object(self.engine, "_actual_rows", return_value=[]), \
+             patch.object(self.engine.lab, "ensure_flat_forward_configuration", return_value=ready), \
+             patch.object(self.engine, "_record_account", return_value={"wallet_balance":5000,"available_balance":5000,"unrealized_pnl":0}):
+            result = self.engine.protection_tick()
+        self.assertEqual(result["status"], "RECOVERED")
+        self.assertFalse(self.engine.killed())
+
     def test_filled_close_with_local_position_waits_for_exchange_position_to_disappear(self):
         local = {
             "symbol": "SOLUSDT", "direction": "LONG", "leverage": 1,
