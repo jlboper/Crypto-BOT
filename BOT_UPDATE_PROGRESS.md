@@ -1,3 +1,7 @@
+# 0.9.7 publication handoff
+
+Version 0.9.7 is merged on `main`. The functional PR was merged through the GitHub API, which may not emit the protected `push` publication run in this repository. This documentation-only follow-up PR exists solely to be merged by the owner in the GitHub web UI so the normal `main` push event can trigger `portal-release.yml`. It does not change bot behavior, strategy, risk, leverage, credentials, ledgers, or LIVE state.
+
 # 0.6.20 unified execution candidate
 
 Version 0.6.20 is implemented on branch `work/unified-testnet-engine-v0620` for review. It keeps one TradingEngine and selects either PaperBroker or BinanceTestnetBroker. The Testnet broker is restricted to Spot Testnet, journals client order identity before writes, blocks duplicate writes during uncertain/partial states, reconciles by client id, and records exchange fills into a separate Testnet ledger. PAPER remains a reversible simulation environment; Binance LIVE remains unavailable.
