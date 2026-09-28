@@ -108,6 +108,23 @@ A follow-up to the Futures recovery work showed that querying an old Binance ord
 
 Permanent rule: a reduce-only close journal may be cleared without historical-order lookup only when local position state is absent and a fresh Binance position read confirms zero exposure for that exact symbol. This cannot be generalized to opening orders or any non-flat state. No order is resent during this cleanup.
 
+## 2026-09 — Futures recovery must be state-machine based
+
+The prolonged FUT-0001 incident demonstrated that durable order journals, exchange positions and local accounting cannot be recovered correctly by treating any one of them as the sole source of truth. A crash may occur after the exchange fill but before local commit, after local commit but before journal cleanup, or while Binance still exposes a temporarily inconsistent configuration. Historical order lookup can also expire.
+
+Permanent invariants introduced by the 0.10.0 audit:
+
+- classify recovery from the tuple **pending journal + local position + current exchange exposure + durable open plan**;
+- current exchange exposure is authoritative for financial risk, while the journal is authoritative for write identity;
+- never resend an uncertain write merely because local accounting is incomplete;
+- a confirmed/matching opening exposure may be reconstructed locally before repair;
+- if a reconstructed opening exposure is CROSS, close it exactly once with a new durable reduce-only journal before returning to flat ISOLATED 1x;
+- an expired historical order lookup may only be quarantined automatically when current exposure is zero; preserve an explicit evidence-gap marker;
+- owner resume is a supervised reconciliation operation, never a raw kill-switch delete;
+- repeated protection attempts for the same root cause are one incident with bounded log emission, not hundreds of independent incidents.
+
+Spot Testnet was reviewed against the same failure classes and retains its separate client-order journal/reconciliation path; no equivalent state-machine defect was found in that path during this audit.
+
 ## Ideas intentionally deferred
 
 The following have been discussed but should remain deferred until their prerequisites are met:
