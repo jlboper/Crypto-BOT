@@ -83,6 +83,19 @@ def _futures_pause_diagnostics(config, ledger):
     consecutive = ledger.setting(counter_key)
     if consecutive is None:
         consecutive = ledger.setting('forward_consecutive_errors')
+    incident = ledger.setting('forward_active_incident') or ledger.setting('forward_last_incident')
+    if isinstance(incident, dict):
+        incident = {
+            'id': public_text(incident.get('id', ''))[:32] or None,
+            'source': public_text(incident.get('source', ''))[:32] or None,
+            'message': public_text(incident.get('message', '')),
+            'repetitions': int(incident.get('repetitions', 1) or 1),
+            'first_at': str(incident.get('first_at', ''))[:40] or None,
+            'last_at': str(incident.get('last_at', ''))[:40] or None,
+            'resolved_at': str(incident.get('resolved_at', ''))[:40] or None,
+        }
+    else:
+        incident = None
     return {
         'active': killed,
         'label': label,
@@ -91,6 +104,7 @@ def _futures_pause_diagnostics(config, ledger):
         'paused_at': paused_at,
         'last_error': last_error,
         'consecutive_errors': int(consecutive or 0),
+        'incident': incident,
         'pending_reconciliation': bool(ledger.setting('forward_pending_order')),
     }
 
@@ -221,11 +235,15 @@ def dashboard_snapshot(config, report_path=None):
                 },
                 'ai_model': config.ai.model,
                 'last_ai_reviews': {symbol: futures_ledger.setting(f'forward_last_ai_review_{symbol}') for symbol in config.futures_testnet.forward_symbols},
+                'symbol_health': futures_ledger.setting('forward_symbol_health') or {},
+                'last_auto_recovery': futures_ledger.setting('forward_last_auto_recovery'),
                 'observation_health': futures_ledger.observation_health(config.bot.cycle_seconds),
                 'recovery': {
                     'durable_order_journal': True,
                     'startup_position_reconciliation': True,
                     'separate_kill_switch': True,
+                    'automatic_config_repair': True,
+                    'automatic_safe_resume': True,
                     'native_exchange_stop_orders': False,
                 },
                 'live_readiness': {
