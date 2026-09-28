@@ -185,6 +185,34 @@ class FuturesForwardEngine:
         self.ledger.set_setting("forward_last_auto_recovery",{"status":"RESUMED","at":datetime.now(UTC).isoformat()})
         return True
 
+    def safe_resume(self)->dict:
+        """Resume a paused forward motor only after a full exchange-backed audit."""
+        if not self.killed():
+            return {"status":"ALREADY_ACTIVE","resumed":False}
+        pending=self._recover_journal()
+        if pending and not pending.get("resolved"):
+            raise FuturesTestnetExecutionError("Futures safe resume blocked by pending reconciliation")
+        for local in list(self.ledger.forward_positions()):
+            rows=self._actual_rows(local["symbol"])
+            self._assert_identity(local["symbol"],local,rows)
+            if str(rows[0].get("marginType","")).lower()!="isolated":
+                self._repair_cross_position(local,rows[0])
+            else:
+                self._validated_rows(local["symbol"],local)
+        health=self._preflight_flat_symbols()
+        blocked={symbol:row for symbol,row in health.items() if row.get("status")=="BLOCKED"}
+        if blocked:
+            raise FuturesTestnetExecutionError("Futures safe resume blocked by symbol preflight")
+        self._record_account()
+        try:self.settings.kill_switch_path.unlink()
+        except FileNotFoundError:pass
+        self.ledger.set_setting("forward_cycle_consecutive_errors",0)
+        self.ledger.set_setting("forward_protection_consecutive_errors",0)
+        self.ledger.set_setting("forward_consecutive_errors",0)
+        result={"status":"RESUMED","resumed":True,"at":datetime.now(UTC).isoformat()}
+        self.ledger.set_setting("forward_last_auto_recovery",result)
+        return result
+
     def _close(self,local:dict,reason:str)->dict:
         symbol=local["symbol"]; rows=self._validated_rows(symbol, local)
         amount=_decimal(rows[0]["positionAmt"]); side="SELL" if amount>0 else "BUY"
