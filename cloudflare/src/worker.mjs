@@ -119,7 +119,7 @@ function validateSnapshot(snapshot) {
         const incident=p.incident;
         const validIncident=incident===undefined||incident===null||(object(incident)
           &&Object.keys(incident).every(k=>['id','source','message','repetitions','first_at','last_at','resolved_at'].includes(k))
-          &&(incident.id===null||(typeof incident.id==='string'&&/^FUT-\\d{4,}$/.test(incident.id)&&incident.id.length<=32))
+          &&(incident.id===null||(typeof incident.id==='string'&&/^FUT-\d{4,}$/.test(incident.id)&&incident.id.length<=32))
           &&(incident.source===null||['cycle','protection'].includes(incident.source))
           &&typeof incident.message==='string'&&incident.message.length<=240
           &&Number.isInteger(incident.repetitions)&&incident.repetitions>=1&&incident.repetitions<=1000000
