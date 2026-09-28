@@ -1,3 +1,10 @@
+# Actualización 0.10.7 — guard de publicación compatible con PR aprobada
+
+- Corrige el fallo posterior a la aprobación de `portal-production`: el script de despliegue aceptaba únicamente `refs/heads/main`, aunque el workflow aprobado de una PR usa `refs/pull/<n>/merge`.
+- El deploy mantiene controles estrictos: repositorio exacto, evento `pull_request`, base `main`, rama `release/*` y SHA de 40 caracteres validado explícitamente.
+- El portal se publica y verifica contra el SHA real de la rama de release validada, no contra el merge-ref temporal de GitHub.
+- No cambia estrategia, Spot, Futures, IA, riesgo ni LIVE. Conserva las animaciones ligeras del portal.
+
 # Actualización 0.10.6 — aprobación protegida antes del merge
 
 - Cambia el flujo de release para no depender de que un merge hecho por API dispare otro workflow, algo que GitHub puede suprimir para evitar cadenas recursivas de automatización.
