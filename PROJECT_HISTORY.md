@@ -75,6 +75,20 @@ Lessons preserved:
 - one heartbeat after repair is not enough evidence of stability;
 - a remote-visibility failure must degrade monitoring, not corrupt trading state.
 
+## 2026-09 — Remote snapshot contract compatibility
+
+A production incident after 0.9.6 exposed an important integration rule: the Windows agent began emitting a new bounded Futures `pause_diagnostics.incident` field while the Cloudflare Worker still enforced the previous allowlist. The bot update itself completed, but every device heartbeat was rejected with HTTP 400 and the portal appeared stuck.
+
+Permanent lesson and invariant:
+
+- the Windows snapshot producer and Cloudflare snapshot validator are one versioned contract even though they run in different places;
+- any new remote snapshot field must update the Worker validator and compatibility tests in the same PR;
+- the Worker must continue accepting the immediately previous compatible shape when the field is optional, so rollout order cannot break monitoring;
+- CI must include both the current shape and the legacy shape before a portal release can be merged/published;
+- a heartbeat/schema failure must remain a monitoring failure only; it must never mutate trading state, credentials or ledgers.
+
+This class of mismatch is now covered by regression tests for Futures pause diagnostics and should be treated as a release-blocking contract failure in future changes.
+
 ## Ideas intentionally deferred
 
 The following have been discussed but should remain deferred until their prerequisites are met:
