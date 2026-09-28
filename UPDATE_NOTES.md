@@ -1,3 +1,16 @@
+# Actualización 0.10.3 — animaciones ligeras del portal
+
+- Añade una capa visual de movimiento al portal sin cambiar contenido, estrategia, cálculos, APIs ni comportamiento de trading.
+- Tarjetas y paneles ganan transiciones suaves y un desplazamiento mínimo al pasar el cursor, manteniendo el diseño actual.
+- Botones y controles tienen respuesta visual ligera al hover/click.
+- Estados y métricas hacen una animación corta únicamente cuando cambia su texto; no se añade polling adicional ni llamadas al servidor.
+- Las gráficas Spot y Futures hacen un fade corto al redibujarse con los datos que ya recibían cada 30 segundos; no se añade un loop de render continuo.
+- Los estados operativos tienen un pulso muy sutil para dar sensación de actividad sin usar canvas, partículas ni GPU intensiva.
+- El logo tiene una microinteracción discreta al hover y los menús/details aparecen con transiciones cortas.
+- La carga inicial usa una entrada suave de encabezado, motores y paneles.
+- Respeta `prefers-reduced-motion`: si el sistema solicita movimiento reducido, las animaciones se desactivan prácticamente por completo.
+- Todo se ejecuta en el navegador; no añade carga relevante al Worker/servidor ni modifica el intervalo de sincronización existente.
+
 # Actualización 0.10.2 — preflight Futures alineado con Binance v3
 
 - Corrige el fallo observado en 0.10.1: `Futures Demo symbol state unavailable: BTCUSDT / ETHUSDT`.

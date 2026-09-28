@@ -14,6 +14,35 @@ let lastResearchReport = null;
 let lastPositions = [];
 let currentExecutionMode = 'paper';
 const paperControlsAvailable = () => typeof window.paperControlsAvailable === 'function' ? window.paperControlsAvailable() : true;
+const motionReduced = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
+function retriggerMotion(node, className) {
+  if (!node || motionReduced() || document.hidden) return;
+  node.classList.remove(className);
+  void node.offsetWidth;
+  node.classList.add(className);
+  node.addEventListener('animationend',()=>node.classList.remove(className),{once:true});
+}
+function installPortalMotion() {
+  const shell=document.querySelector('.shell');
+  if(shell&&!motionReduced())requestAnimationFrame(()=>shell.classList.add('motion-ready'));
+  const watched=[
+    '.engine-kpis strong','.engine-kpis em','.metrics strong',
+    '.research-summary strong','.health-grid dd','.dual-scorecards dd',
+    '.state','.badge','.bot-version'
+  ];
+  const nodes=[...document.querySelectorAll(watched.join(','))];
+  const observer=new MutationObserver(records=>{
+    const touched=new Set(records.map(record=>record.target.nodeType===3?record.target.parentElement:record.target).filter(Boolean));
+    for(const node of touched){
+      retriggerMotion(node,node.matches('.state,.badge')?'motion-state':'motion-value');
+      if(node.matches('.state')){
+        const label=(node.textContent||'').toUpperCase();
+        node.classList.toggle('motion-operational',/OPERATIVO|ACTIVO · ESPERANDO SEÑAL|PROTECCIONES ACTIVAS/.test(label));
+      }
+    }
+  });
+  for(const node of nodes)observer.observe(node,{subtree:true,characterData:true,childList:true});
+}
 
 async function api(path, options={}) {
   if(window.portalApi)return window.portalApi(path,{...options,headers:{...headers,...(options.headers||{})}});
@@ -35,6 +64,7 @@ function renderChart(rows) {
   const gradient=ctx.createLinearGradient(0,0,0,height); gradient.addColorStop(0,'rgba(45,226,166,.28)'); gradient.addColorStop(1,'rgba(45,226,166,0)');
   ctx.beginPath(); values.forEach((v,i)=>i?ctx.lineTo(x(i),y(v)):ctx.moveTo(x(i),y(v))); ctx.lineTo(x(values.length-1),height-20); ctx.lineTo(x(0),height-20); ctx.closePath(); ctx.fillStyle=gradient; ctx.fill();
   ctx.beginPath(); values.forEach((v,i)=>i?ctx.lineTo(x(i),y(v)):ctx.moveTo(x(i),y(v))); ctx.strokeStyle='#2de2a6'; ctx.lineWidth=2; ctx.stroke();
+  retriggerMotion(canvas,'motion-chart');
 }
 
 function emptyRow(columns, text) { return `<tr><td colspan="${columns}" class="empty">${text}</td></tr>`; }
@@ -151,6 +181,7 @@ function renderFuturesChart(points) {
   ctx.strokeStyle='#4de3b0';ctx.lineWidth=2;ctx.beginPath();
   rows.forEach((value,i)=>{const x=8+(width-16)*(i/(rows.length-1));const y=8+(height-28)*(1-(value-min)/span);if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);});
   ctx.stroke();
+  retriggerMotion(canvas,'motion-chart');
 }
 
 function renderDualEvidence(spot, futures) {
@@ -674,5 +705,5 @@ document.getElementById('researchDetail').addEventListener('click',event=>{
 window.addEventListener('resize',()=>Promise.all([api('/api/equity'),api('/api/futures-forward')]).then(([spot,futures])=>{renderChart(spot);renderFuturesChart(futures?.equity||[]);}).catch(()=>{}));
 window.addEventListener('portal-ready',refresh);
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('/service-worker.js').catch(()=>{});
-window.addEventListener('DOMContentLoaded',refresh);
+window.addEventListener('DOMContentLoaded',()=>{installPortalMotion();refresh();});
 setInterval(()=>{if(!document.hidden&&!document.querySelector('.shell').hidden)refresh();},30000);

@@ -79,6 +79,17 @@ class WindowsAssetTests(unittest.TestCase):
         self.assertIn(".compact-engine-table th,.compact-engine-table td{padding-left:10px;padding-right:10px}", css)
         self.assertNotIn(".compact-engine-table table{min-width:0;table-layout:fixed;font-size:11px}", css)
 
+    def test_portal_motion_is_lightweight_and_respects_reduced_motion(self):
+        css = (PROJECT_ROOT / "web" / "styles.css").read_text(encoding="utf-8")
+        app = (PROJECT_ROOT / "web" / "app.js").read_text(encoding="utf-8")
+        self.assertIn("v0.10.3 — lightweight portal motion layer", css)
+        self.assertIn("@media (prefers-reduced-motion:reduce)", css)
+        self.assertIn("portalOperationalPulse 2.8s", css)
+        self.assertIn("function installPortalMotion()", app)
+        self.assertIn("new MutationObserver", app)
+        self.assertIn("retriggerMotion(canvas,'motion-chart')", app)
+        self.assertNotIn("setInterval(()=>requestAnimationFrame", app)
+
     def test_manager_retires_sha_only_update_installer(self):
         source = (PROJECT_ROOT / "scripts" / "manager_windows.ps1").read_text(encoding="utf-8-sig")
         self.assertNotIn("raw.githubusercontent.com/jlboper/Crypto-BOT", source)
