@@ -1,3 +1,11 @@
+# Actualización 0.10.9 — identidad OIDC alineada con el SHA atestiguado por GitHub
+
+- Corrige el 403 `invalid_publisher_repository` observado después de que el portal ya se desplegara correctamente.
+- El job protegido publica ahora exactamente el merge-ref SHA que GitHub atestigua en el token OIDC de una PR, eliminando la discrepancia entre el SHA empaquetado y el SHA firmado por GitHub.
+- El firmante acepta solo dos identidades: el flujo histórico de `push` protegido a `main` o una PR del mismo repositorio con base `main`, rama `release/*`, ref `refs/pull/<n>/merge`, workflow exacto y environment `portal-production`.
+- Se añadieron pruebas positivas y negativas para impedir ampliar accidentalmente esa identidad en el futuro.
+- No cambia estrategia, Spot, Futures, IA, riesgo ni LIVE. Conserva las animaciones ligeras del portal.
+
 # Actualización 0.10.8 — publicación firmada compatible con PR aprobada
 
 - El portal ya pudo desplegarse y superar el health check desde la PR aprobada.
