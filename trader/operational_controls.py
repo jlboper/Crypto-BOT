@@ -75,18 +75,14 @@ def execute(source: Path, action: str, payload: dict) -> dict:
         from .futures_testnet import FuturesTestnetLab
         return {'ok': True, 'futures_testnet': FuturesTestnetLab(config.futures_testnet).check(),
                 'model': config.ai.model, 'mode': config.bot.mode}
-    if action in {'futures_forward_pause','futures_forward_resume'}:
+    if action == 'futures_forward_pause':
         if config.bot.mode != 'testnet':
             raise ValueError('Futures forward test requires Spot TESTNET motor mode')
         kill = config.futures_testnet.kill_switch_path
         kill.parent.mkdir(parents=True, exist_ok=True)
-        if action == 'futures_forward_pause':
-            if not kill.exists():
-                kill.write_text('owner pause\n', encoding='utf-8')
-            paused = True
-        else:
-            kill.unlink(missing_ok=True)
-            paused = False
+        if not kill.exists():
+            kill.write_text('owner pause\n', encoding='utf-8')
+        paused = True
         return {'ok': True, 'mode': config.bot.mode, 'futures_forward': {
             'enabled': config.futures_testnet.forward_enabled, 'paused': paused,
             'symbols': list(config.futures_testnet.forward_symbols), 'automatic_leverage': config.futures_testnet.forward_leverage,
@@ -111,7 +107,7 @@ def execute(source: Path, action: str, payload: dict) -> dict:
         selected_mode = payload['mode'] if action == 'execution_mode' else old_mode
         if action == 'testnet_smoke' and old_mode != 'testnet':
             raise ValueError('Testnet smoke test requires TESTNET mode')
-        if action in {'futures_testnet_smoke','futures_testnet_reconcile'} and old_mode != 'testnet':
+        if action in {'futures_testnet_smoke','futures_testnet_reconcile','futures_forward_resume'} and old_mode != 'testnet':
             raise ValueError('Futures Testnet requires Spot TESTNET motor mode')
 
         if action == 'ai_model':
@@ -229,6 +225,10 @@ def execute(source: Path, action: str, payload: dict) -> dict:
                 lab = FuturesTestnetLab(config.futures_testnet)
                 futures_result = (lab.smoke(direction=payload['direction'], leverage=payload['leverage'])
                                   if action == 'futures_testnet_smoke' else lab.recover())
+            elif action == 'futures_forward_resume':
+                from .futures_forward import FuturesForwardEngine
+                forward = FuturesForwardEngine(config, exchange=None)
+                futures_result = forward.safe_resume()
 
             control.maintenance.unlink()
             os.environ['OPENAI_MODEL'] = selected_model
