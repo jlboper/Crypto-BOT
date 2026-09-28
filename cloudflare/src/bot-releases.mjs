@@ -28,8 +28,21 @@ export async function authorizePublisher(token,origin,now,transport=fetch){
   require(claim.iss===issuer&&claim.aud===origin+'/bot-releases','Invalid publisher audience');
   // Repositories created after July 15, 2026 use immutable GitHub subjects.
   require(claim.sub===`repo:jlboper@328148059/Crypto-BOT@${repositoryId}:environment:portal-production`,'Invalid publisher subject');
-  require(claim.repository===repo&&claim.repository_id===repositoryId&&claim.repository_owner_id==='328148059'&&claim.ref==='refs/heads/main'&&claim.environment==='portal-production','Invalid publisher repository');
-  require(claim.workflow_ref===`${repo}/.github/workflows/portal-release.yml@refs/heads/main`&&claim.event_name==='push','Invalid publisher workflow');
+  const workflowPath=`${repo}/.github/workflows/portal-release.yml@`;
+  const mainPublisher=claim.ref==='refs/heads/main'&&claim.event_name==='push'
+    &&claim.workflow_ref===workflowPath+'refs/heads/main';
+  const refParts=typeof claim.ref==='string'?claim.ref.split('/'):[];
+  const pullNumber=refParts.length===4?Number(refParts[2]):NaN;
+  const prRef=refParts.length===4&&refParts[0]==='refs'&&refParts[1]==='pull'
+    &&Number.isSafeInteger(pullNumber)&&pullNumber>0&&String(pullNumber)===refParts[2]&&refParts[3]==='merge';
+  const releaseHead=typeof claim.head_ref==='string'&&claim.head_ref.startsWith('release/')&&claim.head_ref.length>'release/'.length;
+  const expectedPrWorkflowRef=workflowPath+claim.ref;
+  const expectedMainWorkflowRef=workflowPath+'refs/heads/main';
+  const prPublisher=prRef&&claim.event_name==='pull_request'&&claim.base_ref==='main'&&releaseHead
+    &&(claim.workflow_ref===expectedPrWorkflowRef||claim.workflow_ref===expectedMainWorkflowRef);
+  require(claim.repository===repo&&claim.repository_id===repositoryId&&claim.repository_owner_id==='328148059','Invalid publisher repository');
+  require(claim.environment==='portal-production','Invalid publisher environment');
+  require(mainPublisher||prPublisher,'Invalid publisher workflow');
   require(Number.isInteger(claim.exp)&&claim.exp>now&&claim.exp<=now+900&&Number.isInteger(claim.nbf)&&claim.nbf<=now+30,'Expired publisher token');
   require(/^[a-f0-9]{40}$/.test(claim.sha)&&/^[1-9][0-9]{0,14}$/.test(claim.run_id),'Invalid publisher revision');
   return claim;

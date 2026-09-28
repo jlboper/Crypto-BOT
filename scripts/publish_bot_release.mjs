@@ -4,8 +4,10 @@ import {spawnSync} from 'node:child_process';
 import {requestReleaseSignature} from './retry_release_signature.mjs';
 const origin='https://crypto-paper-private-portal.jlboper.workers.dev';
 const repo='jlboper/Crypto-BOT';
-const sha=process.env.GITHUB_SHA;
-if(process.env.GITHUB_REPOSITORY!==repo||process.env.GITHUB_REF!=='refs/heads/main'||process.env.GITHUB_EVENT_NAME!=='push'||!/^[a-f0-9]{40}$/.test(sha||''))throw Error('Protected main push required');
+const sha=process.env.RELEASE_SHA||process.env.GITHUB_SHA;
+const prRelease=/^refs\/pull\/\d+\/merge$/.test(process.env.GITHUB_REF||'')&&process.env.GITHUB_EVENT_NAME==='pull_request'&&process.env.GITHUB_BASE_REF==='main'&&/^release\//.test(process.env.GITHUB_HEAD_REF||'');
+const mainRelease=process.env.GITHUB_REF==='refs/heads/main'&&process.env.GITHUB_EVENT_NAME==='push';
+if(process.env.GITHUB_REPOSITORY!==repo||(!mainRelease&&!prRelease)||!/^[a-f0-9]{40}$/.test(sha||''))throw Error('Protected release source required');
 const headers={Authorization:`Bearer ${process.env.GITHUB_TOKEN}`,Accept:'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28','Content-Type':'application/json'};
 async function api(path,method='GET',body){
   const response=await fetch('https://api.github.com/repos/'+repo+path,{method,headers,redirect:'error',...(body?{body:JSON.stringify(body)}:{}),signal:AbortSignal.timeout(60000)});

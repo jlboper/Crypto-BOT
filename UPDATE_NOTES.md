@@ -1,3 +1,42 @@
+# Actualización 0.10.10 — estabilización del release y menú Opciones
+
+- Corrige la superposición del menú `Opciones` para mantenerlo por encima de los paneles Spot/Futures animados.
+- El cambio visual forma parte del paquete firmado del bot, por lo que requiere una versión nueva en lugar de reutilizar 0.10.9.
+- Conserva la validación OIDC endurecida para PRs `release/*` del mismo repositorio hacia `main`, con `portal-production` y SHA atestiguado por GitHub.
+- Añade validación temprana de sintaxis para todos los módulos JavaScript críticos del release antes de pedir aprobación de producción.
+- No cambia estrategia, Spot, Futures, IA, riesgo ni LIVE.
+
+# Actualización 0.10.9 — identidad OIDC alineada con el SHA atestiguado por GitHub
+
+- Corrige el 403 `invalid_publisher_repository` observado después de que el portal ya se desplegara correctamente.
+- El job protegido publica ahora exactamente el merge-ref SHA que GitHub atestigua en el token OIDC de una PR, eliminando la discrepancia entre el SHA empaquetado y el SHA firmado por GitHub.
+- El firmante acepta solo dos identidades: el flujo histórico de `push` protegido a `main` o una PR del mismo repositorio con base `main`, rama `release/*`, ref `refs/pull/<n>/merge`, workflow exacto y environment `portal-production`.
+- Se añadieron pruebas positivas y negativas para impedir ampliar accidentalmente esa identidad en el futuro.
+- No cambia estrategia, Spot, Futures, IA, riesgo ni LIVE. Conserva las animaciones ligeras del portal.
+
+# Actualización 0.10.8 — publicación firmada compatible con PR aprobada
+
+- El portal ya pudo desplegarse y superar el health check desde la PR aprobada.
+- Corrige el último guard heredado: el publicador del paquete firmado del bot exigía todavía un `push` directo a `main`, aunque el nuevo flujo de release usa una PR `release/*` aprobada.
+- El publicador firmado ahora acepta únicamente el SHA validado de una PR del mismo flujo seguro: evento `pull_request`, base `main`, rama `release/*` y SHA explícito de 40 caracteres.
+- Mantiene intactas la firma, verificación, rama `bot-releases`, rollback del portal y bloqueo de LIVE.
+- No cambia estrategia, Spot, Futures, IA ni riesgo. Conserva las animaciones ligeras ya desplegadas en el portal.
+
+# Actualización 0.10.7 — guard de publicación compatible con PR aprobada
+
+- Corrige el fallo posterior a la aprobación de `portal-production`: el script de despliegue aceptaba únicamente `refs/heads/main`, aunque el workflow aprobado de una PR usa `refs/pull/<n>/merge`.
+- El deploy mantiene controles estrictos: repositorio exacto, evento `pull_request`, base `main`, rama `release/*` y SHA de 40 caracteres validado explícitamente.
+- El portal se publica y verifica contra el SHA real de la rama de release validada, no contra el merge-ref temporal de GitHub.
+- No cambia estrategia, Spot, Futures, IA, riesgo ni LIVE. Conserva las animaciones ligeras del portal.
+
+# Actualización 0.10.6 — aprobación protegida antes del merge
+
+- Cambia el flujo de release para no depender de que un merge hecho por API dispare otro workflow, algo que GitHub puede suprimir para evitar cadenas recursivas de automatización.
+- Las ramas `release/` ejecutan validaciones completas y, si pasan, el job de publicación queda esperando la aprobación obligatoria de `portal-production` dentro de la propia PR.
+- La publicación usa exactamente el SHA de la rama de release validada. Solo después de una publicación exitosa se mergea la PR a `main`.
+- Con esto, la única acción humana necesaria sigue siendo aprobar `portal-production`; el merge posterior lo realiza el asistente.
+- Conserva las animaciones ligeras del portal y no cambia contenido, estrategia, riesgo, Spot, Futures, IA, credenciales ni LIVE.
+
 # Actualización 0.10.5 — un solo disparador de publicación protegida
 
 - Elimina la duplicidad de publicaciones que podía ocurrir al mantener simultáneamente `push main` y `pull_request_target closed`.

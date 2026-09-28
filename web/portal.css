@@ -270,3 +270,11 @@ select,input{min-width:0}
 .dual-scorecards dl div{display:flex;justify-content:space-between;gap:16px;padding:8px 0;border-bottom:1px solid rgba(143,160,186,.12)}
 .dual-scorecards dt{color:#8fa0ba}.dual-scorecards dd{margin:0;font-weight:700;text-align:right}
 @media(max-width:760px){.dual-scorecards{grid-template-columns:1fr}}
+
+
+/* Keep the Options popover above animated engine cards and charts. */
+header{position:relative;z-index:100;overflow:visible}
+.header-actions{position:relative;z-index:110;overflow:visible}
+.options{position:relative;z-index:120}
+.options-menu{z-index:1000}
+.engine-workspace,.engine-console{position:relative;z-index:1}
