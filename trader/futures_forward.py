@@ -248,6 +248,13 @@ class FuturesForwardEngine:
         if not self.settings.forward_enabled: return {"enabled":False}
         pending=self._recover_journal()
         if pending and not pending.get("resolved"): return {"enabled":True,"status":"PENDING_RECONCILIATION"}
+        # When an automatic pause is already flat, the protection loop can
+        # safely complete recovery instead of waiting for the next 15-minute
+        # strategy cycle. Manual pauses remain untouched.
+        if self.killed() and not self.ledger.forward_positions():
+            if self._attempt_auto_recovery():
+                return {"enabled":True,"status":"RECOVERED","closed":[]}
+            return {"enabled":True,"status":"KILLED","closed":[]}
         closed=[]
         for local in self.ledger.forward_positions():
             symbol=local["symbol"]
