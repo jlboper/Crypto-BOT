@@ -168,8 +168,8 @@ function renderDualEvidence(spot, futures) {
   set('futuresObservedDrawdown', finite(score.sampled_max_drawdown_pct).toFixed(2)+'%');
   set('futuresObservedQuality', (score.win_rate_pct==null?'—':finite(score.win_rate_pct).toFixed(1)+'%')+' / '+(score.profit_factor==null?'—':finite(score.profit_factor).toFixed(2)));
   set('futuresDirectionSplit','L '+finite(score.long_closed_trades).toFixed(0)+' ('+money(score.long_gross_pnl_usdt||0)+') · S '+finite(score.short_closed_trades).toFixed(0)+' ('+money(score.short_gross_pnl_usdt||0)+')');
-  const cycles=finite(score.cycle_total),errors=finite(score.error_total);
-  set('futuresErrorRate',errors.toFixed(0)+' eventos históricos · '+cycles.toFixed(0)+' ciclos');
+  const cycles=finite(score.cycle_total),incidents=finite(score.incident_total),attempts=finite(score.failure_attempt_total);
+  set('futuresErrorRate',incidents.toFixed(0)+' incidentes · '+attempts.toFixed(0)+' intentos fallidos · '+cycles.toFixed(0)+' ciclos');
   const spotDays=finite(spot?.observed_days),spotTrades=finite(spot?.closed_trades);
   const futuresDays=finite(score.observed_days),futuresTrades=finite(score.closed_trades);
   const checks=[
@@ -550,7 +550,11 @@ async function refresh() {
       const blocked=Object.entries(symbolHealth).filter(([,row])=>row?.status==='BLOCKED').map(([symbol])=>symbol.replace('USDT',''));
       const repair=rec.automatic_config_repair?'autorreparación config ✓':'autorreparación config —';
       const resume=rec.automatic_safe_resume?'auto-reanudación segura ✓':'auto-reanudación segura —';
-      fSafety.textContent=`Journal ${rec.durable_order_journal?'✓':'—'} · conciliación al reiniciar ${rec.startup_position_reconciliation?'✓':'—'} · ${repair} · ${resume}${blocked.length?' · bloqueados: '+blocked.join(', '):''} · IA final: ${futuresForward?.ai_model||status.ai_model}. Stops nativos persistentes aún pendientes; LIVE bloqueado.`;
+      const gap=futuresForward?.evidence_gap;
+      const journalRecovery=futuresForward?.last_journal_recovery;
+      const recoveryText=journalRecovery?.status?' · última recuperación: '+journalRecovery.status:'';
+      const gapText=gap?.status?' · evidencia marcada: '+gap.status:'';
+      fSafety.textContent=`Journal ${rec.durable_order_journal?'✓':'—'} · conciliación al reiniciar ${rec.startup_position_reconciliation?'✓':'—'} · ${repair} · ${resume}${blocked.length?' · bloqueados: '+blocked.join(', '):''}${recoveryText}${gapText} · IA final: ${futuresForward?.ai_model||status.ai_model}. Stops nativos persistentes aún pendientes; LIVE bloqueado.`;
     }
     const pauseForward=document.getElementById('pauseFuturesForward');
     const resumeForward=document.getElementById('resumeFuturesForward');
