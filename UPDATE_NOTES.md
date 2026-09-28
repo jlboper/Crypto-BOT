@@ -1,3 +1,11 @@
+# Actualización 0.10.6 — aprobación protegida antes del merge
+
+- Cambia el flujo de release para no depender de que un merge hecho por API dispare otro workflow, algo que GitHub puede suprimir para evitar cadenas recursivas de automatización.
+- Las ramas `release/` ejecutan validaciones completas y, si pasan, el job de publicación queda esperando la aprobación obligatoria de `portal-production` dentro de la propia PR.
+- La publicación usa exactamente el SHA de la rama de release validada. Solo después de una publicación exitosa se mergea la PR a `main`.
+- Con esto, la única acción humana necesaria sigue siendo aprobar `portal-production`; el merge posterior lo realiza el asistente.
+- Conserva las animaciones ligeras del portal y no cambia contenido, estrategia, riesgo, Spot, Futures, IA, credenciales ni LIVE.
+
 # Actualización 0.10.5 — un solo disparador de publicación protegida
 
 - Elimina la duplicidad de publicaciones que podía ocurrir al mantener simultáneamente `push main` y `pull_request_target closed`.
