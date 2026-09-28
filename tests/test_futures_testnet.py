@@ -62,6 +62,9 @@ class FuturesTestnetLabTests(unittest.TestCase):
             return [row]
         if endpoint == "/fapi/v1/positionSide/dual":
             return {"dualSidePosition": False} if method == "GET" else {"code": 200}
+        if endpoint == "/fapi/v1/symbolConfig":
+            return [{"symbol": fields.get("symbol","BTCUSDT"), "marginType":"isolated",
+                     "leverage": str(self.leverage)}]
         if endpoint == "/fapi/v1/marginType":
             return {"code": 200}
         if endpoint == "/fapi/v1/leverage":
@@ -204,29 +207,24 @@ class FuturesTestnetLabTests(unittest.TestCase):
         self.assertEqual(self.leverage, 3)
 
     def test_flat_hedge_mode_rows_are_repaired_to_one_way_before_symbol_config(self):
-        state = {"hedge": True, "leverage": 2}
+        state = {"hedge": True, "leverage": 2, "margin":"cross"}
         calls = []
         def signed(method, endpoint, fields=None):
             fields = fields or {}
             calls.append((method, endpoint, dict(fields)))
             if endpoint == "/fapi/v3/positionRisk":
-                if state["hedge"]:
-                    symbol = fields.get("symbol", "BTCUSDT")
-                    return [
-                        {"symbol":symbol,"positionAmt":"0","entryPrice":"0","liquidationPrice":"0",
-                         "leverage":str(state["leverage"]),"marginType":"cross","positionSide":"LONG","markPrice":"100"},
-                        {"symbol":symbol,"positionAmt":"0","entryPrice":"0","liquidationPrice":"0",
-                         "leverage":str(state["leverage"]),"marginType":"cross","positionSide":"SHORT","markPrice":"100"},
-                    ]
-                return [{"symbol":fields.get("symbol","BTCUSDT"),"positionAmt":"0","entryPrice":"0",
-                         "liquidationPrice":"0","leverage":str(state["leverage"]),
-                         "marginType":"isolated","positionSide":"BOTH","markPrice":"100"}]
+                return []  # v3 omits flat symbols by design
             if endpoint == "/fapi/v1/positionSide/dual":
                 if method == "GET":
                     return {"dualSidePosition": state["hedge"]}
                 state["hedge"] = False
                 return {"code":200}
+            if endpoint == "/fapi/v1/symbolConfig":
+                return [{"symbol": fields.get("symbol","BTCUSDT"),
+                         "marginType":state["margin"],
+                         "leverage":str(state["leverage"])}]
             if endpoint == "/fapi/v1/marginType":
+                state["margin"] = "isolated"
                 return {"code":200}
             if endpoint == "/fapi/v1/leverage":
                 state["leverage"] = int(fields["leverage"])
@@ -240,18 +238,38 @@ class FuturesTestnetLabTests(unittest.TestCase):
         self.assertEqual(result["marginType"], "isolated")
         self.assertTrue(any(m=="POST" and e=="/fapi/v1/positionSide/dual" for m,e,_ in calls))
 
-    def test_flat_hedge_mode_with_any_exposure_fails_closed(self):
+    def test_flat_preflight_with_any_exposure_fails_closed(self):
         def signed(method, endpoint, fields=None):
             if endpoint == "/fapi/v3/positionRisk":
                 symbol=(fields or {}).get("symbol","BTCUSDT")
-                return [
-                    {"symbol":symbol,"positionAmt":"0.1","leverage":"1","marginType":"cross","positionSide":"LONG"},
-                    {"symbol":symbol,"positionAmt":"0","leverage":"1","marginType":"cross","positionSide":"SHORT"},
-                ]
+                return [{"symbol":symbol,"positionAmt":"0.1","leverage":"1",
+                         "marginType":"cross","positionSide":"LONG"}]
             raise AssertionError((method, endpoint, fields))
         with patch("trader.futures_testnet.signed_request", side_effect=signed):
-            with self.assertRaisesRegex(FuturesTestnetExecutionError, "ambiguous with exposure"):
+            with self.assertRaisesRegex(FuturesTestnetExecutionError, "open exposure"):
                 self.lab.ensure_flat_forward_configuration("BTCUSDT")
+
+    def test_flat_v3_positionrisk_omission_uses_symbol_config_for_confirmation(self):
+        state={"leverage":2,"margin":"cross"}
+        def signed(method, endpoint, fields=None):
+            fields=fields or {}
+            if endpoint=="/fapi/v3/positionRisk":
+                return []
+            if endpoint=="/fapi/v1/positionSide/dual":
+                return {"dualSidePosition":False}
+            if endpoint=="/fapi/v1/symbolConfig":
+                return [{"symbol":fields["symbol"],"marginType":state["margin"],
+                         "leverage":str(state["leverage"])}]
+            if endpoint=="/fapi/v1/marginType":
+                state["margin"]="isolated"; return {"code":200}
+            if endpoint=="/fapi/v1/leverage":
+                state["leverage"]=int(fields["leverage"])
+                return {"symbol":fields["symbol"],"leverage":state["leverage"]}
+            raise AssertionError((method,endpoint,fields))
+        with patch("trader.futures_testnet.signed_request", side_effect=signed):
+            result=self.lab.ensure_flat_forward_configuration("BTCUSDT")
+        self.assertEqual(result["marginType"],"isolated")
+        self.assertEqual(int(result["leverage"]),1)
 
     def test_flat_forward_preflight_repairs_to_isolated_one_x_and_confirms(self):
         self.position_amt = 0.0
