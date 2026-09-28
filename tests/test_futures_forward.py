@@ -149,7 +149,7 @@ class FuturesForwardTests(unittest.TestCase):
         }
         with patch.object(self.engine, "_preflight_flat_symbols", return_value=health), \
              patch.object(self.engine, "_record_account", return_value=account), \
-             patch.object(self.engine, "cycle_symbol", return_value={"status":"FLAT"}) as cycle_symbol:
+             patch.object(self.engine, "cycle_symbol", side_effect=lambda symbol, candles, account: {"symbol":symbol,"status":"FLAT"}) as cycle_symbol:
             result=self.engine.cycle({
                 "BTCUSDT": self.candles(True),
                 "ETHUSDT": self.candles(True),
