@@ -90,16 +90,16 @@ class WindowsAssetTests(unittest.TestCase):
         self.assertIn("retriggerMotion(canvas,'motion-chart')", app)
         self.assertNotIn("setInterval(()=>requestAnimationFrame", app)
 
-    def test_release_workflow_can_publish_after_api_merged_pull_request(self):
+    def test_release_workflow_uses_owner_approval_before_merge(self):
         workflow = (PROJECT_ROOT / ".github" / "workflows" / "portal-release.yml").read_text(encoding="utf-8")
-        self.assertIn("pull_request_target:", workflow)
-        self.assertIn("types: [closed]", workflow)
-        self.assertNotIn("push:\n    branches: [main]", workflow)
-        self.assertIn("github.event_name == 'pull_request_target'", workflow)
-        self.assertIn("github.event.action == 'closed'", workflow)
-        self.assertIn("github.event.pull_request.merged == true", workflow)
-        self.assertIn("github.event.pull_request.merge_commit_sha", workflow)
+        self.assertIn("pull_request:", workflow)
+        self.assertIn("types: [opened, synchronize, reopened]", workflow)
+        self.assertNotIn("pull_request_target:", workflow)
+        self.assertIn("startsWith(github.head_ref, 'release/')", workflow)
+        self.assertIn("github.event.pull_request.head.sha", workflow)
         self.assertIn("environment: portal-production", workflow)
+        self.assertNotIn("push:\n    branches: [main]", workflow)
+
 
     def test_manager_retires_sha_only_update_installer(self):
         source = (PROJECT_ROOT / "scripts" / "manager_windows.ps1").read_text(encoding="utf-8-sig")
