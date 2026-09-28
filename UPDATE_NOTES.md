@@ -1,3 +1,13 @@
+# Actualización 0.9.9 — cierre definitivo del journal Futures plano
+
+- Corrige el caso que todavía podía mantener Futures en **PAUSADO + conciliación pendiente** después de 0.9.8: un journal `reduceOnly` antiguo podía quedar huérfano cuando Binance y el ledger local ya estaban planos, pero la consulta histórica de esa orden fallaba antes de que el motor comprobara ese estado seguro.
+- La recuperación ahora inspecciona primero el tipo de journal. Si es un cierre `reduceOnly`, no existe posición local y Binance confirma exposición cero para ese símbolo, el journal se limpia como bookkeeping obsoleto **sin reenviar ninguna orden** y sin depender de que Binance todavía conserve la orden histórica.
+- Esta excepción segura nunca aplica a aperturas ni a estados con exposición: cualquier journal de entrada o cualquier posición todavía visible sigue requiriendo reconciliación exacta por identidad.
+- Se conserva un registro `forward_last_journal_recovery` con el motivo y timestamp de la limpieza segura para diagnóstico posterior.
+- Añade pruebas de regresión que garantizan que el atajo plano no consulta ni reenvía órdenes y que nunca se usa para una apertura pendiente.
+- Revierte únicamente el ajuste tipográfico compacto de **Posiciones abiertas · Spot**: vuelve al tamaño/espaciado original para mantener la homologación visual general, aceptando nuevamente scroll horizontal cuando sea necesario.
+- No cambia estrategia, señales, riesgo, leverage, sizing, IA, credenciales, histórico financiero ni LIVE.
+
 # Actualización 0.9.8 — recuperación Futures y paridad visual
 
 - Corrige un bloqueo real de recuperación de Futures: una orden de cierre `reduceOnly` ya confirmada por Binance podía dejar un `forward_pending_order` durable aunque la posición local y la del exchange ya estuvieran planas. Ese journal huérfano impedía la auto-reanudación y mantenía el motor en PAUSADO.
