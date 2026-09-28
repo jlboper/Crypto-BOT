@@ -329,20 +329,52 @@ class TradingEngine:
         protection = int(self.futures_forward.ledger.setting("forward_protection_consecutive_errors") or 0)
         self.futures_forward.ledger.set_setting("forward_consecutive_errors", max(cycle, protection))
 
+    def _record_futures_incident(self, source: str, exc: Exception) -> dict:
+        """Deduplicate one recurring root cause while retaining repetition count."""
+        now = datetime.now(UTC).isoformat()
+        message = (type(exc).__name__ + ": " + str(exc))[:200]
+        fingerprint = source + "|" + message
+        active = self.futures_forward.ledger.setting("forward_active_incident")
+        if isinstance(active, dict) and active.get("fingerprint") == fingerprint:
+            incident = {**active, "repetitions": int(active.get("repetitions", 1)) + 1, "last_at": now}
+        else:
+            sequence = int(self.futures_forward.ledger.setting("forward_incident_sequence") or 0) + 1
+            self.futures_forward.ledger.set_setting("forward_incident_sequence", sequence)
+            incident = {
+                "id": f"FUT-{sequence:04d}",
+                "source": source,
+                "fingerprint": fingerprint,
+                "message": message,
+                "repetitions": 1,
+                "first_at": now,
+                "last_at": now,
+            }
+        self.futures_forward.ledger.set_setting("forward_active_incident", incident)
+        self.futures_forward.ledger.set_setting("forward_last_incident", incident)
+        return {"message": message, "at": now}
+
+    def _resolve_futures_incident(self, source: str) -> None:
+        active = self.futures_forward.ledger.setting("forward_active_incident")
+        if isinstance(active, dict) and active.get("source") == source:
+            resolved = {**active, "resolved_at": datetime.now(UTC).isoformat()}
+            self.futures_forward.ledger.set_setting("forward_last_incident", resolved)
+            self.futures_forward.ledger.set_setting("forward_active_incident", None)
+
     def _run_futures_forward_cycle(self, candle_map: dict[str, list[Candle]]) -> None:
         current_cycles = self.futures_forward.ledger.setting("forward_cycle_total") or 0
         self.futures_forward.ledger.set_setting("forward_cycle_total", int(current_cycles) + 1)
         try:
             result = self.futures_forward.cycle(candle_map)
             self.futures_forward.ledger.set_setting("forward_cycle_consecutive_errors", 0)
+            self._resolve_futures_incident("cycle")
             self._sync_futures_legacy_error_counter()
             events = [row for row in result.get("results", []) if row.get("status") in {"OPENED", "CLOSED"}]
             for row in events:
                 self.db.event("INFO", f"Futures Demo {row.get('symbol')}: {row.get('status')}")
         except Exception as exc:
             current = self.futures_forward.ledger.setting("forward_cycle_consecutive_errors") or 0
-            count = int(current) + 1
-            detail = {"message": (type(exc).__name__ + ": " + str(exc))[:200], "at": datetime.now(UTC).isoformat()}
+            count = min(3, int(current) + 1)
+            detail = self._record_futures_incident("cycle", exc)
             self.futures_forward.ledger.set_setting("forward_cycle_consecutive_errors", count)
             self.futures_forward.ledger.set_setting("forward_last_cycle_error", detail)
             self.futures_forward.ledger.set_setting("forward_last_error", detail)
@@ -359,13 +391,14 @@ class TradingEngine:
         try:
             result = self.futures_forward.protection_tick()
             self.futures_forward.ledger.set_setting("forward_protection_consecutive_errors", 0)
+            self._resolve_futures_incident("protection")
             self._sync_futures_legacy_error_counter()
             if result.get("closed"):
                 self.db.event("INFO", "Futures Demo forward position closed by protection")
         except Exception as exc:
             current = self.futures_forward.ledger.setting("forward_protection_consecutive_errors") or 0
-            count = int(current) + 1
-            detail = {"message": (type(exc).__name__ + ": " + str(exc))[:200], "at": datetime.now(UTC).isoformat()}
+            count = min(3, int(current) + 1)
+            detail = self._record_futures_incident("protection", exc)
             self.futures_forward.ledger.set_setting("forward_protection_consecutive_errors", count)
             self.futures_forward.ledger.set_setting("forward_last_protection_error", detail)
             self.futures_forward.ledger.set_setting("forward_last_error", detail)
