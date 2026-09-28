@@ -1,3 +1,10 @@
+# Actualización 0.10.4 — publicación protegida y animaciones
+
+- Mantiene la capa visual de animaciones ligeras introducida en 0.10.3.
+- Incrementa la versión porque el paquete cambió también al corregir el workflow de publicación protegida; el guard de release bloqueó correctamente 0.10.3 al detectar archivos distintos con la misma versión.
+- Ajusta el flujo de PR mergeada para usar `pull_request_target` y publicar el commit mergeado tras la aprobación de `portal-production`.
+- No cambia estrategia, riesgo, Spot, Futures, IA, credenciales ni LIVE.
+
 # Actualización 0.10.3 — animaciones ligeras del portal
 
 - Añade una capa visual de movimiento al portal sin cambiar contenido, estrategia, cálculos, APIs ni comportamiento de trading.
