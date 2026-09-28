@@ -1,3 +1,13 @@
+# Actualización 0.10.2 — preflight Futures alineado con Binance v3
+
+- Corrige el fallo observado en 0.10.1: `Futures Demo symbol state unavailable: BTCUSDT / ETHUSDT`.
+- Binance `GET /fapi/v3/positionRisk` omite por diseño los símbolos sin posición ni órdenes abiertas. El preflight estaba tratando esa ausencia como error, cuando en realidad es el estado plano esperado.
+- La lógica ahora separa dos fuentes oficiales: `positionRisk v3` se usa solo para detectar exposición real y `GET /fapi/v1/symbolConfig` se usa para verificar margin type y leverage de símbolos planos.
+- La cuenta sigue verificando ONE_WAY con `positionSide/dual`; solo cambia a ONE_WAY cuando no hay exposición.
+- Tras configurar un símbolo, vuelve a comprobar exposición cero, `ISOLATED`, `1x` y ONE_WAY antes de permitir reanudación.
+- Se añadió una prueba de regresión que simula exactamente la respuesta vacía de `positionRisk v3` para un símbolo plano.
+- No cambia estrategia, riesgo, sizing, IA, credenciales ni LIVE.
+
 # Actualización 0.10.1 — preflight Futures compatible con cuenta HEDGE plana
 
 - Corrige la causa común detrás de `bloqueados: BTC, ETH, SOL` en la reanudación supervisada de 0.10.0.
