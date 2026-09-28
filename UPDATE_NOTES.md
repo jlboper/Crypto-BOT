@@ -1,3 +1,14 @@
+# Actualización 0.9.8 — recuperación Futures y paridad visual
+
+- Corrige un bloqueo real de recuperación de Futures: una orden de cierre `reduceOnly` ya confirmada por Binance podía dejar un `forward_pending_order` durable aunque la posición local y la del exchange ya estuvieran planas. Ese journal huérfano impedía la auto-reanudación y mantenía el motor en PAUSADO.
+- La auto-recuperación ahora reconcilia primero cualquier journal pendiente. Si Binance confirma el cierre y ambos lados están planos, limpia el journal de forma segura y continúa la recuperación; si todavía hay exposición, no reenvía la orden y espera/escala sin duplicar ejecución.
+- Cuando Futures está en una pausa automática y ya está plano, el bucle de protección puede completar la recuperación segura sin esperar al siguiente ciclo de estrategia. Las pausas manuales nunca se reanudan solas.
+- Evita convertir la latencia transitoria del endpoint de posiciones después de un cierre FILLED en cientos de errores repetidos.
+- Conserva los errores históricos, pero el portal deja de presentarlos como un porcentaje contra ciclos (que podía superar 1000% por incluir varios chequeos de protección por ciclo). Ahora los identifica explícitamente como eventos históricos.
+- Homologa la tarjeta **IA final** de Futures con Spot: muestra el veredicto/estado y debajo el mismo modelo compartido. Spot y Futures continúan usando la configuración IA común; actualmente `gpt-6-luna` cuando ese es el modelo activo.
+- La tabla de posiciones Spot usa tipografía/espaciado más compacto en escritorio para evitar scroll horizontal innecesario; en pantallas pequeñas conserva scroll deliberadamente.
+- No cambia estrategia, señales, umbral de entrada, riesgo, leverage automático 1x, sizing, credenciales, ledgers ni LIVE.
+
 # Actualización 0.9.7 — contrato portal/Windows y versión visible
 
 - Corrige el HTTP 400 de sincronización introducido al añadir `pause_diagnostics.incident` en 0.9.6: el agente Windows ya emitía el campo, pero el validador del Worker todavía no lo aceptaba.
