@@ -94,6 +94,7 @@ class WindowsAssetTests(unittest.TestCase):
         workflow = (PROJECT_ROOT / ".github" / "workflows" / "portal-release.yml").read_text(encoding="utf-8")
         self.assertIn("pull_request_target:", workflow)
         self.assertIn("types: [closed]", workflow)
+        self.assertNotIn("push:\n    branches: [main]", workflow)
         self.assertIn("github.event_name == 'pull_request_target'", workflow)
         self.assertIn("github.event.action == 'closed'", workflow)
         self.assertIn("github.event.pull_request.merged == true", workflow)
