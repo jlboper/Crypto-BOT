@@ -51,6 +51,19 @@ class FuturesTestnetLab:
         self.settings = settings
         self.ledger = FuturesTestnetLedger(settings.database_path)
 
+    def _position_state(self, symbol: str) -> dict:
+        """Return Binance's authoritative state for one symbol, including flat rows."""
+        payload = signed_request("GET", "/fapi/v3/positionRisk", {"symbol": symbol})
+        if not isinstance(payload, list):
+            raise FuturesTestnetExecutionError("Invalid Futures Testnet position response")
+        rows = [row for row in payload if isinstance(row, dict) and str(row.get("symbol", symbol)).upper() == symbol.upper()]
+        if len(rows) != 1:
+            raise FuturesTestnetExecutionError(f"Futures Demo symbol state unavailable or ambiguous: {symbol}")
+        # Validate critical numeric fields before callers use the row as a safety assertion.
+        _decimal(rows[0].get("positionAmt", "0"))
+        _decimal(rows[0].get("leverage", "0"))
+        return rows[0]
+
     def _position_rows(self, symbol: str | None = None) -> list[dict]:
         payload = signed_request("GET", "/fapi/v3/positionRisk", {"symbol": symbol} if symbol else {})
         if not isinstance(payload, list):
@@ -138,6 +151,28 @@ class FuturesTestnetLab:
         response = signed_request("POST", "/fapi/v1/leverage", {"symbol": symbol, "leverage": leverage})
         if not isinstance(response, dict) or int(response.get("leverage", 0)) != leverage:
             raise FuturesTestnetExecutionError("Futures Testnet leverage confirmation mismatch")
+
+    def ensure_flat_forward_configuration(self, symbol: str) -> dict:
+        """Idempotently enforce ONE_WAY + ISOLATED + 1x while the symbol is flat.
+
+        This is safe to run as a startup/pre-entry preflight because it refuses
+        to mutate a symbol that already has exposure.
+        """
+        before = self._position_state(symbol)
+        if _decimal(before.get("positionAmt", "0")) != 0:
+            raise FuturesTestnetExecutionError(f"Futures flat preflight found open exposure: {symbol}")
+        self._configure(symbol, 1)
+        after = self._position_state(symbol)
+        if _decimal(after.get("positionAmt", "0")) != 0:
+            raise FuturesTestnetExecutionError(f"Futures flat preflight found new exposure: {symbol}")
+        if str(after.get("marginType", "")).lower() != "isolated":
+            raise FuturesTestnetExecutionError(f"Futures flat preflight could not confirm ISOLATED: {symbol}")
+        if int(float(after.get("leverage", 0) or 0)) != 1:
+            raise FuturesTestnetExecutionError(f"Futures flat preflight could not confirm 1x: {symbol}")
+        position_side = str(after.get("positionSide", "")).upper()
+        if position_side and position_side != "BOTH":
+            raise FuturesTestnetExecutionError("Automatic Futures position mode changed from ONE_WAY")
+        return after
 
     def ensure_forward_position_configuration(self, symbol: str, row: dict) -> dict:
         """Repair only a known isolated forward position whose leverage drifted.
