@@ -161,6 +161,14 @@ class FuturesTestnetLab:
         before = self._position_state(symbol)
         if _decimal(before.get("positionAmt", "0")) != 0:
             raise FuturesTestnetExecutionError(f"Futures flat preflight found open exposure: {symbol}")
+        before_side = str(before.get("positionSide", "")).upper()
+        already_ready = (
+            str(before.get("marginType", "")).lower() == "isolated"
+            and int(float(before.get("leverage", 0) or 0)) == 1
+            and (not before_side or before_side == "BOTH")
+        )
+        if already_ready:
+            return before
         self._configure(symbol, 1)
         after = self._position_state(symbol)
         if _decimal(after.get("positionAmt", "0")) != 0:
