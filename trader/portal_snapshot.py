@@ -237,6 +237,8 @@ def dashboard_snapshot(config, report_path=None):
                 'last_ai_reviews': {symbol: futures_ledger.setting(f'forward_last_ai_review_{symbol}') for symbol in config.futures_testnet.forward_symbols},
                 'symbol_health': futures_ledger.setting('forward_symbol_health') or {},
                 'last_auto_recovery': futures_ledger.setting('forward_last_auto_recovery'),
+                'last_journal_recovery': futures_ledger.setting('forward_last_journal_recovery'),
+                'evidence_gap': futures_ledger.setting('forward_evidence_gap'),
                 'observation_health': futures_ledger.observation_health(config.bot.cycle_seconds),
                 'recovery': {
                     'durable_order_journal': True,

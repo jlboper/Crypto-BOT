@@ -6,6 +6,7 @@ readiness checks and a small reversible LONG/SHORT smoke round trip using
 """
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation, ROUND_CEILING, ROUND_DOWN
 import math
 import secrets
@@ -336,6 +337,8 @@ class FuturesTestnetLab:
             "side": side,
             "quantity": str(quantity),
             "reduce_only": reduce_only,
+            "kind": "CLOSE" if reduce_only else "OPEN",
+            "created_at": datetime.now(UTC).isoformat(),
             "client_order_id": client_id,
         }
         self.ledger.set_setting("forward_pending_order", pending)
@@ -363,10 +366,19 @@ class FuturesTestnetLab:
         pending = self.ledger.setting("forward_pending_order")
         if not pending:
             return None
-        result = signed_request("GET", "/fapi/v1/order", {
-            "symbol": pending["symbol"],
-            "origClientOrderId": pending["client_order_id"],
-        })
+        try:
+            result = signed_request("GET", "/fapi/v1/order", {
+                "symbol": pending["symbol"],
+                "origClientOrderId": pending["client_order_id"],
+            })
+        except FuturesTestnetExecutionError as exc:
+            # Binance Demo can expire historical order lookup before our durable
+            # journal expires. Preserve the journal and let the forward engine
+            # reconcile against current exchange exposure instead of generating
+            # an endless exception loop.
+            if exc.code == -2013:
+                return {"resolved": False, "status": "ORDER_NOT_FOUND", "pending": pending}
+            raise
         if not isinstance(result, dict) or result.get("clientOrderId") != pending["client_order_id"]:
             raise FuturesTestnetExecutionError("Futures forward order identity mismatch")
         status = str(result.get("status", ""))

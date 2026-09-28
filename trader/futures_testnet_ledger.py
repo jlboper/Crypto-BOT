@@ -252,7 +252,11 @@ class FuturesTestnetLedger:
             "short_closed_trades":sum(r["direction"]=="SHORT" for r in trades),
             "short_gross_pnl_usdt":sum(float(r["gross_pnl"]) for r in trades if r["direction"]=="SHORT"),
             "by_symbol_direction":by_symbol,"consecutive_errors":int(self.setting("forward_consecutive_errors") or 0),
-            "error_total":int(self.setting("forward_error_total") or 0),"cycle_total":int(self.setting("forward_cycle_total") or 0)}
+            "error_total":int(self.setting("forward_error_total") or 0),
+            "incident_total":int(self.setting("forward_incident_sequence") or 0),
+            "failure_attempt_total":int(self.setting("forward_failure_attempt_total") or self.setting("forward_error_total") or 0),
+            "cycle_total":int(self.setting("forward_cycle_total") or 0),
+            "evidence_gap":self.setting("forward_evidence_gap")}
 
     def observation_health(self,cycle_seconds:int,now:datetime|None=None)->dict:
         now=now or datetime.now(UTC); since_iso=datetime.fromtimestamp(now.timestamp()-86400,UTC).isoformat()
@@ -276,8 +280,12 @@ class FuturesTestnetLedger:
             "average_cycle_gap_seconds":round(sum(gaps)/len(gaps),1) if gaps else None,
             "last_cycle_age_seconds":round(max(0.0,(now-times[-1]).total_seconds()),1) if times else None,
             "closed_trades":int(closed["total"] or 0),"realized_pnl_usdt":round(float(closed["pnl"] or 0.0),8),
-            "consecutive_errors":consecutive,"errors_total":int(self.setting("forward_error_total") or 0),
-            "integrity":{"order_journal_clear":journal_clear,"local_position_count_valid":position_count<=3}}
+            "consecutive_errors":consecutive,
+            "errors_total":int(self.setting("forward_error_total") or 0),
+            "incident_total":int(self.setting("forward_incident_sequence") or 0),
+            "failure_attempt_total":int(self.setting("forward_failure_attempt_total") or self.setting("forward_error_total") or 0),
+            "integrity":{"order_journal_clear":journal_clear,"local_position_count_valid":position_count<=3,
+                         "evidence_gap_clear":not bool(self.setting("forward_evidence_gap"))}}
 
     def forward_snapshot(self)->dict:
         with self._connect() as db:

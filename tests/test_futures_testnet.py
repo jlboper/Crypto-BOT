@@ -165,6 +165,21 @@ class FuturesTestnetLabTests(unittest.TestCase):
         self.assertEqual(self.position_amt, 0.0)
 
 
+    def test_forward_pending_order_not_found_is_classified_without_clearing_journal(self):
+        pending = {
+            "symbol":"BTCUSDT","side":"BUY","quantity":"0.001","reduce_only":False,
+            "kind":"OPEN","created_at":"2026-09-27T00:00:00+00:00",
+            "client_order_id":"cait-fwd-missing",
+        }
+        self.lab.ledger.set_setting("forward_pending_order", pending)
+        missing = FuturesTestnetExecutionError("Futures Demo HTTP 400", code=-2013,
+                                               api_message="Order does not exist")
+        with patch("trader.futures_testnet.signed_request", side_effect=missing):
+            result=self.lab.reconcile_forward_pending()
+        self.assertEqual(result["status"], "ORDER_NOT_FOUND")
+        self.assertFalse(result["resolved"])
+        self.assertIsNotNone(self.lab.ledger.setting("forward_pending_order"))
+
     def test_forward_open_forces_one_x_before_order_and_journal_survives_fill(self):
         self.leverage = 2
         with patch("trader.futures_testnet.signed_request", side_effect=self.signed):
