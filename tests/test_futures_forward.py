@@ -160,7 +160,8 @@ class FuturesForwardTests(unittest.TestCase):
             "reduce_only": False, "client_order_id": "cait-fwd-open",
         }
         self.engine.ledger.set_setting("forward_pending_order", pending)
-        with patch.object(self.engine.lab, "reconcile_forward_pending", return_value={"resolved":False,"status":"NEW","pending":pending}) as reconcile:
+        with patch.object(self.engine, "_actual_rows", return_value=[]), \
+             patch.object(self.engine.lab, "reconcile_forward_pending", return_value={"resolved":False,"status":"NEW","pending":pending}) as reconcile:
             result = self.engine._recover_journal()
         reconcile.assert_called_once()
         self.assertFalse(result["resolved"])
@@ -183,7 +184,7 @@ class FuturesForwardTests(unittest.TestCase):
         calls={"rows":0}
         def actual(symbol):
             calls["rows"] += 1
-            return [row] if calls["rows"] <= 2 else []
+            return [row] if calls["rows"] == 1 else []
         with patch.object(self.engine, "_actual_rows", side_effect=actual), \
              patch.object(self.engine.lab, "forward_submit", return_value=close_order), \
              patch.object(self.engine.lab, "_execution_price", return_value=101), \
