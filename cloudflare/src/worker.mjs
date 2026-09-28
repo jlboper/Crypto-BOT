@@ -116,14 +116,22 @@ function validateSnapshot(snapshot) {
           &&Object.keys(p.last_error).every(k=>['message','at'].includes(k))
           &&typeof p.last_error.message==='string'&&p.last_error.message.length<=240
           &&(p.last_error.at===null||(typeof p.last_error.at==='string'&&p.last_error.at.length<=40&&Number.isFinite(Date.parse(p.last_error.at)))));
-        assert(object(p)&&Object.keys(p).every(k=>['active','label','detail','source','paused_at','last_error','consecutive_errors','pending_reconciliation'].includes(k))
+        const incident=p.incident;
+        const validIncident=incident===null||(object(incident)
+          &&Object.keys(incident).every(k=>['id','source','message','repetitions','first_at','last_at','resolved_at'].includes(k))
+          &&(incident.id===null||(typeof incident.id==='string'&&/^FUT-\\d{4,}$/.test(incident.id)&&incident.id.length<=32))
+          &&(incident.source===null||['cycle','protection'].includes(incident.source))
+          &&typeof incident.message==='string'&&incident.message.length<=240
+          &&Number.isInteger(incident.repetitions)&&incident.repetitions>=1&&incident.repetitions<=1000000
+          &&['first_at','last_at','resolved_at'].every(k=>incident[k]===null||(typeof incident[k]==='string'&&incident[k].length<=40&&Number.isFinite(Date.parse(incident[k])))));
+        assert(object(p)&&Object.keys(p).every(k=>['active','label','detail','source','paused_at','last_error','consecutive_errors','incident','pending_reconciliation'].includes(k))
           &&typeof p.active==='boolean'
           &&(p.label===null||(typeof p.label==='string'&&p.label.length<=240))
           &&(p.detail===null||(typeof p.detail==='string'&&p.detail.length<=240))
           &&(p.source===null||['manual','automatic_safety'].includes(p.source))
           &&(p.paused_at===null||(typeof p.paused_at==='string'&&p.paused_at.length<=40&&Number.isFinite(Date.parse(p.paused_at))))
           &&Number.isInteger(p.consecutive_errors)&&p.consecutive_errors>=0&&p.consecutive_errors<=100000
-          &&typeof p.pending_reconciliation==='boolean'&&validLastError,
+          &&typeof p.pending_reconciliation==='boolean'&&validLastError&&validIncident,
           'Invalid Futures pause diagnostics');
       }
       assert(object(f)&&typeof f.enabled==='boolean'&&typeof f.killed==='boolean'
