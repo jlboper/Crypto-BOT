@@ -46,15 +46,19 @@
 .dual-detail-grid dt{color:#8ca0bb}
 .dual-detail-grid dd{margin:0;text-align:right;font-weight:650;color:#edf4ff}
 .positions-grid{align-items:start}
-.compact-engine-table table{min-width:760px}
-.compact-engine-table th,.compact-engine-table td{padding-left:10px;padding-right:10px}
+.compact-engine-table table{min-width:0;table-layout:fixed;font-size:11px}
+.compact-engine-table th,.compact-engine-table td{padding:8px 4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.compact-engine-table th{font-size:9px;letter-spacing:.04em}
+.compact-engine-table .paper-close{padding:6px 7px;font-size:10px}
 .futures-position-card{margin-top:8px;border:1px solid rgba(125,154,190,.14);border-radius:14px;padding:4px 14px;background:rgba(8,17,30,.45)}
 .finance-grid{align-items:start}
 .finance-grid .research-summary{grid-template-columns:repeat(2,minmax(0,1fr))}
 .finance-grid .benchmark-note{min-height:72px}
 @media(max-width:1180px){
   .dual-detail-grid{grid-template-columns:1fr}
-  .compact-engine-table table{min-width:900px}
+}
+@media(max-width:620px){
+  .compact-engine-table table{min-width:720px;table-layout:auto}
 }
 @media(max-width:620px){
   .dual-detail-grid dl>div{align-items:flex-start}

@@ -89,6 +89,19 @@ Permanent lesson and invariant:
 
 This class of mismatch is now covered by regression tests for Futures pause diagnostics and should be treated as a release-blocking contract failure in future changes.
 
+## 2026-09 — Futures durable-journal recovery invariant
+
+A paused Futures Demo incident exposed a second integration edge case: a confirmed `reduceOnly` close could leave the durable forward-order journal populated after both exchange exposure and local position accounting were already flat. Because automatic recovery treated any pending journal as an unconditional blocker, the motor could remain safely paused forever even though there was no remaining exposure.
+
+Permanent recovery rules:
+
+- a durable pending order is evidence to reconcile, not evidence by itself that exposure still exists;
+- recovery must query the exact recorded client order identity before clearing or acting;
+- a FILLED close with local + exchange state already flat may clear only the stale journal and continue;
+- if exposure remains after a FILLED close, never resubmit blindly; retain the journal and re-check identity/state;
+- manual pauses never auto-resume;
+- automatic pauses may auto-resume only after journal reconciliation, position identity checks, required Futures configuration and account reads all pass.
+
 ## Ideas intentionally deferred
 
 The following have been discussed but should remain deferred until their prerequisites are met:

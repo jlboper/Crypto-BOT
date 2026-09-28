@@ -140,6 +140,63 @@ class FuturesForwardTests(unittest.TestCase):
             preflight.assert_not_called()
         self.assertTrue(self.engine.killed())
 
+    def test_automatic_pause_reconciles_stale_filled_close_journal_before_resume(self):
+        self.engine._halt("three consecutive Futures protection errors", overwrite_last_error=False)
+        pending = {
+            "symbol": "SOLUSDT", "side": "SELL", "quantity": "0.1",
+            "reduce_only": True, "client_order_id": "cait-fwd-old-close",
+        }
+        self.engine.ledger.set_setting("forward_pending_order", pending)
+        outcome = {"resolved": True, "status": "FILLED", "pending": pending,
+                   "order": {"clientOrderId": "cait-fwd-old-close", "avgPrice": "123",
+                             "executedQty": "0.1"}}
+        ready = {"symbol":"BTCUSDT","positionAmt":"0","leverage":"1",
+                 "marginType":"isolated","positionSide":"BOTH"}
+        with patch.object(self.engine.lab, "reconcile_forward_pending", return_value=outcome), \
+             patch.object(self.engine, "_actual_rows", return_value=[]), \
+             patch.object(self.engine.lab, "ensure_flat_forward_configuration", return_value=ready), \
+             patch.object(self.engine, "_record_account", return_value={"wallet_balance":5000,"available_balance":5000,"unrealized_pnl":0}):
+            self.assertTrue(self.engine._attempt_auto_recovery())
+        self.assertIsNone(self.engine.ledger.setting("forward_pending_order"))
+        self.assertFalse(self.engine.killed())
+        self.assertEqual(self.engine.ledger.setting("forward_last_auto_recovery")["status"], "RESUMED")
+
+    def test_flat_automatic_pause_can_recover_from_protection_tick(self):
+        self.engine._halt("three consecutive Futures protection errors", overwrite_last_error=False)
+        ready = {"symbol":"BTCUSDT","positionAmt":"0","leverage":"1",
+                 "marginType":"isolated","positionSide":"BOTH"}
+        with patch.object(self.engine, "_actual_rows", return_value=[]), \
+             patch.object(self.engine.lab, "ensure_flat_forward_configuration", return_value=ready), \
+             patch.object(self.engine, "_record_account", return_value={"wallet_balance":5000,"available_balance":5000,"unrealized_pnl":0}):
+            result = self.engine.protection_tick()
+        self.assertEqual(result["status"], "RECOVERED")
+        self.assertFalse(self.engine.killed())
+
+    def test_filled_close_with_local_position_waits_for_exchange_position_to_disappear(self):
+        local = {
+            "symbol": "SOLUSDT", "direction": "LONG", "leverage": 1,
+            "quantity": 0.1, "entry_price": 100.0, "stop_price": 95.0,
+            "take_profit": 110.0, "liquidation_price": 50.0,
+            "signal_score": 80, "opened_at": "2026-09-27T00:00:00+00:00",
+        }
+        self.engine.ledger.set_forward_position(local)
+        pending = {
+            "symbol": "SOLUSDT", "side": "SELL", "quantity": "0.1",
+            "reduce_only": True, "client_order_id": "cait-fwd-close-lag",
+        }
+        self.engine.ledger.set_setting("forward_pending_order", pending)
+        outcome = {"resolved": True, "status": "FILLED", "pending": pending,
+                   "order": {"clientOrderId": "cait-fwd-close-lag", "avgPrice": "101",
+                             "executedQty": "0.1"}}
+        row = {"symbol":"SOLUSDT","positionAmt":"0.1","entryPrice":"100",
+               "leverage":"1","marginType":"cross","positionSide":"BOTH"}
+        with patch.object(self.engine.lab, "reconcile_forward_pending", return_value=outcome), \
+             patch.object(self.engine, "_actual_rows", return_value=[row]):
+            recovered = self.engine._recover_journal()
+        self.assertFalse(recovered["resolved"])
+        self.assertEqual(recovered["status"], "FILLED_POSITION_STILL_VISIBLE")
+        self.assertIsNotNone(self.engine.ledger.setting("forward_pending_order"))
+
     def test_flat_symbol_failure_is_quarantined_instead_of_crashing_cycle(self):
         account={"wallet_balance":5000,"available_balance":5000,"unrealized_pnl":0}
         health={

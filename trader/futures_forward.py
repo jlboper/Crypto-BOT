@@ -152,8 +152,12 @@ class FuturesForwardEngine:
     def _attempt_auto_recovery(self)->bool:
         """Auto-resume only automatic error pauses after full safe reconciliation."""
         if not self._automatic_pause_reason(): return False
-        if self.ledger.setting("forward_pending_order"): return False
         try:
+            # A previous confirmed write may have left only the durable journal
+            # behind. Reconcile it before deciding that recovery is blocked.
+            pending=self._recover_journal()
+            if pending and not pending.get("resolved"):
+                return False
             # Existing tracked exposure must be reconciled first. CROSS is safely
             # flattened by the same identity-first repair used by protection_tick.
             for local in list(self.ledger.forward_positions()):
@@ -201,14 +205,25 @@ class FuturesForwardEngine:
             self.ledger.set_setting("forward_open_plan",None); return outcome
         pending=outcome["pending"]; order=outcome["order"]; local=self.ledger.forward_position(symbol); rows=self._actual_rows(symbol)
         if pending.get("reduce_only"):
-            if local is not None and not rows:
+            if local is None:
+                if rows:
+                    raise FuturesTestnetExecutionError(f"Futures close recovery found untracked exposure: {symbol}")
+                # The exchange confirms the close and local accounting is already
+                # flat. This is a stale journal entry, not an unresolved trade.
+                self.ledger.set_setting("forward_open_plan",None)
+                self.ledger.set_setting("forward_pending_order",None)
+                return {"resolved":True,"status":"RECOVERED_CLOSE_ALREADY_FLAT"}
+            if not rows:
                 exit_price=self.lab._execution_price(order,symbol); entry=_decimal(local["entry_price"]); qty=_decimal(local["quantity"])
                 pnl=(exit_price-entry)*qty if local["direction"]=="LONG" else (entry-exit_price)*qty
                 closed=self.ledger.close_forward_position(symbol=symbol,exit_price=float(exit_price),gross_pnl=float(pnl),exit_reason="RECOVERED_CLOSE")
                 self.ledger.set_setting("forward_pending_order",None)
                 return {"resolved":True,"status":"RECOVERED_CLOSE","trade":closed}
-            if local is not None: rows=self._validated_rows(symbol, local)
-            return outcome
+            # A FILLED reduce-only order can be briefly visible before the
+            # position endpoint catches up. Keep the journal and retry without
+            # converting a transient exchange lag into repeated protection errors.
+            self._assert_identity(symbol,local,rows)
+            return {"resolved":False,"status":"FILLED_POSITION_STILL_VISIBLE","pending":pending}
         if local is None:
             plan=self.ledger.setting("forward_open_plan")
             if not isinstance(plan,dict) or plan.get("symbol")!=symbol or len(rows)!=1:
@@ -233,6 +248,13 @@ class FuturesForwardEngine:
         if not self.settings.forward_enabled: return {"enabled":False}
         pending=self._recover_journal()
         if pending and not pending.get("resolved"): return {"enabled":True,"status":"PENDING_RECONCILIATION"}
+        # When an automatic pause is already flat, the protection loop can
+        # safely complete recovery instead of waiting for the next 15-minute
+        # strategy cycle. Manual pauses remain untouched.
+        if self.killed() and not self.ledger.forward_positions():
+            if self._attempt_auto_recovery():
+                return {"enabled":True,"status":"RECOVERED","closed":[]}
+            return {"enabled":True,"status":"KILLED","closed":[]}
         closed=[]
         for local in self.ledger.forward_positions():
             symbol=local["symbol"]
