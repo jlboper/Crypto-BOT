@@ -114,6 +114,20 @@ class OperationalControlsTests(unittest.TestCase):
                 execute(source, "futures_testnet_check", {})
         self.assertEqual(json.loads(status.read_text())["mode"], "paper")
 
+    def test_futures_resume_is_supervised_and_uses_safe_recovery(self):
+        source, config, status = self._fixture("testnet")
+        runtime = _Runtime(source, status, "testnet")
+        forward = SimpleNamespace(safe_resume=lambda: {"status":"RESUMED","resumed":True})
+        with patch.dict(os.environ, {"EXECUTION_MODE":"testnet","OPENAI_MODEL":"gpt-6-luna"}, clear=False), \
+             patch("trader.operational_controls.load_config", return_value=config), \
+             patch("trader.operational_controls.ProcessRuntime", return_value=runtime), \
+             patch("trader.futures_forward.FuturesForwardEngine", return_value=forward):
+            result = execute(source, "futures_forward_resume", {})
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["futures_testnet"]["status"], "RESUMED")
+        self.assertEqual(runtime.started, 1)
+        self.assertFalse((source/"data/UPDATE_MAINTENANCE.json").exists())
+
     def test_smoke_can_use_isolated_symbol_with_existing_positions(self):
         source, config, status = self._fixture("testnet")
         runtime = _Runtime(source, status, "testnet")
