@@ -1,3 +1,11 @@
+# Actualización 0.10.1 — preflight Futures compatible con cuenta HEDGE plana
+
+- Corrige la causa común detrás de `bloqueados: BTC, ETH, SOL` en la reanudación supervisada de 0.10.0.
+- Binance puede devolver dos filas `LONG/SHORT` por símbolo cuando la cuenta está en **HEDGE mode**, incluso con exposición cero. El preflight anterior interpretaba esas dos filas planas como estado ambiguo y bloqueaba los tres símbolos antes de poder devolver la cuenta a ONE_WAY.
+- El preflight ahora distingue **HEDGE plano** de **exposición ambigua real**. Si todas las filas del símbolo están en cero, puede cambiar de forma segura la cuenta a ONE_WAY y continuar con ISOLATED + 1x. Si cualquier fila tiene exposición, falla cerrado y no cambia el modo automáticamente.
+- La reanudación y el portal ahora muestran el error exacto por símbolo cuando un preflight queda bloqueado, en vez de solo listar BTC / ETH / SOL.
+- No cambia estrategia, riesgo, leverage objetivo 1x, sizing, IA, credenciales ni LIVE.
+
 # Actualización 0.10.0 — auditoría integral Futures y recuperación por estado real
 
 Esta versión nace de una auditoría completa del flujo Futures Demo después de observar una pausa persistente con cientos de repeticiones del mismo incidente. El hallazgo principal es que el problema no era un único error de margen: era una interacción entre el journal durable, la ventana de crash entre Binance y SQLite, la caducidad de consultas históricas de órdenes y la recuperación de una apertura confirmada que podía reaparecer como posición CROSS antes de quedar registrada localmente.

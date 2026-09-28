@@ -53,17 +53,35 @@ class FuturesTestnetLab:
         self.ledger = FuturesTestnetLedger(settings.database_path)
 
     def _position_state(self, symbol: str) -> dict:
-        """Return Binance's authoritative state for one symbol, including flat rows."""
+        """Return one authoritative symbol state, tolerating flat HEDGE rows.
+
+        Binance can return separate LONG/SHORT rows while the account is in
+        hedge mode. When both rows are flat, this is not ambiguous exposure;
+        it is a flat account-mode mismatch that can be repaired safely before
+        enabling automatic forward entries.
+        """
         payload = signed_request("GET", "/fapi/v3/positionRisk", {"symbol": symbol})
         if not isinstance(payload, list):
             raise FuturesTestnetExecutionError("Invalid Futures Testnet position response")
-        rows = [row for row in payload if isinstance(row, dict) and str(row.get("symbol", symbol)).upper() == symbol.upper()]
-        if len(rows) != 1:
-            raise FuturesTestnetExecutionError(f"Futures Demo symbol state unavailable or ambiguous: {symbol}")
-        # Validate critical numeric fields before callers use the row as a safety assertion.
-        _decimal(rows[0].get("positionAmt", "0"))
-        _decimal(rows[0].get("leverage", "0"))
-        return rows[0]
+        rows = [row for row in payload
+                if isinstance(row, dict)
+                and str(row.get("symbol", symbol)).upper() == symbol.upper()]
+        if not rows:
+            raise FuturesTestnetExecutionError(f"Futures Demo symbol state unavailable: {symbol}")
+        for row in rows:
+            _decimal(row.get("positionAmt", "0"))
+            _decimal(row.get("leverage", "0"))
+        if len(rows) == 1:
+            return rows[0]
+        exposed = [row for row in rows if _decimal(row.get("positionAmt", "0")) != 0]
+        if exposed:
+            raise FuturesTestnetExecutionError(f"Futures Demo symbol state ambiguous with exposure: {symbol}")
+        # Flat hedge-mode rows are collapsed into one synthetic flat state so
+        # the preflight can switch the account back to ONE_WAY safely.
+        base = dict(rows[0])
+        base["positionAmt"] = "0"
+        base["positionSide"] = "HEDGE_FLAT"
+        return base
 
     def _position_rows(self, symbol: str | None = None) -> list[dict]:
         payload = signed_request("GET", "/fapi/v3/positionRisk", {"symbol": symbol} if symbol else {})
@@ -170,6 +188,15 @@ class FuturesTestnetLab:
         )
         if already_ready:
             return before
+        # If Binance is returning flat LONG/SHORT rows, the account is in
+        # HEDGE mode. Because exposure is confirmed zero, switch the account
+        # mode first, then configure the symbol.
+        if before_side == "HEDGE_FLAT":
+            mode = signed_request("GET", "/fapi/v1/positionSide/dual", {})
+            if not isinstance(mode, dict) or "dualSidePosition" not in mode:
+                raise FuturesTestnetExecutionError("Futures Testnet position mode unavailable")
+            if bool(mode["dualSidePosition"]):
+                signed_request("POST", "/fapi/v1/positionSide/dual", {"dualSidePosition": "false"})
         self._configure(symbol, 1)
         after = self._position_state(symbol)
         if _decimal(after.get("positionAmt", "0")) != 0:

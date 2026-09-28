@@ -547,14 +547,16 @@ async function refresh() {
     if(fSafety){
       const rec=futuresForward?.recovery||{};
       const symbolHealth=futuresForward?.symbol_health||{};
-      const blocked=Object.entries(symbolHealth).filter(([,row])=>row?.status==='BLOCKED').map(([symbol])=>symbol.replace('USDT',''));
+      const blockedRows=Object.entries(symbolHealth).filter(([,row])=>row?.status==='BLOCKED');
+      const blocked=blockedRows.map(([symbol])=>symbol.replace('USDT',''));
+      const blockedDetail=blockedRows.map(([symbol,row])=>symbol.replace('USDT','')+': '+String(row?.error||'bloqueado').slice(0,120)).join(' · ');
       const repair=rec.automatic_config_repair?'autorreparación config ✓':'autorreparación config —';
       const resume=rec.automatic_safe_resume?'auto-reanudación segura ✓':'auto-reanudación segura —';
       const gap=futuresForward?.evidence_gap;
       const journalRecovery=futuresForward?.last_journal_recovery;
       const recoveryText=journalRecovery?.status?' · última recuperación: '+journalRecovery.status:'';
       const gapText=gap?.status?' · evidencia marcada: '+gap.status:'';
-      fSafety.textContent=`Journal ${rec.durable_order_journal?'✓':'—'} · conciliación al reiniciar ${rec.startup_position_reconciliation?'✓':'—'} · ${repair} · ${resume}${blocked.length?' · bloqueados: '+blocked.join(', '):''}${recoveryText}${gapText} · IA final: ${futuresForward?.ai_model||status.ai_model}. Stops nativos persistentes aún pendientes; LIVE bloqueado.`;
+      fSafety.textContent=`Journal ${rec.durable_order_journal?'✓':'—'} · conciliación al reiniciar ${rec.startup_position_reconciliation?'✓':'—'} · ${repair} · ${resume}${blocked.length?' · bloqueados: '+blocked.join(', ')+(blockedDetail?' ['+blockedDetail+']':''):''}${recoveryText}${gapText} · IA final: ${futuresForward?.ai_model||status.ai_model}. Stops nativos persistentes aún pendientes; LIVE bloqueado.`;
     }
     const pauseForward=document.getElementById('pauseFuturesForward');
     const resumeForward=document.getElementById('resumeFuturesForward');
