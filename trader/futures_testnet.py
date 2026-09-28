@@ -102,6 +102,31 @@ class FuturesTestnetLab:
             raise FuturesTestnetExecutionError("Invalid Futures Testnet account response")
         return payload
 
+    def _symbol_config(self, symbol: str) -> dict:
+        """Read leverage/margin configuration from Binance's configuration endpoint.
+
+        /fapi/v3/positionRisk intentionally omits flat symbols without open
+        orders, so it must not be used to confirm configuration while flat.
+        """
+        payload = signed_request("GET", "/fapi/v1/symbolConfig", {"symbol": symbol})
+        if isinstance(payload, dict):
+            rows = [payload]
+        elif isinstance(payload, list):
+            rows = payload
+        else:
+            raise FuturesTestnetExecutionError("Invalid Futures symbol configuration response")
+        row = next((item for item in rows if isinstance(item, dict)
+                    and str(item.get("symbol", "")).upper() == symbol.upper()), None)
+        if row is None:
+            raise FuturesTestnetExecutionError(f"Futures symbol configuration unavailable: {symbol}")
+        leverage = _decimal(row.get("leverage", "0"))
+        if leverage <= 0:
+            raise FuturesTestnetExecutionError(f"Futures symbol leverage configuration unavailable: {symbol}")
+        margin = str(row.get("marginType", "")).lower()
+        if margin not in {"isolated", "cross"}:
+            raise FuturesTestnetExecutionError(f"Futures symbol margin configuration unavailable: {symbol}")
+        return row
+
     def _trade_probe(self, symbol: str = "BTCUSDT") -> bool:
         """Validate TRADE permission without public-data dependency or execution."""
         # 0.001 BTC is deliberately conservative for BTCUSDT test-order validation:
@@ -174,41 +199,45 @@ class FuturesTestnetLab:
     def ensure_flat_forward_configuration(self, symbol: str) -> dict:
         """Idempotently enforce ONE_WAY + ISOLATED + 1x while the symbol is flat.
 
-        This is safe to run as a startup/pre-entry preflight because it refuses
-        to mutate a symbol that already has exposure.
+        Binance v3 positionRisk only returns symbols with an open position or
+        open order. Therefore flatness is verified from the absence of non-zero
+        position rows, while leverage/margin configuration is verified through
+        /fapi/v1/symbolConfig, the endpoint Binance exposes for this purpose.
         """
-        before = self._position_state(symbol)
-        if _decimal(before.get("positionAmt", "0")) != 0:
+        if self._position_rows(symbol):
             raise FuturesTestnetExecutionError(f"Futures flat preflight found open exposure: {symbol}")
-        before_side = str(before.get("positionSide", "")).upper()
-        already_ready = (
+
+        mode = signed_request("GET", "/fapi/v1/positionSide/dual", {})
+        if not isinstance(mode, dict) or "dualSidePosition" not in mode:
+            raise FuturesTestnetExecutionError("Futures Testnet position mode unavailable")
+        if bool(mode["dualSidePosition"]):
+            signed_request("POST", "/fapi/v1/positionSide/dual", {"dualSidePosition": "false"})
+
+        before = self._symbol_config(symbol)
+        ready = (
             str(before.get("marginType", "")).lower() == "isolated"
             and int(float(before.get("leverage", 0) or 0)) == 1
-            and (not before_side or before_side == "BOTH")
         )
-        if already_ready:
-            return before
-        # If Binance is returning flat LONG/SHORT rows, the account is in
-        # HEDGE mode. Because exposure is confirmed zero, switch the account
-        # mode first, then configure the symbol.
-        if before_side == "HEDGE_FLAT":
-            mode = signed_request("GET", "/fapi/v1/positionSide/dual", {})
-            if not isinstance(mode, dict) or "dualSidePosition" not in mode:
-                raise FuturesTestnetExecutionError("Futures Testnet position mode unavailable")
-            if bool(mode["dualSidePosition"]):
-                signed_request("POST", "/fapi/v1/positionSide/dual", {"dualSidePosition": "false"})
-        self._configure(symbol, 1)
-        after = self._position_state(symbol)
-        if _decimal(after.get("positionAmt", "0")) != 0:
+        if not ready:
+            self._configure(symbol, 1)
+
+        if self._position_rows(symbol):
             raise FuturesTestnetExecutionError(f"Futures flat preflight found new exposure: {symbol}")
+        after = self._symbol_config(symbol)
         if str(after.get("marginType", "")).lower() != "isolated":
             raise FuturesTestnetExecutionError(f"Futures flat preflight could not confirm ISOLATED: {symbol}")
         if int(float(after.get("leverage", 0) or 0)) != 1:
             raise FuturesTestnetExecutionError(f"Futures flat preflight could not confirm 1x: {symbol}")
-        position_side = str(after.get("positionSide", "")).upper()
-        if position_side and position_side != "BOTH":
+        mode_after = signed_request("GET", "/fapi/v1/positionSide/dual", {})
+        if not isinstance(mode_after, dict) or bool(mode_after.get("dualSidePosition")):
             raise FuturesTestnetExecutionError("Automatic Futures position mode changed from ONE_WAY")
-        return after
+        return {
+            "symbol": symbol,
+            "positionAmt": "0",
+            "marginType": str(after.get("marginType", "")).lower(),
+            "leverage": str(after.get("leverage")),
+            "positionSide": "BOTH",
+        }
 
     def ensure_forward_position_configuration(self, symbol: str, row: dict) -> dict:
         """Repair only a known isolated forward position whose leverage drifted.
