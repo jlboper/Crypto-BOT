@@ -1,3 +1,11 @@
+# Actualización 0.10.10 — estabilización del release y menú Opciones
+
+- Corrige la superposición del menú `Opciones` para mantenerlo por encima de los paneles Spot/Futures animados.
+- El cambio visual forma parte del paquete firmado del bot, por lo que requiere una versión nueva en lugar de reutilizar 0.10.9.
+- Conserva la validación OIDC endurecida para PRs `release/*` del mismo repositorio hacia `main`, con `portal-production` y SHA atestiguado por GitHub.
+- Añade validación temprana de sintaxis para todos los módulos JavaScript críticos del release antes de pedir aprobación de producción.
+- No cambia estrategia, Spot, Futures, IA, riesgo ni LIVE.
+
 # Actualización 0.10.9 — identidad OIDC alineada con el SHA atestiguado por GitHub
 
 - Corrige el 403 `invalid_publisher_repository` observado después de que el portal ya se desplegara correctamente.
