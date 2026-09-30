@@ -233,6 +233,9 @@ class FuturesTestnetLedger:
             last=datetime.fromisoformat(equity[-1]["created_at"].replace("Z","+00:00"))
             observed=max(0.0,(last-first).total_seconds()/86400.0)
         pnl=[float(r["gross_pnl"]) for r in trades]; winners=[x for x in pnl if x>0]; losers=[x for x in pnl if x<0]
+        average_win=(sum(winners)/len(winners)) if winners else None
+        average_loss=(sum(losers)/len(losers)) if losers else None
+        expectancy=(sum(pnl)/len(trades)) if trades else None
         by_symbol={}
         for symbol in sorted({r["symbol"] for r in trades}):
             sr=[r for r in trades if r["symbol"]==symbol]
@@ -245,6 +248,8 @@ class FuturesTestnetLedger:
             "observed_days":observed,"equity_points":len(equity),"closed_trades":len(trades),
             "gross_realized_pnl_usdt":sum(pnl),"win_rate_pct":100.0*len(winners)/len(trades) if trades else None,
             "profit_factor":sum(winners)/abs(sum(losers)) if losers else (999.0 if winners else None),
+            "average_win_usdt":average_win,"average_loss_usdt":average_loss,
+            "expectancy_usdt_per_close":expectancy,"mae_mfe_available":False,
             "sampled_max_drawdown_pct":max_dd,
             "account_return_pct":((values[-1]/values[0]-1)*100.0) if len(values)>=2 and values[0]>0 else None,
             "long_closed_trades":sum(r["direction"]=="LONG" for r in trades),
@@ -274,18 +279,35 @@ class FuturesTestnetLedger:
         times=sorted(v for v in (parse(r["created_at"]) for r in recent) if v); gaps=[(b-a).total_seconds() for a,b in zip(times,times[1:])]
         samples=len(recent); coverage=min(100.0,100.0*samples/expected) if expected else 0.0
         pending=self.setting("forward_pending_order"); consecutive=int(self.setting("forward_consecutive_errors") or 0)
+        incidents=int(self.setting("forward_incident_sequence") or 0)
+        attempts=int(self.setting("forward_failure_attempt_total") or self.setting("forward_error_total") or 0)
+        cycles=int(self.setting("forward_cycle_total") or 0)
+        evidence_gap=bool(self.setting("forward_evidence_gap"))
         starting=first_at is None or elapsed<cycle_seconds*2; journal_clear=not bool(pending)
-        state="STARTING" if starting else ("OK" if coverage>=90 and consecutive==0 and journal_clear else "WATCH" if coverage>=70 and consecutive<3 and journal_clear else "ATTENTION")
+        integrity={"order_journal_clear":journal_clear,"local_position_count_valid":position_count<=3,
+                   "evidence_gap_clear":not evidence_gap}
+        reasons=[]
+        if coverage<90: reasons.append("cycle_coverage_below_90")
+        if consecutive>0: reasons.append("consecutive_errors_active")
+        if not journal_clear: reasons.append("order_journal_pending")
+        if position_count>3: reasons.append("position_count_exceeded")
+        if evidence_gap: reasons.append("evidence_gap_present")
+        healthy_integrity=all(integrity.values())
+        state=("STARTING" if starting else
+               "ATTENTION" if coverage<70 or consecutive>=3 or not healthy_integrity else
+               "WATCH" if coverage<90 or consecutive>0 else
+               "OK")
         return {"window_hours":24,"state":state,"samples":samples,"expected_samples":expected,"cycle_coverage_pct":round(coverage,1),
             "average_cycle_gap_seconds":round(sum(gaps)/len(gaps),1) if gaps else None,
             "last_cycle_age_seconds":round(max(0.0,(now-times[-1]).total_seconds()),1) if times else None,
             "closed_trades":int(closed["total"] or 0),"realized_pnl_usdt":round(float(closed["pnl"] or 0.0),8),
             "consecutive_errors":consecutive,
             "errors_total":int(self.setting("forward_error_total") or 0),
-            "incident_total":int(self.setting("forward_incident_sequence") or 0),
-            "failure_attempt_total":int(self.setting("forward_failure_attempt_total") or self.setting("forward_error_total") or 0),
-            "integrity":{"order_journal_clear":journal_clear,"local_position_count_valid":position_count<=3,
-                         "evidence_gap_clear":not bool(self.setting("forward_evidence_gap"))}}
+            "incident_total":incidents,
+            "failure_attempt_total":attempts,
+            "cycle_total":cycles,
+            "reason_codes":reasons,
+            "integrity":integrity}
 
     def forward_snapshot(self)->dict:
         with self._connect() as db:
