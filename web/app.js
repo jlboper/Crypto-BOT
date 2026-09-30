@@ -379,10 +379,21 @@ function renderObservationHealth(spotHealth, futuresHealth) {
   set('spotCycleSamples',spotHealth?String(spotHealth.samples||0)+' / '+String(spotHealth.expected_samples||0):'—');
   set('spotCycleGap',formatGap(spotHealth?.average_cycle_gap_seconds));
   set('spotDailyErrors',spotHealth?String(spotHealth.errors||0)+' errores · '+String(spotHealth.warnings||0)+' avisos':'—');
+  set('spotConsecutiveErrors',spotHealth?String(spotHealth.consecutive_errors||0)+' activos':'—');
+  const lastSpotError=spotHealth?.last_error;
+  const lastSpotRecovery=spotHealth?.last_recovery;
+  const lastSpotLabel=lastSpotError?.code
+    ? '['+String(lastSpotError.code)+'] '+String(lastSpotError.label||'diagnóstico disponible')
+      +(Number(spotHealth?.consecutive_errors||0)===0&&lastSpotRecovery?.at?' · recuperado':'')
+    : 'Sin diagnóstico persistente';
+  set('spotLastError',lastSpotLabel);
   set('spotDailyAi',spotHealth?String(spotHealth.ai_reviews||0)+' revisiones · '+String(spotHealth.ai_rejects||0)+' rechazos':'—');
   set('spotDailyTrading',spotHealth?String(spotHealth.closed_trades||0)+' · '+money(spotHealth.realized_pnl_usdt||0):'—');
   set('spotIntegrity',integrityText(spotHealth?.integrity));
-  set('spotHealthReason',reasonText(spotHealth,'Sin incidencias operativas relevantes en la ventana de 24 h.'));
+  const spotStable=spotHealth?.last_error&&Number(spotHealth?.consecutive_errors||0)===0
+    ? 'El último error quedó recuperado; no hay errores consecutivos activos.'
+    : 'Sin incidencias operativas relevantes en la ventana de 24 h.';
+  set('spotHealthReason',reasonText(spotHealth,spotStable));
   set('futuresCycleCoverage',futuresHealth?Number(futuresHealth.cycle_coverage_pct||0).toFixed(1)+'%':'—');
   set('futuresCycleSamples',futuresHealth?String(futuresHealth.samples||0)+' / '+String(futuresHealth.expected_samples||0):'—');
   set('futuresCycleGap',formatGap(futuresHealth?.average_cycle_gap_seconds));
