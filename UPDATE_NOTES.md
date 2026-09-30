@@ -1,3 +1,12 @@
+# Actualización 0.10.12 — diagnóstico y robustez Spot
+
+- Sustituye el evento genérico `Cycle failed: ValueError` por diagnósticos seguros y accionables con códigos persistentes, sin exponer excepciones crudas ni credenciales.
+- Separa los rechazos esperados de guardrails de entrada (riesgo por operación, exposición, filtros del exchange, saldo Testnet y movimiento de precio antes de enviar) de los fallos reales del ciclo.
+- Un guardrail esperado ahora omite esa entrada y continúa el ciclo; no incrementa el contador de errores consecutivos ni puede activar falsamente el kill switch.
+- Los fallos desconocidos siguen fallando de forma cerrada y conservan el kill switch de seguridad.
+- La salud de Spot muestra errores consecutivos activos y el último diagnóstico persistente; cuando el siguiente ciclo sano recupera el motor, queda registrado como recuperado.
+- No cambia estrategia, score, stops, riesgo, posiciones máximas, leverage ni LIVE.
+
 # Actualización 0.10.11 — salud de observación, analítica y consistencia visual
 
 - Mejora la salud de observación de 24 h para distinguir incidencias recuperadas de bloqueos activos: Spot pasa a `VIGILAR` cuando hay errores/avisos recuperados con continuidad e integridad sanas, y reserva `ATENCIÓN` para cobertura baja, fallos de integridad o una concentración mayor de errores.
