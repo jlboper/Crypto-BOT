@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import math
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -9,6 +10,7 @@ from dataclasses import replace
 from .ai_advisor import AIAdvisor
 from .broker import PaperBroker
 from .testnet_broker import BinanceTestnetBroker
+from .testnet_transport import TestnetExecutionError
 from .config import AppConfig
 from .database import Database
 from .domain import Candle, Signal
@@ -133,7 +135,13 @@ class TradingEngine:
                 status, reasons = market_quantity_preflight(
                     self.exchange.cached_symbol_info(signal.symbol), quantity, signal.price)
                 self.db.record_order_preflight(signal.symbol, status, reasons)
-                self.broker.buy(signal, quantity, f"score={signal.score}; AI={review.verdict}: {review.reason}")
+                if status == "incompatible":
+                    self.db.event("INFO", f"{signal.symbol} entry skipped [EXCHANGE_FILTER_PREFLIGHT]")
+                    continue
+                if not self._buy_or_skip_guardrail(
+                    signal, quantity, f"score={signal.score}; AI={review.verdict}: {review.reason}"
+                ):
+                    continue
                 opened.append(signal.symbol)
 
             held_final = [position.symbol for position in self.db.positions()]
@@ -141,6 +149,11 @@ class TradingEngine:
             equity, cash, exposure = self.broker.equity(final_prices)
             self.db.record_equity(equity, cash, exposure, prices["BTCUSDT"])
             self.db.event("INFO", f"Cycle complete: {len(symbols)} symbols, {len(candidates)} buys, opened {len(opened)}")
+            if self._errors:
+                self.db.set_setting("spot_last_recovery", json.dumps({
+                    "recovered_errors": self._errors,
+                    "at": datetime.now(UTC).isoformat(),
+                }, separators=(",", ":")))
             self._errors = 0
             self.db.set_setting("consecutive_errors", "0")
             return {
@@ -156,12 +169,72 @@ class TradingEngine:
         except Exception as exc:
             self._errors += 1
             self.db.set_setting("consecutive_errors", str(self._errors))
-            self.db.event("ERROR", f"Cycle failed: {type(exc).__name__}")
+            failure = self._spot_failure_projection(exc)
+            failure["at"] = datetime.now(UTC).isoformat()
+            failure["consecutive_errors"] = self._errors
+            self.db.set_setting("spot_last_error", json.dumps(failure, separators=(",", ":")))
+            self.db.event("ERROR", f"Cycle failed [{failure['code']}]: {failure['label']}")
             if self._errors >= self.config.risk.max_consecutive_errors:
                 self.config.bot.kill_switch_path.parent.mkdir(parents=True, exist_ok=True)
                 self.config.bot.kill_switch_path.write_text("automatic halt after consecutive errors\n", encoding="utf-8")
                 self.db.event("CRITICAL", "Kill switch activated after consecutive errors")
             raise
+
+    @staticmethod
+    def _entry_rejection_code(exc: Exception) -> str | None:
+        """Classify only expected pre-write entry guardrails; unknown failures still abort the cycle."""
+        if isinstance(exc, ValueError):
+            return {
+                "position count limit": "POSITION_COUNT_LIMIT",
+                "position exposure limit": "POSITION_SIZE_LIMIT",
+                "total exposure limit": "TOTAL_EXPOSURE_LIMIT",
+                "per-trade risk limit": "PER_TRADE_RISK_LIMIT",
+                "insufficient Testnet allocation": "LOCAL_ALLOCATION_LIMIT",
+                "insufficient paper cash": "LOCAL_CASH_LIMIT",
+            }.get(str(exc))
+        if isinstance(exc, TestnetExecutionError):
+            return {
+                "Spot Testnet price moved outside signal protection range": "PRICE_MOVED_OUTSIDE_SIGNAL_RANGE",
+                "Testnet filters reject engine quantity": "EXCHANGE_FILTER_REJECTED",
+                "Insufficient Spot Testnet USDT": "TESTNET_BALANCE_LIMIT",
+            }.get(str(exc))
+        return None
+
+    def _buy_or_skip_guardrail(self, signal: Signal, quantity: float, reason: str) -> bool:
+        try:
+            self.broker.buy(signal, quantity, reason)
+            return True
+        except Exception as exc:
+            code = self._entry_rejection_code(exc)
+            if code is None:
+                raise
+            self.db.record_order_preflight(signal.symbol, "blocked", [code])
+            self.db.event("INFO", f"{signal.symbol} entry skipped [{code}]")
+            return False
+
+    @staticmethod
+    def _spot_failure_projection(exc: Exception) -> dict[str, str]:
+        """Return a bounded, non-secret diagnostic suitable for the portal and persistent event log."""
+        known = {
+            "Spot Testnet order awaiting reconciliation": ("ORDER_RECONCILIATION_PENDING", "orden Spot pendiente de conciliación"),
+            "BTC regime data unavailable": ("BTC_REGIME_UNAVAILABLE", "datos del régimen BTC no disponibles"),
+            "Fresh prices unavailable; entries blocked": ("FRESH_PRICES_UNAVAILABLE", "cotizaciones recientes no disponibles"),
+            "Invalid spot quote": ("INVALID_SPOT_QUOTE", "cotización Spot inválida"),
+            "Held position missing spot quote": ("HELD_QUOTE_MISSING", "falta cotización de una posición abierta"),
+            "Held position missing valid spot quote": ("HELD_QUOTE_INVALID", "cotización inválida de una posición abierta"),
+        }
+        if str(exc) in known:
+            code, label = known[str(exc)]
+            return {"code": code, "label": label, "type": type(exc).__name__}
+        if isinstance(exc, ValueError):
+            return {"code": "UNEXPECTED_VALUE_ERROR", "label": "validación interna no clasificada", "type": "ValueError"}
+        if isinstance(exc, TestnetExecutionError):
+            return {"code": "TESTNET_EXECUTION_ERROR", "label": "fallo de ejecución o conciliación Spot Testnet", "type": type(exc).__name__}
+        return {
+            "code": "UNEXPECTED_" + type(exc).__name__.upper(),
+            "label": "fallo operativo no clasificado",
+            "type": type(exc).__name__,
+        }
 
     def _prune_diagnostics_if_due(self) -> None:
         """Bound diagnostic rows even during a long PAPER pause or risk halt."""
