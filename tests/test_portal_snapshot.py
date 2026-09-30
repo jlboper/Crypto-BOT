@@ -33,6 +33,8 @@ class PortalSnapshotTests(unittest.TestCase):
             self.assertGreaterEqual(payload['status']['observation_health']['cycle_coverage_pct'],0)
             self.assertIn('order_journal_clear',payload['status']['observation_health']['integrity'])
             self.assertIn('warnings_observed',payload['status']['observation_health']['reason_codes'])
+            self.assertEqual(payload['status']['observation_health']['consecutive_errors'],0)
+            self.assertIsNone(payload['status']['observation_health']['last_error'])
             self.assertIn('observation_health',payload['futures_forward'])
             self.assertIn('order_journal_clear',payload['futures_forward']['observation_health']['integrity'])
             self.assertEqual(payload['futures_forward']['guardrails']['max_positions'],3)
