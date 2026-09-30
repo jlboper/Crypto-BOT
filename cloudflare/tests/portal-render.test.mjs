@@ -53,8 +53,8 @@ test('v0.9 multi-asset portal snapshot renders without falling into disconnected
       closed_trades:0,gross_pnl:0,latest_signals:{BTCUSDT:{long_score:65,short_score:15},ETHUSDT:{long_score:40,short_score:30},SOLUSDT:{long_score:55,short_score:25}},
       last_ai_reviews:{},ai_model:'gpt-6-luna',guardrails:{margin_type:'ISOLATED',position_mode:'ONE_WAY',max_positions:3,forward_margin_usdt:100,forward_min_score:75,forward_minimum_stop_pct:.025,forward_stop_atr_multiple:2,forward_reward_to_risk:2},
       recovery:{durable_order_journal:true,startup_position_reconciliation:true,separate_kill_switch:true},
-      observation_health:{state:'OK',samples:10,expected_samples:10,cycle_coverage_pct:100,average_cycle_gap_seconds:900,last_cycle_age_seconds:20,closed_trades:0,realized_pnl_usdt:0,consecutive_errors:0,integrity:{order_journal_clear:true,local_position_count_valid:true}},
-      scorecard:{observed_days:1,closed_trades:0,gross_realized_pnl_usdt:0,sampled_max_drawdown_pct:0,win_rate_pct:null,profit_factor:null,long_closed_trades:0,long_gross_pnl_usdt:0,short_closed_trades:0,short_gross_pnl_usdt:0,error_total:0,cycle_total:10,consecutive_errors:0},
+      observation_health:{state:'OK',samples:10,expected_samples:10,cycle_coverage_pct:100,average_cycle_gap_seconds:900,last_cycle_age_seconds:20,closed_trades:0,realized_pnl_usdt:0,consecutive_errors:0,incident_total:0,failure_attempt_total:0,cycle_total:10,reason_codes:[],integrity:{order_journal_clear:true,local_position_count_valid:true,evidence_gap_clear:true}},
+      scorecard:{observed_days:1,closed_trades:0,gross_realized_pnl_usdt:0,sampled_max_drawdown_pct:0,win_rate_pct:null,profit_factor:null,average_win_usdt:null,average_loss_usdt:null,expectancy_usdt_per_close:null,mae_mfe_available:false,long_closed_trades:0,long_gross_pnl_usdt:0,short_closed_trades:0,short_gross_pnl_usdt:0,error_total:0,incident_total:0,failure_attempt_total:0,cycle_total:10,consecutive_errors:0},
       shadow_scorecard:[]}
   };
   const window={
@@ -79,5 +79,6 @@ test('v0.9 multi-asset portal snapshot renders without falling into disconnected
   assert.match(el('operationSummary').textContent,/Motor TESTNET activo/);
   assert.match(el('equity').textContent,/1,002\.00 USDT/);
   assert.match(el('futuresForwardWallet').textContent,/4,999\.43 USDT/);
-  assert.equal(el('futuresForwardPosition').textContent,'Sin posición');
+  assert.equal(el('futuresForwardPosition').textContent,'SIN POSICIÓN');
+  assert.equal(el('futuresHealthCounters').textContent,'0 / 0 / 10');
 });
