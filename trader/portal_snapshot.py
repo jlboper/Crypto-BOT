@@ -157,10 +157,24 @@ def _spot_observation_health(connection, config, latest, positions, settings):
         "market_prices_fresh": market_age is not None and market_age <= config.bot.cycle_seconds * 2,
     }
     healthy_integrity = all(integrity.values())
+    attention_error_threshold = max(6, int(config.risk.max_consecutive_errors) * 2)
+    reasons = []
+    if coverage < 90:
+        reasons.append("cycle_coverage_below_90")
+    if errors:
+        reasons.append("errors_observed")
+    if warnings:
+        reasons.append("warnings_observed")
+    if not integrity["positions_within_limit"]:
+        reasons.append("position_count_exceeded")
+    if not integrity["order_journal_clear"]:
+        reasons.append("order_journal_pending")
+    if not integrity["market_prices_fresh"]:
+        reasons.append("market_prices_stale")
     state = ("STARTING" if starting else
-             "OK" if coverage >= 90 and errors == 0 and healthy_integrity else
-             "WATCH" if coverage >= 70 and errors < config.risk.max_consecutive_errors and healthy_integrity else
-             "ATTENTION")
+             "ATTENTION" if coverage < 70 or errors >= attention_error_threshold or not healthy_integrity else
+             "WATCH" if coverage < 90 or errors > 0 or warnings > 0 else
+             "OK")
     return {
         "window_hours": 24,
         "state": state,
@@ -175,6 +189,7 @@ def _spot_observation_health(connection, config, latest, positions, settings):
         "ai_rejects": int(ai["rejected"] or 0),
         "closed_trades": int(closed["total"] or 0),
         "realized_pnl_usdt": round(float(closed["pnl"] or 0.0), 8),
+        "reason_codes": reasons,
         "integrity": integrity,
     }
 

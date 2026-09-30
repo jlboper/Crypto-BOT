@@ -34,6 +34,7 @@
 .health-grid dl>div{display:flex;justify-content:space-between;gap:18px;padding:9px 0;border-top:1px solid rgba(125,154,190,.1)}
 .health-grid dt{color:#8194ae}
 .health-grid dd{margin:0;text-align:right;color:#e8f0fb;font-weight:600}
+.health-reason{margin:12px 0 0;padding-top:10px;border-top:1px solid rgba(125,154,190,.1);color:#9aabc2;font-size:.76rem;line-height:1.45}
 @media(max-width:760px){.health-grid{grid-template-columns:1fr}.health-grid dl>div{align-items:flex-start}}
 
 /* v0.8.11 dual-engine detail parity */

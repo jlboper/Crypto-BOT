@@ -1,3 +1,14 @@
+# Actualización 0.10.11 — salud de observación, analítica y consistencia visual
+
+- Mejora la salud de observación de 24 h para distinguir incidencias recuperadas de bloqueos activos: Spot pasa a `VIGILAR` cuando hay errores/avisos recuperados con continuidad e integridad sanas, y reserva `ATENCIÓN` para cobertura baja, fallos de integridad o una concentración mayor de errores.
+- Futures deja de mostrar el contador histórico ambiguo como “errores totales” y separa claramente errores consecutivos, incidentes, intentos fallidos y ciclos.
+- Añade motivos concretos de salud por motor para saber por qué aparece `VIGILAR` o `ATENCIÓN`.
+- Amplía la analítica Spot con expectativa neta por cierre, ganancia media, pérdida media y comisiones frente al P&L neto absoluto.
+- Amplía la analítica Futures con expectativa por cierre, ganancia media y pérdida media, manteniendo LONG/SHORT separados.
+- MAE/MFE no se inventa a partir de datos que el historial actual no registra; el portal lo marca explícitamente como `PENDIENTE DE TELEMETRÍA` hasta instrumentarlo de forma fiable.
+- Homologa estados, mayúsculas y estilos entre Spot/Futures: `OPERATIVO`, `PROTECCIONES ACTIVAS`, `PAUSADO`, tarjetas financieras y badges usan el mismo formato visual.
+- No cambia estrategia, señales, stops, riesgo, número de posiciones, leverage ni LIVE.
+
 # Actualización 0.10.10 — estabilización del release y menú Opciones
 
 - Corrige la superposición del menú `Opciones` para mantenerlo por encima de los paneles Spot/Futures animados.

@@ -57,6 +57,15 @@ def paper_scorecard(connection, *, prices=None, prices_at=None, cycle_seconds=No
     ''').fetchone()
     fees = float(connection.execute('SELECT COALESCE(SUM(fee),0) FROM trades').fetchone()[0])
     closed = int(trades[0])
+    net_realized = float(trades[1])
+    wins = int(trades[2])
+    gross_profit = float(trades[3])
+    gross_loss_abs = float(trades[4])
+    losses = max(0, closed - wins)
+    average_win = gross_profit / wins if wins else None
+    average_loss = -(gross_loss_abs / losses) if losses else None
+    expectancy = net_realized / closed if closed else None
+    fees_to_abs_net_pct = (100.0 * fees / abs(net_realized)) if abs(net_realized) > 1e-12 else None
     observed_days = (end-start).total_seconds()/86400 if start and end else 0.0
     asset_rows = connection.execute('''
         SELECT symbol, COUNT(*) AS closed_trades, SUM(realized_pnl) AS net_realized_pnl_usdt,
@@ -139,10 +148,17 @@ def paper_scorecard(connection, *, prices=None, prices_at=None, cycle_seconds=No
         'last_at': end.isoformat() if end else None,
         'observed_days': round(observed_days, 2), 'equity_points': points,
         'invalid_points': invalid, 'closed_trades': closed,
-        'net_realized_pnl_usdt': round(float(trades[1]), 4),
+        'net_realized_pnl_usdt': round(net_realized, 4),
         'fees_usdt': round(fees, 4),
-        'win_rate_pct': round(100*int(trades[2])/closed, 2) if closed else None,
-        'profit_factor': round(float(trades[3])/float(trades[4]), 3) if trades[4] else None,
+        'win_rate_pct': round(100*wins/closed, 2) if closed else None,
+        'profit_factor': round(gross_profit/gross_loss_abs, 3) if gross_loss_abs else None,
+        'gross_profit_usdt': round(gross_profit, 4),
+        'gross_loss_usdt': round(-gross_loss_abs, 4),
+        'average_win_usdt': round(average_win, 4) if average_win is not None else None,
+        'average_loss_usdt': round(average_loss, 4) if average_loss is not None else None,
+        'expectancy_usdt_per_close': round(expectancy, 4) if expectancy is not None else None,
+        'fees_to_abs_net_pnl_pct': round(fees_to_abs_net_pct, 2) if fees_to_abs_net_pct is not None else None,
+        'mae_mfe_available': False,
         'estimated_open_pnl_usdt': round(open_pnl, 4) if not missing_quotes else None,
         'open_exposure_usdt': round(open_exposure, 4) if not missing_quotes else None,
         'open_positions': len(open_rows), 'unpriced_positions': len(missing_quotes),
@@ -176,5 +192,6 @@ def paper_scorecard(connection, *, prices=None, prices_at=None, cycle_seconds=No
             'net_difference_pp': round(paper_return-btc_net_return, 3) if btc_net_return is not None else None,
         },
         'observation_gate': {'days': 30, 'closed_trades': 30},
-        'limitations': ['no_cashflow_ledger', 'benchmark_starts_with_new_samples', 'sampled_equity_drawdown'],
+        'limitations': ['no_cashflow_ledger', 'benchmark_starts_with_new_samples', 'sampled_equity_drawdown',
+                        'intratrade_mae_mfe_not_recorded'],
     }

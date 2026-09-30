@@ -109,6 +109,21 @@ class WindowsAssetTests(unittest.TestCase):
         self.assertIn(".options-menu{z-index:1000}", css)
         self.assertIn(".engine-workspace,.engine-console{position:relative;z-index:1}", css)
 
+    def test_observation_and_limit_ui_are_homologated(self):
+        app = (PROJECT_ROOT / "web" / "app.js").read_text(encoding="utf-8")
+        html = (PROJECT_ROOT / "web" / "index.html").read_text(encoding="utf-8")
+        css = (PROJECT_ROOT / "web" / "monitoring.css").read_text(encoding="utf-8")
+        self.assertIn("PROTECCIONES ACTIVAS", app)
+        self.assertIn("activityLabel(spotActivity)", app)
+        self.assertIn("Incidentes / intentos / ciclos", html)
+        self.assertIn('id="spotHealthReason"', html)
+        self.assertIn('id="futuresHealthReason"', html)
+        self.assertIn("Expectativa neta / cierre", app)
+        self.assertIn("Expectativa / cierre", app)
+        self.assertIn("PENDIENTE DE TELEMETRÍA", app)
+        self.assertIn(".health-reason{", css)
+        self.assertNotIn("String(futuresHealth.errors_total||0)+' total'", app)
+
     def test_manager_retires_sha_only_update_installer(self):
         source = (PROJECT_ROOT / "scripts" / "manager_windows.ps1").read_text(encoding="utf-8-sig")
         self.assertNotIn("raw.githubusercontent.com/jlboper/Crypto-BOT", source)

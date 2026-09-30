@@ -145,7 +145,7 @@ function validateSnapshot(snapshot) {
     if(d.paper_scorecard!==undefined){
       const s=d.paper_scorecard;
       assert(object(s)&&s.mode===snapshot.mode&&['INSUFFICIENT_EVIDENCE','REVIEW_REQUIRED'].includes(s.status),'Invalid financial scorecard');
-      assert(Object.keys(s).length<=26&&Array.isArray(s.by_asset)&&s.by_asset.length<=50
+      assert(Object.keys(s).length<=36&&Array.isArray(s.by_asset)&&s.by_asset.length<=50
         &&(!s.attribution||(object(s.attribution)&&Array.isArray(s.attribution.exit_reasons)
           &&s.attribution.exit_reasons.length<=4&&Array.isArray(s.attribution.research_symbols)
           &&s.attribution.research_symbols.length<=10))
