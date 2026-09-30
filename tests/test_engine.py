@@ -125,5 +125,36 @@ class EngineTests(unittest.TestCase):
             self.assertEqual(trade["reason"], "protective stop")
 
 
+    def test_expected_spot_guardrail_is_skipped_without_cycle_failure(self):
+        with tempfile.TemporaryDirectory() as folder:
+            config = load_config()
+            config = replace(config, bot=replace(config.bot, mode='testnet',
+                                                database_path=Path(folder)/'testnet.db',
+                                                kill_switch_path=Path(folder)/'KILL_SWITCH'))
+            engine = TradingEngine(config)
+            signal = Signal('BTCUSDT','BUY',80,100,95,110,2,60,101,99,1.3,'synthetic','now')
+            with patch.object(engine.broker, 'buy', side_effect=ValueError('per-trade risk limit')):
+                self.assertFalse(engine._buy_or_skip_guardrail(signal, 0.1, 'test'))
+            events = engine.db.recent('events', 5)
+            self.assertTrue(any('PER_TRADE_RISK_LIMIT' in row['message'] for row in events))
+            self.assertFalse(any(row['level'] == 'ERROR' for row in events))
+
+    def test_unknown_value_error_remains_fatal_but_is_safely_classified(self):
+        with tempfile.TemporaryDirectory() as folder:
+            config = load_config()
+            config = replace(config, bot=replace(config.bot, mode='paper',
+                                                database_path=Path(folder)/'test.db',
+                                                kill_switch_path=Path(folder)/'KILL_SWITCH'))
+            engine = TradingEngine(config)
+            signal = Signal('BTCUSDT','BUY',80,100,95,110,2,60,101,99,1.3,'synthetic','now')
+            with patch.object(engine.broker, 'buy', side_effect=ValueError('secret raw detail')):
+                with self.assertRaisesRegex(ValueError, 'secret raw detail'):
+                    engine._buy_or_skip_guardrail(signal, 0.1, 'test')
+            projection = engine._spot_failure_projection(ValueError('secret raw detail'))
+            self.assertEqual(projection['code'], 'UNEXPECTED_VALUE_ERROR')
+            self.assertNotIn('secret raw detail', projection['label'])
+
+
+
 if __name__ == "__main__":
     unittest.main()

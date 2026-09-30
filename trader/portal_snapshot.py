@@ -157,7 +157,15 @@ def _spot_observation_health(connection, config, latest, positions, settings):
         "market_prices_fresh": market_age is not None and market_age <= config.bot.cycle_seconds * 2,
     }
     healthy_integrity = all(integrity.values())
-    attention_error_threshold = max(6, int(config.risk.max_consecutive_errors) * 2)
+    consecutive_errors = int(settings.get("consecutive_errors", "0") or 0)
+    try:
+        last_error = json.loads(settings.get("spot_last_error", "null") or "null")
+    except (TypeError, ValueError, json.JSONDecodeError):
+        last_error = None
+    try:
+        last_recovery = json.loads(settings.get("spot_last_recovery", "null") or "null")
+    except (TypeError, ValueError, json.JSONDecodeError):
+        last_recovery = None
     reasons = []
     if coverage < 90:
         reasons.append("cycle_coverage_below_90")
@@ -165,15 +173,18 @@ def _spot_observation_health(connection, config, latest, positions, settings):
         reasons.append("errors_observed")
     if warnings:
         reasons.append("warnings_observed")
+    if consecutive_errors:
+        reasons.append("consecutive_errors_active")
     if not integrity["positions_within_limit"]:
         reasons.append("position_count_exceeded")
     if not integrity["order_journal_clear"]:
         reasons.append("order_journal_pending")
     if not integrity["market_prices_fresh"]:
         reasons.append("market_prices_stale")
+    active_attention = consecutive_errors >= max(2, int(config.risk.max_consecutive_errors) - 1)
     state = ("STARTING" if starting else
-             "ATTENTION" if coverage < 70 or errors >= attention_error_threshold or not healthy_integrity else
-             "WATCH" if coverage < 90 or errors > 0 or warnings > 0 else
+             "ATTENTION" if coverage < 70 or active_attention or not healthy_integrity else
+             "WATCH" if coverage < 90 or errors > 0 or warnings > 0 or consecutive_errors > 0 else
              "OK")
     return {
         "window_hours": 24,
@@ -185,6 +196,9 @@ def _spot_observation_health(connection, config, latest, positions, settings):
         "last_cycle_age_seconds": round(last_age, 1) if last_age is not None else None,
         "errors": errors,
         "warnings": warnings,
+        "consecutive_errors": consecutive_errors,
+        "last_error": last_error if isinstance(last_error, dict) else None,
+        "last_recovery": last_recovery if isinstance(last_recovery, dict) else None,
         "ai_reviews": int(ai["total"] or 0),
         "ai_rejects": int(ai["rejected"] or 0),
         "closed_trades": int(closed["total"] or 0),
@@ -203,7 +217,7 @@ def dashboard_snapshot(config, report_path=None):
             return [dict(row) for row in connection.execute(f'SELECT {columns} FROM {table} ORDER BY id DESC LIMIT ?', (limit,))]
         equity = rows('equity','equity,cash,exposure,created_at',300)
         latest = equity[0] if equity else {}
-        settings = dict(connection.execute("SELECT key,value FROM settings WHERE key IN ('market_prices','market_prices_at','paper_cash','paper_risk_profile','unified_testnet_pending_order')"))
+        settings = dict(connection.execute("SELECT key,value FROM settings WHERE key IN ('market_prices','market_prices_at','paper_cash','paper_risk_profile','unified_testnet_pending_order','consecutive_errors','spot_last_error','spot_last_recovery')"))
         prices = json.loads(settings.get('market_prices','{}'))
         positions = [position_metrics(Position(**dict(p)),
                      usable_price(prices.get(p['symbol']), settings.get('market_prices_at'), config.bot.cycle_seconds), config.paper)
