@@ -116,10 +116,15 @@ function renderPaperEvidence(report, equity, trades) {
     ['Drawdown de equity muestreada',`${finite(values.drawdown).toFixed(2)}%`],
     ['Comisiones registradas',`${finite(values.fees).toFixed(2)} USDT`],
     ['Operaciones ganadoras',values.win===null?'—':`${finite(values.win).toFixed(1)}%`],
+    ['Expectativa neta / cierre',complete?optionalMoney(report.expectancy_usdt_per_close):'—'],
+    ['Ganancia media',complete?optionalMoney(report.average_win_usdt):'—'],
+    ['Pérdida media',complete?optionalMoney(report.average_loss_usdt):'—'],
+    ['Comisiones / |P&amp;L neto|',complete&&report.fees_to_abs_net_pnl_pct!=null?`${finite(report.fees_to_abs_net_pnl_pct).toFixed(1)}%`:'—'],
     ['Muestras de equity',finite(values.points).toFixed(0)],
     ['P&amp;L abierto estimado',complete?optionalMoney(report.estimated_open_pnl_usdt):'—'],
     ['Exposición abierta con precio reciente',complete?optionalMoney(report.open_exposure_usdt):'—'],
-    ['Factor de beneficio realizado',complete&&report.profit_factor!=null?finite(report.profit_factor).toFixed(2):'—']
+    ['Factor de beneficio realizado',complete&&report.profit_factor!=null?finite(report.profit_factor).toFixed(2):'—'],
+    ['MAE / MFE por operación',report?.mae_mfe_available===true?'DISPONIBLE':'PENDIENTE DE TELEMETRÍA']
   ];
   const cards=items=>items.map(([label,value])=>`<article><span>${label}</span><strong>${value}</strong></article>`).join('');
   panel.innerHTML=cards(metrics.slice(0,4));
@@ -232,7 +237,7 @@ function renderFuturesParity(futures) {
   const limitState=document.getElementById('futuresLimitState');
   if(limitState){
     limitState.textContent=futures?.killed?'PAUSADO':(futures?.enabled?'PROTECCIONES ACTIVAS':'INACTIVO');
-    limitState.className='state '+((futures?.killed||!futures?.enabled)?'warning':'neutral');
+    limitState.className='state'+((futures?.killed||!futures?.enabled)?' warning':'');
   }
   set('futuresLimitLeverage',futures?.automatic_leverage==null?'—':String(futures.automatic_leverage)+'x');
   set('futuresLimitMarginType',guard.margin_type?String(guard.margin_type).toUpperCase():'—');
@@ -246,7 +251,7 @@ function renderFuturesParity(futures) {
   const positionState=document.getElementById('futuresPositionState');
   if(positionState){
     positionState.textContent=positions.length?(String(positions.length)+' ABIERTA'+(positions.length===1?'':'S')):'SIN POSICIÓN';
-    positionState.className='state '+(positions.length?'warning':'neutral');
+    positionState.className='state'+(positions.length?'':' neutral');
   }
   if(pos){
     const qty=Number(pos.quantity);
@@ -277,10 +282,10 @@ function renderFuturesParity(futures) {
     'Historial Futures Demo: '+days.toFixed(1)+' días y '+trades.toFixed(0)+' cierres. 30 días y 30 cierres son solo evidencia operativa; nunca activan dinero real automáticamente.');
   const metrics=document.getElementById('futuresEvidenceMetrics');
   if(metrics)metrics.innerHTML=
-    '<div><small>Días observados</small><strong>'+days.toFixed(1)+'</strong></div>'+
-    '<div><small>Operaciones cerradas</small><strong>'+trades.toFixed(0)+'</strong></div>'+
-    '<div><small>P&amp;L realizado bruto</small><strong>'+money(score.gross_realized_pnl_usdt||0)+'</strong></div>'+
-    '<div><small>Drawdown muestreado</small><strong>'+finite(score.sampled_max_drawdown_pct).toFixed(2)+'%</strong></div>';
+    '<article><span>Días observados</span><strong>'+days.toFixed(1)+'</strong></article>'+
+    '<article><span>Operaciones cerradas</span><strong>'+trades.toFixed(0)+'</strong></article>'+
+    '<article><span>P&amp;L realizado bruto</span><strong>'+money(score.gross_realized_pnl_usdt||0)+'</strong></article>'+
+    '<article><span>Drawdown muestreado</span><strong>'+finite(score.sampled_max_drawdown_pct).toFixed(2)+'%</strong></article>';
   set('futuresEvidenceSummary',
     'Retorno observado '+(score.account_return_pct==null?'—':pct(score.account_return_pct))+
     ' · win rate '+(score.win_rate_pct==null?'—':finite(score.win_rate_pct).toFixed(1)+'%')+
@@ -288,10 +293,15 @@ function renderFuturesParity(futures) {
     ' · LONG '+finite(score.long_closed_trades).toFixed(0)+' / SHORT '+finite(score.short_closed_trades).toFixed(0)+'.');
   const more=document.getElementById('futuresMoreMetrics');
   if(more)more.innerHTML=
-    '<div><small>LONG P&amp;L</small><strong>'+money(score.long_gross_pnl_usdt||0)+'</strong></div>'+
-    '<div><small>SHORT P&amp;L</small><strong>'+money(score.short_gross_pnl_usdt||0)+'</strong></div>'+
-    '<div><small>Errores totales</small><strong>'+finite(score.error_total).toFixed(0)+'</strong></div>'+
-    '<div><small>Errores consecutivos</small><strong>'+finite(score.consecutive_errors).toFixed(0)+'</strong></div>';
+    '<article><span>Expectativa / cierre</span><strong>'+(score.expectancy_usdt_per_close==null?'—':money(score.expectancy_usdt_per_close))+'</strong></article>'+
+    '<article><span>Ganancia media</span><strong>'+(score.average_win_usdt==null?'—':money(score.average_win_usdt))+'</strong></article>'+
+    '<article><span>Pérdida media</span><strong>'+(score.average_loss_usdt==null?'—':money(score.average_loss_usdt))+'</strong></article>'+
+    '<article><span>LONG P&amp;L</span><strong>'+money(score.long_gross_pnl_usdt||0)+'</strong></article>'+
+    '<article><span>SHORT P&amp;L</span><strong>'+money(score.short_gross_pnl_usdt||0)+'</strong></article>'+
+    '<article><span>Incidentes</span><strong>'+finite(score.incident_total).toFixed(0)+'</strong></article>'+
+    '<article><span>Intentos fallidos</span><strong>'+finite(score.failure_attempt_total).toFixed(0)+'</strong></article>'+
+    '<article><span>Errores consecutivos</span><strong>'+finite(score.consecutive_errors).toFixed(0)+'</strong></article>'+
+    '<article><span>MAE / MFE por operación</span><strong>'+(score.mae_mfe_available===true?'DISPONIBLE':'PENDIENTE DE TELEMETRÍA')+'</strong></article>';
   const checks=document.getElementById('futuresReadinessChecks');
   if(checks){
     const rows=[[days>=30,days.toFixed(1)+' / 30 días'],[trades>=30,trades.toFixed(0)+' / 30 cierres'],
@@ -349,26 +359,43 @@ function renderObservationHealth(spotHealth, futuresHealth) {
   const formatGap=value=>value==null?'—':value<60?Math.round(value)+' s':(value/60).toFixed(1)+' min';
   const integrityText=value=>{const entries=Object.entries(value||{});if(!entries.length)return '—';const ok=entries.filter(([,passed])=>passed===true).length;return ok===entries.length?'✓ '+ok+'/'+entries.length+' comprobaciones':ok+'/'+entries.length+' correctas';};
   const renderState=(id,value)=>{const node=document.getElementById(id);if(!node)return;node.textContent=stateLabel(value);node.className='state '+stateClass(value);};
+  const reasonLabels={
+    cycle_coverage_below_90:'cobertura de ciclos por debajo de 90%',
+    errors_observed:'errores registrados durante las últimas 24 h',
+    warnings_observed:'avisos registrados durante las últimas 24 h',
+    position_count_exceeded:'cantidad de posiciones fuera del límite',
+    order_journal_pending:'journal de órdenes pendiente',
+    market_prices_stale:'cotizaciones de mercado desactualizadas',
+    consecutive_errors_active:'errores consecutivos activos',
+    evidence_gap_present:'hay una brecha de evidencia marcada'
+  };
+  const reasonText=(health,stable)=>{
+    const reasons=Array.isArray(health?.reason_codes)?health.reason_codes.map(code=>reasonLabels[code]||String(code).replaceAll('_',' ')):[];
+    return reasons.length?'Motivo: '+reasons.join(' · '):stable;
+  };
   renderState('spotHealthState',spotHealth?.state);
   renderState('futuresHealthState',futuresHealth?.state);
   set('spotCycleCoverage',spotHealth?Number(spotHealth.cycle_coverage_pct||0).toFixed(1)+'%':'—');
   set('spotCycleSamples',spotHealth?String(spotHealth.samples||0)+' / '+String(spotHealth.expected_samples||0):'—');
   set('spotCycleGap',formatGap(spotHealth?.average_cycle_gap_seconds));
-  set('spotDailyErrors',spotHealth?String(spotHealth.errors||0)+' / '+String(spotHealth.warnings||0):'—');
-  set('spotDailyAi',spotHealth?String(spotHealth.ai_reviews||0)+' / '+String(spotHealth.ai_rejects||0):'—');
+  set('spotDailyErrors',spotHealth?String(spotHealth.errors||0)+' errores · '+String(spotHealth.warnings||0)+' avisos':'—');
+  set('spotDailyAi',spotHealth?String(spotHealth.ai_reviews||0)+' revisiones · '+String(spotHealth.ai_rejects||0)+' rechazos':'—');
   set('spotDailyTrading',spotHealth?String(spotHealth.closed_trades||0)+' · '+money(spotHealth.realized_pnl_usdt||0):'—');
   set('spotIntegrity',integrityText(spotHealth?.integrity));
+  set('spotHealthReason',reasonText(spotHealth,'Sin incidencias operativas relevantes en la ventana de 24 h.'));
   set('futuresCycleCoverage',futuresHealth?Number(futuresHealth.cycle_coverage_pct||0).toFixed(1)+'%':'—');
   set('futuresCycleSamples',futuresHealth?String(futuresHealth.samples||0)+' / '+String(futuresHealth.expected_samples||0):'—');
   set('futuresCycleGap',formatGap(futuresHealth?.average_cycle_gap_seconds));
-  set('futuresDailyErrors',futuresHealth?String(futuresHealth.consecutive_errors||0)+' consecutivos · '+String(futuresHealth.errors_total||0)+' total':'—');
+  set('futuresDailyErrors',futuresHealth?String(futuresHealth.consecutive_errors||0)+' activos':'—');
+  set('futuresHealthCounters',futuresHealth?String(futuresHealth.incident_total||0)+' / '+String(futuresHealth.failure_attempt_total||0)+' / '+String(futuresHealth.cycle_total||0):'—');
   set('futuresDailyTrading',futuresHealth?String(futuresHealth.closed_trades||0)+' · '+money(futuresHealth.realized_pnl_usdt||0):'—');
   set('futuresIntegrity',integrityText(futuresHealth?.integrity));
+  set('futuresHealthReason',reasonText(futuresHealth,'Sin bloqueos de journal, integridad o errores consecutivos.'));
   const states=[spotHealth?.state,futuresHealth?.state];
   const overall=states.includes('ATTENTION')?'ATTENTION':states.includes('WATCH')?'WATCH':states.every(x=>x==='OK')?'OK':'STARTING';
   renderState('observationHealthState',overall);
   const note=document.getElementById('observationHealthNote');
-  if(note)note.textContent=overall==='OK'?'La muestra de las últimas 24 h tiene continuidad e integridad operativa suficientes para seguir observando sin intervenir.':overall==='ATTENTION'?'Hay una condición operativa que puede contaminar la muestra. Revisar continuidad, journal o errores antes de interpretar resultados.':'La muestra sigue acumulándose; no cambia estrategia ni riesgo durante esta fase.';
+  if(note)note.textContent=overall==='OK'?'La muestra de las últimas 24 h tiene continuidad e integridad operativa suficientes para seguir observando sin intervenir.':overall==='ATTENTION'?'Hay una condición operativa concreta que requiere atención antes de interpretar resultados. Los motivos aparecen debajo de cada motor.':overall==='WATCH'?'Hay incidencias recuperadas o continuidad parcial para vigilar; no implican por sí solas que el motor esté actualmente fallando.':'La muestra sigue acumulándose; no cambia estrategia ni riesgo durante esta fase.';
 }
 
 function renderResearch(report, state) {
@@ -504,13 +531,14 @@ async function refresh() {
         ? 'INACTIVO · MOTOR EN '+currentExecutionMode.toUpperCase()
         : (!futuresForward?.enabled?'INACTIVO · FORWARD DESHABILITADO':null);
       futuresState.textContent=futuresDisabledReason || (futuresForward?.killed?'PAUSADO':'ACTIVO');
-      futuresState.className='state '+((futuresDisabledReason||futuresForward?.killed)?'warning':'neutral');
+      futuresState.className='state'+((futuresDisabledReason||futuresForward?.killed)?' warning':'');
     }
     document.getElementById('accountEnvironmentTitle').textContent='Spot · '+modeUpper;
     const spotEngineState=document.getElementById('spotEngineState');
     if(spotEngineState){
-      spotEngineState.textContent=status.killed?'PAUSADO':(status.activity?.state||'ACTIVO');
-      spotEngineState.className='state '+(status.killed?'warning':'neutral');
+      const spotActivity=status.activity?.state||'starting';
+      spotEngineState.textContent=status.killed?'PAUSADO':activityLabel(spotActivity);
+      spotEngineState.className='state'+(status.killed||spotActivity==='delayed'?' warning':spotActivity==='offline'?' offline':'');
     }
     const spotPositions=document.getElementById('spotEnginePositions');
     if(spotPositions)spotPositions.textContent=String(status.positions);
@@ -524,7 +552,7 @@ async function refresh() {
         ? 'INACTIVO · MOTOR EN '+currentExecutionMode.toUpperCase()
         : (!futuresForward?.enabled?'INACTIVO · FORWARD DESHABILITADO':null);
       forwardState.textContent=forwardDisabledReason || (futuresForward.killed?'PAUSADO':(forwardPositions.length?forwardPositions.length+' POSICIÓN'+(forwardPositions.length===1?' ABIERTA':'ES ABIERTAS'):'ACTIVO · ESPERANDO SEÑAL'));
-      forwardState.className='state '+((forwardDisabledReason||futuresForward?.killed)?'warning':'neutral');
+      forwardState.className='state'+((forwardDisabledReason||futuresForward?.killed)?' warning':'');
     }
     const fWallet=document.getElementById('futuresForwardWallet');
     if(fWallet){
@@ -532,7 +560,7 @@ async function refresh() {
       fWallet.textContent=last?money(last.wallet_balance):'Esperando ciclo';
     }
     const fPosition=document.getElementById('futuresForwardPosition');
-    if(fPosition)fPosition.textContent=forwardPositions.length?forwardPositions.map(p=>`${String(p.symbol).replace('USDT','')} ${p.direction}`).join(' · '):'Sin posición';
+    if(fPosition)fPosition.textContent=forwardPositions.length?forwardPositions.map(p=>`${String(p.symbol).replace('USDT','')} ${p.direction}`).join(' · '):'SIN POSICIÓN';
     const fClosed=document.getElementById('futuresForwardClosed');
     if(fClosed){
       const closed=Number(futuresForward?.closed_trades||0);
@@ -546,7 +574,7 @@ async function refresh() {
       const reviews=futuresForward?.last_ai_reviews||{};
       const review=Object.values(reviews).filter(Boolean).at(-1);
       fAi.textContent=review?`${review.verdict} · ${Math.round(Number(review.confidence||0)*100)}%`:
-        (status.ai_enabled?'Activa':'Desactivada');
+        (status.ai_enabled?'ACTIVA':'DESACTIVADA');
     }
     const fAiModel=document.getElementById('futuresForwardAiModel');
     if(fAiModel)fAiModel.textContent=futuresForward?.ai_model||status.ai_model||'—';
@@ -601,7 +629,7 @@ async function refresh() {
     document.getElementById('exposure').textContent=money(status.exposure);
     document.getElementById('return').textContent=`${status.return_pct>=0?'+':''}${status.return_pct.toFixed(2)}% total`;
     document.getElementById('positionsCount').textContent=`${status.positions} de ${status.max_positions} posiciones`;
-    document.getElementById('aiStatus').textContent=status.ai_enabled?'Activa':'Desactivada';
+    document.getElementById('aiStatus').textContent=status.ai_enabled?'ACTIVA':'DESACTIVADA';
     document.getElementById('aiModel').textContent=status.ai_model;
     const chosen=document.getElementById('aiModelChoice');
     if(['gpt-5.6-luna','gpt-6-luna'].includes(status.ai_model))chosen.value=status.ai_model;
@@ -624,7 +652,7 @@ async function refresh() {
     }
 
     const state=document.getElementById('killState'), button=document.getElementById('killButton');
-    state.textContent=status.killed?'DETENIDO':'Protecciones activas'; state.classList.toggle('killed',status.killed);
+    state.textContent=status.killed?'PAUSADO':'PROTECCIONES ACTIVAS'; state.className=status.killed?'state killed':'state';
     button.textContent=status.killed?'Reanudar nuevas entradas':'Pausar nuevas entradas'; button.dataset.killed=String(status.killed);
 
     const activity=status.activity || {state:'starting',age_seconds:null};
@@ -633,8 +661,7 @@ async function refresh() {
       `Motor ${activityLabel(activity.state).toLowerCase()}. ${status.killed?'Nuevas entradas pausadas. ':'Comprueba la conexión de Windows antes de dar instrucciones. '}Último ciclo ${ageLabel(activity.age_seconds)}.`;
     const botState=document.getElementById('botState');
     botState.textContent=activityLabel(activity.state);
-    botState.classList.toggle('warning',activity.state==='delayed');
-    botState.classList.toggle('offline',activity.state==='offline');
+    botState.className='state'+(activity.state==='delayed'?' warning':activity.state==='offline'?' offline':'');
 
     lastPositions=positions;
     document.getElementById('positions').innerHTML=positions.length?positions.map(p=>`<tr><td><strong>${esc(p.symbol)}</strong></td><td>${num(p.quantity)}</td><td>${num(p.entry_price,4)}</td><td>${p.market_price==null?'—':num(p.market_price,4)}</td><td class="${p.unrealized_pnl==null?'':p.unrealized_pnl>=0?'positive':'negative'}">${p.unrealized_pnl==null?'—':`${p.unrealized_pnl>=0?'+':''}${num(p.unrealized_pnl,2)}`}</td><td class="${p.unrealized_pct==null?'':p.unrealized_pct>=0?'positive':'negative'}">${p.unrealized_pct==null?'—':`${p.unrealized_pct>=0?'+':''}${num(p.unrealized_pct,2)}%`}</td><td>${num(p.stop_price,4)}</td><td>${num(p.take_profit,4)}</td><td><button class="secondary paper-close" data-symbol="${esc(p.symbol)}" ${p.market_price==null||!paperControlsAvailable()?'disabled':''}>Cerrar</button></td></tr>`).join(''):emptyRow(9,'Sin posiciones abiertas');
