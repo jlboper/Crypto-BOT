@@ -355,12 +355,15 @@ class FuturesTestnetLedger:
             "integrity":integrity}
 
     def forward_snapshot(self)->dict:
+        from .native_protection import FUTURES_KEY, projection
         with self._connect() as db:
             positions=[dict(r) for r in db.execute("SELECT * FROM forward_position ORDER BY symbol")]
             trades=[dict(r) for r in db.execute("SELECT * FROM forward_trades ORDER BY id DESC LIMIT 50")]
             signals=[dict(r) for r in db.execute("SELECT * FROM forward_signals ORDER BY id DESC LIMIT 60")]
             equity=[dict(r) for r in db.execute("SELECT * FROM forward_equity ORDER BY id DESC LIMIT 120")]
         score=self.forward_scorecard()
-        return {"position":positions[0] if len(positions)==1 else None,"positions":positions,"trades":trades,
+        return {"native_protection":projection(self.setting(FUTURES_KEY) or {}),
+            "native_protection_started_at":self.setting("native_protection_started_at"),
+            "position":positions[0] if len(positions)==1 else None,"positions":positions,"trades":trades,
             "signals":signals,"equity":list(reversed(equity)),"closed_trades":score["closed_trades"],
             "gross_pnl":score["gross_realized_pnl_usdt"],"scorecard":score,"shadow_scorecard":self.shadow_scorecard()}

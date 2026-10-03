@@ -14,6 +14,7 @@ La IA no puede inventar compras, aumentar el tamaño de una posición, eliminar 
 - Riesgo objetivo: 0.75% del portafolio por operación.
 - Detención diaria: −2%; semanal: −5%.
 - Stops por ATR, objetivo 2R y trailing stop después de alcanzar 1R.
+- En Testnet, protección nativa confirmada por posición: OCO MARKET en Spot y condicionales de cierre en Futures Demo. El último stop/objetivo confirmado permanece en Binance sin conexión del PC; trailing y salidas por señal necesitan al bot conectado. La ejecución puede deslizarse. Los estados inciertos y cantidades bajo mínimos bloquean nuevas entradas y nunca se indican como protegidos.
 - El motor principal Spot no usa margen ni cortos. Futures Demo vive en un laboratorio separado, limitado a `ISOLATED`, One-way y 1x–3x con fondos ficticios.
 - Kill switch manual y automático después de tres errores consecutivos. Bloquea entradas nuevas, pero el motor continúa vigilando stops y salidas de posiciones existentes.
 

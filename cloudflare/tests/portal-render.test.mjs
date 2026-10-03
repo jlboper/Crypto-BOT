@@ -95,4 +95,18 @@ test('v0.9 multi-asset portal snapshot renders without falling into disconnected
   await context.__refresh();
   assert.equal(el('futuresForwardState').textContent,'LÍMITE DE PÉRDIDA · PROTECCIONES ACTIVAS');
   assert.equal(el('futuresLimitState').textContent,'ENTRADAS BLOQUEADAS POR PÉRDIDA');
+  futures.recovery.native_exchange_stop_orders=true;
+  futures.positions=[{symbol:'BTCUSDT',direction:'LONG',leverage:1,entry_price:100,quantity:.1,stop_price:95,take_profit:110}];
+  futures.native_protection={supported:true,positions:{BTCUSDT:{status:'UNCONFIRMED',error:'Consulta pendiente'}}};
+  responses['/api/status'].native_protection={supported:true,positions:{BTCUSDT:{status:'UNCONFIRMED'}}};
+  await context.__refresh();
+  assert.match(el('futuresMultiAsset').innerHTML,/UNCONFIRMED/);
+  assert.match(el('futuresForwardSafety').textContent,/0 pares confirmados/);
+  assert.match(el('operationSummary').textContent,/0\/1 posiciones con OCO confirmado/);
+  futures.native_protection.positions.BTCUSDT.status='ARMED';
+  responses['/api/status'].native_protection.positions.BTCUSDT.status='ARMED';
+  await context.__refresh();
+  assert.match(el('futuresMultiAsset').innerHTML,/CONFIRMADA EN BINANCE/);
+  assert.match(el('futuresForwardSafety').textContent,/1 pares confirmados/);
+  assert.match(el('operationSummary').textContent,/1\/1 posiciones con OCO confirmado/);
 });

@@ -28,7 +28,9 @@ class UnifiedTestnetBrokerTests(unittest.TestCase):
         self.info = {
             "symbol": "BTCUSDT",
             "baseAsset": "BTC",
+            "ocoAllowed": True, "orderTypes": ["MARKET", "STOP_LOSS", "TAKE_PROFIT"],
             "filters": [
+                {"filterType": "PRICE_FILTER", "tickSize": "0.01", "minPrice": "0.01", "maxPrice": "1000000"},
                 {"filterType": "LOT_SIZE", "minQty": "0.001", "maxQty": "10", "stepSize": "0.001"},
                 {"filterType": "MIN_NOTIONAL", "minNotional": "5", "applyToMarket": True},
             ],
@@ -49,10 +51,11 @@ class UnifiedTestnetBrokerTests(unittest.TestCase):
                 "fills": [{"commission": "0.01", "commissionAsset": "USDT"}],
             }
 
-        with patch("trader.exchange.BinanceClient") as client,              patch("trader.testnet_broker.signed_request", side_effect=signed):
+        with patch("trader.exchange.BinanceClient") as client, patch("trader.native_protection.SpotNativeProtection.ensure") as native, patch("trader.testnet_broker.signed_request", side_effect=signed):
             client.return_value.testnet_symbol_info.return_value = self.info
             client.return_value.testnet_reference_price.return_value = 100.0
             position = self.broker.buy(self.signal, 0.1, "automatic testnet")
+            native.assert_called_once_with(position)
 
         self.assertAlmostEqual(position.quantity, 0.1)
         self.assertAlmostEqual(position.entry_price, 100.0)
@@ -111,6 +114,7 @@ class UnifiedTestnetBrokerTests(unittest.TestCase):
                 "orderId": 88,
             }
         with patch("trader.exchange.BinanceClient") as client, \
+             patch("trader.native_protection.SpotNativeProtection.ensure"), \
              patch("trader.testnet_broker.signed_request", side_effect=signed):
             client.return_value.testnet_symbol_info.return_value = self.info
             client.return_value.testnet_reference_price.return_value = 100.0

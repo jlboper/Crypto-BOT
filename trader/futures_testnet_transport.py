@@ -29,6 +29,9 @@ _SIGNED = {
     ("GET", "/fapi/v3/account"),
     ("GET", "/fapi/v3/positionRisk"),
     ("GET", "/fapi/v1/order"),
+    ("GET", "/fapi/v1/algoOrder"),
+    ("POST", "/fapi/v1/algoOrder"),
+    ("DELETE", "/fapi/v1/algoOrder"),
     ("GET", "/fapi/v1/positionSide/dual"),
     ("GET", "/fapi/v1/symbolConfig"),
     ("POST", "/fapi/v1/order"),
@@ -105,7 +108,7 @@ def signed_request(method: str, endpoint: str, fields: dict | None = None) -> An
     query = urllib.parse.urlencode(values)
     signature = hmac.new(secret.encode(), query.encode(), hashlib.sha256).hexdigest()
     encoded = f"{query}&signature={signature}"
-    url = HOST + endpoint + ("?" + encoded if method == "GET" else "")
+    url = HOST + endpoint + ("?" + encoded if method in {"GET", "DELETE"} else "")
     request = urllib.request.Request(
         url,
         data=encoded.encode() if method == "POST" else None,
@@ -131,6 +134,7 @@ def signed_request(method: str, endpoint: str, fields: dict | None = None) -> An
         raise FuturesTestnetExecutionError(
             "Futures Demo HTTP " + str(error.code) + detail,
             code=code, api_message=api_message,
+            uncertain=error.code >= 500 or code in {-1006, -1007},
         ) from None
     except (urllib.error.URLError, TimeoutError, ValueError):
         raise FuturesTestnetExecutionError(

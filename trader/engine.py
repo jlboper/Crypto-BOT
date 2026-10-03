@@ -555,6 +555,8 @@ class TradingEngine:
 
     def protection_tick(self):
         self._run_futures_forward_protection()
+        if self.config.bot.mode == "testnet" and not self.broker.reconcile_pending():
+            return
         symbols = {position.symbol for position in self.db.positions()}
         if symbols:
             prices = self._position_execution_prices(symbols)

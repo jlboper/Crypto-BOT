@@ -13,12 +13,14 @@ from .domain import Candle
 from .ai_advisor import AIAdvisor
 from .futures_testnet import FuturesTestnetLab, FuturesTestnetExecutionError, _decimal
 from .indicators import atr, ema_series, rsi, sma
+from .native_protection import FuturesNativeProtection, FUTURES_KEY, projection
 
 
 class FuturesForwardEngine:
     def __init__(self, config, exchange):
         self.config=config; self.settings=config.futures_testnet; self.exchange=exchange
         self.lab=FuturesTestnetLab(self.settings); self.ledger=self.lab.ledger; self.ai=AIAdvisor(config.ai)
+        self.native = FuturesNativeProtection(self)
 
     @property
     def symbols(self): return self.settings.forward_symbols
@@ -110,6 +112,10 @@ class FuturesForwardEngine:
         self._assert_identity(symbol,local,[row])
         if str(row.get("marginType","")).lower() not in {"cross", "crossed"}:
             raise FuturesTestnetExecutionError("Futures CROSS configuration is not confirmed")
+        native_trade = self.native.reconcile(symbol, cancel=True)
+        if native_trade:
+            self.lab.ensure_flat_forward_configuration(symbol)
+            return native_trade
         amount=_decimal(row["positionAmt"]); side="SELL" if amount>0 else "BUY"
         order=self.lab.forward_submit(symbol=symbol,side=side,quantity=abs(amount),reduce_only=True)
         if self._actual_rows(symbol):
@@ -167,6 +173,7 @@ class FuturesForwardEngine:
                     self._repair_cross_position(local,rows[0])
                 else:
                     self._validated_rows(local["symbol"],local)
+                    self.native.ensure(local)
             health=self._preflight_flat_symbols()
             if any(row.get("status")=="BLOCKED" for row in health.values()):
                 return False
@@ -199,6 +206,7 @@ class FuturesForwardEngine:
                 self._repair_cross_position(local,rows[0])
             else:
                 self._validated_rows(local["symbol"],local)
+                self.native.ensure(local)
         health=self._preflight_flat_symbols()
         blocked={symbol:row for symbol,row in health.items() if row.get("status")=="BLOCKED"}
         if blocked:
@@ -215,7 +223,13 @@ class FuturesForwardEngine:
         return result
 
     def _close(self,local:dict,reason:str)->dict:
-        symbol=local["symbol"]; rows=self._validated_rows(symbol, local)
+        symbol=local["symbol"]
+        native_trade = self.native.reconcile(symbol)
+        if native_trade: return native_trade
+        self._validated_rows(symbol, local)
+        native_trade = self.native.reconcile(symbol, cancel=True)
+        if native_trade: return native_trade
+        rows=self._validated_rows(symbol, local)
         amount=_decimal(rows[0]["positionAmt"]); side="SELL" if amount>0 else "BUY"
         order=self.lab.forward_submit(symbol=symbol,side=side,quantity=abs(amount),reduce_only=True)
         if self._actual_rows(symbol): raise FuturesTestnetExecutionError(f"Futures forward close left open position: {symbol}")
@@ -264,6 +278,7 @@ class FuturesForwardEngine:
                 "signal_score":int(plan.get("score",0) or 0),"opened_at":str(plan.get("opened_at") or datetime.now(UTC).isoformat())}
 
     def _recover_journal(self)->dict|None:
+        self.native.reconcile_all()
         pending=self.ledger.setting("forward_pending_order")
         if not pending:
             return None
@@ -409,10 +424,14 @@ class FuturesForwardEngine:
             if hit:
                 reason="STOP" if ((local["direction"]=="LONG" and mark<=_decimal(local["stop_price"])) or (local["direction"]=="SHORT" and mark>=_decimal(local["stop_price"]))) else "TAKE_PROFIT"
                 closed.append(self._close(local,reason))
+            else:
+                self.native.ensure(local)
         return {"enabled":True,"status":"CLOSED" if closed else ("OPEN" if self.ledger.forward_positions() else "FLAT"),"closed":closed}
 
     def cycle_symbol(self,symbol:str,candles:list[Candle],account:dict)->dict:
+        self.native.reconcile(symbol)
         local=self.ledger.forward_position(symbol); rows=self._validated_rows(symbol, local)
+        if local: self.native.ensure(local)
         if not candles:
             return {"symbol":symbol,"status":"NO_DATA"}
         if not self.ledger.claim_forward_decision(symbol, candles[-1].close_time):
@@ -468,6 +487,7 @@ class FuturesForwardEngine:
         position={"symbol":symbol,"direction":direction,"leverage":1,"quantity":float(actual_qty),"entry_price":float(entry),"stop_price":float(stop),
             "take_profit":float(take),"liquidation_price":float(liquidation) if liquidation>0 else None,"signal_score":int(signal["score"]),"opened_at":plan["opened_at"]}
         self.ledger.set_forward_position(position); self.ledger.set_setting("forward_open_plan",None); self.ledger.set_setting("forward_pending_order",None)
+        self.native.ensure(position)
         return {"symbol":symbol,"status":"OPENED","position":position,"signal":signal,"ai_review":review}
 
     def cycle(self,candle_map:dict[str,list[Candle]])->dict:
@@ -476,6 +496,7 @@ class FuturesForwardEngine:
             return {"enabled":True,"status":"KILLED"}
         pending=self._recover_journal()
         if pending and not pending.get("resolved"):return {"enabled":True,"status":"PENDING_RECONCILIATION"}
+        self.protection_tick()
         health=self._preflight_flat_symbols()
         account=self._record_account(); results=[]
         if self._risk_halt(account):
@@ -516,6 +537,7 @@ class FuturesForwardEngine:
             "last_ai_reviews":{s:self.ledger.setting(f"forward_last_ai_review_{s}") for s in self.symbols},
             "symbol_health":self.ledger.setting("forward_symbol_health") or {},
             "last_auto_recovery":self.ledger.setting("forward_last_auto_recovery"),
+            "native_protection":projection(self.ledger.setting(FUTURES_KEY) or {}),
             "recovery":{"durable_order_journal":True,"startup_position_reconciliation":True,"separate_kill_switch":True,
                         "automatic_config_repair":True,"automatic_safe_resume":True,
-                        "native_exchange_stop_orders":False},**data}
+                        "native_exchange_stop_orders":True},**data}
