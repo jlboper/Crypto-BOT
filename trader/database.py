@@ -126,6 +126,12 @@ class Database:
                     reasons TEXT NOT NULL,
                     created_at TEXT NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS exchange_fill_receipts (
+                    client_order_id TEXT PRIMARY KEY,
+                    symbol TEXT NOT NULL, side TEXT NOT NULL,
+                    realized_pnl REAL NOT NULL DEFAULT 0,
+                    applied_at TEXT NOT NULL
+                );
                 """
             )
 

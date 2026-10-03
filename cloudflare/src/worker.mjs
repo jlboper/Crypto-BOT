@@ -110,6 +110,21 @@ function validateSnapshot(snapshot) {
         &&f.symbols.every(s=>typeof s==='string'&&/^[A-Z0-9]{2,30}$/.test(s))
         &&Array.isArray(f.positions)&&f.positions.length<=5
         &&f.positions.every(p=>object(p)&&typeof p.symbol==='string'&&/^[A-Z0-9]{2,30}$/.test(p.symbol));
+      if(f.latest_signals!==undefined){
+        const allowed=['symbol','timeframe','candle_close_time','direction','score','long_score','short_score',
+          'price','atr','rsi','ema_fast','ema_slow','volume_ratio','at'];
+        assert(object(f.latest_signals)&&Object.keys(f.latest_signals).length<=5
+          &&Object.entries(f.latest_signals).every(([symbol,s])=>/^[A-Z0-9]{2,30}$/.test(symbol)
+            &&(s===null||(object(s)&&Object.keys(s).every(k=>allowed.includes(k))
+              &&['score','long_score','short_score'].every(k=>Number.isInteger(s[k])&&s[k]>=0&&s[k]<=100)
+              &&['price','atr','rsi','ema_fast','ema_slow','volume_ratio'].every(k=>typeof s[k]==='number'&&Number.isFinite(s[k]))
+              &&(s.direction===null||['LONG','SHORT'].includes(s.direction))
+              &&(s.symbol===undefined||s.symbol===symbol)
+              &&(s.timeframe===undefined||(typeof s.timeframe==='string'&&s.timeframe.length<=4))
+              &&(s.candle_close_time===undefined||(Number.isSafeInteger(s.candle_close_time)&&s.candle_close_time>0))
+              &&typeof s.at==='string'&&s.at.length<=40&&Number.isFinite(Date.parse(s.at)))))
+          &&JSON.stringify(f.latest_signals).length<6000,'Invalid Futures latest signals');
+      }
       if(f.pause_diagnostics!==undefined){
         const p=f.pause_diagnostics;
         const validLastError=p.last_error===null||(object(p.last_error)

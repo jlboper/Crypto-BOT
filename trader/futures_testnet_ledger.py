@@ -4,7 +4,7 @@ from __future__ import annotations
 import json
 import sqlite3
 from contextlib import contextmanager
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 
@@ -16,6 +16,9 @@ class FuturesTestnetLedger:
             db.execute("PRAGMA journal_mode=WAL")
             db.executescript("""
             CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY,value TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS forward_decisions(
+                symbol TEXT NOT NULL,candle_close_time INTEGER NOT NULL,
+                PRIMARY KEY(symbol,candle_close_time));
             CREATE TABLE IF NOT EXISTS smoke_runs(
                 id INTEGER PRIMARY KEY AUTOINCREMENT,symbol TEXT NOT NULL,direction TEXT NOT NULL,
                 leverage INTEGER NOT NULL,margin_type TEXT NOT NULL,quantity REAL,entry_price REAL,
@@ -164,7 +167,37 @@ class FuturesTestnetLedger:
         with self._connect() as db:
             db.execute("INSERT INTO forward_equity(wallet_balance,available_balance,unrealized_pnl,created_at) VALUES(?,?,?,?)",
                        (float(wallet_balance),float(available_balance),float(unrealized_pnl),datetime.now(UTC).isoformat()))
-            db.execute("DELETE FROM forward_equity WHERE id NOT IN (SELECT id FROM forward_equity ORDER BY id DESC LIMIT 1000)")
+
+    def claim_forward_decision(self, symbol: str, candle_close_time: int) -> bool:
+        with self._connect() as db:
+            return db.execute("INSERT OR IGNORE INTO forward_decisions VALUES(?,?)",
+                              (symbol,int(candle_close_time))).rowcount == 1
+
+    def claim_ai_budget(self, maximum: int) -> bool:
+        today = datetime.now(UTC).date().isoformat()
+        with self._connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            row = db.execute("SELECT value FROM settings WHERE key='forward_ai_budget'").fetchone()
+            value = json.loads(row["value"]) if row else {"day":today,"count":0}
+            used = int(value["count"]) if value["day"] == today else 0
+            if used >= maximum: return False
+            db.execute("INSERT INTO settings VALUES('forward_ai_budget',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                       (json.dumps({"day":today,"count":used+1}),))
+            return True
+
+    def equity_baseline(self, start_at: str) -> float | None:
+        with self._connect() as db:
+            row = db.execute("SELECT wallet_balance+unrealized_pnl value FROM forward_equity WHERE created_at<=? ORDER BY id DESC LIMIT 1", (start_at,)).fetchone()
+            if row is None:
+                row = db.execute("SELECT wallet_balance+unrealized_pnl value FROM forward_equity WHERE created_at>=? ORDER BY id LIMIT 1", (start_at,)).fetchone()
+        return float(row["value"]) if row else None
+
+    def risk_halt_status(self) -> dict:
+        day=datetime.now(UTC).replace(hour=0,minute=0,second=0,microsecond=0)
+        for period,start in (("daily",day),("weekly",day-timedelta(days=day.weekday()))):
+            if self.setting("forward_"+period+"_loss_halt")==start.isoformat():
+                return {"active":True,"period":period}
+        return {"active":False,"period":None}
 
     def record_signal(self,symbol:str,signal:dict):
         with self._connect() as db:
@@ -192,16 +225,18 @@ class FuturesTestnetLedger:
                         if price >= r["stop_price"]: reason="STOP"
                         elif price <= r["take_profit"]: reason="TAKE_PROFIT"
                         elif signal["long_score"] >= v["score"]: reason="OPPOSITE_SIGNAL"
-                        pnl=(r["entry_price"]/price-1.0)*100.0
+                        pnl=(1.0-price/r["entry_price"])*100.0
                     if reason:
                         db.execute("""INSERT INTO shadow_trades(strategy_key,symbol,direction,entry_price,exit_price,pnl_pct,
                             exit_reason,opened_at,closed_at) VALUES(?,?,?,?,?,?,?,?,?)""",
                             (key,symbol,r["direction"],r["entry_price"],price,pnl,reason,r["opened_at"],now))
                         db.execute("DELETE FROM shadow_positions WHERE strategy_key=? AND symbol=?",(key,symbol))
                     continue
-                if signal.get("direction") is None or int(signal["score"]) < int(v["score"]): continue
+                long_score=int(signal["long_score"]); short_score=int(signal["short_score"])
+                score=max(long_score,short_score)
+                if score < int(v["score"]) or abs(long_score-short_score)<10: continue
                 distance=max(float(v["atr_mult"])*float(signal["atr"]),0.025*price)
-                direction=signal["direction"]
+                direction="LONG" if long_score>short_score else "SHORT"
                 stop=price-distance if direction=="LONG" else price+distance
                 take=price+float(v["rr"])*distance if direction=="LONG" else price-float(v["rr"])*distance
                 db.execute("""INSERT OR IGNORE INTO shadow_positions(strategy_key,symbol,direction,entry_price,stop_price,
@@ -215,12 +250,13 @@ class FuturesTestnetLedger:
                 FROM shadow_trades GROUP BY strategy_key ORDER BY pnl_pct DESC""")]
         for r in rows:
             r["win_rate_pct"]=100.0*r["wins"]/r["trades"] if r["trades"] else None
-            r["leverage_simulated_return_pct"]={str(x):float(r["pnl_pct"])*x for x in (1,2,3)}
+            r["measurement"]="SUM_GROSS_TRADE_RETURNS"
+            r["legacy_measurement"]=not r["strategy_key"].startswith("v2-")
         return rows
 
     def forward_scorecard(self) -> dict:
         with self._connect() as db:
-            trades=[dict(r) for r in db.execute("SELECT symbol,direction,gross_pnl,opened_at,closed_at FROM forward_trades ORDER BY id")]
+            trades=[dict(r) for r in db.execute("SELECT symbol,direction,gross_pnl,exit_reason,opened_at,closed_at FROM forward_trades ORDER BY id")]
             equity=[dict(r) for r in db.execute("SELECT wallet_balance,available_balance,unrealized_pnl,created_at FROM forward_equity ORDER BY id")]
         values=[float(r["wallet_balance"])+float(r["unrealized_pnl"]) for r in equity]
         peak=0.0; max_dd=0.0
@@ -236,6 +272,10 @@ class FuturesTestnetLedger:
         average_win=(sum(winners)/len(winners)) if winners else None
         average_loss=(sum(losers)/len(losers)) if losers else None
         expectancy=(sum(pnl)/len(trades)) if trades else None
+        technical=[r for r in trades if r['exit_reason'] in {'CONFIG_REPAIR','RECOVERED_CLOSE'}]
+        strategy=[r for r in trades if r['exit_reason'] not in {'CONFIG_REPAIR','RECOVERED_CLOSE'}]
+        strategy_pnl=[float(r['gross_pnl']) for r in strategy]
+        strategy_wins=[x for x in strategy_pnl if x>0]; strategy_losses=[x for x in strategy_pnl if x<0]
         by_symbol={}
         for symbol in sorted({r["symbol"] for r in trades}):
             sr=[r for r in trades if r["symbol"]==symbol]
@@ -244,8 +284,12 @@ class FuturesTestnetLedger:
                 dr=[r for r in sr if r["direction"]==direction]
                 by_symbol[symbol][direction]={"trades":len(dr),"gross_pnl_usdt":sum(float(r["gross_pnl"]) for r in dr),
                     "win_rate_pct":100.0*sum(float(r["gross_pnl"])>0 for r in dr)/len(dr) if dr else None}
-        return {"status":"REVIEW_REQUIRED" if observed>=30 and len(trades)>=30 else "INSUFFICIENT_EVIDENCE",
+        return {"status":"REVIEW_REQUIRED" if observed>=30 and len(strategy)>=30 else "INSUFFICIENT_EVIDENCE",
             "observed_days":observed,"equity_points":len(equity),"closed_trades":len(trades),
+            "technical_closed_trades":len(technical),"strategy_closed_trades":len(strategy),
+            "strategy_gross_pnl_usdt":sum(strategy_pnl),
+            "strategy_win_rate_pct":100.0*len(strategy_wins)/len(strategy) if strategy else None,
+            "strategy_profit_factor":sum(strategy_wins)/abs(sum(strategy_losses)) if strategy_losses else (999.0 if strategy_wins else None),
             "gross_realized_pnl_usdt":sum(pnl),"win_rate_pct":100.0*len(winners)/len(trades) if trades else None,
             "profit_factor":sum(winners)/abs(sum(losers)) if losers else (999.0 if winners else None),
             "average_win_usdt":average_win,"average_loss_usdt":average_loss,
@@ -256,7 +300,8 @@ class FuturesTestnetLedger:
             "long_gross_pnl_usdt":sum(float(r["gross_pnl"]) for r in trades if r["direction"]=="LONG"),
             "short_closed_trades":sum(r["direction"]=="SHORT" for r in trades),
             "short_gross_pnl_usdt":sum(float(r["gross_pnl"]) for r in trades if r["direction"]=="SHORT"),
-            "by_symbol_direction":by_symbol,"consecutive_errors":int(self.setting("forward_consecutive_errors") or 0),
+            "by_symbol_direction":by_symbol,"risk_halt":self.risk_halt_status(),
+            "consecutive_errors":int(self.setting("forward_consecutive_errors") or 0),
             "error_total":int(self.setting("forward_error_total") or 0),
             "incident_total":int(self.setting("forward_incident_sequence") or 0),
             "failure_attempt_total":int(self.setting("forward_failure_attempt_total") or self.setting("forward_error_total") or 0),

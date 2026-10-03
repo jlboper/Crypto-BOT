@@ -93,8 +93,29 @@ class FuturesTestnetLab:
                 continue
             amount = _decimal(row.get("positionAmt", "0"))
             if amount != 0:
-                rows.append(row)
+                if symbol and str(row.get("symbol", "")).upper() != symbol.upper():
+                    raise FuturesTestnetExecutionError("Futures position response symbol mismatch")
+                rows.append(self._configured_position(row))
         return rows
+
+    def _configured_position(self, row: dict) -> dict:
+        """V3 supplies exposure; symbolConfig supplies margin and leverage.
+
+        Never interpret an absent configuration field as CROSS exposure.
+        Legacy complete rows remain accepted for the manual diagnostic path.
+        """
+        symbol = str(row.get("symbol", "")).upper()
+        if not symbol:
+            raise FuturesTestnetExecutionError("Futures position symbol unavailable")
+        if not row.get("marginType") or not row.get("leverage"):
+            config = self._symbol_config(symbol)
+            return {**row, "marginType": config["marginType"], "leverage": config["leverage"]}
+        margin = str(row["marginType"]).lower()
+        if margin == "crossed":
+            margin = "cross"
+        if margin not in {"cross", "isolated"}:
+            raise FuturesTestnetExecutionError("Futures position configuration unavailable")
+        return {**row, "marginType": margin}
 
     def _account(self) -> dict:
         payload = signed_request("GET", "/fapi/v3/account", {})
@@ -123,9 +144,11 @@ class FuturesTestnetLab:
         if leverage <= 0:
             raise FuturesTestnetExecutionError(f"Futures symbol leverage configuration unavailable: {symbol}")
         margin = str(row.get("marginType", "")).lower()
+        if margin == "crossed":
+            margin = "cross"
         if margin not in {"isolated", "cross"}:
             raise FuturesTestnetExecutionError(f"Futures symbol margin configuration unavailable: {symbol}")
-        return row
+        return {**row, "marginType": margin}
 
     def _trade_probe(self, symbol: str = "BTCUSDT") -> bool:
         """Validate TRADE permission without public-data dependency or execution."""
@@ -246,6 +269,7 @@ class FuturesTestnetLab:
         automatically while open. A leverage write is reconciled by rereading
         positionRisk before protection continues.
         """
+        row = self._configured_position({"symbol": symbol, **row})
         if str(row.get("marginType", "")).lower() != "isolated":
             raise FuturesTestnetExecutionError("Automatic Futures margin is not isolated")
         position_side = str(row.get("positionSide", "")).upper()

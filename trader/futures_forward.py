@@ -6,7 +6,7 @@ strategy simulation. LIVE is not implemented.
 """
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 from .domain import Candle
@@ -68,7 +68,7 @@ class FuturesForwardEngine:
 
     @staticmethod
     def _shadow_variants()->list[dict]:
-        return [{"key":f"s{score}-a{atr_mult}-rr{rr}","score":score,"atr_mult":atr_mult,"rr":rr}
+        return [{"key":f"v2-s{score}-a{atr_mult}-rr{rr}","score":score,"atr_mult":atr_mult,"rr":rr}
                 for score in (70,75,80) for atr_mult in (1.5,2.0,2.5) for rr in (1.5,2.0,2.5)]
 
     def _actual_rows(self,symbol:str)->list[dict]: return self.lab._position_rows(symbol)
@@ -108,8 +108,8 @@ class FuturesForwardEngine:
     def _repair_cross_position(self,local:dict,row:dict)->dict:
         symbol=local["symbol"]
         self._assert_identity(symbol,local,[row])
-        if str(row.get("marginType","")).lower()=="isolated":
-            raise FuturesTestnetExecutionError("Futures configuration repair requested for isolated position")
+        if str(row.get("marginType","")).lower() not in {"cross", "crossed"}:
+            raise FuturesTestnetExecutionError("Futures CROSS configuration is not confirmed")
         amount=_decimal(row["positionAmt"]); side="SELL" if amount>0 else "BUY"
         order=self.lab.forward_submit(symbol=symbol,side=side,quantity=abs(amount),reduce_only=True)
         if self._actual_rows(symbol):
@@ -413,7 +413,13 @@ class FuturesForwardEngine:
 
     def cycle_symbol(self,symbol:str,candles:list[Candle],account:dict)->dict:
         local=self.ledger.forward_position(symbol); rows=self._validated_rows(symbol, local)
-        signal=self._signal(candles); self.ledger.record_signal(symbol,signal)
+        if not candles:
+            return {"symbol":symbol,"status":"NO_DATA"}
+        if not self.ledger.claim_forward_decision(symbol, candles[-1].close_time):
+            return {"symbol":symbol,"status":"NO_NEW_CANDLE"}
+        signal={**self._signal(candles),"symbol":symbol,"timeframe":self.config.bot.timeframe,
+                "candle_close_time":candles[-1].close_time}
+        self.ledger.record_signal(symbol,signal)
         self.ledger.set_setting(f"forward_last_signal_{symbol}",{**signal,"at":datetime.now(UTC).isoformat()})
         self.ledger.shadow_step(symbol,signal,self._shadow_variants())
         if local:
@@ -422,19 +428,33 @@ class FuturesForwardEngine:
             return {"symbol":symbol,"status":"OPEN","position":local,"signal":signal}
         if signal["direction"] is None:return {"symbol":symbol,"status":"FLAT","signal":signal}
         if len(self.ledger.forward_positions())>=self.settings.forward_max_positions:return {"symbol":symbol,"status":"POSITION_LIMIT","signal":signal}
+        if self.killed(): return {"symbol":symbol,"status":"KILLED","signal":signal}
+        quantity=self.lab._validate_smoke_quantity(symbol,signal["direction"])
+        estimated=_decimal(signal["price"])*quantity
+        budget=Decimal(str(self.settings.forward_margin_usdt))
+        if estimated>budget:
+            return {"symbol":symbol,"status":"BUDGET_LIMIT","signal":signal}
+        if _decimal(account["available_balance"])<max(budget,estimated)*Decimal("1.25"):
+            return {"symbol":symbol,"status":"MARGIN_LIMIT","signal":signal}
+        distance=max(self.settings.forward_stop_atr_multiple*signal["atr"],
+                     self.settings.forward_minimum_stop_pct*signal["price"])
+        signal={**signal,"proposed_quantity":float(quantity),"proposed_notional_usdt":float(estimated),
+                "proposed_stop_distance":distance,"estimated_stop_loss_usdt":float(quantity)*distance}
+        if not self.ledger.claim_ai_budget(self.config.ai.max_reviews_per_day):
+            return {"symbol":symbol,"status":"AI_BUDGET","signal":signal}
         ai_review=self.ai.review_futures(signal,{"wallet_balance":float(account["wallet_balance"]),"available_balance":float(account["available_balance"]),
             "unrealized_pnl":float(account["unrealized_pnl"]),"open_positions":float(len(self.ledger.forward_positions())),"automatic_leverage":1.0})
         review={"model":self.config.ai.model,"verdict":ai_review.verdict,"confidence":ai_review.confidence,"reason":ai_review.reason,
                 "direction":signal["direction"],"score":int(signal["score"]),"at":datetime.now(UTC).isoformat()}
         self.ledger.set_setting(f"forward_last_ai_review_{symbol}",review)
         if ai_review.verdict!="ALLOW" or ai_review.risk_multiplier<=0:return {"symbol":symbol,"status":"AI_REJECTED","signal":signal,"ai_review":review}
-        quantity=self.lab._validate_smoke_quantity(symbol,signal["direction"]); estimated=_decimal(signal["price"])*quantity
-        budget=Decimal(str(self.settings.forward_margin_usdt))
-        if estimated>budget*Decimal("1.25"): raise FuturesTestnetExecutionError(f"{symbol} minimum quantity exceeds Futures forward budget")
-        if _decimal(account["available_balance"])<max(budget,estimated)*Decimal("1.25"): raise FuturesTestnetExecutionError("Insufficient Futures Demo margin")
+        if self.killed(): return {"symbol":symbol,"status":"KILLED","signal":signal}
         side="BUY" if signal["direction"]=="LONG" else "SELL"
         plan={"symbol":symbol,"direction":signal["direction"],"score":int(signal["score"]),"atr":float(signal["atr"]),"opened_at":datetime.now(UTC).isoformat()}
         self.ledger.set_setting("forward_open_plan",plan)
+        if self.killed():
+            self.ledger.set_setting("forward_open_plan",None)
+            return {"symbol":symbol,"status":"KILLED","signal":signal}
         order=self.lab.forward_submit(symbol=symbol,side=side,quantity=quantity,reduce_only=False)
         rows=self._actual_rows(symbol)
         if len(rows)!=1: raise FuturesTestnetExecutionError(f"Futures forward open position not found: {symbol}")
@@ -458,6 +478,8 @@ class FuturesForwardEngine:
         if pending and not pending.get("resolved"):return {"enabled":True,"status":"PENDING_RECONCILIATION"}
         health=self._preflight_flat_symbols()
         account=self._record_account(); results=[]
+        if self._risk_halt(account):
+            return {"enabled":True,"status":"RISK_HALT",**account}
         for symbol in self.symbols:
             if health.get(symbol,{}).get("status")=="BLOCKED" and self.ledger.forward_position(symbol) is None:
                 results.append({"symbol":symbol,"status":"BLOCKED","error":health[symbol].get("error")})
@@ -466,6 +488,25 @@ class FuturesForwardEngine:
             if not candles: results.append({"symbol":symbol,"status":"NO_DATA"}); continue
             results.append(self.cycle_symbol(symbol,candles,account))
         return {"enabled":True,"status":"ACTIVE","results":results,"symbol_health":health,**account}
+
+    def _risk_halt(self, account: dict) -> bool:
+        """Independent account loss gates; never inhibit protective closes."""
+        now = datetime.now(UTC)
+        day = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        week = day - timedelta(days=day.weekday())
+        equity = float(account["wallet_balance"]) + float(account["unrealized_pnl"])
+        for name, start, limit in (("daily", day, self.config.risk.daily_loss_limit_pct),
+                                   ("weekly", week, self.config.risk.weekly_loss_limit_pct)):
+            key = "forward_" + name + "_loss_halt"
+            if self.ledger.setting(key) == start.isoformat():
+                return True
+            baseline = self.ledger.equity_baseline(start.isoformat())
+            if baseline is not None and baseline > 0 and equity / baseline - 1 <= -limit:
+                self.ledger.set_setting(key, start.isoformat())
+                self.ledger.set_setting("forward_last_risk_halt", {"period":name,"at":now.isoformat(),
+                    "return_pct":100 * (equity / baseline - 1)})
+                return True
+        return False
 
     def snapshot(self)->dict:
         data=self.ledger.forward_snapshot()

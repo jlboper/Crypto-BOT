@@ -109,9 +109,9 @@ def paper_scorecard(connection, *, prices=None, prices_at=None, cycle_seconds=No
     studied = set(research_symbols)
     research_closes = sum(row['closed_trades'] for row in by_asset.values() if row['symbol'] in studied)
     exits = connection.execute('''
-        SELECT CASE WHEN reason='protective stop' THEN 'protective_stop'
-                    WHEN reason='take profit' THEN 'take_profit'
-                    WHEN reason LIKE 'trend exit:%' THEN 'trend_exit'
+        SELECT CASE WHEN reason IN ('protective stop','TESTNET protective stop') THEN 'protective_stop'
+                    WHEN reason IN ('take profit','TESTNET take profit') THEN 'take_profit'
+                    WHEN reason LIKE 'trend exit:%' OR reason LIKE 'TESTNET trend exit:%' THEN 'trend_exit'
                     ELSE 'other' END AS exit_type,
                COUNT(*), COALESCE(SUM(realized_pnl),0)
         FROM trades WHERE side='SELL' GROUP BY exit_type ORDER BY exit_type

@@ -322,6 +322,30 @@ class BinanceTestnetBroker(PaperBroker):
     def _apply_terminal_fill(self, pending: dict) -> None:
         if pending.get("applied"):
             return
+        identity = pending.get("client_order_id")
+        if not isinstance(identity, str) or not identity:
+            raise TestnetExecutionError("Testnet fill missing durable order identity")
+        try:
+            with self.db.transaction() as db:
+                receipt = db.execute("SELECT * FROM exchange_fill_receipts WHERE client_order_id=?", (identity,)).fetchone()
+                if receipt:
+                    if receipt["symbol"] != pending["symbol"] or receipt["side"] != pending["side"]:
+                        raise TestnetExecutionError("Testnet fill receipt identity mismatch")
+                    pending["applied"] = True
+                    pending["realized_pnl"] = float(receipt["realized_pnl"])
+                    self._save_pending(pending)
+                    return
+                self._apply_terminal_fill_once(pending)
+                db.execute("INSERT INTO exchange_fill_receipts VALUES(?,?,?,?,?)", (
+                    identity, pending["symbol"], pending["side"], float(pending.get("realized_pnl", 0)),
+                    datetime.now(UTC).isoformat()))
+        except BaseException:
+            pending.pop("applied", None)
+            raise
+
+    def _apply_terminal_fill_once(self, pending: dict) -> None:
+        if pending.get("applied"):
+            return
         quantity = Decimal(str(pending.get("executed_qty", "0")))
         quote = Decimal(str(pending.get("cumulative_quote", "0")))
         fee_quote = Decimal(str(pending.get("commission_quote", "0")))
@@ -356,10 +380,10 @@ class BinanceTestnetBroker(PaperBroker):
                 take_profit=float(anchored_take),
                 high_water=float(average),
                 atr=signal.atr,
-                entry_fee=float(fee_quote),
+                entry_fee=float(fee_quote + fee_base * average),
                 opened_at=datetime.now(UTC).isoformat(),
             )
-            with self.db.transaction():
+            with self.db.connect():
                 if self.db.position(signal.symbol):
                     raise TestnetExecutionError("Duplicate local Testnet BUY")
                 self.db.set_cash(float(cash - debit))
@@ -369,7 +393,7 @@ class BinanceTestnetBroker(PaperBroker):
                     "BUY",
                     float(net_quantity),
                     float(average),
-                    float(fee_quote),
+                    float(fee_quote + fee_base * average),
                     0.0,
                     "TESTNET " + str(pending.get("reason", "")),
                 )
@@ -379,13 +403,13 @@ class BinanceTestnetBroker(PaperBroker):
             current = self.db.position(original.symbol)
             if current is None:
                 raise TestnetExecutionError("Local Testnet position missing during SELL reconciliation")
-            sold = min(quantity, Decimal(str(current.quantity)))
+            sold = min(quantity + fee_base, Decimal(str(current.quantity)))
             proceeds = quote - fee_quote
-            pnl = (average - Decimal(str(current.entry_price))) * sold
+            pnl = proceeds - Decimal(str(current.entry_price)) * sold
             allocated_entry_fee = Decimal(str(current.entry_fee)) * sold / Decimal(str(current.quantity))
-            pnl -= allocated_entry_fee + fee_quote
+            pnl -= allocated_entry_fee
             remaining = Decimal(str(current.quantity)) - sold
-            with self.db.transaction():
+            with self.db.connect():
                 self.db.set_cash(self.db.cash() + float(proceeds))
                 if remaining <= Decimal("0.000000000001"):
                     self.db.delete_position(current.symbol)
@@ -409,7 +433,7 @@ class BinanceTestnetBroker(PaperBroker):
                     "SELL",
                     float(sold),
                     float(average),
-                    float(fee_quote),
+                    float(fee_quote + fee_base * average),
                     float(pnl),
                     "TESTNET " + str(pending.get("reason", "")),
                 )

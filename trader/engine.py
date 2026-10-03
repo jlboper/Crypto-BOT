@@ -14,12 +14,14 @@ from .testnet_transport import TestnetExecutionError
 from .config import AppConfig
 from .database import Database
 from .domain import Candle, Signal
-from .exchange import BinanceClient
+from .exchange import BinanceClient, ExchangeError
 from .indicators import atr
 from .strategy import SwingStrategy
 from .spot_preflight import market_quantity_preflight
+from .testnet import plan_order, TestnetPlanError
 from .risk_control import profile_multiplier
 from .futures_forward import FuturesForwardEngine
+from .futures_testnet_transport import public_request as futures_public_request
 
 
 class TradingEngine:
@@ -35,6 +37,7 @@ class TradingEngine:
         self.futures_forward = FuturesForwardEngine(config, self.exchange) if config.bot.mode == "testnet" else None
         self._errors = int(self.db.setting("consecutive_errors", "0"))
         self._candle_cache = {}
+        self._futures_candle_cache = {}
 
     def killed(self) -> bool:
         return self.config.bot.kill_switch_path.exists()
@@ -112,6 +115,8 @@ class TradingEngine:
                     break
                 if self.killed():
                     break
+                if not self._ai_budget_available():
+                    break
                 if not self.db.claim_entry(signal.symbol, candle_map[signal.symbol][-1].close_time):
                     continue
                 if not self._claim_ai_budget():
@@ -132,8 +137,22 @@ class TradingEngine:
                     continue
                 if self.killed():
                     break
-                status, reasons = market_quantity_preflight(
-                    self.exchange.cached_symbol_info(signal.symbol), quantity, signal.price)
+                if self.config.bot.mode == "testnet":
+                    try:
+                        info = self.exchange.testnet_symbol_info(signal.symbol)
+                        plan = plan_order(signal.symbol, "BUY", signal.price, info, quantity=quantity)
+                    except (TestnetPlanError, ExchangeError) as exc:
+                        # Public symbol eligibility/filter reads do not mutate exposure.
+                        self.db.record_order_preflight(signal.symbol, "blocked", ["TESTNET_RULES_UNAVAILABLE"])
+                        self.db.event("WARN", f"{signal.symbol} entry filters unavailable: {type(exc).__name__}")
+                        continue
+                    quantity = float(plan.quantity)
+                    status, reasons = market_quantity_preflight(info, quantity, signal.price)
+                    if plan.status != "READY_FOR_MANUAL_REVIEW":
+                        status, reasons = "incompatible", list(plan.reasons)
+                else:
+                    status, reasons = market_quantity_preflight(
+                        self.exchange.cached_symbol_info(signal.symbol), quantity, signal.price)
                 self.db.record_order_preflight(signal.symbol, status, reasons)
                 if status == "incompatible":
                     self.db.event("INFO", f"{signal.symbol} entry skipped [EXCHANGE_FILTER_PREFLIGHT]")
@@ -308,7 +327,12 @@ class TradingEngine:
             if used >= self.config.ai.max_reviews_per_day:
                 return False
             self.db.set_setting("ai_budget", f"{today}:{used+1}")
-            return True
+        return True
+
+    def _ai_budget_available(self):
+        today = datetime.now(UTC).date().isoformat()
+        date, count = self.db.setting("ai_budget", today + ":0").rsplit(":", 1)
+        return date != today or int(count) < self.config.ai.max_reviews_per_day
 
     def _manage_positions(self, candle_map: dict[str, list[Candle]], prices: dict[str, float]) -> None:
         for position in self.db.positions():
@@ -455,7 +479,17 @@ class TradingEngine:
         current_cycles = self.futures_forward.ledger.setting("forward_cycle_total") or 0
         self.futures_forward.ledger.set_setting("forward_cycle_total", int(current_cycles) + 1)
         try:
-            result = self.futures_forward.cycle(candle_map)
+            # Spot data is not interchangeable with the USD-M contract traded.
+            futures_map = {}
+            for symbol in self.futures_forward.symbols:
+                try:
+                    futures_map[symbol] = self._futures_candles(symbol)
+                except Exception as exc:
+                    self._emit_futures_warning("data_" + symbol,
+                        f"Futures Demo {symbol} contract data unavailable: {type(exc).__name__}")
+            if not futures_map:
+                raise RuntimeError("Futures contract candles unavailable")
+            result = self.futures_forward.cycle(futures_map)
             self.futures_forward.ledger.set_setting("forward_cycle_consecutive_errors", 0)
             self._resolve_futures_incident("cycle")
             self._sync_futures_legacy_error_counter()
@@ -476,6 +510,23 @@ class TradingEngine:
                                        force=bool(detail.get("new_incident")))
             if count >= 3:
                 self.futures_forward._halt("three consecutive Futures forward errors", overwrite_last_error=False)
+
+    def _futures_candles(self, symbol: str) -> list[Candle]:
+        now = int(time.time() * 1000)
+        interval = self.config.bot.timeframe
+        duration = {"1m":60000,"5m":300000,"15m":900000,"30m":1800000,"1h":3600000,
+                    "2h":7200000,"4h":14400000,"6h":21600000,"8h":28800000,"12h":43200000,"1d":86400000}[interval]
+        cached = self._futures_candle_cache.get(symbol)
+        if cached and now < cached[0]: return cached[1]
+        payload = futures_public_request("GET", "/fapi/v1/klines",
+            {"symbol":symbol,"interval":interval,"limit":250}, allow_fallback=False)
+        candles = BinanceClient._parse_candles(payload)
+        if not candles or now-candles[-1].close_time > duration+120000:
+            raise RuntimeError("Stale Futures candle history")
+        if any(b.open_time-a.open_time != duration for a,b in zip(candles,candles[1:])):
+            raise RuntimeError("Gapped Futures candle history")
+        self._futures_candle_cache[symbol] = (candles[-1].close_time+duration+2000,candles)
+        return candles
 
     def _run_futures_forward_protection(self) -> None:
         if self.futures_forward is None or not self.config.futures_testnet.forward_enabled:

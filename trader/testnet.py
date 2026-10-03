@@ -11,6 +11,7 @@ import hashlib
 import hmac
 import json
 import os
+import math
 import time
 import urllib.error
 import urllib.parse
@@ -83,6 +84,13 @@ def _floor_step(value: Decimal, step: Decimal) -> Decimal:
     return (value / step).to_integral_value(rounding=ROUND_DOWN) * step
 
 
+def _common_step(steps: list[Decimal]) -> Decimal:
+    """A quantity must be a multiple of every active quantity filter step."""
+    precision = max(max(0, -s.as_tuple().exponent) for s in steps)
+    scale = 10 ** precision
+    return Decimal(math.lcm(*(int(s * scale) for s in steps))) / Decimal(scale)
+
+
 def _fmt(value: Decimal) -> str:
     return format(value.normalize(), "f")
 
@@ -150,6 +158,23 @@ def plan_order(
     step = _decimal(lot.get("stepSize"), "step size")
     minimum = _decimal(lot.get("minQty"), "minimum quantity")
     maximum = _decimal(lot.get("maxQty"), "maximum quantity")
+    market = filters.get("MARKET_LOT_SIZE")
+    if market:
+        active_steps = [step]
+        for name in ("minQty", "maxQty", "stepSize"):
+            try:
+                value = Decimal(str(market[name]))
+            except (KeyError, InvalidOperation, ValueError, TypeError) as exc:
+                raise TestnetPlanError("invalid MARKET_LOT_SIZE") from exc
+            if not value.is_finite() or value < 0:
+                raise TestnetPlanError("invalid MARKET_LOT_SIZE")
+            if name == "stepSize" and value > 0:
+                active_steps.append(value)
+            elif name == "minQty" and value > 0:
+                minimum = max(minimum, value)
+            elif name == "maxQty" and value > 0:
+                maximum = min(maximum, value)
+        step = _common_step(active_steps)
 
     if quantity is None:
         if quote_amount is None:

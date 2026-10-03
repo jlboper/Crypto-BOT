@@ -1,3 +1,15 @@
+# Actualización 0.10.13 — integridad de ejecución y evidencia
+
+- Une la exposición de Futures `positionRisk` V3 con `symbolConfig`, reconoce `CROSSED` y exige margen CROSS confirmado antes de una reparación. Los campos ausentes ya no provocan cierres técnicos falsos.
+- Usa velas cerradas del contrato USD-M Demo y una decisión durable por símbolo/vela. Limita las revisiones IA diarias de Futures, envía el contrato y tamaño propuesto, y comprueba la pausa después de la revisión y antes del envío.
+- Aplica límites diarios/semanales de pérdida a la cuenta Futures con su propio historial, sin desactivar el ciclo independiente de protección. Conserva todos los puntos financieros disponibles.
+- Normaliza cantidades Spot con filtros del propio Testnet antes del preflight y combina `LOT_SIZE` con `MARKET_LOT_SIZE`. El broker vuelve a validar con precio actual antes del envío.
+- Confirma contabilidad, recibo único del fill y journal aplicado dentro de una sola transacción SQLite. Un reinicio no vuelve a acreditar un SELL parcial. Incluye las comisiones en activo base en el costo y P&L.
+- Separa cierres técnicos y de estrategia; los técnicos no satisfacen el mínimo de evidencia. Publica señales recientes en ambos portales y reconoce motivos de salida con prefijo TESTNET.
+- Corrige umbrales propios y rendimiento SHORT del shadow lab. Inicia muestras `v2` separadas, conserva el historial anterior y etiqueta la suma bruta por cierre; no calcula rentabilidad ficticia multiplicando por leverage.
+- Mantiene cantidades piloto fijas, ISOLATED 1x y los límites de riesgo; el notional estimado por entrada ahora respeta el tope configurado, sin tolerancia adicional del 25%. Una orden MARKET puede variar respecto al precio de señal. No promueve estrategias ni habilita LIVE.
+- Las pruebas usan bases temporales y transportes simulados. Esta versión requiere publicación protegida y verificación de instalación; las cifras históricas borradas o las comisiones no registradas no se reconstruyen artificialmente.
+
 # Actualización 0.10.12 — diagnóstico y robustez Spot
 
 - Sustituye el evento genérico `Cycle failed: ValueError` por diagnósticos seguros y accionables con códigos persistentes, sin exponer excepciones crudas ni credenciales.
