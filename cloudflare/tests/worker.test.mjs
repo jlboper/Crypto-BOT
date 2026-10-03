@@ -119,6 +119,17 @@ test('device sync accepts legacy and multi-asset Futures forward dashboard shape
       pending_reconciliation:true}
   };
   assert.equal((await f.sync({snapshot:modern,acks:[]})).status,200);
+  const signals=structuredClone(modern);
+  signals.dashboard.futures_forward.latest_signals={ETHUSDT:{
+    symbol:'ETHUSDT',timeframe:'4h',candle_close_time:999,direction:'LONG',score:80,
+    long_score:80,short_score:10,price:100,atr:2,rsi:60,ema_fast:101,ema_slow:99,
+    volume_ratio:1.3,at:'2026-10-03T15:00:00+00:00'},BTCUSDT:null};
+  assert.equal((await f.sync({snapshot:signals,acks:[]})).status,200);
+  for(const change of [s=>s.score=101,s=>s.symbol='SOLUSDT',s=>s.secret='unexpected']){
+    const invalidSignal=structuredClone(signals);
+    change(invalidSignal.dashboard.futures_forward.latest_signals.ETHUSDT);
+    assert.equal((await f.sync({snapshot:invalidSignal,acks:[]})).status,400);
+  }
   const invalid=structuredClone(modern);
   invalid.dashboard.futures_forward.pause_diagnostics.source='arbitrary';
   assert.equal((await f.sync({snapshot:invalid,acks:[]})).status,400);

@@ -2,14 +2,17 @@
 
 1. Work changes this repository, updates the bot version if packaged files
    changed, runs tests, and opens a PR. `web/` is shared by both portals.
-2. After merge, the `portal-release.yml` validation job runs. The existing
-   `portal-production` environment requires the owner's GitHub review.
+2. The current `portal-release.yml` runs on an opened/updated/reopened PR.
+   Linux and Windows validate the exact PR head. Same-repository `release/*`
+   branches then reach the protected publication job for the GitHub-generated
+   PR merge SHA. `portal-production` requires the owner's GitHub review.
 3. One protected publication job deploys the portal, then uploads the bot ZIP
    to `bot-releases/packages/<source commit>.zip`. Only allowlisted tracked
    source files are packaged. Configurations, databases and secrets are excluded.
 4. The job obtains a short-lived GitHub OIDC identity and asks the portal to
    sign its manifest. The portal validates issuer, signature, audience, repository
-   ID, environment, workflow, main ref, expiry and matching deployed commit.
+   ID, environment, workflow, approved PR/main publication identity, expiry
+   and matching deployed commit.
    The Ed25519 private key remains a Cloudflare secret. The public trust anchor
    is `release-signing.pub` (hexadecimal raw Ed25519 key).
 5. The owner chooses **Buscar actualizaciones** in the remote portal. The same
@@ -22,14 +25,13 @@
    local HTTP identity, commits and authorizes operation. Before commit, failure
    restores files and database. After commit, recovery preserves current balances.
 
-Before requesting the owner's environment approval, verify an actual
-`portal-release.yml` run for the exact `main` commit with a `push` event. A PR
-validation run and a successful merge by themselves do not publish anything.
-After PR #11, a merge through an API did not yield a visible push run for the
-merged commit. A narrow follow-up PR merged by the owner in GitHub's web UI is
-the recovery path for this release: check that its merge starts the `main` push
-run, then review the protected `portal-production` job for that exact commit.
-Do not bypass the PR or environment review, reuse a PR run as a publication,
+Before requesting environment approval, verify the actual `portal-release.yml`
+run for the current release PR, its head and merge SHA, and both validation
+jobs. Provide that run's exact GitHub URL. Older main-push recovery notes
+(including PR #11) describe a retired trigger; do not create empty follow-up
+releases to manufacture a push. Merge through the normal repository flow once
+required checks permit it. Validation, merge, protected publication, signing
+and Windows installation are distinct states. Never bypass environment review
 or claim an installation from a workflow result alone.
 
 The portal may pass its post-deployment health check at one Cloudflare edge

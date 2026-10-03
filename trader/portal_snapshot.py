@@ -264,6 +264,7 @@ def dashboard_snapshot(config, report_path=None):
                 },
                 'ai_model': config.ai.model,
                 'last_ai_reviews': {symbol: futures_ledger.setting(f'forward_last_ai_review_{symbol}') for symbol in config.futures_testnet.forward_symbols},
+                'latest_signals': {symbol: futures_ledger.setting(f'forward_last_signal_{symbol}') for symbol in config.futures_testnet.forward_symbols},
                 'symbol_health': futures_ledger.setting('forward_symbol_health') or {},
                 'last_auto_recovery': futures_ledger.setting('forward_last_auto_recovery'),
                 'last_journal_recovery': futures_ledger.setting('forward_last_journal_recovery'),

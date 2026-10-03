@@ -207,7 +207,7 @@ function renderDualEvidence(spot, futures) {
   const cycles=finite(score.cycle_total),incidents=finite(score.incident_total),attempts=finite(score.failure_attempt_total);
   set('futuresErrorRate',incidents.toFixed(0)+' incidentes · '+attempts.toFixed(0)+' intentos fallidos · '+cycles.toFixed(0)+' ciclos');
   const spotDays=finite(spot?.observed_days),spotTrades=finite(spot?.closed_trades);
-  const futuresDays=finite(score.observed_days),futuresTrades=finite(score.closed_trades);
+  const futuresDays=finite(score.observed_days),futuresTrades=finite(score.strategy_closed_trades);
   const checks=[
     [spotDays>=30,'Spot: '+spotDays.toFixed(1)+' / 30 días'],
     [spotTrades>=30,'Spot: '+spotTrades.toFixed(0)+' / 30 cierres'],
@@ -236,8 +236,8 @@ function renderFuturesParity(futures) {
 
   const limitState=document.getElementById('futuresLimitState');
   if(limitState){
-    limitState.textContent=futures?.killed?'PAUSADO':(futures?.enabled?'PROTECCIONES ACTIVAS':'INACTIVO');
-    limitState.className='state'+((futures?.killed||!futures?.enabled)?' warning':'');
+    limitState.textContent=futures?.killed?'PAUSADO':score.risk_halt?.active?'ENTRADAS BLOQUEADAS POR PÉRDIDA':(futures?.enabled?'PROTECCIONES ACTIVAS':'INACTIVO');
+    limitState.className='state'+((futures?.killed||score.risk_halt?.active||!futures?.enabled)?' warning':'');
   }
   set('futuresLimitLeverage',futures?.automatic_leverage==null?'—':String(futures.automatic_leverage)+'x');
   set('futuresLimitMarginType',guard.margin_type?String(guard.margin_type).toUpperCase():'—');
@@ -274,23 +274,23 @@ function renderFuturesParity(futures) {
     const pnlNode=document.getElementById('futuresPositionUnrealized');if(pnlNode)pnlNode.className='';
   }
 
-  const days=finite(score.observed_days), trades=finite(score.closed_trades);
+  const days=finite(score.observed_days), trades=finite(score.strategy_closed_trades);
   const ready=days>=30&&trades>=30&&finite(score.consecutive_errors)===0;
   const evidence=document.getElementById('futuresEvidenceState');
   if(evidence){evidence.textContent=ready?'LISTO PARA REVISIÓN':'EVIDENCIA INSUFICIENTE';evidence.className='state '+(ready?'warning':'neutral');}
   set('futuresEvidenceNote',
-    'Historial Futures Demo: '+days.toFixed(1)+' días y '+trades.toFixed(0)+' cierres. 30 días y 30 cierres son solo evidencia operativa; nunca activan dinero real automáticamente.');
+    'Historial Futures Demo: '+days.toFixed(1)+' días y '+trades.toFixed(0)+' cierres de estrategia; '+finite(score.technical_closed_trades).toFixed(0)+' cierres técnicos aparte. 30 días y 30 cierres solo permiten revisión; nunca activan dinero real automáticamente.');
   const metrics=document.getElementById('futuresEvidenceMetrics');
   if(metrics)metrics.innerHTML=
     '<article><span>Días observados</span><strong>'+days.toFixed(1)+'</strong></article>'+
-    '<article><span>Operaciones cerradas</span><strong>'+trades.toFixed(0)+'</strong></article>'+
+    '<article><span>Cierres de estrategia</span><strong>'+trades.toFixed(0)+'</strong></article>'+
     '<article><span>P&amp;L realizado bruto</span><strong>'+money(score.gross_realized_pnl_usdt||0)+'</strong></article>'+
     '<article><span>Drawdown muestreado</span><strong>'+finite(score.sampled_max_drawdown_pct).toFixed(2)+'%</strong></article>';
   set('futuresEvidenceSummary',
     'Retorno observado '+(score.account_return_pct==null?'—':pct(score.account_return_pct))+
-    ' · win rate '+(score.win_rate_pct==null?'—':finite(score.win_rate_pct).toFixed(1)+'%')+
-    ' · profit factor '+(score.profit_factor==null?'—':finite(score.profit_factor).toFixed(2))+
-    ' · LONG '+finite(score.long_closed_trades).toFixed(0)+' / SHORT '+finite(score.short_closed_trades).toFixed(0)+'.');
+    ' · win rate de estrategia '+(score.strategy_win_rate_pct==null?'—':finite(score.strategy_win_rate_pct).toFixed(1)+'%')+
+    ' · profit factor de estrategia '+(score.strategy_profit_factor==null?'—':finite(score.strategy_profit_factor).toFixed(2))+
+    ' · LONG '+finite(score.long_closed_trades).toFixed(0)+' / SHORT '+finite(score.short_closed_trades).toFixed(0)+', incluyendo técnicos. P&L bruto excluye comisiones y funding.');
   const more=document.getElementById('futuresMoreMetrics');
   if(more)more.innerHTML=
     '<article><span>Expectativa / cierre</span><strong>'+(score.expectancy_usdt_per_close==null?'—':money(score.expectancy_usdt_per_close))+'</strong></article>'+
@@ -344,8 +344,8 @@ function renderFuturesParity(futures) {
   }
   const shadow=document.getElementById('futuresShadowStrategies');
   if(shadow){
-    const rows=(futures?.shadow_scorecard||[]).slice(0,9);
-    shadow.innerHTML=rows.length?rows.map(row=>'<div><small>'+esc(row.strategy_key)+'</small><strong>'+num(row.pnl_pct||0,2)+'% · '+String(row.trades||0)+' trades</strong></div>').join(''):'<div><small>Shadow lab</small><strong>Acumulando muestras</strong></div>';
+    const rows=(futures?.shadow_scorecard||[]).filter(row=>!row.legacy_measurement).slice(0,9);
+    shadow.innerHTML=rows.length?rows.map(row=>'<div><small>'+esc(row.strategy_key)+'</small><strong>'+num(row.pnl_pct||0,2)+'% · '+String(row.trades||0)+' trades</strong><small>Suma de retornos brutos por cierre; sin costos ni evaluación intravela. No es retorno de cartera.</small></div>').join(''):'<div><small>Shadow lab v2</small><strong>Acumulando muestras nuevas</strong></div>';
   }
   const body=document.getElementById('futuresTradeRows');
   const rows=(futures?.trades||[]).slice(0,12);
@@ -541,8 +541,8 @@ async function refresh() {
       const futuresDisabledReason=currentExecutionMode!=='testnet'
         ? 'INACTIVO · MOTOR EN '+currentExecutionMode.toUpperCase()
         : (!futuresForward?.enabled?'INACTIVO · FORWARD DESHABILITADO':null);
-      futuresState.textContent=futuresDisabledReason || (futuresForward?.killed?'PAUSADO':'ACTIVO');
-      futuresState.className='state'+((futuresDisabledReason||futuresForward?.killed)?' warning':'');
+      futuresState.textContent=futuresDisabledReason || (futuresForward?.killed?'PAUSADO':futuresForward?.scorecard?.risk_halt?.active?'LÍMITE DE PÉRDIDA':'ACTIVO');
+      futuresState.className='state'+((futuresDisabledReason||futuresForward?.killed||futuresForward?.scorecard?.risk_halt?.active)?' warning':'');
     }
     document.getElementById('accountEnvironmentTitle').textContent='Spot · '+modeUpper;
     const spotEngineState=document.getElementById('spotEngineState');
@@ -562,8 +562,8 @@ async function refresh() {
       const forwardDisabledReason=currentExecutionMode!=='testnet'
         ? 'INACTIVO · MOTOR EN '+currentExecutionMode.toUpperCase()
         : (!futuresForward?.enabled?'INACTIVO · FORWARD DESHABILITADO':null);
-      forwardState.textContent=forwardDisabledReason || (futuresForward.killed?'PAUSADO':(forwardPositions.length?forwardPositions.length+' POSICIÓN'+(forwardPositions.length===1?' ABIERTA':'ES ABIERTAS'):'ACTIVO · ESPERANDO SEÑAL'));
-      forwardState.className='state'+((forwardDisabledReason||futuresForward?.killed)?' warning':'');
+      forwardState.textContent=forwardDisabledReason || (futuresForward.killed?'PAUSADO':futuresForward.scorecard?.risk_halt?.active?'LÍMITE DE PÉRDIDA · PROTECCIONES ACTIVAS':(forwardPositions.length?forwardPositions.length+' POSICIÓN'+(forwardPositions.length===1?' ABIERTA':'ES ABIERTAS'):'ACTIVO · ESPERANDO SEÑAL'));
+      forwardState.className='state'+((forwardDisabledReason||futuresForward?.killed||futuresForward?.scorecard?.risk_halt?.active)?' warning':'');
     }
     const fWallet=document.getElementById('futuresForwardWallet');
     if(fWallet){

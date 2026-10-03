@@ -81,4 +81,18 @@ test('v0.9 multi-asset portal snapshot renders without falling into disconnected
   assert.match(el('futuresForwardWallet').textContent,/4,999\.43 USDT/);
   assert.equal(el('futuresForwardPosition').textContent,'SIN POSICIÓN');
   assert.equal(el('futuresHealthCounters').textContent,'0 / 0 / 10');
+  const futures=responses['/api/futures-forward'];
+  Object.assign(futures.scorecard,{observed_days:31,closed_trades:40,strategy_closed_trades:1,
+    technical_closed_trades:39,strategy_win_rate_pct:100,strategy_profit_factor:999});
+  futures.shadow_scorecard=[{strategy_key:'old',legacy_measurement:true,pnl_pct:50,trades:2},
+    {strategy_key:'v2-s70',legacy_measurement:false,pnl_pct:10,trades:1}];
+  await context.__refresh();
+  assert.equal(el('futuresEvidenceState').textContent,'EVIDENCIA INSUFICIENTE');
+  assert.match(el('futuresEvidenceNote').textContent,/1 cierres de estrategia; 39 cierres técnicos/);
+  assert.match(el('futuresShadowStrategies').innerHTML,/No es retorno de cartera/);
+  assert.doesNotMatch(el('futuresShadowStrategies').innerHTML,/>old</);
+  futures.scorecard.risk_halt={active:true,period:'daily'};
+  await context.__refresh();
+  assert.equal(el('futuresForwardState').textContent,'LÍMITE DE PÉRDIDA · PROTECCIONES ACTIVAS');
+  assert.equal(el('futuresLimitState').textContent,'ENTRADAS BLOQUEADAS POR PÉRDIDA');
 });
