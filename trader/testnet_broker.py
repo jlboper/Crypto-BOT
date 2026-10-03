@@ -20,12 +20,17 @@ from .domain import Position, Signal
 from .risk_control import profile_multiplier
 from .testnet import plan_order
 from .testnet_transport import signed_request, TestnetExecutionError, TERMINAL
+from .native_protection import SpotNativeProtection
 
 
 class BinanceTestnetBroker(PaperBroker):
     """Paper risk/accounting with actual Spot Testnet MARKET fills."""
 
     PENDING_KEY = "unified_testnet_pending_order"
+
+    @property
+    def native(self):
+        return SpotNativeProtection(self)
 
     def _pending(self) -> dict | None:
         raw = self.db.setting(self.PENDING_KEY)
@@ -129,6 +134,7 @@ class BinanceTestnetBroker(PaperBroker):
 
     def reconcile_pending(self) -> bool:
         """Return True only when no unresolved exchange write remains."""
+        self.native.reconcile_all()
         pending = self._pending()
         if not pending:
             return True
@@ -200,6 +206,7 @@ class BinanceTestnetBroker(PaperBroker):
         self._validate_buy(signal, quantity)
         if not self.reconcile_pending():
             raise TestnetExecutionError("Testnet order still pending")
+        self.native.ensure_all()
         from .exchange import BinanceClient
 
         client = BinanceClient(timeout=10)
@@ -214,6 +221,7 @@ class BinanceTestnetBroker(PaperBroker):
                                    stop_price=reference * stop_ratio,
                                    take_profit=reference * take_ratio)
         self._validate_buy(execution_signal, quantity)
+        self.native.preflight(info, execution_signal.stop_price, execution_signal.take_profit)
         plan = plan_order(signal.symbol, "BUY", reference, info, quantity=quantity)
         if plan.status != "READY_FOR_MANUAL_REVIEW":
             raise TestnetExecutionError("Testnet filters reject engine quantity")
@@ -248,6 +256,7 @@ class BinanceTestnetBroker(PaperBroker):
         position = self.db.position(signal.symbol)
         if position is None:
             raise TestnetExecutionError("Filled Testnet BUY missing local position")
+        self.native.ensure(position)
         return position
 
     @staticmethod
@@ -272,6 +281,11 @@ class BinanceTestnetBroker(PaperBroker):
             raise ValueError("invalid market price")
         if not self.reconcile_pending():
             raise TestnetExecutionError("Testnet order still pending")
+        native_pnl = self.native.reconcile(position.symbol, cancel=True)
+        current = self.db.position(position.symbol)
+        if current is None:
+            return float(native_pnl or 0)
+        position = current
         from .exchange import BinanceClient
 
         client = BinanceClient(timeout=10)
@@ -319,7 +333,7 @@ class BinanceTestnetBroker(PaperBroker):
         except (TypeError, ValueError):
             return 0.0
 
-    def _apply_terminal_fill(self, pending: dict) -> None:
+    def _apply_terminal_fill(self, pending: dict, *, native: bool = False) -> None:
         if pending.get("applied"):
             return
         identity = pending.get("client_order_id")
@@ -333,9 +347,9 @@ class BinanceTestnetBroker(PaperBroker):
                         raise TestnetExecutionError("Testnet fill receipt identity mismatch")
                     pending["applied"] = True
                     pending["realized_pnl"] = float(receipt["realized_pnl"])
-                    self._save_pending(pending)
+                    if not native: self._save_pending(pending)
                     return
-                self._apply_terminal_fill_once(pending)
+                self._apply_terminal_fill_once(pending, native=native)
                 db.execute("INSERT INTO exchange_fill_receipts VALUES(?,?,?,?,?)", (
                     identity, pending["symbol"], pending["side"], float(pending.get("realized_pnl", 0)),
                     datetime.now(UTC).isoformat()))
@@ -343,7 +357,7 @@ class BinanceTestnetBroker(PaperBroker):
             pending.pop("applied", None)
             raise
 
-    def _apply_terminal_fill_once(self, pending: dict) -> None:
+    def _apply_terminal_fill_once(self, pending: dict, *, native: bool = False) -> None:
         if pending.get("applied"):
             return
         quantity = Decimal(str(pending.get("executed_qty", "0")))
@@ -439,4 +453,17 @@ class BinanceTestnetBroker(PaperBroker):
                 )
             pending["realized_pnl"] = float(pnl)
         pending["applied"] = True
-        self._save_pending(pending)
+        if not native: self._save_pending(pending)
+
+    def protect(self, position: Position, price: float, atr_value: float):
+        self.native.reconcile(position.symbol)
+        current = self.db.position(position.symbol)
+        if current is None:
+            return None, "native exchange protection"
+        updated, reason = super().protect(current, price, atr_value)
+        if updated is not None:
+            if price <= updated.stop_price:
+                self.sell(updated, price, "protective stop")
+                return None, "protective stop"
+            self.native.ensure(updated)
+        return updated, reason

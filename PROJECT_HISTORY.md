@@ -131,16 +131,24 @@ Version 0.10.13 corrects two assumptions that survived the earlier recovery audi
 
 Forward decisions are consumed durably once per symbol and closed USD-M Demo candle before AI/execution. A crash may skip that opportunity, but must not repeat it. AI reviews have a separate durable daily cap. Futures uses its own financial history for daily/weekly loss gates; protective monitoring continues independently. Financial history is retained, while bounded dashboard projections remain separate.
 
-Technical recovery closes do not qualify as strategy evidence. Shadow v2 starts separately because the prior threshold and SHORT arithmetic were invalid; old records remain available as legacy evidence and are never silently rewritten. Shadow sums are gross per-trade diagnostics, not portfolio returns. Missing costs and deleted historical samples remain explicit limitations. Native protective orders, full funding/commission attribution and exposure-matched portfolio research remain prerequisites for future advancement.
+Technical recovery closes do not qualify as strategy evidence. Shadow v2 starts separately because the prior threshold and SHORT arithmetic were invalid; old records remain available as legacy evidence and are never silently rewritten. Shadow sums are gross per-trade diagnostics, not portfolio returns. Missing costs and deleted historical samples remain explicit limitations. Full funding/commission attribution and exposure-matched portfolio research remain prerequisites for future advancement.
 
 The checked-in release workflow currently runs validation and protected publication on same-repository `release/*` PRs. Older main-push handoff notes are historical, not the current trigger. Verify the actual run and source SHA; owner approval of `portal-production` remains mandatory.
+
+## 2026-10-03 — Native Testnet protection and recovery ownership
+
+PC availability is no longer the intended source of stop/target execution for confirmed Testnet positions. Spot uses an OCO pair of conditional MARKET sells; Futures uses close-position STOP_MARKET/TAKE_PROFIT_MARKET with MARK_PRICE. Strategy and risk boundaries remain unchanged. Exchange identity and execution evidence, not inferred flatness, determine native accounting.
+
+Each network write has a durable identity before submission. Unknown POST outcomes are queried and never blindly resent. Native journals outlive accounting until siblings are terminal, and unique Spot receipts prevent duplicate proceeds after crashes. Owned orders must be cleaned before a new exposure or local close. Explicit validation rejections preserve local protective closes; ambiguous outcomes block conflicting writes. Per-position confirmation is visible separately from feature support.
+
+Restoration to code without native support is blocked while native journals remain, including a second check after cooperative stop. Spot trailing replacements have a non-atomic cancellation/creation gap; offline operation preserves only the last confirmed levels. Demo verification and a fresh observation window remain required before claiming installed behavior; no LIVE permission is introduced.
 
 ## Ideas intentionally deferred
 
 The following have been discussed but should remain deferred until their prerequisites are met:
 
 - Binance production/LIVE execution;
-- exchange-native protective orders for full PC/network outage resilience;
+- further Demo evidence for native protective orders and offline/reconnection behavior;
 - mobile/Android monitoring and notifications;
 - broader strategy automation;
 - automated strategy promotion;

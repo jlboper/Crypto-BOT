@@ -10,6 +10,7 @@ from .monitoring import activity_status, position_metrics, usable_price
 from .paper_scorecard import paper_scorecard
 from .risk_control import PROFILES
 from .futures_testnet_ledger import FuturesTestnetLedger
+from .native_protection import SPOT_KEY, projection
 
 
 def public_text(value):
@@ -217,7 +218,7 @@ def dashboard_snapshot(config, report_path=None):
             return [dict(row) for row in connection.execute(f'SELECT {columns} FROM {table} ORDER BY id DESC LIMIT ?', (limit,))]
         equity = rows('equity','equity,cash,exposure,created_at',300)
         latest = equity[0] if equity else {}
-        settings = dict(connection.execute("SELECT key,value FROM settings WHERE key IN ('market_prices','market_prices_at','paper_cash','paper_risk_profile','unified_testnet_pending_order','consecutive_errors','spot_last_error','spot_last_recovery')"))
+        settings = dict(connection.execute("SELECT key,value FROM settings WHERE key IN ('market_prices','market_prices_at','paper_cash','paper_risk_profile','unified_testnet_pending_order','consecutive_errors','spot_last_error','spot_last_recovery','spot_native_protection','native_protection_started_at')"))
         prices = json.loads(settings.get('market_prices','{}'))
         positions = [position_metrics(Position(**dict(p)),
                      usable_price(prices.get(p['symbol']), settings.get('market_prices_at'), config.bot.cycle_seconds), config.paper)
@@ -233,6 +234,8 @@ def dashboard_snapshot(config, report_path=None):
                        'positions':len(positions),'max_positions':config.risk.max_positions,'risk':asdict(config.risk),
                        'paper_risk_profile':settings.get('paper_risk_profile','normal') if settings.get('paper_risk_profile','normal') in PROFILES else 'invalid',
                        'cycle_seconds':config.bot.cycle_seconds,
+                       'native_protection':projection(json.loads(settings.get(SPOT_KEY) or '{}')) if config.bot.mode == 'testnet' else None,
+                       'native_protection_started_at':settings.get('native_protection_started_at'),
                        'activity':activity_status(latest.get('created_at'),config.bot.cycle_seconds),
                        'observation_health':_spot_observation_health(connection, config, latest, positions, settings)},
             'positions':positions, 'equity':list(reversed(equity)),
@@ -276,11 +279,11 @@ def dashboard_snapshot(config, report_path=None):
                     'separate_kill_switch': True,
                     'automatic_config_repair': True,
                     'automatic_safe_resume': True,
-                    'native_exchange_stop_orders': False,
+                    'native_exchange_stop_orders': True,
                 },
                 'live_readiness': {
                     'enabled': False,
-                    'reason': 'Demo observation and exchange-native protective orders are required before LIVE.',
+                    'reason': 'LIVE remains disabled. Native orders require per-position exchange confirmation and Demo observation.',
                 },
                 **futures_ledger.forward_snapshot(),
             },

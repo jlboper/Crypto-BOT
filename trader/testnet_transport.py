@@ -35,6 +35,9 @@ def signed_request(method: str, endpoint: str, fields: dict) -> dict:
         ("GET", "/api/v3/order"),
         ("GET", "/api/v3/myTrades"),
         ("POST", "/api/v3/order"),
+        ("POST", "/api/v3/orderList/oco"),
+        ("GET", "/api/v3/orderList"),
+        ("DELETE", "/api/v3/orderList"),
     }
     if (method, endpoint) not in allowed:
         raise TestnetExecutionError("Testnet endpoint blocked")
@@ -46,7 +49,7 @@ def signed_request(method: str, endpoint: str, fields: dict) -> dict:
     query = urllib.parse.urlencode(values)
     signature = hmac.new(secret.encode(), query.encode(), hashlib.sha256).hexdigest()
     encoded = f"{query}&signature={signature}"
-    url = HOST + endpoint + ("?" + encoded if method == "GET" else "")
+    url = HOST + endpoint + ("?" + encoded if method in {"GET", "DELETE"} else "")
     request = urllib.request.Request(
         url,
         data=encoded.encode() if method == "POST" else None,
@@ -78,7 +81,8 @@ def signed_request(method: str, endpoint: str, fields: dict) -> dict:
             pass
         detail = (" · Binance " + str(code) + ": " + api_message) if code is not None and api_message else ""
         raise TestnetExecutionError("Testnet HTTP " + str(error.code) + detail,
-                                    code=code, api_message=api_message) from None
+                                    code=code, api_message=api_message,
+                                    uncertain=error.code >= 500 or code in {-1006, -1007}) from None
     except (urllib.error.URLError, TimeoutError, ValueError):
         raise TestnetExecutionError(
             "Testnet response uncertain; reconcile before another action",

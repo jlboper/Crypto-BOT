@@ -17,6 +17,7 @@ import urllib.request
 from .runtime import single_instance
 from .runtime_control import RuntimeControl
 from .update_manager import atomic_json, release_id, verify
+from .native_protection_compat import require_native_compatible
 
 
 def _unlink_with_retry(path, attempts=20, delay=0.05):
@@ -171,6 +172,7 @@ class UpdateSupervisor:
                 self.wait_stopped()
                 self.manager.apply(package, envelope, expected_release=approved, defer_commit=True)
                 applied = True
+                require_native_compatible(self.manager.root, self.manager.root)
                 self.phase(token, 'candidate')
                 child = self.runtime.start(token)
                 self.wait_ready(child, token, manifest['version'], 'candidate')
@@ -203,6 +205,10 @@ class UpdateSupervisor:
         if offer is None:
             return None
         if not (self.manager.state/'backup/trader/runtime_control.py').is_file():
+            return None
+        try:
+            require_native_compatible(self.manager.root, self.manager.state/'backup')
+        except (OSError, ValueError, RuntimeError):
             return None
         try:
             status = json.loads(self.control.status.read_text())
@@ -246,6 +252,7 @@ class UpdateSupervisor:
             child = None
             try:
                 self.wait_stopped()
+                require_native_compatible(self.manager.root, self.manager.state/'backup')
                 self.manager.snapshot_current()
                 atomic_json(self.record,{**state,'phase':'restore_applying'})
                 self.manager.swap_previous(approved)

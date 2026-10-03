@@ -54,6 +54,8 @@ See `UPDATE_NOTES.md` for the detailed chronological record.
 
 ## Current decision posture
 
+Version 0.10.14 implements native protection in both Testnet motors. `native_protection.py` owns durable Spot OCO and Futures conditional-order journals, queries ambiguous submissions by client identity, reconciles native executions before ordinary close/open logic, and retains journals until sibling cleanup is confirmed. Integration support is separate from per-position ARMED evidence. Preserve journals across updates; code lacking native protocol 1 must not resume while native reconciliation remains pending. Trailing OCO replacement is cancel/confirm/create, not atomic. Existing histories remain; `native_protection_started_at` marks the new observation phase. LIVE remains blocked and real Demo behavior must be observed after installation.
+
 The present phase is observation, stability and evidence collection. Avoid changing strategy, leverage or risk because of a few days of results. The project should accumulate enough clean forward-test data to support a later review.
 
 A future decision to use real funds must be a separate project phase with explicit design and safety review. It must not be activated by a version bump, a configuration toggle, an AI recommendation or a good backtest.
@@ -63,7 +65,7 @@ A future decision to use real funds must be a separate project phase with explic
 These are ideas, not commitments:
 
 - Longer Spot vs Futures forward-test comparison with comparable scorecards.
-- Stronger exchange-native protection for scenarios where the PC or Internet is unavailable.
+- Observe native protection during Demo operation, including offline fills and reconnection.
 - Continued hardening of Windows supervisor/recovery and host portability.
 - Migration to another Windows PC, Linux host or managed environment without changing trading semantics.
 - Android/mobile experience for monitoring and alerts, with independent mobile authentication; never reuse the Windows device credential.

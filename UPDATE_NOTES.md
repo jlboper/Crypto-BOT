@@ -1,3 +1,16 @@
+# Actualización 0.10.14 — protección nativa Spot y Futures
+
+- Spot Testnet instala OCO `STOP_LOSS` + `TAKE_PROFIT` con ejecución MARKET al dispararse. Futures Demo instala `STOP_MARKET` + `TAKE_PROFIT_MARKET`, cierre de posición y disparador MARK_PRICE, para LONG y SHORT.
+- Conserva las señales, cantidades piloto, ISOLATED 1x y límites. Ajusta los niveles a `PRICE_FILTER` de forma conservadora; la ejecución MARKET puede deslizarse y no garantiza el precio del trigger.
+- Registra identidades e intención antes de cada POST. Un envío incierto se consulta por identidad y nunca se repite a ciegas, aunque Binance no encuentre la orden. Los rechazos explícitos de validación mantienen disponible la salida local y bloquean nuevas entradas.
+- Reconoce ejecuciones nativas después de un reinicio, exige evidencia del fill, contabiliza una sola vez y cancela únicamente las órdenes hermanas registradas. Un cierre local cancela y confirma sus protecciones antes de enviar otra venta/cierre.
+- Reconcilia ejecuciones parciales, cancelaciones inciertas y carreras entre stop y cierre manual. Los estados ambiguos bloquean nuevas escrituras; nunca inventa un cierre a partir de un saldo o posición ausentes.
+- El trailing Spot reemplaza su OCO tras cancelación confirmada. Este reemplazo tiene un intervalo sin orden nativa; si falla, se muestra sin confirmar. Sin conexión permanece el último par confirmado, mientras el trailing y las salidas por señal requieren al bot conectado.
+- Migra posiciones existentes al pasar la reconciliación y verificar su identidad. El portal separa integración disponible de confirmación por posición, muestra errores y cantidad cubierta; un remanente bajo los mínimos del exchange exige revisión y no se presenta como protegido.
+- Impide restaurar código sin soporte nativo mientras persista un journal de órdenes nativas. Verifica otra vez con el motor detenido para cerrar la carrera con la restauración. Los journals y ledgers no se borran para forzar un downgrade.
+- Guarda `native_protection_started_at` para separar la observación de esta versión sin eliminar historia. Reinicia la ventana de estabilidad de 48–72 horas al instalar; la integración se valida en Binance durante la operación Demo.
+- LIVE sigue deshabilitado. Publicación e instalación mantienen el flujo firmado con aprobación del propietario.
+
 # Actualización 0.10.13 — integridad de ejecución y evidencia
 
 - Une la exposición de Futures `positionRisk` V3 con `symbolConfig`, reconoce `CROSSED` y exige margen CROSS confirmado antes de una reparación. Los campos ausentes ya no provocan cierres técnicos falsos.

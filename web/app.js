@@ -308,7 +308,9 @@ function renderFuturesParity(futures) {
       [finite(score.consecutive_errors)===0,'Sin errores consecutivos activos'],
       [futures?.recovery?.durable_order_journal===true,'Journal durable'],
       [futures?.recovery?.startup_position_reconciliation===true,'Reconciliación al reiniciar'],
-      [futures?.recovery?.native_exchange_stop_orders===true,'Stops nativos persistentes del exchange']];
+      [futures?.recovery?.native_exchange_stop_orders===true,'Integración de stops nativos disponible'],
+      [positions.length>0&&positions.every(p=>futures?.native_protection?.positions?.[p.symbol]?.status==='ARMED'),
+        positions.length?'Órdenes nativas confirmadas para todas las posiciones':'Sin exposición: confirmación nativa al abrir']];
     checks.replaceChildren();
     for(const [ok,label] of rows){const li=document.createElement('li');li.textContent=(ok?'✓':'○')+' '+label;checks.append(li);}
   }
@@ -320,8 +322,13 @@ function renderFuturesParity(futures) {
       const p=positions.find(row=>row.symbol===symbol);
       const split=bySymbol[symbol]||{};
       const long=split.LONG||{}, short=split.SHORT||{};
+      const native=futures?.native_protection?.positions?.[symbol];
+      const nativeLabel=p?(native?.status==='ARMED'?'CONFIRMADA EN BINANCE':native?.status||'POR CONFIRMAR'):(native?'CONCILIACIÓN PENDIENTE':'SIN EXPOSICIÓN');
       return '<article class="futures-asset-card"><h4>'+esc(symbol.replace('USDT',''))+'</h4><dl>'+
         '<div><dt>Estado</dt><dd>'+(p?esc(p.direction)+' · '+esc(String(p.leverage||1))+'x':'ESPERANDO')+'</dd></div>'+
+        '<div><dt>Protección nativa</dt><dd>'+esc(nativeLabel)+'</dd></div>'+
+        (native?.confirmed_at?'<div><dt>Última confirmación</dt><dd>'+esc(shortTime(native.confirmed_at))+'</dd></div>':'')+
+        (native?.error?'<div><dt>Detalle</dt><dd>'+esc(native.error)+'</dd></div>':'')+
         '<div><dt>LONG</dt><dd>'+String(long.trades||0)+' · '+money(long.gross_pnl_usdt||0)+'</dd></div>'+
         '<div><dt>SHORT</dt><dd>'+String(short.trades||0)+' · '+money(short.gross_pnl_usdt||0)+'</dd></div>'+
         '<div><dt>Score</dt><dd>'+esc(String((futures?.latest_signals||{})[symbol]?.long_score??'—'))+' / '+esc(String((futures?.latest_signals||{})[symbol]?.short_score??'—'))+'</dd></div>'+
@@ -626,7 +633,10 @@ async function refresh() {
       const journalRecovery=futuresForward?.last_journal_recovery;
       const recoveryText=journalRecovery?.status?' · última recuperación: '+journalRecovery.status:'';
       const gapText=gap?.status?' · evidencia marcada: '+gap.status:'';
-      fSafety.textContent=`Journal ${rec.durable_order_journal?'✓':'—'} · conciliación al reiniciar ${rec.startup_position_reconciliation?'✓':'—'} · ${repair} · ${resume}${blocked.length?' · bloqueados: '+blocked.join(', ')+(blockedDetail?' ['+blockedDetail+']':''):''}${recoveryText}${gapText} · IA final: ${futuresForward?.ai_model||status.ai_model}. Stops nativos persistentes aún pendientes; LIVE bloqueado.`;
+      const nativeRows=futuresForward?.native_protection?.positions||{};
+      const confirmed=Object.values(nativeRows).filter(row=>row.status==='ARMED').length;
+      const nativeText=rec.native_exchange_stop_orders?`Protección nativa: ${confirmed} pares confirmados en Binance; los cierres se concilian al reconectar`:'Protección nativa pendiente de actualización';
+      fSafety.textContent=`Journal ${rec.durable_order_journal?'✓':'—'} · conciliación al reiniciar ${rec.startup_position_reconciliation?'✓':'—'} · ${repair} · ${resume}${blocked.length?' · bloqueados: '+blocked.join(', ')+(blockedDetail?' ['+blockedDetail+']':''):''}${recoveryText}${gapText} · IA final: ${futuresForward?.ai_model||status.ai_model}. ${nativeText}. LIVE bloqueado.`;
     }
     const pauseForward=document.getElementById('pauseFuturesForward');
     const resumeForward=document.getElementById('resumeFuturesForward');
@@ -670,6 +680,13 @@ async function refresh() {
     document.getElementById('operationSummary').textContent=activity.state==='operational'?
       `Motor ${modeUpper} activo. ${status.positions} posiciones abiertas de ${status.max_positions}; ${status.killed?'nuevas entradas pausadas y protecciones vigentes':'nuevas entradas sujetas a límites y revisión IA'}. Último ciclo ${ageLabel(activity.age_seconds)}.`:
       `Motor ${activityLabel(activity.state).toLowerCase()}. ${status.killed?'Nuevas entradas pausadas. ':'Comprueba la conexión de Windows antes de dar instrucciones. '}Último ciclo ${ageLabel(activity.age_seconds)}.`;
+    if(modeUpper==='TESTNET'&&status.native_protection){
+      const native=status.native_protection.positions||{};
+      const armed=positions.filter(p=>native[p.symbol]?.status==='ARMED').length;
+      document.getElementById('operationSummary').textContent+=` Spot: ${armed}/${positions.length} posiciones con OCO confirmado. Los stops confirmados permanecen en Binance si Windows se desconecta; el trailing se actualiza mientras el bot está conectado.`;
+      const residues=Object.entries(native).filter(([,row])=>Number(row.unprotected_quantity)>0).map(([symbol,row])=>symbol+': '+num(row.unprotected_quantity,8));
+      if(residues.length)document.getElementById('operationSummary').textContent+=' Remanente fuera del OCO por filtros de cantidad: '+residues.join('; ')+'.';
+    }
     const botState=document.getElementById('botState');
     botState.textContent=activityLabel(activity.state);
     botState.className='state'+(activity.state==='delayed'?' warning':activity.state==='offline'?' offline':'');

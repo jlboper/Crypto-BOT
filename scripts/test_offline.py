@@ -13,6 +13,8 @@ sys.path.insert(0, str(root))
 os.environ["OPENAI_API_KEY"] = ""
 os.environ["BINANCE_API_KEY"] = ""
 os.environ["BINANCE_API_SECRET"] = ""
+os.environ["BINANCE_FUTURES_TESTNET_API_KEY"] = ""
+os.environ["BINANCE_FUTURES_TESTNET_API_SECRET"] = ""
 os.environ["DASHBOARD_TOKEN"] = ""
 original = socket.socket.connect
 def offline_connect(sock, address):

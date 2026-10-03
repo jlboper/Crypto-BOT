@@ -312,6 +312,7 @@ class DashboardServer:
                         self._json({'status':'unavailable'})
                     return
                 if path == "/api/status":
+                    from .native_protection import SPOT_KEY, projection
                     equity_rows = outer.db.recent("equity", 1)
                     latest = equity_rows[0] if equity_rows else {}
                     initial = outer.config.paper.initial_cash_usdt
@@ -333,6 +334,8 @@ class DashboardServer:
                         "risk": asdict(outer.config.risk),
                         "paper_risk_profile": profile_name(outer.db),
                         "cycle_seconds": outer.config.bot.cycle_seconds,
+                        "native_protection": projection(json.loads(outer.db.setting(SPOT_KEY) or '{}')) if outer.config.bot.mode == 'testnet' else None,
+                        "native_protection_started_at": outer.db.setting("native_protection_started_at"),
                         "activity": activity,
                         "prices_at": prices_at,
                         "market_prices": len(prices),
@@ -373,11 +376,11 @@ class DashboardServer:
                             "separate_kill_switch": True,
                             "automatic_config_repair": True,
                             "automatic_safe_resume": True,
-                            "native_exchange_stop_orders": False,
+                            "native_exchange_stop_orders": True,
                         },
                         "live_readiness": {
                             "enabled": False,
-                            "reason": "Demo observation and exchange-native protective orders are required before LIVE.",
+                            "reason": "LIVE remains disabled. Native orders require per-position exchange confirmation and Demo observation.",
                         },
                         **snapshot,
                     })
