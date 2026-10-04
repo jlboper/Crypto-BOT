@@ -24,6 +24,10 @@ the exact signed version approved by the owner through the portal or app.
   credentials/data during development. Use an isolated copy and synthetic tests.
 - Read BOT_UPDATE_PROGRESS.md and BOT_RELEASE_OPERATIONS.md before changing the
   updater. Do not claim deployment just because a PR or documentation exists.
+- Before changing independent-agent imports or refresh logic, read the 2026-10-03
+  dependency incident in PROJECT_HISTORY.md. Keep refresh MODULES and Windows
+  SUPERVISOR_MODULES equal and pass the isolated refreshed-agent import regression
+  in tests/test_agent_refresh.py. A Running task is not evidence of HTTPS health.
 - The shared UI is `web/`. Run `python scripts/build_unified_portal.py`; do not
   implement different local and remote layouts. Local update actions open the
   authenticated remote update center; they never put credentials in URLs.
