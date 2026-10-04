@@ -139,6 +139,11 @@ class FuturesTestnetLab:
         row = next((item for item in rows if isinstance(item, dict)
                     and str(item.get("symbol", "")).upper() == symbol.upper()), None)
         if row is None:
+            fallback = signed_request("GET", "/fapi/v1/symbolConfig", {})
+            fallback_rows = [fallback] if isinstance(fallback, dict) else fallback if isinstance(fallback, list) else []
+            row = next((item for item in fallback_rows if isinstance(item, dict)
+                        and str(item.get("symbol", "")).upper() == symbol.upper()), None)
+        if row is None:
             raise FuturesTestnetExecutionError(f"Futures symbol configuration unavailable: {symbol}")
         leverage = _decimal(row.get("leverage", "0"))
         if leverage <= 0:
