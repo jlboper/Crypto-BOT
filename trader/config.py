@@ -109,6 +109,7 @@ class FuturesTestnetSettings:
     position_mode: str
     smoke_margin_usdt: float
     forward_enabled: bool
+    forward_timeframe: str
     forward_symbols: tuple[str, ...]
     forward_max_positions: int
     forward_leverage: int
@@ -208,6 +209,9 @@ def load_config(path: str | Path | None = None) -> AppConfig:
     # Runtime pausing uses the dedicated Futures kill switch. A stale local
     # FUTURES_FORWARD_ENABLED override must not silently disable the motor.
     futures_forward_enabled = mode == "testnet" or bool(futures_testnet.get("forward_enabled", False))
+    futures_forward_timeframe = str(futures_testnet.get("forward_timeframe", bot["timeframe"])).lower()
+    if futures_forward_timeframe not in {"1m","5m","15m","30m","1h","2h","4h","6h","8h","12h","1d"}:
+        raise ValueError("Unsupported Futures forward timeframe")
     raw_forward_symbols = futures_testnet.get("forward_symbols", [futures_testnet.get("forward_symbol", "BTCUSDT")])
     if not isinstance(raw_forward_symbols, list) or not raw_forward_symbols:
         raise ValueError("Futures forward symbols must be a non-empty list")
@@ -296,6 +300,7 @@ def load_config(path: str | Path | None = None) -> AppConfig:
             position_mode=futures_position_mode,
             smoke_margin_usdt=futures_smoke_margin,
             forward_enabled=futures_forward_enabled,
+            forward_timeframe=futures_forward_timeframe,
             forward_symbols=futures_forward_symbols,
             forward_max_positions=futures_forward_max_positions,
             forward_leverage=futures_forward_leverage,
