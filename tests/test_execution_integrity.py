@@ -212,7 +212,7 @@ class ExecutionIntegrityTests(unittest.TestCase):
         self.assertNotIn('leverage_simulated_return_pct',card)
 
     def test_portal_producer_includes_bounded_latest_contract_signal(self):
-        signal={**self.fs,'symbol':'ETHUSDT','timeframe':'4h','candle_close_time':999,
+        signal={**self.fs,'symbol':'ETHUSDT','timeframe':'1h','candle_close_time':999,
                 'at':datetime.now(UTC).isoformat()}
         self.ledger.set_setting('forward_last_signal_ETHUSDT',signal)
         snapshot=dashboard_snapshot(self.config,self.root/'missing.json')
@@ -222,7 +222,7 @@ class ExecutionIntegrityTests(unittest.TestCase):
     def test_futures_contract_data_excludes_forming_candle_and_caches(self):
         engine=TradingEngine(self.config)
         now=200000000
-        duration=14400000
+        duration=3600000
         start=now//duration*duration
         rows=[[start-duration,99,101,98,100,10,start-1],
               [start,100,102,99,101,10,start+duration-1]]
@@ -233,7 +233,7 @@ class ExecutionIntegrityTests(unittest.TestCase):
             self.assertEqual(candles[0].close_time,start-1)
             self.assertEqual(engine._futures_candles('ETHUSDT'),candles)
             request.assert_called_once_with('GET','/fapi/v1/klines',
-                {'symbol':'ETHUSDT','interval':'4h','limit':250},allow_fallback=False)
+                {'symbol':'ETHUSDT','interval':'1h','limit':250},allow_fallback=False)
 
     def test_spot_entry_normalizes_using_testnet_rules_before_preflight(self):
         engine=TradingEngine(self.config)
