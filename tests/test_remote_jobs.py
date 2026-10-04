@@ -80,3 +80,77 @@ class RemoteJobTests(unittest.TestCase):
             (jobs.directory/'2.json').write_text('{broken',encoding='utf-8')
             (jobs.directory/'notes.json').write_text('{}',encoding='utf-8')
             self.assertEqual([item['id'] for item in jobs.results()],[1])
+
+
+class RemoteUpdateCompletionTests(unittest.TestCase):
+    def setUp(self):
+        import json
+        from scripts import remote_job
+        self.runner=remote_job
+        temporary=tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.root=Path(temporary.name)/'agent'
+        self.source=Path(temporary.name)/'bot'
+        self.source.mkdir()
+        (self.root/'data/portal-jobs').mkdir(parents=True)
+        (self.root/'data/trusted-update.pub').write_text('fixture')
+        (self.root/'data/trusted-release.json').write_text(json.dumps({
+            'manifest_url':'https://fixture.invalid/latest','supervised_install_enabled':True}))
+        self.release='a'*64
+        self.staged=dict(version='0.10.18',release_id=self.release,sequence=20,
+            expires=time.time()+100,commit='b'*40,package=str(self.root/'data/staged.zip'))
+
+    def run_update(self, action='update_install', result=None, error=None):
+        import json
+        from contextlib import ExitStack
+        import sys
+        from trader.update_manager import UpdateManager
+        from trader.update_supervisor import UpdateSupervisor
+        (self.root/'data/portal-jobs/9.json').write_text(json.dumps(dict(id=9,action=action,
+            status='running',message='received',at=time.time(),release_id=self.release)))
+        (self.source/'pyproject.toml').write_text('[project]\nversion="0.10.17"\n')
+        def installed(*args,**kwargs):
+            if error: raise error
+            (self.source/'pyproject.toml').write_text('[project]\nversion="0.10.18"\n')
+            (self.source/'config.toml').write_text('[futures_testnet]\nforward_symbols=["ADAUSDT"]\n')
+            return result or dict(status='installed_healthy',version='0.10.18',release_id=self.release)
+        with ExitStack() as stack:
+            stack.enter_context(patch.object(self.runner,'ROOT',self.root))
+            stack.enter_context(patch.object(sys,'argv',['remote_job.py','--source',str(self.source),'--id','9']))
+            # Reproduce an old imported validator that cannot parse the new schema.
+            old_validator=stack.enter_context(patch.object(self.runner,'source_settings',
+                side_effect=ValueError('Unsupported Futures forward symbol')))
+            manager=stack.enter_context(patch('trader.update_manager.UpdateManager',spec=UpdateManager))
+            manager.return_value.stage.return_value=self.staged
+            supervisor=stack.enter_context(patch('trader.update_supervisor.UpdateSupervisor',spec=UpdateSupervisor))
+            supervisor.return_value.install.side_effect=installed
+            supervisor.return_value.restore.return_value=result
+            self.runner.main()
+            old_validator.assert_not_called()
+        return json.loads((self.root/'data/portal-jobs/9.json').read_text()), supervisor
+
+    def test_signed_install_completion_survives_old_validator_after_config_upgrade(self):
+        result, supervisor=self.run_update()
+        self.assertEqual(result['status'],'completed')
+        self.assertIn('Bot 0.10.18 instalado',result['message'])
+        call=supervisor.return_value.install.call_args
+        self.assertEqual(call.args[2],self.release)
+        self.assertEqual(call.kwargs['job_id'],9)
+
+    def test_actual_install_failure_is_not_reported_as_completed(self):
+        result,_=self.run_update(error=ValueError('failed candidate'))
+        self.assertEqual(result['status'],'failed')
+        self.assertEqual(result['message'],'Trabajo detenido: ValueError')
+
+    def test_mismatched_completion_identity_fails_closed(self):
+        for change in (dict(release_id='c'*64),dict(version='0.10.19'),dict(status='pending_health')):
+            output=dict(status='installed_healthy',version='0.10.18',release_id=self.release)
+            result,_=self.run_update(result={**output,**change})
+            self.assertEqual(result['status'],'failed')
+
+    def test_restore_completion_does_not_use_new_or_old_config_schema(self):
+        result,supervisor=self.run_update(action='update_restore',result=dict(
+            status='restored_healthy',version='0.10.17',restore_id=self.release))
+        self.assertEqual(result['status'],'completed')
+        self.assertIn('Código 0.10.17 restaurado',result['message'])
+        supervisor.return_value.restore.assert_called_once_with(self.release,job_id=9)

@@ -1,3 +1,13 @@
+# Candidate — 0.10.19 update completion across configuration upgrades
+
+Prepared from main `c2064a97f7ef006916a21037552f8d466dc578ec`. Avoid re-reading new trading settings through the old imported independent-supervisor validator after successful install/restore; require confirmed outcome, exact identity and expected version. Relevant source tests precede the PR; publication and installation remain separate.
+
+# 0.10.18 published and observed installed/connected
+
+PR [#96](https://github.com/jlboper/Crypto-BOT/pull/96) merged. Protected [37173943719](https://github.com/jlboper/Crypto-BOT/actions/runs/37173943719) succeeded, verified the signature and published TESTNET 0.10.18 for `f3f5d3508e6359ffff032d710dc5d51ffa0f0e41`. Linux/Windows validation passed; local checks counted 291 Python and 76 Node tests.
+
+After the owner reported update failure, an authenticated portal audit observed installed 0.10.18, connected Windows and fifteen Futures assets/max five positions. The historical install job said only `Trabajo detenido: ValueError`; a subsequent check completed with `Estás actualizado · bot 0.10.18 · firma verificada`. Source reproduction found a stale previous-version validator in the post-install reporting path; see PROJECT_HISTORY.md. Point-in-time version/connection and signed check do not guarantee future uptime or native protection behavior without open exposure.
+
 # Candidate — 0.10.18 fifteen-asset Futures portfolio
 
 Prepared from main `15f74ab4d7a7ba28d6d1c716f46bfd07da7c804f` following the owner's approval of fifteen assets, up to five positions and a 300 USDT gross portfolio ceiling. Add a 7.5 USDT estimated stop-loss budget with a cost reserve; retain 1x/2x/3x without multiplying exposure. Source validation, protected publication and signed Windows installation remain distinct gates.
