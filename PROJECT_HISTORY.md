@@ -133,7 +133,7 @@ Forward decisions are consumed durably once per symbol and closed USD-M Demo can
 
 Technical recovery closes do not qualify as strategy evidence. Shadow v2 starts separately because the prior threshold and SHORT arithmetic were invalid; old records remain available as legacy evidence and are never silently rewritten. Shadow sums are gross per-trade diagnostics, not portfolio returns. Missing costs and deleted historical samples remain explicit limitations. Full funding/commission attribution and exposure-matched portfolio research remain prerequisites for future advancement.
 
-The checked-in release workflow currently runs validation and protected publication on same-repository `release/*` PRs. Older main-push handoff notes are historical, not the current trigger. Verify the actual run and source SHA; owner approval of `portal-production` remains mandatory.
+At that stage, validation and protected publication ran on same-repository `release/*` PRs with owner review. The 2026-10-04 automatic-main decision below supersedes that trigger; older approval and empty-push recovery instructions remain historical.
 
 ## 2026-10-03 — Native Testnet protection and recovery ownership
 
@@ -208,6 +208,14 @@ The owner authorized all proposed research improvements. Version 0.10.20 makes t
 The earlier equal-weight fold aggregation remains an explicitly labeled illustration. A new event simulator uses one shared wallet, timestamp alignment, five positions, marked gross exposure, next-open execution, costs, LONG/SHORT, funding and isolated-mark liquidation stress. Three preregistered risk profiles and orthogonal Futures leverage levels 1/2/3/5/10 explore risk without adjusting operating order limits. The assumed 1% maintenance is not exchange/account bracket calibration: Futures research remains unqualified, even when simulated performance is positive. No model, profile or leverage is promoted automatically.
 
 Full runs and data fingerprints are retained separately from bounded portal summaries. Repeated daily holdouts are monitoring, not independent validation. A small Spot cohort (up to five) and configured Futures cohort freeze rules at registration and observe only bars opening afterward; artificial terminal closes are excluded from forward close counts, missing cohort data invalidates that observation, and a settings change starts a new retained cohort. This remains public-data PAPER observation, not Demo execution evidence. Broader strategy automation and LIVE remain deferred.
+
+## 2026-10-04 — Owner-authorized automatic publication after main validation
+
+The owner asked to remove repetitive GitHub approvals, removed `Required reviewers` from `portal-production`, then asked to continue with the proposed main-only flow. GitHub canceled the older 28 September run 36486941944 with `Required reviewers protection rule deleted`, producing a failure email on 4 October; it was unrelated to successful signed/installed 0.10.21. Do not rerun obsolete publication jobs to address that notification.
+
+PRs now validate without deploying. A main push validates the exact merged SHA on Linux and Windows before the environment-scoped publisher runs automatically. Keep environment credentials, pinned Actions, version preflight, migration rejection, deployment health/rollback, OIDC identity, Ed25519 verification, anti-downgrade sequence and supervised Windows installation. Deployment/package scripts and the signer reject PR identities and superseded main revisions. Review remains mandatory if the owner restores it in GitHub; no approval token or administration credential is added to the portal.
+
+This authorizes routine code publication and signed rollout, not LIVE, risk changes or automatic research/strategy promotion. The independent Windows agent and both financial engines retain their existing behavior. Version 0.10.22 packages the release helper/documentation; actual CI, publication and installation must be observed separately.
 
 ## Ideas intentionally deferred
 

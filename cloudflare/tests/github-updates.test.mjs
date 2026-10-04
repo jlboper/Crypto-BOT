@@ -11,7 +11,7 @@ function fixture(changes={}){
     assert.equal(options.method,'GET');assert.equal(options.headers.Authorization,undefined);
     let value;
     if(url.includes('/git/ref/'))value={object:{sha:changes.head||sha}};
-    else if(url.includes('/jobs'))value={total_count:1,jobs:[{name:'validate',status:'completed',conclusion:changes.tests||'success'}]};
+    else if(url.includes('/jobs'))value={total_count:2,jobs:changes.jobs||['validate','validate-windows'].map(name=>({name,status:'completed',conclusion:changes.tests||'success'}))};
     else value={workflow_runs:[{...run(),...changes.run}]};
     return new Response(JSON.stringify(value),{status:200});
   };
@@ -32,6 +32,11 @@ test('old runs, failed tests, other branches, workflows and repos cannot be pres
 test('published commit is labeled without any write credential',async()=>{
   const result=await fixture({published:sha,run:{status:'completed',conclusion:'success'}}).api.list();
   assert.equal(result.runs[0].published,true);assert.equal(result.runs[0].review_on_github,false);
+});
+test('automatic release discovery requires both platforms before offering a restored review gate',async()=>{
+  const result=await fixture({jobs:[{name:'validate',status:'completed',conclusion:'success'}]}).api.list();
+  assert.equal(result.runs[0].review_on_github,false);
+  assert.match(result.message,/Publicación automática/);
 });
 test('provider failures and malformed JSON are redacted',async()=>{
   await assert.rejects(githubUpdates({},async()=>new Response('sensitive provider body',{status:403})).list(),error=>error.status===429&&!error.message.includes('sensitive'));

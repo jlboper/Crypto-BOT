@@ -18,8 +18,19 @@ test('CI fails closed for pending migrations and rolls back failed health',()=>{
 });
 
 
-test('production approval is blocked by bot release version preflight',()=>{
-  assert.match(workflow,/Check bot release version consistency before approval/);
+test('publication is blocked by bot release version preflight',()=>{
+  assert.match(workflow,/Check bot release version consistency before publication/);
   assert.match(workflow,/node scripts\/check_bot_release_consistency\.mjs/);
-  assert.ok(workflow.indexOf('Check bot release version consistency before approval') < workflow.indexOf('environment: portal-production'));
+  assert.ok(workflow.indexOf('Check bot release version consistency before publication') < workflow.indexOf('environment: portal-production'));
+});
+test('only validated main pushes can deploy; pull requests receive no publication credentials',()=>{
+  assert.match(workflow,/push:\s+branches: \[main\]/);
+  const publish=workflow.slice(workflow.indexOf('  publish:'));
+  assert.match(publish,/if: github.event_name == 'push' && github.ref == 'refs\/heads\/main'/);
+  assert.match(publish,/needs: \[validate, validate-windows\]/);
+  assert.doesNotMatch(publish,/pull_request|head_ref|release\//);
+  assert.equal(workflow.match(/ref: \$\{\{ github.event.pull_request.head.sha \|\| github.sha \}\}/g)?.length,2);
+  assert.match(deploy,/requireCurrentMain/);
+  const publisher=readFileSync(new URL('../../scripts/publish_bot_release.mjs',import.meta.url),'utf8');
+  assert.match(publisher,/requireCurrentMain/);
 });

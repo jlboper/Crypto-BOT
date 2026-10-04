@@ -1,5 +1,4 @@
-// Read-only release discovery. Approval remains on GitHub's protected
-// environment so no GitHub write credential exists inside deployable code.
+// Read-only discovery of validated main publications. No GitHub write credential.
 const repo='jlboper/Crypto-BOT';
 const workflow='.github/workflows/portal-release.yml';
 export class UpdateError extends Error {
@@ -8,7 +7,7 @@ export class UpdateError extends Error {
 export function githubUpdates(env={},transport=fetch){
   async function api(path){
     const response=await transport('https://api.github.com/repos/'+repo+path,{
-      method:'GET',redirect:'error',signal:AbortSignal.timeout(10000),
+      method:'GET',redirect:'manual',signal:AbortSignal.timeout(10000),
       headers:{Accept:'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28','User-Agent':'CryptoPaperPortal'}});
     if(!response.ok)throw new UpdateError(response.status===403||response.status===429?429:502,'GitHub no pudo completar la consulta; inténtalo más tarde');
     const content=await response.text();
@@ -27,11 +26,12 @@ export function githubUpdates(env={},transport=fetch){
       const item=display(run);
       if(run.status==='waiting'){
         const jobs=await api(`/actions/runs/${run.id}/attempts/${run.run_attempt}/jobs?per_page=100`);
-        item.review_on_github=jobs.total_count<=100&&jobs.jobs.some(job=>job.name==='validate'&&job.status==='completed'&&job.conclusion==='success');
+        item.review_on_github=jobs.total_count<=100&&['validate','validate-windows'].every(name=>
+          jobs.jobs.some(job=>job.name===name&&job.status==='completed'&&job.conclusion==='success'));
       }
       item.published=env.PORTAL_COMMIT===run.head_sha;
       runs.push(item);
     }
-    return {configured:true,runs,message:'El portal muestra únicamente la ejecución del commit actual de main. La autorización final se realiza en el entorno protegido de GitHub.'};
+    return {configured:true,runs,message:'Publicación automática del commit actual de main después de validar Linux y Windows. Si GitHub exige revisión del entorno, abre el enlace de esa ejecución.'};
   }};
 }

@@ -1,3 +1,10 @@
+# 0.10.22 — Publicación automática de main validado
+
+- Los PR ejecutan pruebas sin publicar. Tras integrarlos, el push de `main` valida nuevamente ese commit exacto en Linux/Windows y publica desde el entorno existente. Respeta cualquier revisión que el propietario vuelva a configurar.
+- Scripts de despliegue/paquete y firmante OIDC admiten únicamente el push de main; rechazan identidades PR, cambios de SHA/ref y revisiones superadas por main. Se conserva firma Ed25519, inventario, secuencia, preflight de versión, migraciones, salud/rollback y rollout supervisado de Windows.
+- El centro de actualizaciones describe la publicación automática y solo ofrece una revisión pendiente si ambas plataformas aprobaron la revisión actual. Se actualizan instrucciones permanentes y documentación para evitar volver al flujo PR con aprobación.
+- Regresiones prueban rechazo de PRs, eventos manuales, otro repositorio/rama, sustitución de revisión, main avanzado y verificación no disponible. Motores, estrategias, límites, datos y dependencias del supervisor independiente conservan su comportamiento.
+
 # 0.10.21 — Motivo del último ciclo Spot
 
 - Spot muestra «Trabajando · sin oportunidades» cuando termina el análisis sin señales de compra. Distingue candidatas descartadas por IA/filtros/vela ya revisada, límites de entradas, pausa, límite de pérdida, entradas ejecutadas, datos o IA no disponibles y error operativo.

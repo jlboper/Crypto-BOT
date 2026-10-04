@@ -34,6 +34,8 @@ La rama estable trabaja con un único proceso supervisado y dos motores de prueb
 
 Work prepara una rama/PR. GitHub ejecuta validaciones. Al integrar en `main`, el workflow protegido publica el portal y construye el paquete firmado cuando cambia la versión. Windows instala únicamente paquetes verificados mediante el supervisor. El centro local de actualizaciones puede verificar e instalar sin depender del portal remoto.
 
+Desde la autorización del 4 de octubre de 2026, la publicación rutinaria es automática: PRs solo prueban; el push de `main` vuelve a validar Linux/Windows antes de publicar. El propietario quitó los revisores obligatorios. El entorno y sus credenciales permanecen; una revisión que se restablezca debe respetarse. Scripts y firmante rechazan PRs y revisiones de main superadas. No cambia el permiso para LIVE ni la promoción de estrategias.
+
 ## Fase actual
 
 La prioridad es **observación**, no añadir estrategia por ruido de pocos días. Spot y Futures acumulan métricas separadas (días, cierres, P&L/retorno, drawdown, calidad y errores). Desde 0.8.7 el portal añade salud de observación de 24 h: cobertura de ciclos, gaps, errores e integridad de journals/ledgers. Cambios de estrategia o riesgo deben basarse en evidencia suficiente; correcciones de seguridad/operación sí pueden hacerse antes.

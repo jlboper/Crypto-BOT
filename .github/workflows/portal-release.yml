@@ -1,12 +1,14 @@
-name: Portal release with owner approval
+name: Validated main publication
 on:
   pull_request:
     types: [opened, synchronize, reopened]
+  push:
+    branches: [main]
 permissions:
   contents: read
   actions: read
 concurrency:
-  group: portal-release-pr-${{ github.event.pull_request.number || github.ref }}
+  group: portal-release-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 jobs:
   validate:
@@ -15,7 +17,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
@@ -27,7 +29,7 @@ jobs:
       - run: pnpm install --frozen-lockfile --ignore-scripts && pnpm rebuild esbuild workerd
         working-directory: cloudflare
       - run: python scripts/build_unified_portal.py
-      - name: Check bot release version consistency before approval
+      - name: Check bot release version consistency before publication
         run: node scripts/check_bot_release_consistency.mjs
       - name: Check portal JavaScript syntax
         run: node --check web/app.js
@@ -37,6 +39,7 @@ jobs:
           node --check cloudflare/scripts/deploy-ci.mjs
           node --check scripts/publish_bot_release.mjs
           node --check scripts/retry_release_signature.mjs
+          node --check scripts/release_source.mjs
       - run: node --test tests/*.test.mjs
         working-directory: cloudflare
       - run: python -m pip install --disable-pip-version-check cryptography==50.0.1
@@ -47,7 +50,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
@@ -67,7 +70,7 @@ jobs:
         shell: powershell
         run: ./tests/windows_manager_lifecycle.ps1
   publish:
-    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.head_ref, 'release/')
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: [validate, validate-windows]
     environment: portal-production
     permissions:
@@ -91,13 +94,14 @@ jobs:
       - run: pnpm install --frozen-lockfile --ignore-scripts && pnpm rebuild esbuild workerd
         working-directory: cloudflare
       - run: python scripts/build_unified_portal.py
-      - name: Publish the approved commit and verify health
+      - name: Publish the validated current main commit and verify health
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           PORTAL_D1_ID: ${{ vars.PORTAL_D1_ID }}
           PORTAL_ORIGIN: ${{ vars.PORTAL_ORIGIN }}
           DEPLOYMENT_ENABLED: ${{ secrets.DEPLOYMENT_ENABLED }}
+          GITHUB_TOKEN: ${{ github.token }}
           RELEASE_SHA: ${{ github.sha }}
           RELEASE_REF: ${{ github.ref }}
         run: node scripts/deploy-ci.mjs

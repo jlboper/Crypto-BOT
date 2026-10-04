@@ -15,6 +15,7 @@ test('real workerd + local D1: browser session -> command -> Windows sync -> ack
   const owner='R'.repeat(43), device='S'.repeat(43);
   const hash=v=>createHash('sha256').update(v).digest('hex');
   const publisher=generateKeyPairSync('rsa',{modulusLength:2048}), signer=generateKeyPairSync('ed25519');
+  let currentMain='d'.repeat(40);
   const mf=new Miniflare(convertV4MiniflareOptions({modules:[
     {type:'ESModule',path:fileURLToPath(new URL('../src/worker.mjs',import.meta.url))},
     {type:'ESModule',path:fileURLToPath(new URL('../src/github-updates.mjs',import.meta.url))},
@@ -23,7 +24,13 @@ test('real workerd + local D1: browser session -> command -> Windows sync -> ack
     compatibilityDate:'2026-09-14',compatibilityFlags:['nodejs_compat'],
     bindings:{PORTAL_ORIGIN:origin,PORTAL_COMMIT:'d'.repeat(40),OWNER_KEY_HASH:hash(owner),DEVICE_KEY_HASH:hash(device),BOT_SIGNING_KEY:signer.privateKey.export({format:'der',type:'pkcs8'}).toString('base64')},
     d1Databases:{DB:'runtime-test-db'},outboundService:request=>request.url==='https://token.actions.githubusercontent.com/.well-known/jwks'?
-      Response.json({keys:[{...publisher.publicKey.export({format:'jwk'}),kid:'runtime-key'}]}):new Response('Network disabled',{status:403})}));
+      Response.json({keys:[{...publisher.publicKey.export({format:'jwk'}),kid:'runtime-key'}]}):
+      request.url==='https://api.github.com/repos/jlboper/Crypto-BOT/git/ref/heads/main'?
+      Response.json({object:{sha:currentMain}}):
+      request.url==='https://api.github.com/repos/jlboper/Crypto-BOT/actions/workflows/portal-release.yml/runs?branch=main&event=push&per_page=10'?
+      Response.json({workflow_runs:[{id:12345,run_attempt:1,head_sha:currentMain,head_branch:'main',event:'push',
+        path:'.github/workflows/portal-release.yml',head_repository:{full_name:'jlboper/Crypto-BOT'},
+        status:'completed',conclusion:'success'}]}):new Response('Network disabled',{status:403})}));
   t.after(()=>mf.dispose());
   const db=await mf.getD1Database('DB');
   // D1 exec requires one statement per line; a single prepared batch keeps the migration atomic.
@@ -37,6 +44,11 @@ test('real workerd + local D1: browser session -> command -> Windows sync -> ack
   const logged=await call('/v1/login',{password:owner});assert.equal(logged.status,200,JSON.stringify(logged.body));
   cookie=logged.headers.get('set-cookie').split(';')[0];csrf=logged.body.csrf;
   assert.equal((await call('/v1/status')).status,200);
+  const updates=await call('/v1/updates');
+  assert.equal(updates.status,200,JSON.stringify(updates.body));
+  assert.equal(updates.body.runs[0].published,true);
+  assert.equal(updates.body.runs[0].review_on_github,false);
+  assert.match(updates.body.message,/Publicación automática/);
   const cmd=await call('/v1/commands',{action:'kill',request_id:'runtime-kill-command-01'});assert.equal(cmd.status,202);
   const snapshot={mode:'PAPER',equity:1000,cash:1000,exposure:0,positions:[],killed:false,last_cycle_at:new Date().toISOString(),ai_model:'gpt-5.6-luna',update_state:'manual_signed_install_only'};
   const received=await call('/v1/device/sync',{snapshot,acks:[]},{Authorization:`Bearer ${device}`});
@@ -72,5 +84,10 @@ test('real workerd + local D1: browser session -> command -> Windows sync -> ack
   const signed=await call('/v1/releases/sign',manifest,{Authorization:`Bearer ${jwt}`});
   assert.equal(signed.status,200,JSON.stringify(signed.body));
   assert.equal(verify(null,Buffer.from(canonical(manifest)),signer.publicKey,Buffer.from(signed.body.signature,'base64')),true);
+  assert.deepEqual((await call('/v1/releases/latest')).body,signed.body);
+  currentMain='e'.repeat(40);
+  const superseded=await call('/v1/releases/sign',manifest,{Authorization:`Bearer ${jwt}`});
+  assert.equal(superseded.status,403);
+  assert.equal(superseded.body.code,'publisher_revision_superseded');
   assert.deepEqual((await call('/v1/releases/latest')).body,signed.body);
 });

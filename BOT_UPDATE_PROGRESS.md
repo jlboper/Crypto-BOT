@@ -1,3 +1,11 @@
+# Candidate — 0.10.22 automatic validated main publication
+
+Prepared from main `305dc0077f0c22c253c5db0f6d23767d0e287ba9` under the owner's authorization to continue with automatic publication after removing required reviewers. PRs only validate; publication and signing require the current main push after successful Linux/Windows checks. Source, merge, publication and Windows installation remain separately verified.
+
+Local validation passed 325 offline Python tests and 85 Node tests, including real workerd/D1 signing, current-main rejection and authenticated update discovery. GitHub Linux/Windows validation, main publication and Windows installation must still be observed for this candidate.
+
+0.10.21 was signed successfully by run [37182391307](https://github.com/jlboper/Crypto-BOT/actions/runs/37182391307), and the authenticated portal reported completed installation at 00:21:20 Mexico City on 4 October, installed 0.10.21 and connected Windows. The new Spot diagnostic showed `RISK_HALT`; no trading gate was reset. The later failure email was an obsolete 28 September job canceled when the required-reviewer rule was deleted.
+
 # Candidate — 0.10.21 last Spot-cycle diagnosis
 
 Prepared from current main `c1f522e021f50aed70ca609374edd3a6cdae9d13` after the owner requested a visible distinction between a bot working without opportunities and an operational error. The shared local/remote Spot panel reports the last cycle's outcome, counters and safe reasons, and expires old evidence. Legacy snapshots remain supported. Source validation, protected publication and signed Windows installation remain separate gates. See `UPDATE_NOTES.md` for scope and regressions.
@@ -219,10 +227,12 @@ been observed on the operating PC.
 ## Completion gates
 
 1. Prepare the next version on an isolated branch, pass CI and merge it.
-2. Obtain owner approval in the existing `portal-production` environment and
-   verify successful portal and signed-package publication.
-3. From the authenticated portal, find that exact signed release, approve its
-   manifest hash, install it remotely and verify version, health and heartbeat.
+2. Verify successful automatic publication and signed-package publication of
+   the current main commit after Linux and Windows validation. If the owner
+   restores required reviewers, honor that existing environment gate.
+3. Verify the exact signed release installation, version, health and heartbeat
+   from the authenticated portal. Observe the existing automatic Windows rollout
+   first; the exact-manifest manual installation remains a fallback.
 
 Do not describe a new version as installed until all three gates are recorded as
 completed. No Android app or push-notification delivery is implemented here.
