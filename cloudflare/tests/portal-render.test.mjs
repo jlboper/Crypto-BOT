@@ -109,4 +109,35 @@ test('v0.9 multi-asset portal snapshot renders without falling into disconnected
   assert.match(el('futuresMultiAsset').innerHTML,/CONFIRMADA EN BINANCE/);
   assert.match(el('futuresForwardSafety').textContent,/1 pares confirmados/);
   assert.match(el('operationSummary').textContent,/1\/1 posiciones con OCO confirmado/);
+
+  // Technical repairs are not trading-strategy observations.
+  Object.assign(futures.scorecard,{closed_trades:38,strategy_closed_trades:0,technical_closed_trades:38,
+    strategy_gross_pnl_usdt:0,strategy_win_rate_pct:null,strategy_profit_factor:null,
+    win_rate_pct:15.8,profit_factor:.14});
+  futures.equity=[{wallet_balance:5000,unrealized_pnl:12}];
+  futures.last_ai_reviews={BTCUSDT:{verdict:'REJECT',at:'2026-10-03T10:00:00Z'},
+    ETHUSDT:{verdict:'ALLOW',at:'2026-10-02T10:00:00Z'}};
+  await context.__refresh();
+  assert.equal(el('futuresObservedTrades').textContent,'0');
+  assert.equal(el('futuresTechnicalTrades').textContent,'38');
+  assert.equal(el('futuresObservedQuality').textContent,'— / —');
+  assert.equal(el('futuresForwardClosed').textContent,'0 de estrategia · 38 técnicos');
+  assert.match(el('futuresEvidenceMetrics').innerHTML,/P&amp;L de estrategia bruto/);
+  assert.match(el('futuresForwardAi').textContent,/^BTC · REJECT · \d+%$/);
+  assert.equal(el('futuresPositionPrices').textContent,'100');
+  assert.equal(el('futuresPositionUnrealized').textContent,'Sin cotización por contrato');
+  assert.match(el('futuresAccountUnrealized').textContent,/12\.00 USDT/);
+  // A second contract cannot inherit account-wide P&L or an invented mark.
+  futures.positions.push({symbol:'ETHUSDT',direction:'SHORT',quantity:1,entry_price:200,
+    stop_price:210,take_profit:180,leverage:1});
+  await context.__refresh();
+  assert.equal(el('futuresPositionCard').hidden,true);
+  assert.match(el('futuresMultiAsset').innerHTML,/1 \/ 200/);
+  assert.equal(el('futuresPositionPrices').textContent,'—');
+  assert.equal(vm.runInContext('futuresEquityValue({wallet_balance:5000,unrealized_pnl:-25})',context),4975);
+  assert.equal(vm.runInContext('futuresEquityValue({wallet_balance:5000})',context),null);
+  Object.assign(futures.scorecard,{observed_days:31,strategy_closed_trades:30,consecutive_errors:2});
+  Object.assign(responses['/api/paper-scorecard'],{observed_days:31,closed_trades:30});
+  await context.__refresh();
+  assert.equal(el('dualEvidenceState').textContent,'ACUMULANDO DATOS');
 });

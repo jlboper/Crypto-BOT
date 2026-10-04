@@ -169,6 +169,14 @@ The owner pasted `Módulo verificado recuperado.` and subsequently reported that
 
 The correction is PR [#91](https://github.com/jlboper/Crypto-BOT/pull/91), merged as `2e73c67b68e422bc236fe3e66323e1034b9c2b7a`. Protected publication [37168205095](https://github.com/jlboper/Crypto-BOT/actions/runs/37168205095) succeeded and signed version 0.10.15 for source `4286f185719d080efce4da97f41ef8302b252e0d`. Release validation passed 271 offline Python tests, 75 Node tests and Windows PowerShell lifecycle checks. GitHub timestamps are 2026-10-04 UTC; the incident date above follows the owner's 3 October report. Publication success alone never proves Windows installation. These checks address the reproduced failure class; they do not guarantee that every future connection failure is impossible.
 
+## 2026-10-04 — Authenticated portal audit and evidence semantics
+
+The authenticated portal reported the installed 0.10.15 bot and a connected Windows agent during the menu/statistics audit. This independently confirms the portal's version/connection projection after the owner's recovery report; it does not prove native protection with no exposed positions or permanent continuity.
+
+Several UI summaries mixed technical recovery closes with strategy closes even though the ledger already separated them. Account-wide unrealized P&L was also being used to infer one contract's price. Version 0.10.16 prepares corrections: strategy evidence stays separate from operational diagnostics; wallet plus unrealized P&L defines account equity; account totals are never attributed to individual contracts without quote evidence. Missing samples remain missing, historical AI reviews carry their timestamp, and aggregate coverage cannot hide a stale latest cycle.
+
+The audit does not justify tuning strategy from a short or technically dominated history. Preserve the existing observation period, execution rules and risk controls, and reassess strategy only with sufficient attributable forward evidence and complete cost accounting. Regression fixtures cover zero-P&L closes, stale high-coverage cycles, multiple contracts, chronological AI reviews and pending update checks. Publication and Windows installation are separate from these source changes.
+
 ## Ideas intentionally deferred
 
 The following have been discussed but should remain deferred until their prerequisites are met:

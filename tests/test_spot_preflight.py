@@ -50,12 +50,13 @@ class SpotPreflightTests(unittest.TestCase):
             db.record_trade('BTCUSDT','SELL',1,100,0.1,1,'take profit')
             db.record_order_preflight('BTCUSDT','estimated_compatible',[])
             db.record_order_preflight('ETHUSDT','incompatible',['LOT_SIZE_STEP'])
+            db.record_order_preflight('SOLUSDT','blocked',['TESTNET_RULES_UNAVAILABLE'])
             with closing(sqlite3.connect(db.path.resolve().as_uri()+'?mode=ro',uri=True)) as connection:
                 report=paper_scorecard(connection)
             self.assertEqual(report['closed_trades'],1)
-            self.assertEqual(report['attribution']['market_preflight']['checked'],2)
-            self.assertEqual(report['attribution']['market_preflight']['incompatible'],1)
-            self.assertEqual(report['attribution']['market_preflight']['recent_issues'][0]['symbol'],'ETHUSDT')
+            self.assertEqual(report['attribution']['market_preflight']['checked'],3)
+            self.assertEqual(report['attribution']['market_preflight']['incompatible'],2)
+            self.assertEqual(report['attribution']['market_preflight']['recent_issues'][0]['symbol'],'SOLUSDT')
 
 
 if __name__ == '__main__':

@@ -52,7 +52,8 @@ def paper_scorecard(connection, *, prices=None, prices_at=None, cycle_seconds=No
         SELECT COUNT(*), COALESCE(SUM(realized_pnl),0),
                COALESCE(SUM(CASE WHEN realized_pnl>0 THEN 1 ELSE 0 END),0),
                COALESCE(SUM(CASE WHEN realized_pnl>0 THEN realized_pnl ELSE 0 END),0),
-               COALESCE(SUM(CASE WHEN realized_pnl<0 THEN -realized_pnl ELSE 0 END),0)
+               COALESCE(SUM(CASE WHEN realized_pnl<0 THEN -realized_pnl ELSE 0 END),0),
+               COALESCE(SUM(CASE WHEN realized_pnl<0 THEN 1 ELSE 0 END),0)
         FROM trades WHERE side='SELL'
     ''').fetchone()
     fees = float(connection.execute('SELECT COALESCE(SUM(fee),0) FROM trades').fetchone()[0])
@@ -61,7 +62,7 @@ def paper_scorecard(connection, *, prices=None, prices_at=None, cycle_seconds=No
     wins = int(trades[2])
     gross_profit = float(trades[3])
     gross_loss_abs = float(trades[4])
-    losses = max(0, closed - wins)
+    losses = int(trades[5])
     average_win = gross_profit / wins if wins else None
     average_loss = -(gross_loss_abs / losses) if losses else None
     expectancy = net_realized / closed if closed else None
@@ -76,7 +77,7 @@ def paper_scorecard(connection, *, prices=None, prices_at=None, cycle_seconds=No
         'symbol': row[0], 'closed_trades': int(row[1]),
         'net_realized_pnl_usdt': round(float(row[2]), 4),
         'win_rate_pct': round(100 * int(row[3]) / int(row[1]), 2),
-        'open_exposure_usdt': None, 'estimated_open_pnl_usdt': None,
+        'open_exposure_usdt': 0.0, 'estimated_open_pnl_usdt': 0.0,
     } for row in asset_rows}
     cursor = connection.execute('SELECT * FROM positions ORDER BY symbol')
     columns = [column[0] for column in cursor.description]
@@ -101,6 +102,8 @@ def paper_scorecard(connection, *, prices=None, prices_at=None, cycle_seconds=No
             open_pnl += metrics['unrealized_pnl']
             open_exposure += metrics['market_value']
         else:
+            asset['open_exposure_usdt'] = None
+            asset['estimated_open_pnl_usdt'] = None
             missing_quotes.append(position.symbol)
     open_symbols = {row['symbol'] for row in open_rows}
     ordered = sorted(by_asset.values(), key=lambda item:
@@ -175,7 +178,7 @@ def paper_scorecard(connection, *, prices=None, prices_at=None, cycle_seconds=No
                               'net_realized_pnl_usdt': round(float(row[2]),4)} for row in exits],
             'market_preflight': {'checked': sum(preflight_counts.values()),
                                  'estimated_compatible': preflight_counts.get('estimated_compatible',0),
-                                 'incompatible': preflight_counts.get('incompatible',0),
+                                 'incompatible': preflight_counts.get('incompatible',0) + preflight_counts.get('blocked',0),
                                  'unknown': preflight_counts.get('unknown',0),
                                  'recent_issues': preflight_issues},
         },
