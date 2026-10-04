@@ -567,6 +567,9 @@ class TradingEngine:
         rows = result.get("results", []) if isinstance(result, dict) else []
         rows = rows if isinstance(rows, list) else []
         statuses = {}
+        root_status = str(result.get("status", "ACTIVE")) if isinstance(result, dict) else "ACTIVE"
+        if not rows and root_status in {"KILLED", "PENDING_RECONCILIATION", "RISK_HALT", "OFF"}:
+            statuses[root_status] = 1
         evaluated = signals = reviews = opened = 0
         for row in rows:
             if not isinstance(row, dict):
@@ -582,8 +585,12 @@ class TradingEngine:
                 reviews += 1
             if code == "OPENED":
                 opened += 1
-        if result.get("status") == "RISK_HALT":
+        if root_status == "RISK_HALT":
             state = "RISK_HALT"
+        elif root_status == "PENDING_RECONCILIATION":
+            state = "ATTENTION"
+        elif root_status in {"KILLED", "OFF"}:
+            state = "LIMITED"
         elif opened:
             state = "OPENED"
         elif any(code in statuses for code in {"BLOCKED", "ASSET_UNAVAILABLE", "NO_DATA", "PENDING_RECONCILIATION"}):
