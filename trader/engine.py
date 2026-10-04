@@ -567,6 +567,7 @@ class TradingEngine:
         rows = result.get("results", []) if isinstance(result, dict) else []
         rows = rows if isinstance(rows, list) else []
         statuses = {}
+        issues = []
         root_status = str(result.get("status", "ACTIVE")) if isinstance(result, dict) else "ACTIVE"
         if not rows and root_status in {"KILLED", "PENDING_RECONCILIATION", "RISK_HALT", "OFF"}:
             statuses[root_status] = 1
@@ -585,6 +586,15 @@ class TradingEngine:
                 reviews += 1
             if code == "OPENED":
                 opened += 1
+            if code in {"BLOCKED", "ASSET_UNAVAILABLE", "NO_DATA"}:
+                reason = str(row.get("error") or "").strip()
+                issues.append({
+                    "symbol": str(row.get("symbol") or "")[:20],
+                    "status": code,
+                    "reason": reason[:180] if reason else (
+                        "contract data unavailable" if code == "NO_DATA" else "contract unavailable"
+                    ),
+                })
         if root_status == "RISK_HALT":
             state = "RISK_HALT"
         elif root_status == "PENDING_RECONCILIATION":
@@ -620,6 +630,7 @@ class TradingEngine:
             "reviews": reviews,
             "opened": opened,
             "statuses": statuses,
+            "issues": issues[:15],
         }
 
     def _run_futures_forward_cycle(self, candle_map: dict[str, list[Candle]]) -> None:
@@ -658,6 +669,7 @@ class TradingEngine:
                 "minimum_score": self.config.futures_testnet.forward_min_score,
                 "symbols": len(self.futures_forward.symbols), "evaluated": 0,
                 "signals": 0, "reviews": 0, "opened": 0, "statuses": {"ERROR": 1},
+                "issues": [],
             })
             self._sync_futures_legacy_error_counter()
             attempts = self.futures_forward.ledger.setting("forward_failure_attempt_total") or 0
