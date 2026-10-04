@@ -255,6 +255,7 @@ function renderFuturesParity(futures) {
     (futures?.automatic_leverage==null?'—':String(futures.automatic_leverage)+'x');
   set('futuresLimitLeverage',leverageLabel);
   set('futuresConfiguredSymbols',Array.isArray(futures?.symbols)?futures.symbols.map(s=>s.replace(/USDT$/,'')).join(' / '):'—');
+  set('futuresConfiguredTimeframe',guard.forward_timeframe?String(guard.forward_timeframe).toUpperCase():'—');
   set('futuresConfiguredLeverage',leverageLabel);
   set('futuresConfiguredPositions',guard.max_positions==null?'—':String(guard.max_positions)+' posiciones máx.');
   const portfolio=futures?.portfolio_budget;
@@ -628,12 +629,58 @@ function renderSpotCycle(status){
   if(state==='RUNNING')summary.textContent='El motor está analizando datos. El resultado aparecerá al terminar el ciclo.';
   else if(stale)summary.textContent='El último diagnóstico quedó desactualizado. Comprueba la conexión y el próximo ciclo.';
   else if(state==='ERROR')summary.textContent='El último ciclo no terminó correctamente: '+(errors[c.error_code]||'fallo operativo')+'.';
-  else if(['PAUSED','RISK_HALT'].includes(state))summary.textContent=state==='PAUSED'?'El bloqueo de nuevas entradas está activo.':'Las nuevas entradas están bloqueadas por el límite diario o semanal de pérdida.';
+  else if(state==='PAUSED')summary.textContent='El bloqueo de nuevas entradas está activo.';
+  else if(state==='RISK_HALT'){
+    const h=c.risk_halt;
+    if(h?.periods?.length){
+      const period=h.periods.map(p=>p==='daily'?'diario':'semanal').join(' + ');
+      summary.textContent=`Nuevas entradas bloqueadas por el límite ${period}. Retorno diario ${Number(h.daily_return_pct).toFixed(2)}% (límite -${Number(h.daily_limit_pct).toFixed(2)}%) · semanal ${Number(h.weekly_return_pct).toFixed(2)}% (límite -${Number(h.weekly_limit_pct).toFixed(2)}%). Se libera al vencer el bloqueo: ${shortTime(h.resets_at)}.`;
+    }else summary.textContent='Las nuevas entradas están bloqueadas por el límite de pérdida; esperando detalle del próximo ciclo.';
+  }
   else summary.textContent=`Universo: ${c.universe} monedas · ${c.evaluated} evaluadas · ${c.signals} señales de compra · ${c.candidates} candidatas · ${c.reviews} revisiones IA · ${c.opened} entradas ejecutadas.`;
   const entries=Object.entries(c.reasons||{}).sort(([a],[b])=>Number(a==='BELOW_SCORE')-Number(b==='BELOW_SCORE'));
   detail.textContent='Ciclo: '+shortTime(c.at)+' · score mínimo '+c.minimum_score+'/100'+
     (c.btc_bullish===null?'':c.btc_bullish?' · régimen BTC favorable':' · régimen BTC penaliza entradas')+
     (entries.length?' · '+entries.map(([code,count])=>`${count}: ${reasons[code]||'descarte registrado'}`).join(' · '):'');
+}
+
+function renderFuturesCycle(futures,status){
+  const badge=document.getElementById('futuresCycleState'),summary=document.getElementById('futuresCycleSummary'),detail=document.getElementById('futuresCycleReasons');
+  if(!badge||!summary||!detail)return;
+  const c=futures?.cycle_diagnostic;
+  const labels={WAITING_CANDLE:'ESPERANDO NUEVA VELA',NO_OPPORTUNITIES:'SIN OPORTUNIDADES',FILTERED:'SEÑALES DESCARTADAS',
+    LIMITED:'ENTRADAS LIMITADAS',OPENED:'ENTRADA EJECUTADA',ATTENTION:'REQUIERE ATENCIÓN',RISK_HALT:'LÍMITE DE PÉRDIDA',ACTIVE:'ACTIVO'};
+  const reasons={NO_NEW_CANDLE:'esperando el cierre de una nueva vela',FLAT:'sin señal LONG/SHORT',OPEN:'posición ya abierta',
+    AI_REJECTED:'rechazada por IA',AI_BUDGET:'tope diario de revisiones IA',POSITION_LIMIT:'máximo de posiciones',
+    BUDGET_LIMIT:'presupuesto agregado de riesgo/exposición',MARGIN_LIMIT:'margen Demo insuficiente',TRIAL_MARGIN_RISK_LIMIT:'riesgo incompatible con el leverage de prueba',
+    BLOCKED:'contrato bloqueado por preflight',ASSET_UNAVAILABLE:'filtros o referencia del contrato no disponibles',NO_DATA:'sin datos del contrato',
+    KILLED:'motor pausado',OPENED:'entrada ejecutada',CLOSED:'posición cerrada',ERROR:'error operativo'};
+  badge.className='state neutral';detail.textContent='';
+  if(!c||!labels[c.state]){
+    badge.textContent='SIN DETALLE AÚN';
+    summary.textContent='Esperando el diagnóstico del próximo ciclo Futures.';
+    return;
+  }
+  const age=(Date.now()-Date.parse(c.at))/1000;
+  const cycleSeconds=Number(status?.cycle_seconds)||900;
+  const stale=!Number.isFinite(age)||age < -120||age>Math.max(cycleSeconds*1.5,cycleSeconds+120);
+  if(stale){
+    badge.textContent='SIN DATOS RECIENTES';badge.className='state offline';
+    summary.textContent='El diagnóstico de Futures quedó desactualizado. Comprueba la conexión de Windows y el próximo ciclo.';
+    return;
+  }
+  badge.textContent=labels[c.state];
+  badge.className='state'+(['ATTENTION'].includes(c.state)?' warning':c.state==='RISK_HALT'?' warning':'');
+  if(c.state==='WAITING_CANDLE')summary.textContent=`Motor operativo. La estrategia decide con velas ${String(c.timeframe||'—').toUpperCase()}; todavía no cerró una nueva vela desde la última decisión.`;
+  else if(c.state==='NO_OPPORTUNITIES')summary.textContent=`${c.evaluated} contratos evaluados en ${String(c.timeframe||'—').toUpperCase()} · 0 señales LONG/SHORT con score mínimo ${c.minimum_score}/100.`;
+  else if(c.state==='FILTERED')summary.textContent=`${c.evaluated} contratos evaluados · ${c.signals} señales · ${c.reviews} revisiones IA · ninguna entrada ejecutada.`;
+  else if(c.state==='LIMITED')summary.textContent=`Hubo ${c.signals} señales, pero alguna barrera de riesgo, presupuesto o capacidad impidió una nueva entrada.`;
+  else if(c.state==='OPENED')summary.textContent=`${c.opened} entrada${c.opened===1?'':'s'} ejecutada${c.opened===1?'':'s'} en el último ciclo.`;
+  else if(c.state==='ATTENTION')summary.textContent='El último ciclo encontró un bloqueo operativo o datos insuficientes en al menos un contrato.';
+  else if(c.state==='RISK_HALT')summary.textContent='Futures conserva protecciones, pero las nuevas entradas están bloqueadas por su límite de pérdida.';
+  else summary.textContent=`Motor Futures activo · ${c.symbols} contratos configurados · timeframe ${String(c.timeframe||'—').toUpperCase()} · score mínimo ${c.minimum_score}/100.`;
+  const entries=Object.entries(c.statuses||{}).sort((a,b)=>b[1]-a[1]);
+  detail.textContent='Ciclo: '+shortTime(c.at)+(entries.length?' · '+entries.map(([code,count])=>`${count}: ${reasons[code]||code.toLowerCase()}`).join(' · '):'');
 }
 
 async function refresh() {
@@ -796,6 +843,7 @@ async function refresh() {
 
     const activity=status.activity || {state:'starting',age_seconds:null};
     renderSpotCycle(status);
+    renderFuturesCycle(futuresForward,status);
     document.getElementById('operationSummary').textContent=activity.state==='operational'?
       `Motor ${modeUpper} activo. ${status.positions} posiciones abiertas de ${status.max_positions}; ${status.killed?'nuevas entradas pausadas y protecciones vigentes':'nuevas entradas sujetas a límites y revisión IA'}. Último ciclo ${ageLabel(activity.age_seconds)}.`:
       `Motor ${activityLabel(activity.state).toLowerCase()}. ${status.killed?'Nuevas entradas pausadas. ':'Comprueba la conexión de Windows antes de dar instrucciones. '}Último ciclo ${ageLabel(activity.age_seconds)}.`;
@@ -833,6 +881,10 @@ async function refresh() {
     if(cycleBadge){cycleBadge.textContent='SIN DATOS RECIENTES';cycleBadge.className='state offline';}
     const cycleSummary=document.getElementById('spotCycleSummary');
     if(cycleSummary)cycleSummary.textContent='No se pudo consultar el diagnóstico de Spot. Comprueba la conexión con Windows.';
+    const futuresCycleBadge=document.getElementById('futuresCycleState');
+    if(futuresCycleBadge){futuresCycleBadge.textContent='SIN DATOS RECIENTES';futuresCycleBadge.className='state offline';}
+    const futuresCycleSummary=document.getElementById('futuresCycleSummary');
+    if(futuresCycleSummary)futuresCycleSummary.textContent='No se pudo consultar el diagnóstico de Futures. Comprueba la conexión con Windows.';
     const cycleReasons=document.getElementById('spotCycleReasons');
     if(cycleReasons)cycleReasons.textContent='';
   }
