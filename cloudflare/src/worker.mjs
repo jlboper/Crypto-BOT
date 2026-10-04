@@ -166,7 +166,7 @@ function validateSnapshot(snapshot) {
         const validIssues=x.issues===undefined||(Array.isArray(x.issues)&&x.issues.length<=15
           &&x.issues.every(row=>object(row)
             &&Object.keys(row).every(k=>['symbol','status','reason'].includes(k))
-            &&typeof row.symbol==='string'&&/^[A-Z0-9]{0,20}$/.test(row.symbol)
+            &&typeof row.symbol==='string'&&/^[A-Z0-9]{2,20}$/.test(row.symbol)
             &&['BLOCKED','ASSET_UNAVAILABLE','NO_DATA'].includes(row.status)
             &&typeof row.reason==='string'&&row.reason.length<=180));
         assert(object(x)&&Object.keys(x).every(k=>['state','at','timeframe','minimum_score','symbols','evaluated','signals','reviews','opened','statuses','issues'].includes(k))
