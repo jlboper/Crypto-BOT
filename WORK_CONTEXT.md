@@ -5,7 +5,7 @@
 La rama estable trabaja con un único proceso supervisado y dos motores de prueba en paralelo:
 
 - **Spot Testnet**: motor principal multi-activo, sin margen ni cortos, con estrategia swing, límites de riesgo y revisión IA final.
-- **Futures Demo**: forward test separado de 15 monedas, LONG/SHORT, ISOLATED, ONE_WAY y hasta cinco posiciones. La candidata 0.10.18 conserva pruebas 1x/2x/3x sin multiplicar cantidades y fija límites conjuntos de 300 USDT de notional bruto y 7,5 USDT de pérdida estimada hasta stops (incluye reserva de costos del 0,5%). Configuración/filtros actuales dimensionan cada entrada; precios de fills y gaps pueden superar estimaciones. Usa ledger, journal y kill switch propios; posiciones existentes conservan sus protecciones. Publicación 0.10.17 confirmada; instalación no observada.
+- **Futures Demo**: forward test separado de 15 monedas, LONG/SHORT, ISOLATED, ONE_WAY y hasta cinco posiciones. La candidata 0.10.18 conserva pruebas 1x/2x/3x sin multiplicar cantidades y fija límites conjuntos de 300 USDT de notional bruto y 7,5 USDT de pérdida estimada hasta stops (incluye reserva de costos del 0,5%). Configuración/filtros actuales dimensionan cada entrada; precios de fills y gaps pueden superar estimaciones. Usa ledger, journal y kill switch propios; posiciones existentes conservan sus protecciones. Publicación e instalación 0.10.18 observadas en el portal autenticado; 0.10.19 prepara una corrección de confirmación del actualizador, sin cambios de trading.
 - **PAPER**: respaldo técnico, CI, regresiones y recuperación. No es el entorno diario predeterminado.
 - **LIVE**: no implementado. Ninguna métrica o estado habilita capital real automáticamente.
 

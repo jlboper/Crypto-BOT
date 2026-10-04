@@ -1,3 +1,11 @@
+# 0.10.19 — Confirm completed updates without the previous config validator
+
+- Update/install and restore jobs no longer parse trading settings through an already imported independent-supervisor validator. Research still uses the full configuration; signed staging, exact approval, runtime health and committed activation remain mandatory.
+- After a successful install, validate the returned healthy status, exact release identity and staged version before recording completion. Restoration similarly requires its confirmed restore identity. Actual install failures continue to fail.
+- Reproduced the previous 0.10.17 validator rejecting the signed fifteen-asset 0.10.18 configuration with `ValueError: Unsupported Futures forward symbol`. The former post-install `source_settings` call could therefore mark a healthy committed installation as failed.
+- Regression tests exercise the real remote-job entry point with a stale validator, confirmed install/restore, real failure and mismatched completion identity. Both independent-agent dependency inventories remain unchanged and their isolated refresh/import regression passes.
+- Authenticated portal audit observed installed 0.10.18, connected Windows, fifteen Futures assets/max five positions, the failed job at 21:26:06 Mexico City, and a subsequent completed signed check reporting current 0.10.18. The generic historical ValueError alone does not expose a full Windows traceback; the reproduced defect matches the post-upgrade scenario. No operating data or historical job was rewritten.
+
 # 0.10.18 — Fifteen Futures assets with aggregate entry budgets (candidate)
 
 - Observe BTC, ETH, SOL, BNB, XRP, ADA, DOGE, LINK, AVAX, DOT, LTC, BCH, TRX, ATOM and NEAR USDT perpetual contracts. Up to five positions; current Demo availability is verified per candidate.

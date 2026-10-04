@@ -18,8 +18,8 @@ def main():
     jobs=RemoteJobs(ROOT,args.source)
     job=json.loads((jobs.directory/(str(args.id)+'.json')).read_text())
     try:
-        config=source_settings(args.source)
         if job['action']=='research':
+            config=source_settings(args.source)
             from trader.research import execute_research
             report=(args.source/'data/research/latest.json').resolve()
             config=replace(config,research=replace(config.research,report_path=report))
@@ -57,8 +57,14 @@ def main():
                 from trader.update_supervisor import UpdateSupervisor
                 package = Path(staged['package'])
                 result = UpdateSupervisor(manager).install(package, package.with_name(package.name+'.manifest.json'), job['release_id'], job_id=args.id)
-                active=source_settings(args.source).bot.mode.upper()
-                jobs.finish(args.id,'completed','Bot '+result['version']+' instalado; arranque y portal local comprobados en '+active)
+                # This process still has the previous supervisor's config validator
+                # loaded. The new runtime has already validated its own config and
+                # passed the supervisor's exact-version health/commit barrier.
+                if (result.get('status') != 'installed_healthy' or
+                        result.get('release_id') != job['release_id'] or
+                        result.get('version') != staged['version']):
+                    raise RuntimeError('Installation completion was not confirmed')
+                jobs.finish(args.id,'completed','Bot '+result['version']+' instalado; arranque y portal local comprobados')
         elif job['action'] == 'update_restore':
             from trader.update_manager import UpdateManager
             from trader.update_supervisor import UpdateSupervisor
@@ -69,8 +75,9 @@ def main():
                 raise RuntimeError('Restauración supervisada no configurada')
             manager=UpdateManager(args.source,key,state_dir=ROOT/'data/remote-updates')
             result=UpdateSupervisor(manager).restore(job['release_id'],job_id=args.id)
-            active=source_settings(args.source).bot.mode.upper()
-            jobs.finish(args.id,'completed','Código '+result['version']+' restaurado y motor '+active+' comprobado; datos financieros conservados')
+            if result.get('status') != 'restored_healthy' or result.get('restore_id') != job['release_id']:
+                raise RuntimeError('Restoration completion was not confirmed')
+            jobs.finish(args.id,'completed','Código '+result['version']+' restaurado y arranque comprobado; datos financieros conservados')
         else:
             raise ValueError('Invalid action')
     except Exception as error:

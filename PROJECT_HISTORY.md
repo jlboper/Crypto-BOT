@@ -195,6 +195,12 @@ Replace forward smoke-size seeds with exchange-filter-based sizing, preserving t
 
 A portfolio compatibility marker prevents returning to code unable to manage expanded assets, more than three positions or an expanded pending plan. Portal producer, bounded Worker contract and shared UI advance together; legacy snapshots remain accepted. Preserve histories and assess this expanded observation regime separately. PR #95 merged and protected run 37172747885 completed successfully for 0.10.17; Windows installation of that release has not been observed here.
 
+## 2026-10-03 — Stale supervisor validator after a committed configuration upgrade
+
+The owner reported a failed 0.10.18 update. The authenticated portal subsequently showed installed 0.10.18, connected Windows and fifteen Futures assets, while the install job at 21:26:06 Mexico City said only `Trabajo detenido: ValueError`. A new signed update check completed as current 0.10.18. An isolated reproduction confirmed that 0.10.17's validator rejects 0.10.18's expanded symbol list. The remote job called that already imported validator after the supervisor had committed and verified the new running engine; it could mark a completed upgrade as failed merely while formatting its completion message. The generic portal error does not independently identify every Windows stack frame.
+
+Candidate 0.10.19 removes trading-schema reads from update and restore jobs and derives success only from the supervisor's checked outcome, exact approved identity and expected version. Research still loads trading settings. Do not relax signed-package checks, health barriers, anti-replay, dependency inventory or financial-data recovery, and do not relabel arbitrary failed jobs from a version badge. Regressions must cross old-process/new-config boundaries rather than testing only refreshed current imports. No new trading or UI behavior is introduced.
+
 ## Ideas intentionally deferred
 
 The following have been discussed but should remain deferred until their prerequisites are met:
