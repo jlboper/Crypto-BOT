@@ -306,6 +306,21 @@ class FuturesTestnetLabTests(unittest.TestCase):
             with self.assertRaisesRegex(FuturesTestnetExecutionError, "open exposure"):
                 self.lab.ensure_flat_forward_configuration("BTCUSDT")
 
+    def test_symbol_config_falls_back_to_full_demo_list(self):
+        calls=[]
+        def signed(method, endpoint, fields=None):
+            fields=fields or {}; calls.append(dict(fields))
+            self.assertEqual((method,endpoint),("GET","/fapi/v1/symbolConfig"))
+            if fields.get("symbol")=="ATOMUSDT":
+                return []
+            return [{"symbol":"BTCUSDT","marginType":"isolated","leverage":"1"},
+                    {"symbol":"ATOMUSDT","marginType":"isolated","leverage":"1"}]
+        with patch("trader.futures_testnet.signed_request",side_effect=signed):
+            row=self.lab._symbol_config("ATOMUSDT")
+        self.assertEqual(row["symbol"],"ATOMUSDT")
+        self.assertEqual(len(calls),2)
+        self.assertEqual(calls[1],{})
+
     def test_flat_v3_positionrisk_omission_uses_symbol_config_for_confirmation(self):
         state={"leverage":2,"margin":"cross"}
         def signed(method, endpoint, fields=None):
