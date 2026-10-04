@@ -48,6 +48,21 @@ def spot_cycle_status(raw, cycle_seconds, now=None):
         score = report.get("minimum_score")
         regime = report.get("btc_bullish")
         error = report.get("error_code")
+        risk_halt = report.get("risk_halt")
+        if risk_halt is not None:
+            if (not isinstance(risk_halt, dict)
+                    or set(risk_halt) - {"periods", "daily_return_pct", "weekly_return_pct",
+                                         "daily_limit_pct", "weekly_limit_pct", "resets_at"}):
+                return None
+            periods = risk_halt.get("periods")
+            if (not isinstance(periods, list) or not 1 <= len(periods) <= 2
+                    or len(set(periods)) != len(periods)
+                    or any(period not in {"daily", "weekly"} for period in periods)
+                    or any(type(risk_halt.get(key)) not in (int, float) or not math.isfinite(risk_halt[key])
+                           for key in ("daily_return_pct", "weekly_return_pct", "daily_limit_pct", "weekly_limit_pct"))
+                    or not isinstance(risk_halt.get("resets_at"), str)
+                    or _parse_time(risk_halt["resets_at"]) is None):
+                return None
         if (type(score) is not int or not 0 <= score <= 100 or
                 (regime is not None and type(regime) is not bool) or
                 (error is not None and error not in SPOT_CYCLE_ERRORS)):
@@ -55,6 +70,7 @@ def spot_cycle_status(raw, cycle_seconds, now=None):
         activity = activity_status(at.isoformat(), cycle_seconds, current)
         return {"state": report["state"], "at": at.isoformat(), **counts, "reasons": reasons,
                 "minimum_score": score, "btc_bullish": regime, "error_code": error,
+                "risk_halt": risk_halt,
                 "age_seconds": activity["age_seconds"], "fresh": activity["state"] == "operational"}
     except (ValueError, TypeError, AttributeError):
         return None
