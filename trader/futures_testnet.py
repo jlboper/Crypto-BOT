@@ -346,6 +346,38 @@ class FuturesTestnetLab:
         quantity = max(minimum, by_notional)
         return (quantity / step).to_integral_value(rounding=ROUND_CEILING) * step
 
+    def forward_quantity(self, symbol: str, direction: str, target: Decimal, ceiling: Decimal) -> tuple[Decimal, Decimal]:
+        """Size from current Demo filters, without leverage multiplying exposure."""
+        from .config import FUTURES_FORWARD_SYMBOLS
+        if symbol not in FUTURES_FORWARD_SYMBOLS or direction not in {"LONG", "SHORT"}:
+            raise FuturesTestnetExecutionError("Unsupported Futures forward asset")
+        info = self._symbol_info(symbol)
+        if (info.get("status") != "TRADING" or info.get("contractType") != "PERPETUAL"
+                or info.get("quoteAsset") != "USDT"):
+            raise FuturesTestnetExecutionError("Futures forward contract unavailable")
+        price, _ = self._reference(symbol)
+        if price <= 0:
+            raise FuturesTestnetExecutionError("Futures reference price unavailable")
+        filters = {r.get("filterType"): r for r in info.get("filters", [])}
+        lot = filters.get("MARKET_LOT_SIZE") or filters.get("LOT_SIZE") or {}
+        step = _decimal(lot.get("stepSize", "0"))
+        minimum = _decimal(lot.get("minQty", "0"))
+        maximum = _decimal(lot.get("maxQty", "0"))
+        if step <= 0 or minimum <= 0 or maximum < minimum:
+            raise FuturesTestnetExecutionError("Futures forward quantity filters unavailable")
+        # Reserve 2% for price movement, independently of the cost-loss reserve.
+        safe_ceiling = ceiling / Decimal("1.02")
+        qty = _floor_step(min(target, safe_ceiling) / price, step)
+        required = self._probe_quantity(info, price, Decimal("0"))
+        qty = max(qty, required)
+        if qty > maximum or qty * price > safe_ceiling:
+            return Decimal("0"), price
+        signed_request("POST", "/fapi/v1/order/test", {
+            "symbol": symbol, "side": "BUY" if direction == "LONG" else "SELL",
+            "type": "MARKET", "quantity": format(qty, "f"),
+        })
+        return qty, price
+
     @staticmethod
     def _quantity(info: dict, price: Decimal, notional: Decimal) -> Decimal:
         filters = {row.get("filterType"): row for row in info.get("filters", []) if isinstance(row, dict)}
@@ -414,7 +446,12 @@ class FuturesTestnetLab:
         if existing:
             raise FuturesTestnetExecutionError("Futures forward order requires reconciliation")
         if not reduce_only:
-            self._configure(symbol, 1)
+            plan = self.ledger.setting("forward_open_plan") or {}
+            leverage = int(plan.get("leverage", 1))
+            if plan and (plan.get("symbol") != symbol or
+                         ("BUY" if plan.get("direction") == "LONG" else "SELL") != side):
+                raise FuturesTestnetExecutionError("Futures opening plan identity mismatch")
+            self.ensure_flat_forward_configuration(symbol, leverage)
         client_id = "cait-fwd-" + secrets.token_hex(8)
         pending = {
             "symbol": symbol,

@@ -187,6 +187,14 @@ Position leverage is durable identity for configuration recovery. The open plan 
 
 The trial has its own dated results, excludes technical closes and retains prior financial history. Gross results from different entry opportunities are not an exposure-matched comparison and omit fees/funding. More observed assets or reduced margin cannot establish a trading edge. This changes the Futures observation regime; collect new evidence with that date rather than treating the earlier three-asset 1x period as equivalent. Prepared, signed/published and installed remain separate states.
 
+## 2026-10-03 — Owner-authorized fifteen-asset Futures portfolio
+
+The owner approved fifteen monitored Futures contracts and up to five open positions after discussing a 300 USDT aggregate ceiling instead of five full 100 USDT entries. Candidate 0.10.18 also reserves at most 7.5 USDT of estimated movement to stops, including a 0.5% cost/slippage allowance. Exposure is gross: opposite contracts never cancel each other's budgets. Existing positions are reconciled and protected even when they already exceed a new cap; only new entries are blocked. Live account marks and refreshed Demo references are required, budgets are recalculated after AI review, and unknown exposure blocks new entries.
+
+Replace forward smoke-size seeds with exchange-filter-based sizing, preserving the separate manual smoke lab. Entry quantity is limited by both remaining budgets, exchange minima and the original 100 USDT ceiling; leverage does not multiply it. A 2% price-movement reserve helps pre-submit sizing but cannot guarantee a MARKET fill or gap-loss cap. The low-level submit path previously reset leverage to 1x before entry; it now confirms the durable plan's chosen 1x/2x/3x before submitting. Regression tests observe leverage at the actual mocked order endpoint.
+
+A portfolio compatibility marker prevents returning to code unable to manage expanded assets, more than three positions or an expanded pending plan. Portal producer, bounded Worker contract and shared UI advance together; legacy snapshots remain accepted. Preserve histories and assess this expanded observation regime separately. PR #95 merged and protected run 37172747885 completed successfully for 0.10.17; Windows installation of that release has not been observed here.
+
 ## Ideas intentionally deferred
 
 The following have been discussed but should remain deferred until their prerequisites are met:

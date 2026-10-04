@@ -10,7 +10,8 @@ def require_native_compatible(root, target):
     native_supported = module.is_file() and "NATIVE_PROTECTION_PROTOCOL = 1" in module.read_text(encoding="utf-8")
     forward = target / "trader/futures_forward.py"
     trials_supported = forward.is_file() and "FUTURES_LEVERAGE_TRIAL_PROTOCOL = 1" in forward.read_text(encoding="utf-8")
-    if native_supported and trials_supported: return
+    portfolio_supported = forward.is_file() and "FUTURES_PORTFOLIO_PROTOCOL = 1" in forward.read_text(encoding="utf-8")
+    if native_supported and trials_supported and portfolio_supported: return
     config = tomllib.loads((root / "config.toml").read_text(encoding="utf-8"))
     bot = config["bot"]
     paths = {bot.get("testnet_database_path", "data/testnet-trader.db"),
@@ -31,6 +32,14 @@ def require_native_compatible(root, target):
                     plan = connection.execute("SELECT value FROM settings WHERE key='forward_open_plan'").fetchone()
                     if plan and int((json.loads(plan[0]) or {}).get('leverage', 1)) > 1:
                         raise RuntimeError("Code without Futures leverage trials cannot resume with a pending 2x/3x plan")
+                if not portfolio_supported:
+                    old_symbols = {"BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT"}
+                    table = connection.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='forward_position'").fetchone()
+                    symbols = [r[0] for r in connection.execute("SELECT symbol FROM forward_position")] if table else []
+                    plan_row = connection.execute("SELECT value FROM settings WHERE key='forward_open_plan'").fetchone()
+                    plan = (json.loads(plan_row[0]) or {}) if plan_row else {}
+                    if len(symbols) > 3 or any(s not in old_symbols for s in symbols) or (plan.get("symbol") and plan["symbol"] not in old_symbols):
+                        raise RuntimeError("Code without Futures portfolio support cannot resume expanded positions or plan")
                 if native_supported: continue
                 rows = connection.execute("SELECT value FROM settings WHERE key IN ('spot_native_protection','forward_native_protection')")
                 if any(json.loads(value or "{}") for (value,) in rows):

@@ -24,7 +24,7 @@ Crypto-BOT is a safety-first crypto trading research and execution project. Its 
 The current architecture intentionally separates:
 
 - **Spot Testnet**: primary multi-asset test environment.
-- **Futures Demo**: separate BTCUSDT LONG/SHORT forward test with its own ledger, journal, risk controls and kill switch.
+- **Futures Demo**: separate LONG/SHORT forward test with its own ledger, journal, risk controls and kill switch. Candidate 0.10.18 observes fifteen USDT perpetuals, allows up to five positions, and sizes against 300 USDT gross exposure and 7.5 USDT estimated loss-to-stop (including cost reserve). Confirmed entries alternate 1x/2x/3x without multiplying quantities; actual fills/gaps can exceed pre-submit estimates. Expanded open state prevents incompatible code restoration.
 - **PAPER**: regression, CI and technical fallback.
 - **LIVE**: intentionally not implemented. Never infer that observed profitability authorizes production trading.
 

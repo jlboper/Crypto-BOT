@@ -333,7 +333,7 @@ class FuturesTestnetLedger:
             "cycle_total":int(self.setting("forward_cycle_total") or 0),
             "evidence_gap":self.setting("forward_evidence_gap")}
 
-    def observation_health(self,cycle_seconds:int,now:datetime|None=None)->dict:
+    def observation_health(self,cycle_seconds:int,now:datetime|None=None,*,max_positions:int=3)->dict:
         now=now or datetime.now(UTC); since_iso=datetime.fromtimestamp(now.timestamp()-86400,UTC).isoformat()
         with self._connect() as db:
             first=db.execute("SELECT created_at FROM forward_equity ORDER BY id LIMIT 1").fetchone()
@@ -356,14 +356,14 @@ class FuturesTestnetLedger:
         cycles=int(self.setting("forward_cycle_total") or 0)
         evidence_gap=bool(self.setting("forward_evidence_gap"))
         starting=first_at is None or elapsed<cycle_seconds*2; journal_clear=not bool(pending)
-        integrity={"order_journal_clear":journal_clear,"local_position_count_valid":position_count<=3,
+        integrity={"order_journal_clear":journal_clear,"local_position_count_valid":position_count<=max_positions,
                    "evidence_gap_clear":not evidence_gap}
         reasons=[]
         if coverage<90: reasons.append("cycle_coverage_below_90")
         if stale_cycle: reasons.append("cycle_stale")
         if consecutive>0: reasons.append("consecutive_errors_active")
         if not journal_clear: reasons.append("order_journal_pending")
-        if position_count>3: reasons.append("position_count_exceeded")
+        if position_count>max_positions: reasons.append("position_count_exceeded")
         if evidence_gap: reasons.append("evidence_gap_present")
         healthy_integrity=all(integrity.values())
         state=("STARTING" if starting else

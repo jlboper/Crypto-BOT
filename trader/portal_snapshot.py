@@ -257,11 +257,14 @@ def dashboard_snapshot(config, report_path=None):
                 'automatic_leverage': config.futures_testnet.forward_leverage,
                 'leverage_trials': futures_ledger.leverage_trial_status(
                     config.futures_testnet.forward_leverage_trials, config.futures_testnet.forward_margin_usdt),
+                'portfolio_budget': futures_ledger.setting('forward_portfolio_budget'),
                 'guardrails': {
                     'margin_type': config.futures_testnet.margin_type,
                     'position_mode': config.futures_testnet.position_mode,
                     'max_positions': config.futures_testnet.forward_max_positions,
                     'forward_margin_usdt': config.futures_testnet.forward_margin_usdt,
+                    'forward_total_notional_usdt': config.futures_testnet.forward_total_notional_usdt,
+                    'forward_total_stop_loss_usdt': config.futures_testnet.forward_total_stop_loss_usdt,
                     'forward_min_score': config.futures_testnet.forward_min_score,
                     'forward_stop_atr_multiple': config.futures_testnet.forward_stop_atr_multiple,
                     'forward_minimum_stop_pct': config.futures_testnet.forward_minimum_stop_pct,
@@ -274,7 +277,7 @@ def dashboard_snapshot(config, report_path=None):
                 'last_auto_recovery': futures_ledger.setting('forward_last_auto_recovery'),
                 'last_journal_recovery': futures_ledger.setting('forward_last_journal_recovery'),
                 'evidence_gap': futures_ledger.setting('forward_evidence_gap'),
-                'observation_health': futures_ledger.observation_health(config.bot.cycle_seconds),
+                'observation_health': futures_ledger.observation_health(config.bot.cycle_seconds, max_positions=config.futures_testnet.forward_max_positions),
                 'recovery': {
                     'durable_order_journal': True,
                     'startup_position_reconciliation': True,

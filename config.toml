@@ -66,8 +66,11 @@ smoke_margin_usdt = 10.0
 # Persistent forward-test pilot. It runs automatically only while the primary
 # motor is TESTNET; it remains isolated from Spot and cannot enable LIVE.
 forward_enabled = true
-forward_symbols = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT"]
-forward_max_positions = 3
+forward_symbols = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT", "ADAUSDT", "DOGEUSDT", "LINKUSDT", "AVAXUSDT", "DOTUSDT", "LTCUSDT", "BCHUSDT", "TRXUSDT", "ATOMUSDT", "NEARUSDT"]
+forward_max_positions = 5
+forward_total_notional_usdt = 300.0
+forward_total_stop_loss_usdt = 7.5
+forward_cost_buffer_pct = 0.005
 forward_leverage = 1
 # Demo infrastructure trial: alternate confirmed entries at fixed notional.
 # This does not multiply quantity, exposure or the existing 100 USDT ceiling.

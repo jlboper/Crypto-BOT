@@ -366,6 +366,11 @@ class DashboardServer:
                         "pause_diagnostics": _futures_pause_diagnostics(outer.config, ledger),
                         "symbols": list(outer.config.futures_testnet.forward_symbols),
                         "automatic_leverage": outer.config.futures_testnet.forward_leverage,
+                        "portfolio_budget": ledger.setting("forward_portfolio_budget"),
+                        "guardrails": {"max_positions": outer.config.futures_testnet.forward_max_positions,
+                            "forward_margin_usdt": outer.config.futures_testnet.forward_margin_usdt,
+                            "forward_total_notional_usdt": outer.config.futures_testnet.forward_total_notional_usdt,
+                            "forward_total_stop_loss_usdt": outer.config.futures_testnet.forward_total_stop_loss_usdt},
                         "leverage_trials": ledger.leverage_trial_status(
                             outer.config.futures_testnet.forward_leverage_trials, outer.config.futures_testnet.forward_margin_usdt),
                         "ai_model": outer.config.ai.model,

@@ -5,7 +5,7 @@ from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 
-from trader.config import load_config
+from trader.config import load_config, FUTURES_FORWARD_SYMBOLS
 from trader.domain import Candle
 from trader.futures_forward import FuturesForwardEngine
 from trader.futures_testnet import FuturesTestnetExecutionError
@@ -61,7 +61,7 @@ class FuturesForwardTests(unittest.TestCase):
     def test_default_forward_test_is_multi_asset_and_one_x(self):
         self.assertEqual(self.config.bot.mode, "testnet")
         self.assertTrue(self.config.futures_testnet.forward_enabled)
-        self.assertEqual(self.config.futures_testnet.forward_symbols, ("BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT"))
+        self.assertEqual(self.config.futures_testnet.forward_symbols, FUTURES_FORWARD_SYMBOLS)
         self.assertEqual(self.config.futures_testnet.forward_leverage, 1)
         self.assertEqual(self.config.futures_testnet.forward_margin_usdt, 100.0)
 
@@ -300,6 +300,7 @@ class FuturesForwardTests(unittest.TestCase):
         }
         with patch.object(self.engine, "_preflight_flat_symbols", return_value=health), \
              patch.object(self.engine, "_record_account", return_value=account), \
+             patch.object(self.engine.lab, "_position_rows", return_value=[]), \
              patch.object(self.engine, "cycle_symbol", side_effect=lambda symbol, candles, account: {"symbol":symbol,"status":"FLAT"}) as cycle_symbol:
             result=self.engine.cycle({
                 "BTCUSDT": self.candles(True),
