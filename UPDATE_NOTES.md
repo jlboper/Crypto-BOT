@@ -1,3 +1,10 @@
+# 0.10.23 — Más oportunidades observables con diagnóstico explícito
+
+- Futures Demo conserva 15 contratos, hasta 5 posiciones, 300 USDT de notional bruto, 7.5 USDT de pérdida estimada hasta stops, ISOLATED y pruebas 1x/2x/3x sin multiplicar exposición. Cambia únicamente su cadencia de señal a 1h y el score mínimo de 75 a 70; Spot continúa en 4h.
+- El portal ahora explica cada ciclo Futures: contratos evaluados, señales LONG/SHORT, revisiones IA, entradas y motivos de descarte o bloqueo. Entre cierres de velas muestra explícitamente que espera una nueva vela, en lugar de confundirlo con inactividad.
+- Spot mantiene intactos sus límites diario/semanal. Cuando uno se activa, el portal muestra qué periodo bloquea, retorno observado, límite correspondiente y fecha/hora de expiración del bloqueo.
+- La publicación automática de main validado preparada en 0.10.22 se conserva: PRs validan; publicación/firma solo desde el commit exacto de main tras Linux y Windows.
+
 # 0.10.22 — Publicación automática de main validado
 
 - Los PR ejecutan pruebas sin publicar. Tras integrarlos, el push de `main` valida nuevamente ese commit exacto en Linux/Windows y publica desde el entorno existente. Respeta cualquier revisión que el propietario vuelva a configurar.
