@@ -1,3 +1,12 @@
+# 0.10.18 — Fifteen Futures assets with aggregate entry budgets (candidate)
+
+- Observe BTC, ETH, SOL, BNB, XRP, ADA, DOGE, LINK, AVAX, DOT, LTC, BCH, TRX, ATOM and NEAR USDT perpetual contracts. Up to five positions; current Demo availability is verified per candidate.
+- Size against current exchange filters, a 100 USDT entry ceiling, 300 USDT gross portfolio ceiling and 7.5 USDT estimated loss-to-stop ceiling including a 0.5% cost reserve. Reserve another 2% in pre-submit sizing for price movement. Exchange minimums never override caps; fewer than five positions may qualify.
+- Reconcile actual position identities and marks, block unknown exposure, and recheck budgets after AI review. Existing positions retain protection even over a new limit. Fills, gaps, fees and funding can exceed estimates; no guaranteed loss bound is claimed.
+- Keep confirmed-entry 1x/2x/3x rotation and repair the low-level submission reset: confirm the durable plan's leverage before the order. Keep crash recovery, native stops and independent account loss gates.
+- Extend shared UI and bounded Worker synchronization to fifteen signals and five positions with measured portfolio budgets. Block incompatible restoration while expanded positions/plans remain. Preserve financial history.
+- Local validation: 291 offline Python tests and 76 Node tests passed, covering gross budgets, post-AI refresh, missing marks/untracked exposure, per-asset availability, five-position rotation, actual submit-layer leverage and expanded restoration/snapshot contracts. Linux/Windows CI, protected publication and installation remain separate.
+
 # 0.10.17 — Five-asset Futures Demo and bounded leverage trials (candidate)
 
 - Add BNBUSDT and XRPUSDT to the existing BTC/ETH/SOL forward universe; retain three positions, 4H signals, score 75 and AI review.

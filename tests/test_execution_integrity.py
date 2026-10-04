@@ -127,7 +127,9 @@ class ExecutionIntegrityTests(unittest.TestCase):
         for engine in (self.engine,FuturesForwardEngine(self.config,None)):
             with patch.object(engine,'_validated_rows',return_value=[]), \
                  patch.object(engine,'_signal',return_value=self.fs), \
-                 patch.object(engine.lab,'_validate_smoke_quantity',return_value=Decimal('.1')), \
+                 patch.object(engine.lab,'_position_rows',return_value=[]), \
+                 patch.object(engine.lab,'_reference',return_value=(Decimal('100'),None)), \
+                 patch.object(engine.lab,'forward_quantity',return_value=(Decimal('.1'),Decimal('100'))), \
                  patch.object(engine.ai,'review_futures',return_value=AIReview('REJECT',1,0,'unit')) as review:
                 result=engine.cycle_symbol('ETHUSDT',self.candles,self.account)
                 if engine is self.engine:
@@ -145,7 +147,9 @@ class ExecutionIntegrityTests(unittest.TestCase):
             return AIReview('ALLOW',1,1,'unit')
         with patch.object(self.engine,'_validated_rows',return_value=[]), \
              patch.object(self.engine,'_signal',return_value=self.fs), \
-             patch.object(self.engine.lab,'_validate_smoke_quantity',return_value=Decimal('.1')), \
+             patch.object(self.engine.lab,'_position_rows',return_value=[]), \
+             patch.object(self.engine.lab,'_reference',return_value=(Decimal('100'),None)), \
+             patch.object(self.engine.lab,'forward_quantity',return_value=(Decimal('.1'),Decimal('100'))), \
              patch.object(self.engine.ai,'review_futures',side_effect=review), \
              patch.object(self.engine.lab,'forward_submit') as submit:
             self.assertEqual(self.engine.cycle_symbol('BTCUSDT',self.candles,self.account)['status'],'KILLED')
@@ -154,7 +158,9 @@ class ExecutionIntegrityTests(unittest.TestCase):
     def test_notional_ceiling_is_strict_and_blocks_before_ai(self):
         with patch.object(self.engine,'_validated_rows',return_value=[]), \
              patch.object(self.engine,'_signal',return_value=self.fs), \
-             patch.object(self.engine.lab,'_validate_smoke_quantity',return_value=Decimal('1.01')), \
+             patch.object(self.engine.lab,'_position_rows',return_value=[]), \
+             patch.object(self.engine.lab,'_reference',return_value=(Decimal('100'),None)), \
+             patch.object(self.engine.lab,'forward_quantity',return_value=(Decimal('1.01'),Decimal('100'))), \
              patch.object(self.engine.ai,'review_futures') as review:
             self.assertEqual(self.engine.cycle_symbol('BTCUSDT',self.candles,self.account)['status'],'BUDGET_LIMIT')
             review.assert_not_called()

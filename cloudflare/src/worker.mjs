@@ -118,15 +118,24 @@ function validateSnapshot(snapshot) {
             &&r.leverage===t.levels[i]&&Number.isInteger(r.closed_trades)&&r.closed_trades>=0&&Number.isFinite(r.gross_pnl_usdt)),
           'Invalid Futures leverage trials');
       }
+      if(f.portfolio_budget!==undefined&&f.portfolio_budget!==null){
+        const b=f.portfolio_budget;
+        assert(object(b)&&Object.keys(b).every(k=>['notional_limit_usdt','stop_loss_limit_usdt','cost_buffer_pct','notional_usdt','stop_loss_usdt','at'].includes(k))
+          &&Number.isFinite(b.notional_limit_usdt)&&b.notional_limit_usdt>=5&&b.notional_limit_usdt<=300
+          &&Number.isFinite(b.stop_loss_limit_usdt)&&b.stop_loss_limit_usdt>0&&b.stop_loss_limit_usdt<=7.5
+          &&Number.isFinite(b.cost_buffer_pct)&&b.cost_buffer_pct>=.005&&b.cost_buffer_pct<=.02
+          &&['notional_usdt','stop_loss_usdt'].every(k=>Number.isFinite(b[k])&&b[k]>=0)
+          &&typeof b.at==='string'&&b.at.length<=40&&Number.isFinite(Date.parse(b.at)), 'Invalid Futures portfolio budget');
+      }
       const oldShape=f.symbol==='BTCUSDT'&&(f.position===null||object(f.position));
-      const newShape=Array.isArray(f.symbols)&&f.symbols.length>=1&&f.symbols.length<=5
+      const newShape=Array.isArray(f.symbols)&&f.symbols.length>=1&&f.symbols.length<=15
         &&f.symbols.every(s=>typeof s==='string'&&/^[A-Z0-9]{2,30}$/.test(s))
         &&Array.isArray(f.positions)&&f.positions.length<=5
         &&f.positions.every(p=>object(p)&&typeof p.symbol==='string'&&/^[A-Z0-9]{2,30}$/.test(p.symbol));
       if(f.latest_signals!==undefined){
         const allowed=['symbol','timeframe','candle_close_time','direction','score','long_score','short_score',
           'price','atr','rsi','ema_fast','ema_slow','volume_ratio','at'];
-        assert(object(f.latest_signals)&&Object.keys(f.latest_signals).length<=5
+        assert(object(f.latest_signals)&&Object.keys(f.latest_signals).length<=15
           &&Object.entries(f.latest_signals).every(([symbol,s])=>/^[A-Z0-9]{2,30}$/.test(symbol)
             &&(s===null||(object(s)&&Object.keys(s).every(k=>allowed.includes(k))
               &&['score','long_score','short_score'].every(k=>Number.isInteger(s[k])&&s[k]>=0&&s[k]<=100)
@@ -136,7 +145,7 @@ function validateSnapshot(snapshot) {
               &&(s.timeframe===undefined||(typeof s.timeframe==='string'&&s.timeframe.length<=4))
               &&(s.candle_close_time===undefined||(Number.isSafeInteger(s.candle_close_time)&&s.candle_close_time>0))
               &&typeof s.at==='string'&&s.at.length<=40&&Number.isFinite(Date.parse(s.at)))))
-          &&JSON.stringify(f.latest_signals).length<6000,'Invalid Futures latest signals');
+          &&JSON.stringify(f.latest_signals).length<12000,'Invalid Futures latest signals');
       }
       if(f.pause_diagnostics!==undefined){
         const p=f.pause_diagnostics;

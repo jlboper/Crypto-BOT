@@ -256,6 +256,15 @@ function renderFuturesParity(futures) {
   set('futuresLimitLeverage',leverageLabel);
   set('futuresConfiguredSymbols',Array.isArray(futures?.symbols)?futures.symbols.map(s=>s.replace(/USDT$/,'')).join(' / '):'—');
   set('futuresConfiguredLeverage',leverageLabel);
+  set('futuresConfiguredPositions',guard.max_positions==null?'—':String(guard.max_positions)+' posiciones máx.');
+  const portfolio=futures?.portfolio_budget;
+  const totalLimit=guard.forward_total_notional_usdt??portfolio?.notional_limit_usdt;
+  const lossLimit=guard.forward_total_stop_loss_usdt??portfolio?.stop_loss_limit_usdt;
+  set('futuresPortfolioBudget',totalLimit==null?'Esperando límites de cartera del motor.':
+    'Cartera: '+(portfolio?money(portfolio.notional_usdt)+' / ':'')+money(totalLimit)+' de notional bruto · '+
+    'Pérdida estimada hasta stops: '+(portfolio?money(portfolio.stop_loss_usdt)+' / ':'')+money(lossLimit)+
+    ' (incluye reserva de costos). Límites para nuevas entradas; fills, gaps y costos reales pueden superar la estimación.'+
+    (portfolio?' Medido '+portfolio.at+'.':''));
   const trials=document.getElementById('futuresLeverageTrials');
   if(trials){
     trials.innerHTML=trial?.levels?.length>1?'<p>Próxima entrada: '+esc(String(trial.next_leverage))+'x · Máximo '+num(trial.notional_limit_usdt,0)+' USDT de valor por operación.</p>'+

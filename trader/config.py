@@ -8,6 +8,11 @@ from pathlib import Path
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+FUTURES_FORWARD_SYMBOLS = (
+    "BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT", "ADAUSDT",
+    "DOGEUSDT", "LINKUSDT", "AVAXUSDT", "DOTUSDT", "LTCUSDT", "BCHUSDT",
+    "TRXUSDT", "ATOMUSDT", "NEARUSDT",
+)
 
 
 def _load_env_file(path: Path) -> None:
@@ -114,6 +119,9 @@ class FuturesTestnetSettings:
     forward_reward_to_risk: float
     kill_switch_path: Path
     forward_leverage_trials: tuple[int, ...] = (1,)
+    forward_total_notional_usdt: float = 300.0
+    forward_total_stop_loss_usdt: float = 7.5
+    forward_cost_buffer_pct: float = 0.005
 
 
 @dataclass(frozen=True)
@@ -215,11 +223,20 @@ def load_config(path: str | Path | None = None) -> AppConfig:
         raise ValueError("Futures Testnet must remain ISOLATED and ONE_WAY")
     if not math.isfinite(futures_smoke_margin) or not 5 <= futures_smoke_margin <= 25:
         raise ValueError("Invalid Futures Testnet smoke margin")
-    allowed_forward_symbols = {"BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT"}
+    allowed_forward_symbols = set(FUTURES_FORWARD_SYMBOLS)
     if any(symbol not in allowed_forward_symbols for symbol in futures_forward_symbols):
         raise ValueError("Unsupported Futures forward symbol")
-    if not 1 <= futures_forward_max_positions <= len(futures_forward_symbols):
+    if not 1 <= futures_forward_max_positions <= min(5, len(futures_forward_symbols)):
         raise ValueError("Invalid Futures forward max positions")
+    total_notional = float(futures_testnet.get("forward_total_notional_usdt", 300))
+    total_stop_loss = float(futures_testnet.get("forward_total_stop_loss_usdt", 7.5))
+    cost_buffer = float(futures_testnet.get("forward_cost_buffer_pct", .005))
+    if not math.isfinite(total_notional) or not 5 <= total_notional <= 300:
+        raise ValueError("Invalid Futures portfolio notional limit")
+    if not math.isfinite(total_stop_loss) or not 0 < total_stop_loss <= 7.5:
+        raise ValueError("Invalid Futures portfolio stop-loss limit")
+    if not math.isfinite(cost_buffer) or not .005 <= cost_buffer <= .02:
+        raise ValueError("Invalid Futures portfolio cost buffer")
     if futures_forward_leverage != 1:
         raise ValueError("Automatic Futures forward test must stay at 1x")
     trial_levels = futures_testnet.get("forward_leverage_trials", [1])
@@ -278,6 +295,9 @@ def load_config(path: str | Path | None = None) -> AppConfig:
             forward_max_positions=futures_forward_max_positions,
             forward_leverage=futures_forward_leverage,
             forward_leverage_trials=tuple(trial_levels),
+            forward_total_notional_usdt=total_notional,
+            forward_total_stop_loss_usdt=total_stop_loss,
+            forward_cost_buffer_pct=cost_buffer,
             forward_margin_usdt=futures_forward_margin,
             forward_min_score=futures_forward_min_score,
             forward_stop_atr_multiple=futures_forward_stop_atr,

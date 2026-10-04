@@ -90,6 +90,16 @@ test('v0.9 multi-asset portal snapshot renders without falling into disconnected
   assert.equal(el('futuresConfiguredSymbols').textContent,'BTC / ETH / SOL / BNB / XRP');
   assert.match(el('futuresLeverageTrials').innerHTML,/Próxima entrada: 3x/);
   assert.match(el('futuresLeverageTrials').innerHTML,/sin comparación de rentabilidad equivalente/);
+  futures.symbols.push('ADAUSDT','DOGEUSDT','LINKUSDT','AVAXUSDT','DOTUSDT','LTCUSDT','BCHUSDT','TRXUSDT','ATOMUSDT','NEARUSDT');
+  Object.assign(futures.guardrails,{max_positions:5,forward_total_notional_usdt:300,forward_total_stop_loss_usdt:7.5});
+  futures.portfolio_budget={notional_limit_usdt:300,stop_loss_limit_usdt:7.5,cost_buffer_pct:.005,notional_usdt:120,stop_loss_usdt:3.5,at:'2026-10-04T03:00:00Z'};
+  await context.__refresh();
+  assert.match(el('futuresConfiguredSymbols').textContent,/ATOM \/ NEAR$/);
+  assert.equal(el('futuresConfiguredPositions').textContent,'5 posiciones máx.');
+  assert.match(el('futuresPortfolioBudget').textContent,/120.00 USDT \/ 300.00 USDT/);
+  assert.match(el('futuresPortfolioBudget').textContent,/3.50 USDT \/ 7.50 USDT/);
+  assert.match(el('futuresPortfolioBudget').textContent,/costos reales pueden superar/);
+
 
   Object.assign(futures.scorecard,{observed_days:31,closed_trades:40,strategy_closed_trades:1,
     technical_closed_trades:39,strategy_win_rate_pct:100,strategy_profit_factor:999});

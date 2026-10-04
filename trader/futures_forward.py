@@ -16,6 +16,11 @@ from .indicators import atr, ema_series, rsi, sma
 from .native_protection import FuturesNativeProtection, FUTURES_KEY, projection
 
 FUTURES_LEVERAGE_TRIAL_PROTOCOL = 1
+FUTURES_PORTFOLIO_PROTOCOL = 1
+
+
+class FuturesForwardAssetUnavailable(FuturesTestnetExecutionError):
+    """Candidate market data or filters failed; existing portfolio audit stays strict."""
 
 
 class FuturesForwardEngine:
@@ -438,6 +443,63 @@ class FuturesForwardEngine:
                 self.native.ensure(local)
         return {"enabled":True,"status":"CLOSED" if closed else ("OPEN" if self.ledger.forward_positions() else "FLAT"),"closed":closed}
 
+    def portfolio_budget(self) -> dict:
+        """Gross exposure and adverse movement to verified stops; no LONG/SHORT netting."""
+        local_positions = self.ledger.forward_positions()
+        actual = self.lab._position_rows()
+        local_symbols = {p["symbol"] for p in local_positions}
+        if any(row.get("symbol") not in local_symbols for row in actual):
+            raise FuturesTestnetExecutionError("Untracked Futures exposure blocks portfolio entries")
+        notional = 0.0
+        stop_loss = 0.0
+        for local in local_positions:
+            rows = self._validated_rows(local["symbol"], local)
+            mark = _decimal(rows[0].get("markPrice", "0"))
+            if mark <= 0:
+                raise FuturesTestnetExecutionError("Futures portfolio mark price unavailable")
+            qty = float(local["quantity"])
+            value = qty * float(mark)
+            distance = (float(mark) - local["stop_price"] if local["direction"] == "LONG"
+                        else local["stop_price"] - float(mark))
+            notional += value
+            stop_loss += qty * max(0.0, distance) + value * self.settings.forward_cost_buffer_pct
+        state = {"notional_limit_usdt": self.settings.forward_total_notional_usdt,
+                 "stop_loss_limit_usdt": self.settings.forward_total_stop_loss_usdt,
+                 "cost_buffer_pct": self.settings.forward_cost_buffer_pct,
+                 "notional_usdt": notional, "stop_loss_usdt": stop_loss,
+                 "at": datetime.now(UTC).isoformat()}
+        self.ledger.set_setting("forward_portfolio_budget", state)
+        return state
+
+    def _entry_quantity(self, symbol: str, signal: dict) -> tuple[Decimal, Decimal, float, dict]:
+        state = self.portfolio_budget()
+        remaining = max(0, state["notional_limit_usdt"] - state["notional_usdt"])
+        loss_remaining = max(0, state["stop_loss_limit_usdt"] - state["stop_loss_usdt"])
+        try:
+            price, _ = self.lab._reference(symbol)
+            if price <= 0:
+                raise FuturesTestnetExecutionError("Futures reference price unavailable")
+        except Exception as exc:
+            raise FuturesForwardAssetUnavailable(str(exc)[:180]) from exc
+        distance = max(self.settings.forward_stop_atr_multiple * signal["atr"],
+                       self.settings.forward_minimum_stop_pct * float(price))
+        loss_fraction = distance / float(price) + self.settings.forward_cost_buffer_pct
+        ceiling = min(self.settings.forward_margin_usdt, remaining, loss_remaining / loss_fraction)
+        target = min(ceiling, self.settings.forward_total_notional_usdt / self.settings.forward_max_positions)
+        try:
+            quantity, reference = self.lab.forward_quantity(symbol, signal["direction"],
+                                                          _decimal(target), _decimal(ceiling))
+        except Exception as exc:
+            raise FuturesForwardAssetUnavailable(str(exc)[:180]) from exc
+        distance = max(self.settings.forward_stop_atr_multiple * signal["atr"],
+                       self.settings.forward_minimum_stop_pct * float(reference))
+        # Recheck a refreshed reference; the sizing adapter is not a risk boundary.
+        estimated = quantity * reference * Decimal("1.02")
+        risk = float(quantity) * (distance + float(reference) * self.settings.forward_cost_buffer_pct) * 1.02
+        if estimated > _decimal(min(self.settings.forward_margin_usdt, remaining)) or risk > loss_remaining:
+            quantity = Decimal("0")
+        return quantity, reference, distance, state
+
     def cycle_symbol(self,symbol:str,candles:list[Candle],account:dict)->dict:
         self.native.reconcile(symbol)
         local=self.ledger.forward_position(symbol); rows=self._validated_rows(symbol, local)
@@ -458,15 +520,16 @@ class FuturesForwardEngine:
         if signal["direction"] is None:return {"symbol":symbol,"status":"FLAT","signal":signal}
         if len(self.ledger.forward_positions())>=self.settings.forward_max_positions:return {"symbol":symbol,"status":"POSITION_LIMIT","signal":signal}
         if self.killed(): return {"symbol":symbol,"status":"KILLED","signal":signal}
-        quantity=self.lab._validate_smoke_quantity(symbol,signal["direction"])
-        estimated=_decimal(signal["price"])*quantity
-        budget=Decimal(str(self.settings.forward_margin_usdt))
-        if estimated>budget:
+        try:
+            quantity, reference, distance, portfolio = self._entry_quantity(symbol, signal)
+        except FuturesForwardAssetUnavailable as exc:
+            return {"symbol":symbol,"status":"ASSET_UNAVAILABLE","error":str(exc),"signal":signal}
+        estimated = reference * quantity
+        if quantity <= 0:
             return {"symbol":symbol,"status":"BUDGET_LIMIT","signal":signal}
+        budget=Decimal(str(self.settings.forward_margin_usdt))
         if _decimal(account["available_balance"])<max(budget,estimated)*Decimal("1.25"):
             return {"symbol":symbol,"status":"MARGIN_LIMIT","signal":signal}
-        distance=max(self.settings.forward_stop_atr_multiple*signal["atr"],
-                     self.settings.forward_minimum_stop_pct*signal["price"])
         trial_index = int(self.ledger.setting("forward_leverage_trial_cursor") or 0)
         leverage = self.settings.forward_leverage_trials[trial_index % len(self.settings.forward_leverage_trials)]
         if float(quantity) * distance >= float(estimated) / leverage * 0.8:
@@ -483,9 +546,19 @@ class FuturesForwardEngine:
         self.ledger.set_setting(f"forward_last_ai_review_{symbol}",review)
         if ai_review.verdict!="ALLOW" or ai_review.risk_multiplier<=0:return {"symbol":symbol,"status":"AI_REJECTED","signal":signal,"ai_review":review}
         if self.killed(): return {"symbol":symbol,"status":"KILLED","signal":signal}
+        try:
+            refreshed_qty, reference, distance, portfolio = self._entry_quantity(symbol, signal)
+        except FuturesForwardAssetUnavailable as exc:
+            return {"symbol":symbol,"status":"ASSET_UNAVAILABLE","error":str(exc),"signal":signal,"ai_review":review}
+        quantity = min(quantity, refreshed_qty)
+        if quantity <= 0:
+            return {"symbol":symbol,"status":"BUDGET_LIMIT","signal":signal,"ai_review":review}
+        if float(quantity) * distance >= float(reference * quantity) / leverage * 0.8:
+            return {"symbol":symbol,"status":"TRIAL_MARGIN_RISK_LIMIT","signal":signal}
         side="BUY" if signal["direction"]=="LONG" else "SELL"
         plan={"symbol":symbol,"direction":signal["direction"],"leverage":leverage,"leverage_trial_index":trial_index,
-              "score":int(signal["score"]),"atr":float(signal["atr"]),"opened_at":datetime.now(UTC).isoformat()}
+              "score":int(signal["score"]),"atr":float(signal["atr"]),"quantity":str(quantity),
+              "portfolio_budget":portfolio,"opened_at":datetime.now(UTC).isoformat()}
         self.lab.ensure_flat_forward_configuration(symbol, leverage)
         self.ledger.set_setting("forward_open_plan",plan)
         if self.killed():
@@ -506,6 +579,7 @@ class FuturesForwardEngine:
             "take_profit":float(take),"liquidation_price":float(liquidation) if liquidation>0 else None,"signal_score":int(signal["score"]),"opened_at":plan["opened_at"]}
         self.ledger.set_forward_position(position); self.ledger.set_setting("forward_open_plan",None); self.ledger.set_setting("forward_pending_order",None)
         self.native.ensure(position)
+        self.portfolio_budget()
         return {"symbol":symbol,"status":"OPENED","position":position,"signal":signal,"ai_review":review}
 
     def cycle(self,candle_map:dict[str,list[Candle]])->dict:
@@ -515,6 +589,7 @@ class FuturesForwardEngine:
         pending=self._recover_journal()
         if pending and not pending.get("resolved"):return {"enabled":True,"status":"PENDING_RECONCILIATION"}
         self.protection_tick()
+        self.portfolio_budget()
         health=self._preflight_flat_symbols()
         account=self._record_account(); results=[]
         if self._risk_halt(account):

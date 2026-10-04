@@ -122,7 +122,7 @@
         <article class="settings-card futures-card">
           <div class="settings-card-head"><div><span class="settings-kicker">SEGUNDO MOTOR · FORWARD TEST</span><h3>USDⓈ-M Futures Demo</h3></div><span class="state neutral" id="futuresState">CARGANDO</span></div>
           <div class="futures-guardrails">
-            <span id="futuresConfiguredSymbols">—</span><span id="futuresConfiguredLeverage">—</span><span>ISOLATED</span><span>ONE-WAY</span><span>3 posiciones máx.</span>
+            <span id="futuresConfiguredSymbols">—</span><span id="futuresConfiguredLeverage">—</span><span>ISOLATED</span><span>ONE-WAY</span><span id="futuresConfiguredPositions">—</span>
           </div>
           <p class="settings-help">Corre en paralelo con Spot Testnet, con ledger y kill switch propios. Pruebas Demo 1x/2x/3x por entrada, manteniendo el valor de posición.</p>
           <details class="update-details">
@@ -164,7 +164,7 @@
 
       <article class="panel engine-console futures-console">
         <div class="settings-card-head"><div><p class="eyebrow">MOTOR 2 · FUTURES</p><h2>USDⓈ-M Futures Demo</h2></div><span id="futuresForwardState" class="state neutral">CARGANDO</span></div>
-        <p>LONG/SHORT · pruebas Demo 1x/2x/3x · ISOLATED · hasta tres posiciones · revisión IA final · fondos ficticios.</p>
+        <p>LONG/SHORT · pruebas Demo 1x/2x/3x · ISOLATED · hasta cinco posiciones · revisión IA final · fondos ficticios.</p>
         <div class="engine-kpis">
           <span><small>Wallet</small><strong id="futuresForwardWallet">—</strong><em>USDT Demo</em></span>
           <span><small>Retorno observado</small><strong id="futuresForwardReturn">—</strong><em id="futuresForwardClosed">—</em></span>
@@ -181,7 +181,8 @@
         </div>
       </article>
     </section>
-    <section class="panel" aria-label="Pruebas de apalancamiento Futures Demo"><details class="update-details"><summary>Futures Demo · pruebas de apalancamiento</summary><div id="futuresLeverageTrials"></div></details></section>
+    <section class="panel" aria-label="Pruebas de apalancamiento Futures Demo"><details class="update-details"><summary>Futures Demo · pruebas de apalancamiento</summary><p id="futuresPortfolioBudget" class="settings-help">Esperando límites de cartera del motor.</p>
+          <div id="futuresLeverageTrials"></div></details></section>
     <section class="panel observation-health" aria-label="Salud de observación últimas 24 horas">
       <div class="panel-title">
         <div><p class="eyebrow">SALUD DE OBSERVACIÓN · 24 H</p><h2>Calidad operativa de la muestra</h2></div>
@@ -265,7 +266,7 @@
           <div><dt>Stop mínimo / ATR</dt><dd id="futuresLimitStop">—</dd></div>
           <div><dt>Reward / Risk</dt><dd id="futuresLimitRR">—</dd></div>
         </dl>
-        <p class="settings-help">Forward test BTC/ETH/SOL · ONE_WAY · hasta tres posiciones aisladas · kill switch independiente. Los valores automáticos no se modifican desde esta pantalla.</p>
+        <p class="settings-help">Forward test de 15 monedas · ONE_WAY · hasta cinco posiciones aisladas · kill switch independiente. Los valores automáticos no se modifican desde esta pantalla.</p>
       </article>
     </section>
 
@@ -332,7 +333,7 @@
       <article class="panel futures-scorecard" aria-label="Seguimiento financiero Futures">
         <div class="panel-title"><h2>Seguimiento financiero Futures · DEMO</h2><span id="futuresEvidenceState" class="state neutral">SIN DATOS</span></div>
         <p id="futuresEvidenceNote">Los resultados observados de Futures no autorizan operar con dinero real.</p>
-        <p class="finance-strategy">Estrategia actual: BTC/ETH/SOL/BNB/XRP LONG/SHORT, pruebas 1x/2x/3x, ISOLATED, hasta tres posiciones y revisión IA final.</p>
+        <p class="finance-strategy">Estrategia de esta versión: 15 monedas LONG/SHORT, pruebas 1x/2x/3x, ISOLATED, hasta cinco posiciones y revisión IA final.</p>
         <div id="futuresEvidenceMetrics" class="research-summary"></div>
         <div id="futuresEvidenceSummary" class="benchmark-note">Esperando muestras suficientes del forward test.</div>
         <details class="finance-details"><summary>Ver métricas, puertas pendientes y cierres Futures</summary>

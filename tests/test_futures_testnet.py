@@ -27,12 +27,12 @@ class FuturesTestnetLabTests(unittest.TestCase):
         self.leverage = 2
         self.direction = "LONG"
 
-    def public(self, method, endpoint, fields=None):
+    def public(self, method, endpoint, fields=None, **kwargs):
         fields = fields or {}
         if endpoint == "/fapi/v1/exchangeInfo":
             symbol = fields["symbol"]
             return {"symbols": [{
-                "symbol": symbol,
+                "symbol": symbol, "status":"TRADING", "contractType":"PERPETUAL", "quoteAsset":"USDT",
                 "filters": [
                     {"filterType": "MARKET_LOT_SIZE", "minQty": "0.001", "maxQty": "1000", "stepSize": "0.001"},
                     {"filterType": "MIN_NOTIONAL", "notional": "5"},
@@ -85,6 +85,36 @@ class FuturesTestnetLabTests(unittest.TestCase):
         raise AssertionError((method, endpoint, fields))
 
 
+
+    def test_forward_submission_keeps_durable_two_and_three_x_before_actual_order(self):
+        for leverage in (2, 3):
+            self.position_amt = 0
+            self.lab.ledger.set_setting("forward_pending_order", None)
+            self.lab.ledger.set_setting("forward_open_plan", dict(symbol="ADAUSDT", direction="LONG", leverage=leverage))
+            def transport(method, endpoint, fields=None):
+                if endpoint == "/fapi/v1/order" and method == "POST":
+                    self.assertEqual(self.leverage, leverage)
+                return self.signed(method, endpoint, fields)
+            with patch("trader.futures_testnet.signed_request", side_effect=transport):
+                self.lab.forward_submit(symbol="ADAUSDT", side="BUY", quantity=Decimal(".1"), reduce_only=False)
+            self.assertEqual(self.leverage, leverage)
+
+    def test_forward_quantity_validates_new_asset_filters_and_never_rounds_above_cap(self):
+        with patch("trader.futures_testnet.public_request", side_effect=self.public), \
+             patch("trader.futures_testnet.signed_request", side_effect=self.signed) as transport:
+            qty, price = self.lab.forward_quantity("ADAUSDT", "LONG", Decimal("60"), Decimal("60"))
+            self.assertEqual(qty, Decimal(".588"))
+            self.assertLessEqual(qty * price * Decimal("1.02"), 60)
+            qty, _ = self.lab.forward_quantity("NEARUSDT", "SHORT", Decimal("1"), Decimal("1"))
+            self.assertEqual(qty, 0)
+            self.assertEqual(sum(c.args[1] == "/fapi/v1/order" for c in transport.call_args_list), 0)
+
+    def test_forward_quantity_rejects_unavailable_contract_without_order(self):
+        with patch.object(self.lab,'_symbol_info',return_value={'status':'BREAK'}), \
+             patch('trader.futures_testnet.signed_request') as transport:
+            with self.assertRaisesRegex(FuturesTestnetExecutionError,'contract unavailable'):
+                self.lab.forward_quantity('NEARUSDT','LONG',Decimal('60'),Decimal('60'))
+            transport.assert_not_called()
 
     def test_trade_probe_is_signed_only_and_never_uses_public_market_data(self):
         captured = {}

@@ -1,6 +1,10 @@
-# Candidate — 0.10.17 Futures universe and Demo leverage trials
+# Candidate — 0.10.18 fifteen-asset Futures portfolio
 
-Prepared from main `62225ecd02379354a446b7ce04f3bb3df736fa9c` following the owner's authorization to expand Futures and test actual Demo 2x/3x orders. Five assets, three positions, fixed quantity/notional; confirmed entries rotate 1x/2x/3x. This branch has not yet been published or observed installed. The verified 0.10.16 baseline below remains the installation evidence.
+Prepared from main `15f74ab4d7a7ba28d6d1c716f46bfd07da7c804f` following the owner's approval of fifteen assets, up to five positions and a 300 USDT gross portfolio ceiling. Add a 7.5 USDT estimated stop-loss budget with a cost reserve; retain 1x/2x/3x without multiplying exposure. Source validation, protected publication and signed Windows installation remain distinct gates.
+
+# 0.10.17 publication confirmed; installation not observed
+
+PR [#95](https://github.com/jlboper/Crypto-BOT/pull/95) merged on main as `15f74ab4d7a7ba28d6d1c716f46bfd07da7c804f`. Protected run [37172747885](https://github.com/jlboper/Crypto-BOT/actions/runs/37172747885) completed successfully. The Windows installation of 0.10.17 has not been observed in this source checkout; the 0.10.16 evidence below remains the last authenticated installation audit.
 
 # Current status — 0.10.16 published and observed installed/connected
 
