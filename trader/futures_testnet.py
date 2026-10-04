@@ -219,14 +219,16 @@ class FuturesTestnetLab:
         if not isinstance(response, dict) or int(response.get("leverage", 0)) != leverage:
             raise FuturesTestnetExecutionError("Futures Testnet leverage confirmation mismatch")
 
-    def ensure_flat_forward_configuration(self, symbol: str) -> dict:
-        """Idempotently enforce ONE_WAY + ISOLATED + 1x while the symbol is flat.
+    def ensure_flat_forward_configuration(self, symbol: str, leverage: int = 1) -> dict:
+        """Idempotently enforce ONE_WAY + ISOLATED + requested Demo leverage.
 
         Binance v3 positionRisk only returns symbols with an open position or
         open order. Therefore flatness is verified from the absence of non-zero
         position rows, while leverage/margin configuration is verified through
         /fapi/v1/symbolConfig, the endpoint Binance exposes for this purpose.
         """
+        if type(leverage) is not int or leverage not in {1, 2, 3} or leverage > self.settings.max_leverage:
+            raise ValueError("Futures Testnet leverage must be 1x, 2x or 3x")
         if self._position_rows(symbol):
             raise FuturesTestnetExecutionError(f"Futures flat preflight found open exposure: {symbol}")
 
@@ -239,18 +241,18 @@ class FuturesTestnetLab:
         before = self._symbol_config(symbol)
         ready = (
             str(before.get("marginType", "")).lower() == "isolated"
-            and int(float(before.get("leverage", 0) or 0)) == 1
+            and int(float(before.get("leverage", 0) or 0)) == leverage
         )
         if not ready:
-            self._configure(symbol, 1)
+            self._configure(symbol, leverage)
 
         if self._position_rows(symbol):
             raise FuturesTestnetExecutionError(f"Futures flat preflight found new exposure: {symbol}")
         after = self._symbol_config(symbol)
         if str(after.get("marginType", "")).lower() != "isolated":
             raise FuturesTestnetExecutionError(f"Futures flat preflight could not confirm ISOLATED: {symbol}")
-        if int(float(after.get("leverage", 0) or 0)) != 1:
-            raise FuturesTestnetExecutionError(f"Futures flat preflight could not confirm 1x: {symbol}")
+        if int(float(after.get("leverage", 0) or 0)) != leverage:
+            raise FuturesTestnetExecutionError(f"Futures flat preflight could not confirm {leverage}x: {symbol}")
         mode_after = signed_request("GET", "/fapi/v1/positionSide/dual", {})
         if not isinstance(mode_after, dict) or bool(mode_after.get("dualSidePosition")):
             raise FuturesTestnetExecutionError("Automatic Futures position mode changed from ONE_WAY")
@@ -262,13 +264,15 @@ class FuturesTestnetLab:
             "positionSide": "BOTH",
         }
 
-    def ensure_forward_position_configuration(self, symbol: str, row: dict) -> dict:
+    def ensure_forward_position_configuration(self, symbol: str, row: dict, expected_leverage: int = 1) -> dict:
         """Repair only a known isolated forward position whose leverage drifted.
 
         CROSS or hedge-mode positions fail closed; they are never mutated
         automatically while open. A leverage write is reconciled by rereading
         positionRisk before protection continues.
         """
+        if type(expected_leverage) is not int or expected_leverage not in {1, 2, 3} or expected_leverage > self.settings.max_leverage:
+            raise ValueError("Futures Testnet leverage must be 1x, 2x or 3x")
         row = self._configured_position({"symbol": symbol, **row})
         if str(row.get("marginType", "")).lower() != "isolated":
             raise FuturesTestnetExecutionError("Automatic Futures margin is not isolated")
@@ -282,19 +286,19 @@ class FuturesTestnetLab:
             if bool(mode["dualSidePosition"]):
                 raise FuturesTestnetExecutionError("Automatic Futures position mode changed from ONE_WAY")
         leverage = int(float(row.get("leverage", 0) or 0))
-        if leverage == 1:
+        if leverage == expected_leverage:
             return row
-        if leverage not in {2, 3}:
+        if leverage not in {1, 2, 3}:
             raise FuturesTestnetExecutionError("Automatic Futures leverage is invalid")
         try:
-            response = signed_request("POST", "/fapi/v1/leverage", {"symbol": symbol, "leverage": 1})
-            if not isinstance(response, dict) or int(response.get("leverage", 0)) != 1:
+            response = signed_request("POST", "/fapi/v1/leverage", {"symbol": symbol, "leverage": expected_leverage})
+            if not isinstance(response, dict) or int(response.get("leverage", 0)) != expected_leverage:
                 raise FuturesTestnetExecutionError("Futures Testnet leverage confirmation mismatch")
         except FuturesTestnetExecutionError as exc:
             if not exc.uncertain:
                 raise
         refreshed = self._position_rows(symbol)
-        if len(refreshed) != 1 or int(float(refreshed[0].get("leverage", 0) or 0)) != 1:
+        if len(refreshed) != 1 or int(float(refreshed[0].get("leverage", 0) or 0)) != expected_leverage:
             raise FuturesTestnetExecutionError("Automatic Futures leverage repair not confirmed")
         if str(refreshed[0].get("marginType", "")).lower() != "isolated":
             raise FuturesTestnetExecutionError("Automatic Futures margin is not isolated")

@@ -4,6 +4,8 @@
 
 Bot de swing trading de varios días/semanas con Binance Spot Testnet como entorno operativo predeterminado; PAPER se conserva como respaldo técnico/CI. Consume datos reales de mercado, crea señales cuantitativas y utiliza OpenAI como una segunda barrera de riesgo. Desde 0.8.0, cuando Spot está en TESTNET, corre además un forward test separado de Binance USDⓈ-M Futures Demo: BTCUSDT, LONG/SHORT, 1x automático, máximo una posición, ledger y kill switch propios. Los smoke tests manuales 1x–3x permanecen solo como diagnóstico. Binance LIVE sigue sin implementación.
 
+La configuración candidata 0.10.17 amplía Futures Demo a BTC, ETH, SOL, BNB y XRP, con máximo tres posiciones. Las entradas confirmadas alternan 1x/2x/3x, manteniendo la cantidad y el techo existente de 100 USDT de **notional**, no 100 USDT de margen multiplicado por leverage. Es una prueba de infraestructura; no compara rentabilidades equivalentes ni eleva el riesgo objetivo. Las posiciones antiguas conservan su leverage registrado. Publicación e instalación se verifican por separado; las descripciones versionadas de 0.8.x más abajo son históricas.
+
 La IA no puede inventar compras, aumentar el tamaño de una posición, eliminar stops ni cambiar límites. Únicamente puede `ALLOW`, `REJECT` o `REDUCE` una entrada que ya pasó las reglas cuantitativas.
 
 ## Límites iniciales

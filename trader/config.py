@@ -113,6 +113,7 @@ class FuturesTestnetSettings:
     forward_minimum_stop_pct: float
     forward_reward_to_risk: float
     kill_switch_path: Path
+    forward_leverage_trials: tuple[int, ...] = (1,)
 
 
 @dataclass(frozen=True)
@@ -221,6 +222,12 @@ def load_config(path: str | Path | None = None) -> AppConfig:
         raise ValueError("Invalid Futures forward max positions")
     if futures_forward_leverage != 1:
         raise ValueError("Automatic Futures forward test must stay at 1x")
+    trial_levels = futures_testnet.get("forward_leverage_trials", [1])
+    if (not isinstance(trial_levels, list) or not trial_levels or len(trial_levels) > 3
+            or any(type(level) is not int or level not in {1, 2, 3}
+                   or level > futures_max for level in trial_levels)
+            or len(set(trial_levels)) != len(trial_levels)):
+        raise ValueError("Futures Demo leverage trials must use unique 1x/2x/3x levels")
     if not math.isfinite(futures_forward_margin) or not 5 <= futures_forward_margin <= 100:
         raise ValueError("Invalid Futures forward-test margin")
     if not 60 <= futures_forward_min_score <= 95:
@@ -270,6 +277,7 @@ def load_config(path: str | Path | None = None) -> AppConfig:
             forward_symbols=futures_forward_symbols,
             forward_max_positions=futures_forward_max_positions,
             forward_leverage=futures_forward_leverage,
+            forward_leverage_trials=tuple(trial_levels),
             forward_margin_usdt=futures_forward_margin,
             forward_min_score=futures_forward_min_score,
             forward_stop_atr_multiple=futures_forward_stop_atr,

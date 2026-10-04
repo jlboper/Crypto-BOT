@@ -308,6 +308,29 @@ class FuturesTestnetLabTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "1x, 2x or 3x"):
             self.lab.smoke(direction="LONG", leverage=4)
 
+    def test_flat_trial_configuration_confirms_two_and_three_x(self):
+        for leverage in (2, 3):
+            with patch("trader.futures_testnet.signed_request", side_effect=self.signed):
+                result = self.lab.ensure_flat_forward_configuration("BTCUSDT", leverage)
+            self.assertEqual(int(result['leverage']), leverage)
+            self.assertEqual(self.position_amt, 0)
+
+    def test_tracked_three_x_trial_is_preserved_and_drift_repaired_to_its_plan(self):
+        self.position_amt = .1
+        self.leverage = 3
+        row = dict(symbol='BTCUSDT', positionAmt='.1', entryPrice='100',
+            leverage='3', marginType='isolated', positionSide='BOTH')
+        with patch("trader.futures_testnet.signed_request", side_effect=self.signed) as request:
+            result = self.lab.ensure_forward_position_configuration('BTCUSDT', row, 3)
+        self.assertEqual(int(result['leverage']), 3)
+        self.assertFalse(any(call.args[0] == 'POST' for call in request.call_args_list))
+        self.leverage = 1
+        row['leverage'] = '1'
+        with patch("trader.futures_testnet.signed_request", side_effect=self.signed):
+            result = self.lab.ensure_forward_position_configuration('BTCUSDT', row, 3)
+        self.assertEqual(int(result['leverage']), 3)
+        self.assertEqual(self.position_amt, .1)
+
     def test_recovery_refuses_position_with_different_leverage(self):
         run_id = self.lab.ledger.start("BTCUSDT", "LONG", 2, "ISOLATED")
         self.lab.ledger.fail(run_id)

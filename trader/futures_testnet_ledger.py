@@ -148,6 +148,31 @@ class FuturesTestnetLedger:
                     (position["symbol"],position["direction"],int(position["leverage"]),float(position["quantity"]),
                      float(position["entry_price"]),float(position["stop_price"]),float(position["take_profit"]),
                      position.get("liquidation_price"),int(position["signal_score"]),position["opened_at"]))
+                trial_index = position.get("leverage_trial_index")
+                if trial_index is not None:
+                    if type(trial_index) is not int or trial_index < 0:
+                        raise ValueError("Invalid Futures leverage trial index")
+                    prior = db.execute("SELECT value FROM settings WHERE key='forward_leverage_trial_cursor'").fetchone()
+                    cursor = max(int(json.loads(prior[0])) if prior else 0, trial_index + 1)
+                    db.execute("INSERT OR REPLACE INTO settings VALUES(?,?)",
+                               ("forward_leverage_trial_cursor", json.dumps(cursor)))
+
+    def leverage_trial_status(self, levels: tuple[int, ...], notional_limit: float) -> dict:
+        cursor = int(self.setting("forward_leverage_trial_cursor") or 0)
+        started = self.setting("forward_leverage_trials_started_at")
+        with self._connect() as db:
+            rows = db.execute("""SELECT leverage, COUNT(*) AS closes, SUM(gross_pnl) AS pnl
+                FROM forward_trades WHERE opened_at >= ?
+                AND exit_reason NOT IN ('CONFIG_REPAIR','RECOVERED_CLOSE')
+                GROUP BY leverage""", (started or '9999',)).fetchall()
+        by_level = {int(row['leverage']): row for row in rows}
+        return {"levels": list(levels), "next_leverage": levels[cursor % len(levels)],
+                "fixed_notional": True, "notional_limit_usdt": float(notional_limit),
+                "started_at": started,
+                "results": [{"leverage": level,
+                             "closed_trades": int(by_level[level]['closes']) if level in by_level else 0,
+                             "gross_pnl_usdt": float(by_level[level]['pnl']) if level in by_level else 0.0}
+                            for level in levels]}
 
     def close_forward_position(self, *, symbol: str | None = None, exit_price: float, gross_pnl: float, exit_reason: str) -> dict:
         position=self.forward_position(symbol)

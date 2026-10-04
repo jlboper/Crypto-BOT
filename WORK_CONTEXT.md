@@ -5,7 +5,7 @@
 La rama estable trabaja con un único proceso supervisado y dos motores de prueba en paralelo:
 
 - **Spot Testnet**: motor principal multi-activo, sin margen ni cortos, con estrategia swing, límites de riesgo y revisión IA final.
-- **Futures Demo**: forward test separado de BTCUSDT, LONG/SHORT, 1x automático, ISOLATED, ONE_WAY y máximo una posición. Usa ledger, journal y kill switch propios.
+- **Futures Demo**: forward test separado de BTC/ETH/SOL/BNB/XRP, LONG/SHORT, ISOLATED, ONE_WAY y máximo tres posiciones. La configuración 0.10.17 prepara ensayos Demo 1x/2x/3x por entrada confirmada, con cantidad y límite de notional constantes; no multiplica la exposición. La instalación debe verificarse por separado. Usa ledger, journal y kill switch propios.
 - **PAPER**: respaldo técnico, CI, regresiones y recuperación. No es el entorno diario predeterminado.
 - **LIVE**: no implementado. Ninguna métrica o estado habilita capital real automáticamente.
 

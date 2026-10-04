@@ -250,7 +250,19 @@ function renderFuturesParity(futures) {
     limitState.textContent=futures?.killed?'PAUSADO':score.risk_halt?.active?'ENTRADAS BLOQUEADAS POR PÉRDIDA':(futures?.enabled?'PROTECCIONES ACTIVAS':'INACTIVO');
     limitState.className='state'+((futures?.killed||score.risk_halt?.active||!futures?.enabled)?' warning':'');
   }
-  set('futuresLimitLeverage',futures?.automatic_leverage==null?'—':String(futures.automatic_leverage)+'x');
+  const trial=futures?.leverage_trials;
+  const leverageLabel=trial?.levels?.length>1?trial.levels.map(l=>String(l)+'x').join(' / '):
+    (futures?.automatic_leverage==null?'—':String(futures.automatic_leverage)+'x');
+  set('futuresLimitLeverage',leverageLabel);
+  set('futuresConfiguredSymbols',Array.isArray(futures?.symbols)?futures.symbols.map(s=>s.replace(/USDT$/,'')).join(' / '):'—');
+  set('futuresConfiguredLeverage',leverageLabel);
+  const trials=document.getElementById('futuresLeverageTrials');
+  if(trials){
+    trials.innerHTML=trial?.levels?.length>1?'<p>Próxima entrada: '+esc(String(trial.next_leverage))+'x · Máximo '+num(trial.notional_limit_usdt,0)+' USDT de valor por operación.</p>'+
+      '<div class="health-grid">'+(trial.results||[]).map(r=>'<article><strong>'+esc(String(r.leverage))+'x</strong><p>'+String(r.closed_trades)+' cierres de estrategia · '+num(r.gross_pnl_usdt,4)+' USDT brutos</p></article>').join('')+'</div>'+
+      '<p class="settings-help">Prueba operativa con valor de posición constante: cambia el margen requerido. P&amp;L bruto sin comisiones ni funding; entradas distintas, sin comparación de rentabilidad equivalente.</p>':
+      '<p class="settings-help">Pruebas de apalancamiento pendientes de activación en Windows.</p>';
+  }
   set('futuresLimitMarginType',guard.margin_type?String(guard.margin_type).toUpperCase():'—');
   set('futuresLimitPositions',guard.max_positions==null?'—':String(guard.max_positions));
   set('futuresLimitBudget',guard.forward_margin_usdt==null?'—':money(guard.forward_margin_usdt));
@@ -367,7 +379,7 @@ function renderFuturesParity(futures) {
   }
   const body=document.getElementById('futuresTradeRows');
   const rows=(futures?.trades||[]).slice(0,12);
-  if(body)body.innerHTML=rows.length?rows.map(t=>'<tr><td><strong>'+esc(t.symbol)+' '+esc(t.direction)+'</strong></td><td>'+num(t.quantity,6)+'</td><td>'+num(t.entry_price,2)+'</td><td>'+num(t.exit_price,2)+'</td><td class="'+(Number(t.gross_pnl)>=0?'positive':'negative')+'">'+(Number(t.gross_pnl)>=0?'+':'')+num(t.gross_pnl,6)+'</td><td>'+esc(t.exit_reason||'—')+'</td></tr>').join(''):emptyRow(6,'Aún no hay cierres Futures.');
+  if(body)body.innerHTML=rows.length?rows.map(t=>'<tr><td><strong>'+esc(t.symbol)+' '+esc(t.direction)+' · '+esc(String(t.leverage||1))+'x</strong></td><td>'+num(t.quantity,6)+'</td><td>'+num(t.entry_price,2)+'</td><td>'+num(t.exit_price,2)+'</td><td class="'+(Number(t.gross_pnl)>=0?'positive':'negative')+'">'+(Number(t.gross_pnl)>=0?'+':'')+num(t.gross_pnl,6)+'</td><td>'+esc(t.exit_reason||'—')+'</td></tr>').join(''):emptyRow(6,'Aún no hay cierres Futures.');
 }
 
 function renderObservationHealth(spotHealth, futuresHealth) {

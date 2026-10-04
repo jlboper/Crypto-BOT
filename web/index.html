@@ -122,9 +122,9 @@
         <article class="settings-card futures-card">
           <div class="settings-card-head"><div><span class="settings-kicker">SEGUNDO MOTOR · FORWARD TEST</span><h3>USDⓈ-M Futures Demo</h3></div><span class="state neutral" id="futuresState">CARGANDO</span></div>
           <div class="futures-guardrails">
-            <span>BTC / ETH / SOL</span><span>AUTO 1x</span><span>ISOLATED</span><span>ONE-WAY</span><span>3 posiciones máx.</span>
+            <span id="futuresConfiguredSymbols">—</span><span id="futuresConfiguredLeverage">—</span><span>ISOLATED</span><span>ONE-WAY</span><span>3 posiciones máx.</span>
           </div>
-          <p class="settings-help">Corre en paralelo con Spot Testnet, con ledger y kill switch propios. 2x/3x quedan fuera de la ejecución automática.</p>
+          <p class="settings-help">Corre en paralelo con Spot Testnet, con ledger y kill switch propios. Pruebas Demo 1x/2x/3x por entrada, manteniendo el valor de posición.</p>
           <details class="update-details">
             <summary>Diagnóstico manual Futures</summary>
             <div class="settings-two-col">
@@ -163,8 +163,8 @@
       </article>
 
       <article class="panel engine-console futures-console">
-        <div class="settings-card-head"><div><p class="eyebrow">MOTOR 2 · FUTURES</p><h2>USDⓈ-M Futures Demo · BTC / ETH / SOL</h2></div><span id="futuresForwardState" class="state neutral">CARGANDO</span></div>
-        <p>LONG/SHORT · automático 1x · ISOLATED · hasta tres posiciones · revisión IA final · fondos ficticios.</p>
+        <div class="settings-card-head"><div><p class="eyebrow">MOTOR 2 · FUTURES</p><h2>USDⓈ-M Futures Demo</h2></div><span id="futuresForwardState" class="state neutral">CARGANDO</span></div>
+        <p>LONG/SHORT · pruebas Demo 1x/2x/3x · ISOLATED · hasta tres posiciones · revisión IA final · fondos ficticios.</p>
         <div class="engine-kpis">
           <span><small>Wallet</small><strong id="futuresForwardWallet">—</strong><em>USDT Demo</em></span>
           <span><small>Retorno observado</small><strong id="futuresForwardReturn">—</strong><em id="futuresForwardClosed">—</em></span>
@@ -181,6 +181,7 @@
         </div>
       </article>
     </section>
+    <section class="panel" aria-label="Pruebas de apalancamiento Futures Demo"><details class="update-details"><summary>Futures Demo · pruebas de apalancamiento</summary><div id="futuresLeverageTrials"></div></details></section>
     <section class="panel observation-health" aria-label="Salud de observación últimas 24 horas">
       <div class="panel-title">
         <div><p class="eyebrow">SALUD DE OBSERVACIÓN · 24 H</p><h2>Calidad operativa de la muestra</h2></div>
@@ -213,7 +214,7 @@
           </dl>
         </article>
         <article>
-          <h3>Futures Demo · BTC / ETH / SOL · 1x</h3>
+          <h3>Futures Demo</h3>
           <dl>
             <div><dt>Días observados</dt><dd id="futuresObservedDays">—</dd></div>
             <div><dt>Cierres de estrategia</dt><dd id="futuresObservedTrades">—</dd></div>
@@ -331,7 +332,7 @@
       <article class="panel futures-scorecard" aria-label="Seguimiento financiero Futures">
         <div class="panel-title"><h2>Seguimiento financiero Futures · DEMO</h2><span id="futuresEvidenceState" class="state neutral">SIN DATOS</span></div>
         <p id="futuresEvidenceNote">Los resultados observados de Futures no autorizan operar con dinero real.</p>
-        <p class="finance-strategy">Estrategia actual: BTC/ETH/SOL LONG/SHORT, 1x automático, ISOLATED, hasta tres posiciones y revisión IA final.</p>
+        <p class="finance-strategy">Estrategia actual: BTC/ETH/SOL/BNB/XRP LONG/SHORT, pruebas 1x/2x/3x, ISOLATED, hasta tres posiciones y revisión IA final.</p>
         <div id="futuresEvidenceMetrics" class="research-summary"></div>
         <div id="futuresEvidenceSummary" class="benchmark-note">Esperando muestras suficientes del forward test.</div>
         <details class="finance-details"><summary>Ver métricas, puertas pendientes y cierres Futures</summary>

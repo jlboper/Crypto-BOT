@@ -119,6 +119,18 @@ test('device sync accepts legacy and multi-asset Futures forward dashboard shape
       pending_reconciliation:true}
   };
   assert.equal((await f.sync({snapshot:modern,acks:[]})).status,200);
+  const trials=structuredClone(modern);
+  trials.dashboard.futures_forward.symbols=['BTCUSDT','ETHUSDT','SOLUSDT','BNBUSDT','XRPUSDT'];
+  trials.dashboard.futures_forward.leverage_trials={levels:[1,2,3],next_leverage:2,
+    fixed_notional:true,notional_limit_usdt:100,started_at:'2026-10-04T03:00:00Z',
+    results:[1,2,3].map(leverage=>({leverage,closed_trades:0,gross_pnl_usdt:0}))};
+  assert.equal((await f.sync({snapshot:trials,acks:[]})).status,200);
+  for(const change of [t=>t.levels=[1,2,4],t=>t.next_leverage=4,t=>t.fixed_notional=false,
+    t=>t.notional_limit_usdt=300,t=>t.results[0].closed_trades=-1,t=>t.secret='unexpected']){
+    const badTrial=structuredClone(trials);
+    change(badTrial.dashboard.futures_forward.leverage_trials);
+    assert.equal((await f.sync({snapshot:badTrial,acks:[]})).status,400);
+  }
   const signals=structuredClone(modern);
   signals.dashboard.futures_forward.latest_signals={ETHUSDT:{
     symbol:'ETHUSDT',timeframe:'4h',candle_close_time:999,direction:'LONG',score:80,

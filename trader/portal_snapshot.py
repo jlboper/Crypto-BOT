@@ -255,6 +255,8 @@ def dashboard_snapshot(config, report_path=None):
                 'pause_diagnostics': futures_pause,
                 'symbols': list(config.futures_testnet.forward_symbols),
                 'automatic_leverage': config.futures_testnet.forward_leverage,
+                'leverage_trials': futures_ledger.leverage_trial_status(
+                    config.futures_testnet.forward_leverage_trials, config.futures_testnet.forward_margin_usdt),
                 'guardrails': {
                     'margin_type': config.futures_testnet.margin_type,
                     'position_mode': config.futures_testnet.position_mode,

@@ -1,3 +1,7 @@
+# Candidate — 0.10.17 Futures universe and Demo leverage trials
+
+Prepared from main `62225ecd02379354a446b7ce04f3bb3df736fa9c` following the owner's authorization to expand Futures and test actual Demo 2x/3x orders. Five assets, three positions, fixed quantity/notional; confirmed entries rotate 1x/2x/3x. This branch has not yet been published or observed installed. The verified 0.10.16 baseline below remains the installation evidence.
+
 # Current status — 0.10.16 published and observed installed/connected
 
 An authenticated audit on 2026-10-04 UTC observed the portal reporting installed 0.10.15 and Windows connected. Main, financial/health details, signals/shadow evidence, Research assets and the Options submenus were inspected. Trading/account controls were viewed without changing settings or sending trading orders.
