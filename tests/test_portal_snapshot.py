@@ -52,6 +52,8 @@ class PortalSnapshotTests(unittest.TestCase):
             self.assertIn('observation_health',payload['futures_forward'])
             self.assertIn('order_journal_clear',payload['futures_forward']['observation_health']['integrity'])
             self.assertEqual(payload['futures_forward']['guardrails']['max_positions'],5)
+            self.assertEqual(payload['futures_forward']['guardrails']['forward_timeframe'],'1h')
+            self.assertEqual(payload['futures_forward']['guardrails']['forward_min_score'],70)
             self.assertEqual(payload['futures_forward']['guardrails']['margin_type'],'ISOLATED')
             self.assertEqual(payload['futures_forward']['guardrails']['forward_margin_usdt'],100.0)
             self.assertEqual(payload['futures_forward']['automatic_leverage'],1)
