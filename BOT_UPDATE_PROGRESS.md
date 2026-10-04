@@ -1,6 +1,6 @@
-# Candidate — 0.10.22 automatic validated main publication
+# Candidate — 0.10.23 faster Futures observation and explicit gate diagnostics
 
-Prepared from main `305dc0077f0c22c253c5db0f6d23767d0e287ba9` under the owner's authorization to continue with automatic publication after removing required reviewers. PRs only validate; publication and signing require the current main push after successful Linux/Windows checks. Source, merge, publication and Windows installation remain separately verified.
+Prepared on the existing 0.10.22 automatic-publication candidate under the owner's authorization after observing many hours without strategy entries. Futures Demo now uses its own 1h candle cadence and score 70 while Spot stays 4h; hard portfolio, stop-loss, leverage, margin-mode and AI gates remain unchanged. The portal projects bounded per-cycle Futures reasons and exact Spot loss-lock period/expiry. PRs still only validate; publication and signing require the current main push after successful Linux/Windows checks. Source, merge, publication and Windows installation remain separately verified.
 
 Local validation passed 325 offline Python tests and 85 Node tests, including real workerd/D1 signing, current-main rejection and authenticated update discovery. GitHub Linux/Windows validation, main publication and Windows installation must still be observed for this candidate.
 
