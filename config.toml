@@ -66,6 +66,8 @@ smoke_margin_usdt = 10.0
 # Persistent forward-test pilot. It runs automatically only while the primary
 # motor is TESTNET; it remains isolated from Spot and cannot enable LIVE.
 forward_enabled = true
+# Futures has its own observation cadence; Spot remains on bot.timeframe (4h).
+forward_timeframe = "1h"
 forward_symbols = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT", "ADAUSDT", "DOGEUSDT", "LINKUSDT", "AVAXUSDT", "DOTUSDT", "LTCUSDT", "BCHUSDT", "TRXUSDT", "ATOMUSDT", "NEARUSDT"]
 forward_max_positions = 5
 forward_total_notional_usdt = 300.0
@@ -76,7 +78,7 @@ forward_leverage = 1
 # This does not multiply quantity, exposure or the existing 100 USDT ceiling.
 forward_leverage_trials = [1, 2, 3]
 forward_margin_usdt = 100.0
-forward_min_score = 75
+forward_min_score = 70
 forward_stop_atr_multiple = 2.0
 forward_minimum_stop_pct = 0.025
 forward_reward_to_risk = 2.0
