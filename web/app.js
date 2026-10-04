@@ -51,8 +51,8 @@ async function api(path, options={}) {
   return response.json();
 }
 
-function renderChart(rows) {
-  const canvas = document.getElementById('equityChart');
+function renderChart(rows, canvasId='equityChart') {
+  const canvas = document.getElementById(canvasId);
   const ratio = window.devicePixelRatio || 1;
   const width = canvas.clientWidth;
   const height = canvas.clientHeight;
@@ -172,8 +172,8 @@ function renderPaperEvidence(report, equity, trades) {
     emptyRow(3,complete?'Aún no hay cierres.':'Disponible al sincronizar el historial completo.');
   const covered=attribution.research_closed_trades;
   document.getElementById('researchCoverage').textContent=complete&&covered!=null?
-    `Los cinco activos estudiados concentran ${finite(covered).toFixed(0)} de ${finite(report.closed_trades).toFixed(0)} cierres ${evidenceMode}. El informe histórico no evalúa los demás pares operados por el bot.`:
-    `El informe histórico solo estudia cinco activos; esperando historial completo para medir su cobertura de las operaciones ${evidenceMode}.`;
+    `Los ${Number(attribution.research_symbols?.length||5)} activos Spot estudiados concentran ${finite(covered).toFixed(0)} de ${finite(report.closed_trades).toFixed(0)} cierres ${evidenceMode}. La cobertura corresponde al último informe completo.`:
+    `Esperando historial completo para medir su cobertura de las operaciones ${evidenceMode}.`;
   if (report?.omitted_assets) note.textContent+=` ${report.omitted_assets} activos agrupados en «Otros»; su resultado y cierres están incluidos en el total.`;
 }
 
@@ -455,7 +455,11 @@ function renderResearch(report, state) {
   const button=document.getElementById('researchButton');
   button.disabled=Boolean(state.running);
   document.getElementById('exportResearch').disabled=!(report.assets?.length);
-  button.textContent=state.running?'Analizando…':'Ejecutar análisis';
+  button.textContent=state.running?'Analizando…':'Actualizar análisis ahora';
+  document.getElementById('researchSchedule').textContent=(state.automatic===undefined?'Actualiza el bot para habilitar el horario diario.':
+    `Automático ${state.automatic?'cada 24 h':'desactivado'} · Último completo: ${shortTime(state.last_completed_at||report.generated_at)} · Próximo: ${state.automatic?shortTime(state.next_run_at):'—'} · Requiere Windows y el bot encendidos.`)
+    +(state.progress?` · ${state.progress}`:'')+(state.status==='INTERRUPTED'?' · La ejecución anterior se interrumpió; puedes actualizar ahora.':'');
+  renderResearchExperiments(report);
   if (state.running) {
     badge.textContent='ANALIZANDO'; badge.className='state warning';
   } else if (state.error) {
@@ -469,12 +473,12 @@ function renderResearch(report, state) {
   const portfolio=report.portfolio||{};
   const adaptivePortfolio=report.adaptive_portfolio||{};
   document.getElementById('researchSummary').innerHTML=summary?`
-    <article><span>Activos</span><strong>${Number(summary.assets)}</strong></article>
-    <article><span>Estrategias evaluadas</span><strong>${Number(summary.assets)*Number(summary.strategies_per_asset)}</strong></article>
+    <article><span>Activos Spot / Futures</span><strong>${Number(summary.assets)} / ${Number(report.futures_assets?.length||0)}</strong></article>
+    <article><span>Estrategias Spot evaluadas</span><strong>${Number(summary.assets)*Number(summary.strategies_per_asset)}</strong></article>
     <article><span>Folds fuera de muestra</span><strong>${Number(summary.total_walk_forward_folds)}</strong></article>
     <article><span>Candidatos a forward test</span><strong>${Number(summary.forward_test_ready||summary.promotion_candidates||0)}</strong></article>
-    <article><span>Portafolio fijo OOS</span><strong class="${Number(portfolio.oos_compounded_return_pct)>=0?'positive':'negative'}">${pct(portfolio.oos_compounded_return_pct)}</strong></article>
-    <article><span>Selector + cash gate</span><strong class="${Number(adaptivePortfolio.oos_compounded_return_pct)>=0?'positive':'negative'}">${pct(adaptivePortfolio.oos_compounded_return_pct)}</strong></article>
+    <article><span>Ilustración fija por ventanas</span><strong class="${Number(portfolio.oos_compounded_return_pct)>=0?'positive':'negative'}">${pct(portfolio.oos_compounded_return_pct)}</strong></article>
+    <article><span>Ilustración selector + cash</span><strong class="${Number(adaptivePortfolio.oos_compounded_return_pct)>=0?'positive':'negative'}">${pct(adaptivePortfolio.oos_compounded_return_pct)}</strong></article>
     <article><span>Efectivo USDT</span><strong>0.00%</strong></article>
     <article><span>Benchmark combinado</span><strong>${pct(portfolio.oos_benchmark_return_pct)}</strong></article>`:'';
   const assets=report.assets || [];
@@ -488,9 +492,41 @@ function renderResearch(report, state) {
     const candidate=stage==='CANDIDATE';
     const label=({RESEARCH:'INVESTIGANDO',CANDIDATE:'CANDIDATO',FORWARD_TEST:'FORWARD TEST',TESTNET:'LISTO TESTNET',APPROVED:'APROBADO',RETIRED:'RETIRADO'})[stage]||stage;
     return `<tr class="research-row" data-symbol="${esc(asset.symbol)}"><td><strong>${esc(asset.symbol.replace('USDT',''))}</strong><small>/USDT · ver detalle</small></td><td>${esc(asset.champion_candidate)}<small>${esc(asset.champion_family)}</small></td><td class="${Number(fixed.oos_compounded_return_pct)>=0?'positive':'negative'}">${pct(fixed.oos_compounded_return_pct)}</td><td class="${Number(adaptive.oos_compounded_return_pct)>=0?'positive':'negative'}">${pct(adaptive.oos_compounded_return_pct)}<small>${Number(adaptive.cash_folds||0)} folds en cash</small></td><td>0.00%</td><td>${pct(fixed.oos_benchmark_return_pct)}</td><td>${Number(fixed.positive_folds_pct||0).toFixed(0)}%</td><td>${gates.length?`${passed}/${gates.length}`:'—'}</td><td><span class="verdict ${candidate?'promising':'insufficient'}">${esc(label)}</span></td></tr>`;
-  }).join(''):emptyRow(9,state.running?'El análisis está trabajando en segundo plano…':'Ejecuta el primer análisis desde este portal.');
+  }).join(''):emptyRow(9,state.running?'El análisis está trabajando en segundo plano…':'El primer análisis se iniciará automáticamente; también puedes actualizarlo ahora.');
   const detail=state.error?`Último error: ${state.error}`:(report.generated_at?`Informe generado ${shortTime(report.generated_at)} · Los candidatos siguen bloqueados para operación automática.`:'El estudio descarga aproximadamente 5,000 velas cerradas por activo y puede tardar varios minutos.');
   document.getElementById('researchUpdated').textContent=detail;
+}
+
+function researchScenarioKey(p) { return `${p.market}-${p.profile}-${p.leverage}`; }
+function renderResearchExperiments(report) {
+  const runs=report.joint_portfolios||[];
+  const choice=document.getElementById('researchCurveChoice');
+  const selected=choice.value;
+  choice.innerHTML=runs.map(p=>`<option value="${esc(researchScenarioKey(p))}">${esc(p.market)} · ${esc(p.profile)} · ${Number(p.leverage)}x</option>`).join('');
+  choice.value=runs.some(p=>researchScenarioKey(p)===selected)?selected:(runs.length?researchScenarioKey(runs[0]):'');
+  document.getElementById('researchPortfolios').innerHTML=runs.length?runs.map(p=>`<tr><td>${esc(p.market)} · ${esc(p.profile)}<small>Riesgo ${num(p.limits?.risk_pct,2)}% · exposición ≤${num(p.limits?.gross_pct,0)}%</small></td><td>${Number(p.leverage)}x</td><td>${pct(p.net_return_pct)}</td><td>${num(p.max_drawdown_pct,2)}%</td><td>${Number(p.closed_trades)}</td><td>${money(p.fees)} / ${money(p.funding_cost)}</td><td>${Number(p.liquidations)}</td><td>${pct(p.holdout?.net_return_pct)} / ${pct(p.double_cost_holdout?.net_return_pct)}</td></tr>`).join(''):emptyRow(8,'Las carteras aparecerán al completar el nuevo análisis.');
+  const names={positive_oos:'OOS no positivo',minimum_evidence:'Actividad OOS insuficiente',consistent_folds:'Pocas ventanas positivas',holdout_positive:'Ventana final no positiva',double_costs_positive:'Costos duplicados no positivos',forward_test_independent:'Falta forward independiente',contract_liquidation_calibration:'Liquidación aproximada sin calibración por contrato'};
+  document.getElementById('researchFuturesAssets').innerHTML=(report.futures_assets||[]).map(a=>`<tr><td>${esc(a.symbol)}</td><td>${esc(a.champion_candidate)}<small>Elegido solo en entrenamiento inicial</small></td><td>${pct(a.oos_return_pct)}<small>${Number(a.folds?.length||0)} ventanas</small></td><td>${pct(a.holdout?.net_return_pct)} / ${pct(a.double_cost_holdout?.net_return_pct)}</td><td>${(a.discarded_reasons||[]).map(r=>esc(names[r]||r)).join(' · ')}</td></tr>`).join('')||emptyRow(5,'Sin evidencia Futures en este informe.');
+  const unavailable=report.coverage?.unavailable||[];
+  document.getElementById('researchAssumptions').textContent=runs.length?
+    'Futures: histórico público USD-M, mark y funding reales; liquidación como estrés de margen aislado con mantenimiento supuesto del 1% y comisiones/slippage configurados. Requiere calibración por contrato antes de calificar. '+
+    (unavailable.length?`Sin datos válidos: ${unavailable.map(a=>`${a.market} ${a.symbol} (${a.reason})`).join(', ')}.`:'Cobertura de datos completa para los activos solicitados.'):'No hay simulaciones conjuntas en el informe anterior.';
+  document.getElementById('researchForward').innerHTML=(report.forward_observation||[]).map(f=>{
+    const labels={WAITING_NEW_DATA:'Esperando velas posteriores al registro',OBSERVING:'Observando reglas congeladas',DATA_UNAVAILABLE:'Faltan datos de la cohorte',HISTORY_GAP:'Historial incompleto'};
+    return `<p><strong>Seguimiento futuro ${esc(f.market)}:</strong> ${esc(labels[f.status]||f.status)} · ${num(f.observed_days,1)}/30 días · ${Number(f.simulation?.closed_trades||0)}/30 cierres · ${f.simulation?pct(f.simulation.net_return_pct):'sin resultado todavía'}. Cohorte de ${Number(f.symbols?.length||0)} activos fijada ${shortTime(f.registered_at)}. Observación simulada con datos nuevos; ninguna promoción automática.</p>`;
+  }).join('');
+  renderResearchCurve();
+}
+function renderResearchCurve() {
+  const key=document.getElementById('researchCurveChoice').value;
+  const p=(lastResearchReport?.joint_portfolios||[]).find(s=>researchScenarioKey(s)===key);
+  renderChart((p?.curve||[]).map(c=>({equity:c.equity})), 'researchCurve');
+  document.getElementById('researchCurveInfo').textContent=p?`${p.market} · ${p.profile} · ${p.leverage}x · Capital inicial ${money(p.initial_cash)} · OOS ${shortTime(p.start_at)} a ${shortTime(p.end_at)} · Final reservada desde ${shortTime(p.holdout_start_at)}. Curva por vela muestreada; drawdown calculado con todas las velas.`:'';
+  document.getElementById('researchDiscardReasons').textContent=p?`Motivos para mantener en investigación: ${(p.discarded_reasons||[]).join(' · ')}.`:'';
+  document.getElementById('researchHistory').innerHTML=(lastResearchReport?.history||[]).slice().reverse().map(run=>{
+    const item=(run.scenarios||[]).find(s=>researchScenarioKey(s)===key);
+    return `<tr><td>${shortTime(run.generated_at)}</td><td>${Number(run.assets)} / ${Number(run.futures_assets||0)}</td><td>${item?pct(item.net_return_pct):'—'}</td><td>${item?num(item.max_drawdown_pct,2)+'%':'—'}</td><td>${item?Number(item.closed_trades):'—'}</td><td>${item?Number(item.liquidations):'—'}</td></tr>`;
+  }).join('')||emptyRow(6,'Sin ejecuciones archivadas todavía.');
 }
 
 function renderResearchDetail(asset) {
@@ -541,14 +577,18 @@ function renderResearchDetail(asset) {
 
 function exportResearchCsv() {
   if (!lastResearchReport?.assets?.length) return;
-  const lines=[['Activo','Estrategia fija','OOS fijo %','Selector adaptativo %','Folds en cash','Cash %','Benchmark %','Folds positivos %','Puertas aprobadas','Puertas totales','Dictamen']];
-  lastResearchReport.assets.forEach(asset=>{
-    const fixed=asset.fixed_strategy||asset.walk_forward||{}, adaptive=asset.adaptive_selector||{};
-    const gates=Object.values(asset.qualification?.gates||{});
-    lines.push([asset.symbol,asset.champion_candidate,fixed.oos_compounded_return_pct,
-      adaptive.oos_compounded_return_pct,adaptive.cash_folds,0,fixed.oos_benchmark_return_pct,
-      fixed.positive_folds_pct,gates.filter(Boolean).length,gates.length,asset.status]);
+  const lines=[['Registro','Fecha','Mercado','Activo o perfil','Leverage','Periodo','Retorno neto %','Drawdown %','Cierres','Comisiones','Funding','Liquidaciones','Motivos de descarte']];
+  const date=lastResearchReport.generated_at;
+  lastResearchReport.assets.forEach(a=>{const fixed=a.fixed_strategy||a.walk_forward||{};
+    lines.push(['Activo',date,'SPOT',a.symbol,1,'OOS por ventanas; DD peor ventana',fixed.oos_compounded_return_pct,fixed.worst_fold_drawdown_pct,fixed.trades,'','','',(a.discarded_reasons||[]).join(' | ')]);
   });
+  (lastResearchReport.futures_assets||[]).forEach(a=>lines.push(['Activo',date,'FUTURES',a.symbol,1,'OOS por ventanas',a.oos_return_pct,'',a.folds?.reduce((n,f)=>n+Number(f.closed_trades||0),0),'','','',(a.discarded_reasons||[]).join(' | ')]));
+  (lastResearchReport.joint_portfolios||[]).forEach(p=>{
+    for(const [period,result] of [['OOS',p],['Final reservada',p.holdout],['Final costos x2',p.double_cost_holdout]]){
+      if(result)lines.push(['Cartera',date,p.market,p.profile,p.leverage,period,result.net_return_pct,result.max_drawdown_pct,result.closed_trades,result.fees,result.funding_cost,result.liquidations,(p.discarded_reasons||[]).join(' | ')]);
+    }
+  });
+  (lastResearchReport.history||[]).forEach(run=>(run.scenarios||[]).forEach(p=>lines.push(['Historial',run.generated_at,p.market,p.profile,p.leverage,'OOS',p.net_return_pct,p.max_drawdown_pct,p.closed_trades,'','',p.liquidations,''])));
   const csv=lines.map(row=>row.map(value=>{let cell=String(value);if(/^[=+\-@\t\r]/.test(cell))cell="'"+cell;return `"${cell.replaceAll('"','""')}"`;}).join(',')).join('\r\n');
   const link=document.createElement('a'); link.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
   link.download=`crypto-ai-research-${new Date().toISOString().slice(0,10)}.csv`; link.click(); URL.revokeObjectURL(link.href);
@@ -780,7 +820,6 @@ document.getElementById('positions').addEventListener('click',async event=>{
   }catch(error){alert(`No se confirmó el cierre: ${error.message}`);button.disabled=false;}
 });
 document.getElementById('researchButton').addEventListener('click', async event => {
-  if (!confirm('¿Ejecutar el análisis histórico de cinco activos? No modifica las operaciones del bot.')) return;
   event.currentTarget.disabled=true;
   try { await api('/api/research/run',{method:'POST'}); await refresh(); }
   catch(error) { alert(`No fue posible iniciar el análisis: ${error.message}`); event.currentTarget.disabled=false; }
@@ -798,3 +837,5 @@ window.addEventListener('portal-ready',refresh);
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('/service-worker.js').catch(()=>{});
 window.addEventListener('DOMContentLoaded',()=>{installPortalMotion();refresh();});
 setInterval(()=>{if(!document.hidden&&!document.querySelector('.shell').hidden)refresh();},30000);
+
+document.getElementById('researchCurveChoice').addEventListener('change',renderResearchCurve);

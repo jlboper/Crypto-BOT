@@ -240,8 +240,11 @@ class WindowsAssetTests(unittest.TestCase):
     def test_research_runs_outside_the_engine_process(self):
         source = (PROJECT_ROOT / "trader" / "dashboard.py").read_text(encoding="utf-8")
         self.assertIn("subprocess.Popen", source)
-        self.assertIn('"-m", "trader", "research"', source)
-        self.assertIn("CREATE_NO_WINDOW", source)
+        runtime = (PROJECT_ROOT / "trader" / "research_runtime.py").read_text(encoding="utf-8")
+        self.assertIn("ResearchScheduler", source)
+        self.assertIn("subprocess.Popen", runtime)
+        self.assertIn("research_worker.py", runtime)
+        self.assertIn("CREATE_NO_WINDOW", runtime)
         updater = (PROJECT_ROOT / "scripts" / "update_windows.ps1").read_text(encoding="utf-8-sig")
         self.assertIn("trader.update_manager apply", updater)
         self.assertNotIn("Stop-Process", updater)

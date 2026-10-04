@@ -201,6 +201,14 @@ The owner reported a failed 0.10.18 update. The authenticated portal subsequentl
 
 Candidate 0.10.19 removes trading-schema reads from update and restore jobs and derives success only from the supervisor's checked outcome, exact approved identity and expected version. Research still loads trading settings. Do not relax signed-package checks, health barriers, anti-replay, dependency inventory or financial-data recovery, and do not relabel arbitrary failed jobs from a version badge. Regressions must cross old-process/new-config boundaries rather than testing only refreshed current imports. No new trading or UI behavior is introduced.
 
+## 2026-10-04 — Authorized laboratory expansion, isolated from execution
+
+The owner authorized all proposed research improvements. Version 0.10.20 makes the laboratory daily while the Windows app is running, broadens Spot to the current liquid universe (up to 30) and studies the configured 15 Futures assets with public USD-M candles, mark and funding history. Research has its own low-priority process and durable lock/status, cancels cooperatively during update maintenance, and remote jobs invoke the installed research entry point rather than importing a potentially stale supervisor module. Do not start analysis inside the trading cycle or add research-only modules to independent-supervisor imports.
+
+The earlier equal-weight fold aggregation remains an explicitly labeled illustration. A new event simulator uses one shared wallet, timestamp alignment, five positions, marked gross exposure, next-open execution, costs, LONG/SHORT, funding and isolated-mark liquidation stress. Three preregistered risk profiles and orthogonal Futures leverage levels 1/2/3/5/10 explore risk without adjusting operating order limits. The assumed 1% maintenance is not exchange/account bracket calibration: Futures research remains unqualified, even when simulated performance is positive. No model, profile or leverage is promoted automatically.
+
+Full runs and data fingerprints are retained separately from bounded portal summaries. Repeated daily holdouts are monitoring, not independent validation. A small Spot cohort (up to five) and configured Futures cohort freeze rules at registration and observe only bars opening afterward; artificial terminal closes are excluded from forward close counts, missing cohort data invalidates that observation, and a settings change starts a new retained cohort. This remains public-data PAPER observation, not Demo execution evidence. Broader strategy automation and LIVE remain deferred.
+
 ## Ideas intentionally deferred
 
 The following have been discussed but should remain deferred until their prerequisites are met:

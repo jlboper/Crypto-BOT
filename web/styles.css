@@ -85,3 +85,7 @@ details[open]>*:not(summary){animation:portalDetailsOpen .28s var(--motion-ease)
   *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition-duration:.001ms!important}
   .motion-operational{animation:none!important}
 }
+
+#researchCurve{width:100%;height:190px;margin-top:12px}
+.research-extra{margin-top:20px}.research-extra>summary{cursor:pointer;font-weight:600;margin-bottom:12px}
+#researchCurveChoice{margin:8px 12px;padding:8px;max-width:100%}

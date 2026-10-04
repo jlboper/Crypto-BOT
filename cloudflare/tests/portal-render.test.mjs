@@ -159,4 +159,23 @@ test('v0.9 multi-asset portal snapshot renders without falling into disconnected
   Object.assign(responses['/api/paper-scorecard'],{observed_days:31,closed_trades:30});
   await context.__refresh();
   assert.equal(el('dualEvidenceState').textContent,'ACUMULANDO DATOS');
+  responses['/api/research']={mode:'RESEARCH_ONLY',auto_promotion:false,generated_at:'2026-10-04T00:00:00Z',
+    assets:[],futures_assets:[{symbol:'BTCUSDT',champion_candidate:'trend',oos_return_pct:-2,folds:[{}],
+      holdout:{net_return_pct:-1},double_cost_holdout:{net_return_pct:-2},discarded_reasons:['forward_test_independent']}],
+    joint_portfolios:[{market:'FUTURES',profile:'base',leverage:10,initial_cash:1000,net_return_pct:-2,
+      max_drawdown_pct:3,closed_trades:20,fees:2,funding_cost:1,liquidations:0,limits:{risk_pct:.5,gross_pct:80},
+      holdout:{net_return_pct:-1},double_cost_holdout:{net_return_pct:-2},curve:[{time:1,equity:1000},{time:2,equity:980}],
+      discarded_reasons:['Falta forward test independiente']}],
+    history:[{generated_at:'2026-10-04T00:00:00Z',assets:30,futures_assets:15,scenarios:[{market:'FUTURES',profile:'base',leverage:10,net_return_pct:-2,max_drawdown_pct:3,closed_trades:20,liquidations:0}]}],
+    forward_observation:[{market:'FUTURES',status:'WAITING_NEW_DATA',observed_days:0,symbols:['BTCUSDT']}]};
+  responses['/api/research/status']={running:false,automatic:true,last_completed_at:'2026-10-04T00:00:00Z',next_run_at:'2026-10-05T00:00:00Z',error:null};
+  await context.__refresh();
+  assert.match(el('researchSchedule').textContent,/cada 24 h/);
+  assert.equal(el('researchButton').textContent,'Actualizar análisis ahora');
+  assert.match(el('researchPortfolios').innerHTML,/10x/);
+  assert.match(el('researchHistory').innerHTML,/30 \/ 15/);
+  assert.match(el('researchForward').innerHTML,/Esperando velas/);
+  assert.match(el('researchFuturesAssets').innerHTML,/Falta forward independiente/);
+  assert.notEqual(el('botState').textContent,'PORTAL SIN CONEXIÓN');
+
 });

@@ -17,6 +17,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
+from .research_runtime import studied_symbols
 from .config import AppConfig, PROJECT_ROOT
 from .database import Database
 from .monitoring import activity_status, position_metrics, usable_price
@@ -42,6 +43,9 @@ class DashboardServer:
         self.db = database
         self.db.initialize_cash(config.paper.initial_cash_usdt)
         self.token = os.getenv("DASHBOARD_TOKEN", "")
+        from .research_runtime import ResearchScheduler
+        self._lab = ResearchScheduler(config)
+        self._lab_stop = threading.Event()
         self._research_lock = threading.Lock()
         self._research_state = {"running": False, "started_at": None, "error": None, "process_id": None}
         if config.dashboard.host not in {"127.0.0.1", "localhost", "::1"} and not self.token:
@@ -255,49 +259,11 @@ class DashboardServer:
                     outer.db.event("INFO", "Kill switch cleared from dashboard")
                     self._json({"ok": True, "killed": False})
                 elif path == "/api/research/run":
+                    from .research_runtime import lab_state
                     with outer._research_lock:
-                        if outer._research_state["running"]:
-                            self._json({"error": "research already running"}, HTTPStatus.CONFLICT)
-                            return
-                        outer._research_state = {
-                            "running": True,
-                            "started_at": datetime.now(UTC).isoformat(),
-                            "error": None,
-                            "process_id": None,
-                        }
-
-                    def research_job() -> None:
-                        try:
-                            log_path = outer.config.research.report_path.parent / "worker.log"
-                            log_path.parent.mkdir(parents=True, exist_ok=True)
-                            creation_flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
-                            with log_path.open("w", encoding="utf-8") as log:
-                                process = subprocess.Popen(
-                                    [sys.executable, "-m", "trader", "research"],
-                                    cwd=PROJECT_ROOT,
-                                    stdout=log,
-                                    stderr=subprocess.STDOUT,
-                                    creationflags=creation_flags,
-                                )
-                                with outer._research_lock:
-                                    outer._research_state["process_id"] = process.pid
-                                return_code = process.wait()
-                            if return_code != 0:
-                                detail = log_path.read_text(encoding="utf-8", errors="replace")[-500:]
-                                raise RuntimeError(detail or f"research process exited with code {return_code}")
-                            if not outer.config.research.report_path.is_file():
-                                raise RuntimeError("research process completed without producing a report")
-                            outer.db.event("INFO", "Research Lab completed its multi-asset analysis")
-                        except Exception as exc:
-                            with outer._research_lock:
-                                outer._research_state["error"] = str(exc)[:500]
-                            outer.db.event("ERROR", f"Research Lab failed: {str(exc)[:300]}")
-                        finally:
-                            with outer._research_lock:
-                                outer._research_state["running"] = False
-
-                    threading.Thread(target=research_job, name="research-lab", daemon=True).start()
-                    self._json({"ok": True, **outer._research_state}, HTTPStatus.ACCEPTED)
+                        launched = outer._lab.tick(manual=True)
+                    self._json({"ok": launched, **lab_state(outer.config.research.report_path)},
+                               HTTPStatus.ACCEPTED if launched else HTTPStatus.CONFLICT)
                 else:
                     self._json({"error": "not found"}, HTTPStatus.NOT_FOUND)
 
@@ -399,14 +365,14 @@ class DashboardServer:
                         prices, prices_at = outer.db.market_snapshot()
                         self._json(paper_scorecard(connection, prices=prices, prices_at=prices_at,
                             cycle_seconds=outer.config.bot.cycle_seconds, paper=outer.config.paper, mode=outer.config.bot.mode,
-                            research_symbols=outer.config.research.symbols))
+                            research_symbols=studied_symbols(outer.config.research.report_path, outer.config.research.symbols)))
                 elif path == "/api/events":
                     self._json(outer.db.recent("events", 50))
                 elif path == "/api/ai-reviews":
                     self._json(outer.db.recent("ai_reviews", 50))
                 elif path == "/api/research/status":
-                    with outer._research_lock:
-                        self._json(dict(outer._research_state))
+                    from .research_runtime import lab_state
+                    self._json(lab_state(outer.config.research.report_path, automatic=outer.config.research.automatic))
                 elif path == "/api/research":
                     report_path = outer.config.research.report_path
                     if not report_path.is_file():
@@ -418,7 +384,8 @@ class DashboardServer:
                         })
                         return
                     try:
-                        self._json(json.loads(report_path.read_text(encoding="utf-8")))
+                        from .research_runtime import project_report
+                        self._json(project_report(json.loads(report_path.read_text(encoding="utf-8"))))
                     except (OSError, json.JSONDecodeError):
                         self._json({"error": "research report unavailable"}, HTTPStatus.SERVICE_UNAVAILABLE)
                 else:
@@ -447,8 +414,20 @@ class DashboardServer:
 
         return Handler
 
+    def _start_lab_scheduler(self) -> None:
+        def scheduled():
+            while not self._lab_stop.wait(30):
+                try:
+                    with self._research_lock:
+                        self._lab.tick()
+                except Exception as error:
+                    self.db.event('WARN', 'Research scheduling: '+type(error).__name__)
+        threading.Thread(target=scheduled, name='research-scheduler', daemon=True).start()
+
     def serve_forever(self) -> None:
         server = LocalHTTPServer((self.config.dashboard.host, self.config.dashboard.port), self._handler())
+        self.server = server
+        self._start_lab_scheduler()
         server.serve_forever()
 
     def start_thread(self) -> threading.Thread:
@@ -457,9 +436,11 @@ class DashboardServer:
         self.server = server
         thread = threading.Thread(target=server.serve_forever, name="dashboard", daemon=True)
         thread.start()
+        self._start_lab_scheduler()
         return thread
 
     def close(self):
+        self._lab_stop.set()
         server = getattr(self, "server", None)
         if server is not None:
             server.shutdown()

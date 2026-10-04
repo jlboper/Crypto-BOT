@@ -357,6 +357,8 @@ def _research_development(
         train_results: dict[str, BacktestResult] = {}
         test_results: dict[str, BacktestResult] = {}
         for profile in profiles:
+            from .research_runtime import check_cancel
+            check_cancel()
             strategy = ProfileStrategy(profile, config)
             train_results[profile.name] = run_backtest(
                 symbol, train, config, strategy=strategy, strategy_name=profile.name, btc_candles=btc_candles
@@ -808,7 +810,13 @@ def save_research_report(report: dict, path: Path) -> None:
     temporary.replace(path)
 
 
-def execute_research(
+def execute_research(config, **kwargs):
+    from .research_runtime import cancellation
+    with cancellation(config):
+        return _execute_research(config, **kwargs)
+
+
+def _execute_research(
     config: AppConfig,
     *,
     symbols: tuple[str, ...] | list[str] | None = None,
@@ -817,24 +825,128 @@ def execute_research(
     test_bars: int | None = None,
 ) -> dict:
     """Download closed market history and produce a research-only report."""
-    from .exchange import BinanceClient
+    from .research_campaign import aligned, spot_portfolios, futures_research, forward_observation
+    from .research_market import FuturesHistory, ResearchClient
+    from .research_runtime import archive_report, atomic, read, progress
+    import hashlib
+    import re
 
-    selected = tuple(dict.fromkeys(symbol.upper() for symbol in (symbols or config.research.symbols)))
-    if "BTCUSDT" not in selected:
-        selected = ("BTCUSDT", *selected)
+    train = train_bars or config.research.train_bars
+    test = test_bars or config.research.test_bars
     limit = history_candles or config.research.history_candles
-    exchange = BinanceClient()
-    market_data = {
-        symbol: exchange.historical_candles(symbol, config.bot.timeframe, limit)
-        for symbol in selected
-    }
-    report = build_research_report(
-        market_data,
-        config,
-        train_bars=train_bars or config.research.train_bars,
-        test_bars=test_bars or config.research.test_bars,
-    )
-    save_research_report(report, config.research.report_path)
+    if not 106 <= train <= 8000 or not 2 <= test <= 2000 or not train+2*test <= limit <= 10000:
+        raise ValueError("Invalid or insufficient research windows")
+    exchange = ResearchClient()
+    exchange.api_key = exchange.api_secret = ''
+    selected = list(dict.fromkeys(symbol.upper() for symbol in (symbols or
+        ['BTCUSDT', *exchange.top_usdt_symbols(min(30, config.bot.universe_size))])))
+    if 'BTCUSDT' not in selected:
+        selected.insert(0, 'BTCUSDT')
+    selected = selected[:30]
+    futures_selected = list(dict.fromkeys(config.futures_testnet.forward_symbols))[:15]
+    if any(not re.fullmatch(r'[A-Z0-9]{2,26}USDT', symbol) for symbol in selected+futures_selected):
+        raise ValueError('Invalid research symbol')
+    directory = config.research.report_path.parent
+    failures = []
+
+    def cached_candles(market, symbol, fetch):
+        path = directory/'cache'/f'{market}-{symbol}-{config.bot.timeframe}.json'
+        stored = read(path).get('candles', [])
+        try:
+            previous = [Candle(**row) for row in stored]
+        except (TypeError, ValueError):
+            previous = []
+        if not _data_quality(previous)['passed']:
+            previous = []
+        fresh = fetch(min(limit, 250) if len(previous) >= limit else limit)
+        if not fresh or not _data_quality(fresh)["passed"]:
+            raise ValueError("Fresh closed history unavailable")
+        newest = max(c.close_time for c in fresh)
+        expected = _data_quality(fresh)["expected_interval_ms"]
+        if datetime.now(UTC).timestamp()*1000-newest > 2*expected:
+            raise ValueError("Stale historical data")
+        merged = {c.open_time: c for c in previous if c.close_time <= newest}
+        merged.update((c.open_time, c) for c in fresh)
+        rows = sorted(merged.values(), key=lambda c: c.open_time)[-limit:]
+        if not _data_quality(rows)['passed']:
+            rows = fetch(limit)
+        if len(rows) < train+2*test or not _data_quality(rows)['passed']:
+            raise ValueError('Insufficient or invalid market history')
+        atomic(path, {'candles': [asdict(c) for c in rows]})
+        return rows
+
+    market_data = {}
+    for symbol in selected:
+        progress(config.research.report_path, f'Datos Spot {symbol} ({len(market_data)+1}/{len(selected)})')
+        try:
+            market_data[symbol] = cached_candles('spot', symbol,
+                lambda size: exchange.historical_candles(symbol, config.bot.timeframe, size))
+        except Exception as error:
+            failures.append({'market': 'SPOT', 'symbol': symbol, 'reason': type(error).__name__})
+    if 'BTCUSDT' not in market_data:
+        raise ValueError('BTC history unavailable; previous report retained')
+    market_data = aligned(market_data)
+    progress(config.research.report_path, 'Spot: walk-forward, Monte Carlo y ventana reservada')
+    report = build_research_report(market_data, config, train_bars=train, test_bars=test)
+    for asset in report['assets']:
+        asset['market'] = 'SPOT'
+        asset['discarded_reasons'] = [name for name, passed in asset['qualification']['gates'].items() if not passed]
+    joint = spot_portfolios(market_data, report['assets'], config, train, test)
+    public_futures = FuturesHistory()
+    futures_data, marks, funding = {}, {}, {}
+    for symbol in futures_selected:
+        progress(config.research.report_path, f'Datos Futures, mark y funding: {symbol}')
+        try:
+            rows = cached_candles('futures', symbol,
+                lambda size: public_futures.candles(symbol, config.bot.timeframe, size))
+            mark = cached_candles('mark', symbol,
+                lambda size: public_futures.candles(symbol, config.bot.timeframe, size, mark=True))
+            path = directory/'cache'/f'funding-{symbol}.json'
+            previous = read(path).get('events', [])
+            fresh = public_futures.funding(symbol, rows[-250].open_time if previous else rows[0].open_time, rows[-1].close_time)
+            events = {e['time']: e for e in previous}
+            events.update((e['time'], e) for e in fresh)
+            events = sorted((e for e in events.values() if rows[0].open_time <= e['time'] <= rows[-1].close_time), key=lambda e: e['time'])
+            if (not events or events[0]['time']-rows[0].open_time > 86400000 or
+                    rows[-1].close_time-events[-1]['time'] > 86400000 or
+                    any(b['time']-a['time'] > 86400000 for a,b in zip(events, events[1:]))):
+                events = public_futures.funding(symbol, rows[0].open_time, rows[-1].close_time)
+            mark_times = {m.open_time for m in mark}
+            if any(c.open_time not in mark_times for c in rows):
+                raise ValueError('Missing mark candle')
+            atomic(path, {'events': events})
+            futures_data[symbol], marks[symbol], funding[symbol] = rows, mark, events
+        except Exception as error:
+            failures.append({'market': 'FUTURES', 'symbol': symbol, 'reason': type(error).__name__})
+    futures_data = aligned(futures_data)
+    futures_assets, futures_joint, models = futures_research(futures_data, marks, funding, config, train, test)
+    report.update(version='0.10.20', joint_portfolios=joint+futures_joint,
+        futures_assets=futures_assets, coverage={'requested_spot': selected, 'requested_futures': futures_selected,
+        'studied_spot': list(market_data), 'studied_futures': list(futures_data), 'unavailable': failures},
+        experiment={'train_bars': train, 'test_bars': test, 'timeframe': config.bot.timeframe,
+        'spot_source': 'Binance public Spot', 'futures_source': 'Binance public USD-M historical reference, not Demo fills',
+        'initial_cash': config.paper.initial_cash_usdt, 'fee_rate': config.paper.fee_rate,
+        'slippage_rate': config.paper.slippage_rate, 'funding': 'historical scheduled rates and mark prices',
+        'liquidation': 'isolated mark OHLC stress; assumed maintenance 1%, not account/contract bracket calibrated',
+        'leverage': 'same signals and notional caps; leverage changes margin, not position quantity',
+        'scenario_selection': 'preregistered comparison; no selection on OOS or final window',
+        'holdout_warning': 'Daily reuse is monitoring, not independent evidence; new future data required',
+        'automatic_promotion': False,
+        'data_hash': hashlib.sha256(json.dumps({
+            'spot': {s: [asdict(c) for c in rows] for s, rows in market_data.items()},
+            'futures': {s: [asdict(c) for c in rows] for s, rows in futures_data.items()},
+            'marks': {s: [asdict(c) for c in rows] for s, rows in marks.items()}, 'funding': funding,
+        }, sort_keys=True).encode()).hexdigest()})
+    report['forward_observation'] = forward_observation(report, market_data, futures_data, marks, funding, models, config)
+    progress(config.research.report_path, 'Guardando historial y curvas de cartera')
+    report['generated_at'] = datetime.now(UTC).isoformat()
+    archive_report(report, config.research.report_path)
+    from .research_runtime import DAY
+    import time
+    state = read(directory/'state.json')
+    state.update(running=False, status='COMPLETED', progress='', error=None,
+                 last_completed_at=report['generated_at'], next_due=time.time()+DAY, studied_spot=list(market_data))
+    atomic(directory/'state.json', state)
     return report
 
 

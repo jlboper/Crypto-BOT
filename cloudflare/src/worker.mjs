@@ -185,11 +185,27 @@ function validateSnapshot(snapshot) {
       assert(Object.keys(s).length<=36&&Array.isArray(s.by_asset)&&s.by_asset.length<=50
         &&(!s.attribution||(object(s.attribution)&&Array.isArray(s.attribution.exit_reasons)
           &&s.attribution.exit_reasons.length<=4&&Array.isArray(s.attribution.research_symbols)
-          &&s.attribution.research_symbols.length<=10))
+          &&s.attribution.research_symbols.length<=30))
         &&JSON.stringify(s).length<13000,'Oversized PAPER scorecard');
     }
     for(const key of ['positions','equity','trades','reviews','events'])assert(Array.isArray(d[key]) && d[key].length<=300,'Dashboard rows exceeded');
-    assert(object(d.research) && Array.isArray(d.research.assets) && d.research.assets.length<=30,'Invalid research report');
+    assert(object(d.research) && Array.isArray(d.research.assets) && d.research.assets.length<=30
+      &&JSON.stringify(d.research).length<=240000,'Invalid research report');
+    if(d.research.joint_portfolios!==undefined){
+      const r=d.research;
+      assert(r.mode==='RESEARCH_ONLY'&&r.auto_promotion===false
+        &&Array.isArray(r.futures_assets)&&r.futures_assets.length<=15
+        &&Array.isArray(r.joint_portfolios)&&r.joint_portfolios.length<=18
+        &&Array.isArray(r.history)&&r.history.length<=12,'Invalid research report');
+      for(const p of r.joint_portfolios){
+        assert(object(p)&&p.method==='joint_execution_shared_cash'&&['SPOT','FUTURES'].includes(p.market)
+          &&['prudente','base','agresivo'].includes(p.profile)&&[1,2,3,5,10].includes(p.leverage)
+          &&p.automatic_promotion===false&&Array.isArray(p.curve)&&p.curve.length<=120
+          &&object(p.limits)&&Number.isInteger(p.limits.positions)&&p.limits.positions<=5
+          &&['net_return_pct','max_drawdown_pct','closed_trades','fees','funding_cost','liquidations'].every(k=>Number.isFinite(p[k]))
+          &&!('trades' in p),'Invalid research report');
+      }
+    }
     if(d.testnet!==undefined){
       const t=d.testnet;
       assert(object(t)&&Object.keys(t).every(k=>['mode','order_submission_enabled','planner','next_step'].includes(k))
