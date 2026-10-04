@@ -1,3 +1,10 @@
+# Current status — 0.10.15 published; installation and reconnection reported by owner
+
+PR [#91](https://github.com/jlboper/Crypto-BOT/pull/91) merged as `2e73c67b68e422bc236fe3e66323e1034b9c2b7a`. Protected release [37168205095](https://github.com/jlboper/Crypto-BOT/actions/runs/37168205095) completed successfully on 2026-10-04 UTC and signed 0.10.15 for source `4286f185719d080efce4da97f41ef8302b252e0d`. Linux/Windows validation passed 271 offline Python tests; release validation also passed 75 Node tests and real Windows PowerShell manager/repair lifecycle checks.
+
+The owner supplied Windows evidence of the 0.10.14 defect: the existing agent task was `Running`, its separate root lacked `trader/native_protection_compat.py`, and remote status showed `sync_ok=False` with `ModuleNotFoundError`. A local recovery copied only that missing helper from the committed, hash-verified signed installation and restarted only the existing agent. The owner then reported that Windows updated to 0.10.15 and the connection was visible again. This closes the reported recovery; it is not an independently captured Windows version/health check. Two fresh authenticated syncs, single-indicator ownership and native exchange protection must be verified separately rather than inferred from publication or the report.
+
+For the confirmed cause, recovery boundaries and mandatory prevention checks, read the 2026-10-03 incident in `PROJECT_HISTORY.md` and the agent handover section in `PROJECT_HANDOVER.md`. The older candidate/publication notes below are historical and do not override this status.
 
 ## v0.10.3 protected publish retry
 
@@ -6,9 +13,9 @@ Retry after fixing the merged-PR publication trigger to use `pull_request_target
 ## v0.10.3 publication trigger
 
 Visual-only portal motion release merged to main; this note exists only to emit the normal protected publication push. No runtime or trading behavior changes.
-# 0.10.15 repair candidate
+# 0.10.15 repair candidate — historical preparation note
 
-Source preparation reproduces and fixes the 0.10.14 independent-supervisor missing dependency, adds indicator ownership and serializes agent repairs. The owner's 3 October photo shows 0.10.14 in the Windows app and two tray icons; this is local version evidence, not proof of two trading engines or a healthy remote connection. The exact Windows error has not been read here. 0.10.15 remains uninstalled until protected publication, local dependency recovery if required, and a new authenticated heartbeat/version check are observed. See UPDATE_NOTES.md for regression checks and scope.
+Source preparation reproduced and fixed the 0.10.14 independent-supervisor missing dependency, added indicator ownership and serialized agent repairs. At preparation time, the owner's 3 October photo showed 0.10.14 in the Windows app and two tray icons; the exact Windows error, publication and installation were still pending. Subsequent diagnosis and owner-reported recovery are recorded in the current status above. See UPDATE_NOTES.md for regression checks and scope.
 
 # 0.9.7 publication handoff
 
