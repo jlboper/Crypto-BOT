@@ -654,7 +654,8 @@ function renderFuturesCycle(futures,status){
     AI_REJECTED:'rechazada por IA',AI_BUDGET:'tope diario de revisiones IA',POSITION_LIMIT:'máximo de posiciones',
     BUDGET_LIMIT:'presupuesto agregado de riesgo/exposición',MARGIN_LIMIT:'margen Demo insuficiente',TRIAL_MARGIN_RISK_LIMIT:'riesgo incompatible con el leverage de prueba',
     BLOCKED:'contrato bloqueado por preflight',ASSET_UNAVAILABLE:'filtros o referencia del contrato no disponibles',NO_DATA:'sin datos del contrato',
-    KILLED:'motor pausado',OPENED:'entrada ejecutada',CLOSED:'posición cerrada',ERROR:'error operativo'};
+    KILLED:'motor pausado',PENDING_RECONCILIATION:'conciliación de orden pendiente',RISK_HALT:'límite de pérdida activo',OFF:'forward test deshabilitado',
+    OPENED:'entrada ejecutada',CLOSED:'posición cerrada',ERROR:'error operativo'};
   badge.className='state neutral';detail.textContent='';
   if(!c||!labels[c.state]){
     badge.textContent='SIN DETALLE AÚN';
