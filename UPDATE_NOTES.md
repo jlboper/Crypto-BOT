@@ -1,3 +1,14 @@
+# Actualización 0.10.15 — conexión del agente e indicador único
+
+- Corrige una dependencia omitida en el refresco del supervisor independiente: copia `native_protection_compat.py` desde el inventario firmado. La 0.10.14 podía instalar correctamente el bot y dejar al agente con `ModuleNotFoundError` después de la reparación.
+- Prueba la igualdad de los inventarios de refresco/capacidad y los imports desde una instalación independiente vacía en un proceso Python aislado, para impedir que el checkout de desarrollo oculte dependencias faltantes.
+- Si fallan los metadatos del actualizador/restauración, conserva el heartbeat básico, retira las ofertas y desactiva el rollout automático hasta recuperar el supervisor. No omite firma, secuencia ni controles de instalación/restauración.
+- Un mutex por instalación/sesión evita abrir dos indicadores de Windows. Una apertura manual vuelve a mostrar el existente; el inicio minimizado no lo interrumpe. El mutex se libera al salir y se recupera tras un cierre inesperado.
+- Serializa la reparación del agente entre el motor, la app y el watchdog, sin detener el motor de trading. Solo muestra conexión recuperada tras dos sincronizaciones HTTPS nuevas; los estados pendiente, deshabilitado o reparación en curso se muestran como advertencia.
+- Pruebas Windows ejecutan procesos temporales con PowerShell 5.1 para validar duplicados, activación, autostart silencioso, salida/crash, exclusión de reparaciones y mensajes. No usan tareas ni datos de la PC operativa.
+- Una PC afectada por la dependencia omitida de 0.10.14 puede necesitar la recuperación local de ese único módulo desde su instalación ya firmada antes de recibir el rollout. Publicación e instalación de 0.10.15 deben verificarse por separado.
+- Conserva estrategias, riesgo, stops, ledgers y LIVE deshabilitado. Esta corrección no prueba por sí sola el estado de Binance o la continuidad de la conexión real.
+
 # Actualización 0.10.14 — protección nativa Spot y Futures
 
 - Spot Testnet instala OCO `STOP_LOSS` + `TAKE_PROFIT` con ejecución MARKET al dispararse. Futures Demo instala `STOP_MARKET` + `TAKE_PROFIT_MARKET`, cierre de posición y disparador MARK_PRICE, para LONG y SHORT.

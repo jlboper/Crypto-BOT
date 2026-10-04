@@ -1,6 +1,47 @@
 ﻿param([switch]$Minimized)
 
 $ErrorActionPreference = "Stop"
+
+function Enter-ManagerInstance([string]$Root, [bool]$ActivateExisting = $true) {
+    $canonical = [System.IO.Path]::GetFullPath($Root).TrimEnd('\', '/').ToUpperInvariant()
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    try { $digest = [BitConverter]::ToString($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($canonical))).Replace('-', '') }
+    finally { $sha.Dispose() }
+    $name = 'Local\CryptoAITrader.Manager.' + $digest
+    $mutex = [System.Threading.Mutex]::new($false, $name)
+    $show = [System.Threading.EventWaitHandle]::new($false, [System.Threading.EventResetMode]::AutoReset, $name + '.Show')
+    $owned = $false
+    try {
+        try { $owned = $mutex.WaitOne(0) }
+        catch [System.Threading.AbandonedMutexException] { $owned = $true }
+        if (-not $owned) {
+            if ($ActivateExisting) { [void]$show.Set() }
+            $show.Dispose()
+            $mutex.Dispose()
+            return $null
+        }
+        return [PSCustomObject]@{ Mutex=$mutex; Show=$show }
+    } catch {
+        if ($owned) { $mutex.ReleaseMutex() }
+        $show.Dispose()
+        $mutex.Dispose()
+        throw
+    }
+}
+
+function Exit-ManagerInstance($Instance) {
+    if ($null -ne $Instance) {
+        $Instance.Show.Dispose()
+        $Instance.Mutex.ReleaseMutex()
+        $Instance.Mutex.Dispose()
+    }
+}
+
+# Claim the indicator before creating any UI, timer, or engine-start callback.
+$managerRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+$managerInstance = Enter-ManagerInstance -Root $managerRoot -ActivateExisting (-not $Minimized)
+if ($null -eq $managerInstance) { exit 0 }
+try {
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 [System.Windows.Forms.Application]::EnableVisualStyles()
@@ -153,15 +194,27 @@ function Show-LocalUpdateCenter {
     finally { $updateButton.Enabled = $true }
 }
 
+function Get-AgentRepairNotice($Result) {
+    switch ($Result.status) {
+        'healthy' { return [PSCustomObject]@{ Healthy=$true; Message='Conexión del portal recuperada: dos sincronizaciones HTTPS nuevas confirmadas.' } }
+        'repair_in_progress' { return [PSCustomObject]@{ Healthy=$false; Message='Ya hay una reparación en curso. Espera a que termine; no hace falta repetirla.' } }
+        'skipped_disabled' { return [PSCustomObject]@{ Healthy=$false; Message='El agente está deshabilitado. La reparación respetó ese estado y no recuperó la conexión.' } }
+        'connection_pending' { return [PSCustomObject]@{ Healthy=$false; Message=('El agente fue revisado, pero la conexión sigue pendiente. Diagnóstico: ' + $Result.error_type + '. No se confirmó la sincronización con el portal.') } }
+        default { throw 'La reparación no devolvió un resultado reconocido.' }
+    }
+}
+
 function Show-AgentRefresh {
     $scriptPath = Join-Path $ProjectRoot 'scripts\refresh_windows_agent.ps1'
     try {
         if (-not (Test-Path -LiteralPath $scriptPath)) { throw 'Actualiza el bot antes de reparar la conexión.' }
         $result = & $scriptPath -SourcePath $ProjectRoot -ForceRestart
+        $notice = Get-AgentRepairNotice (($result | Out-String) | ConvertFrom-Json)
+        $icon = if ($notice.Healthy) { [System.Windows.Forms.MessageBoxIcon]::Information } else { [System.Windows.Forms.MessageBoxIcon]::Warning }
         [System.Windows.Forms.MessageBox]::Show(
-            ($result | Out-String), 'Conexión del portal',
+            $notice.Message, 'Conexión del portal',
             [System.Windows.Forms.MessageBoxButtons]::OK,
-            [System.Windows.Forms.MessageBoxIcon]::Information) | Out-Null
+            $icon) | Out-Null
     } catch {
         [System.Windows.Forms.MessageBox]::Show(
             "No se completó la revisión del agente. $($_.Exception.Message)", 'Revisar conexión del portal',
@@ -181,7 +234,13 @@ function Invoke-AutomaticAgentRefresh {
         # The helper verifies the committed signed inventory, backs up only
         # changed agent modules and restarts only the outbound agent task.
         $result = & $scriptPath -SourcePath $ProjectRoot -Automatic
+        $decoded = (($result | Out-String) | ConvertFrom-Json)
+        if ($decoded.status -eq 'repair_in_progress') { return }
         $script:AgentRefreshCheckedVersion = $version
+        if ($decoded.status -ne 'healthy') {
+            $repairAgentItem.Text = 'Revisar conexión del portal'
+            return
+        }
         $repairAgentItem.Text = 'Reparar conexión del portal'
     } catch {
         # Keep the menu recovery action and retry later. A refresh failure
@@ -194,6 +253,14 @@ function Invoke-PortalAgentWatchdog {
     # The outbound agent is disposable. Repairing it must never stop or restart
     # the trading engine, alter a ledger, or change credentials.
     try {
+        # Never interrupt a signed repair that is replacing modules or waiting
+        # for its two successful heartbeats. The OS releases this lock on exit.
+        $repairLockPath = Join-Path $ProjectRoot 'data\agent-repair.lock'
+        $repairLock = $null
+        if (-not (Test-Path -LiteralPath (Split-Path -Parent $repairLockPath))) { return }
+        try { $repairLock = [System.IO.File]::Open($repairLockPath, 'OpenOrCreate', 'ReadWrite', 'None') }
+        catch [System.IO.IOException] { return }
+        try {
         $runtimePath = Join-Path $ProjectRoot 'data\engine-runtime.json'
         if (-not (Test-Path -LiteralPath $runtimePath)) { return }
         $runtime = Get-Content -LiteralPath $runtimePath -Raw | ConvertFrom-Json
@@ -234,6 +301,7 @@ function Invoke-PortalAgentWatchdog {
         }
         Start-ScheduledTask -TaskName 'Crypto Paper Portal Agent' -ErrorAction Stop
         $repairAgentItem.Text = 'Reparar conexión del portal'
+        } finally { if ($null -ne $repairLock) { $repairLock.Dispose() } }
     } catch {
         # A watchdog failure degrades only remote visibility. Never touch motor state.
         $repairAgentItem.Text = 'Revisar conexión del portal'
@@ -807,6 +875,9 @@ $timer.Add_Tick({
     Invoke-PortalAgentWatchdog
     Invoke-TradingEngineWatchdog
 })
+$activationTimer = New-Object System.Windows.Forms.Timer
+$activationTimer.Interval = 300
+$activationTimer.Add_Tick({ if ($managerInstance.Show.WaitOne(0)) { Show-ManagerWindow } })
 $form.Add_Shown({
     if (-not (Test-Path $StartupOptOutPath) -and -not (Test-CanonicalStartup)) {
         Enable-AutomaticStartup
@@ -816,6 +887,7 @@ $form.Add_Shown({
     }
     Update-ManagerStatus
     $timer.Start()
+    $activationTimer.Start()
     Invoke-AutomaticAgentRefresh
     Invoke-PortalAgentWatchdog
     if ($Minimized) { Hide-ManagerWindow }
@@ -843,6 +915,8 @@ $form.Add_FormClosing({
 })
 $form.Add_FormClosed({
     $timer.Stop()
+    $activationTimer.Stop()
+    $activationTimer.Dispose()
     $notifyIcon.Visible = $false
     $notifyIcon.Dispose()
     $script:LogoBitmap.Dispose()
@@ -853,3 +927,4 @@ $form.Add_FormClosed({
 })
 
 [System.Windows.Forms.Application]::Run($form)
+} finally { Exit-ManagerInstance $managerInstance }

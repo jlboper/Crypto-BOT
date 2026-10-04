@@ -24,6 +24,7 @@ MODULES = (
     "trader/remote_paper_controls.py",
     "trader/update_manager.py",
     "trader/update_supervisor.py",
+    "trader/native_protection_compat.py",
     "trader/runtime.py",
     "trader/runtime_control.py",
 )

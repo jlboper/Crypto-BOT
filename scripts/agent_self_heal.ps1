@@ -5,6 +5,26 @@ param(
 $ErrorActionPreference = 'Stop'
 $taskName = 'Crypto Paper Portal Agent'
 $source = (Resolve-Path -LiteralPath $SourcePath).Path
+function Enter-AgentRepairLock([string]$Root) {
+    $directory = Join-Path $Root 'data'
+    New-Item -ItemType Directory -Force -Path $directory | Out-Null
+    try { return [System.IO.File]::Open((Join-Path $directory 'agent-repair.lock'), 'OpenOrCreate', 'ReadWrite', 'None') }
+    catch [System.IO.IOException] {
+        if (($_.Exception.GetBaseException().HResult -band 0xffff) -in @(32, 33)) { return $null }
+        throw
+    }
+}
+function Test-AgentRepairHeartbeat($Status, [string]$TaskState, [double]$LastSeen) {
+    return ($TaskState -eq 'Running' -and $Status.sync_ok -eq $true -and
+        [double]$Status.last_success -gt $LastSeen -and
+        [string]$Status.error_type -notlike 'SUPERVISOR_UNAVAILABLE:*')
+}
+$repairLock = Enter-AgentRepairLock $source
+if ($null -eq $repairLock) {
+    [PSCustomObject]@{ status='repair_in_progress' } | ConvertTo-Json -Compress
+    exit 0
+}
+try {
 $statusPath = Join-Path $source 'data\agent-self-heal.json'
 function Write-HealState([string]$Phase, [string]$Detail = '') {
     $payload = [PSCustomObject]@{
@@ -129,13 +149,17 @@ Start-ScheduledTask -TaskName $taskName -ErrorAction Stop
 $successes = 0
 $lastSeenSuccess = $previousSuccess
 $mode = $null
+$lastError = 'NO_SUCCESSFUL_HEARTBEAT'
 for ($attempt=0; $attempt -lt 120; $attempt++) {
     $taskState = (Get-ScheduledTask -TaskName $taskName).State
     if (Test-Path -LiteralPath $statusFile) {
         try {
             $status = Get-Content -LiteralPath $statusFile -Raw | ConvertFrom-Json
+            if ([string]$status.error_type -match '^([A-Za-z][A-Za-z0-9_]*(?::[A-Za-z][A-Za-z0-9_]*|:[0-9]{3})?)(?::|$)') {
+                $lastError = $Matches[1]
+            }
             $successAt = [double]$status.last_success
-            if ($taskState -eq 'Running' -and $status.sync_ok -eq $true -and $successAt -gt $lastSeenSuccess) {
+            if (Test-AgentRepairHeartbeat $status $taskState $lastSeenSuccess) {
                 $successes++
                 $lastSeenSuccess = $successAt
                 $mode = $status.mode
@@ -148,7 +172,7 @@ for ($attempt=0; $attempt -lt 120; $attempt++) {
 if ($successes -lt 2 -or (Get-ScheduledTask -TaskName $taskName).State -ne 'Running') {
     Write-HealState 'connection_pending' ('heartbeats=' + $successes)
     [PSCustomObject]@{ status='connection_pending'; version=$preview.version; restart_policy=999;
-        heartbeats=$successes; agent_refresh=$result.status } | ConvertTo-Json -Compress
+        heartbeats=$successes; agent_refresh=$result.status; error_type=$lastError } | ConvertTo-Json -Compress
     exit 0
 }
 
@@ -157,3 +181,4 @@ Write-HealState 'healthy' 'direct_pythonw'
     restart_policy=999; task_upgrade='direct_pythonw'; heartbeats=$successes;
     agent_refresh=$result.status } | ConvertTo-Json -Compress
 exit 0
+} finally { $repairLock.Dispose() }

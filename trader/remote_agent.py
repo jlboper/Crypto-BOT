@@ -111,10 +111,20 @@ class RemoteAgent:
         dashboard_issue = None
         last = self._last_id()
         payload = {"snapshot": self.snapshot(), "acks": [last] if last else []}
-        if self.update_provider:
-            payload['snapshot']['bot_update'] = self.update_provider()
-        if self.restore_provider:
-            payload['snapshot']['bot_restore'] = self.restore_provider()
+        capability_issue = None
+        try:
+            if self.update_provider:
+                payload['snapshot']['bot_update'] = self.update_provider()
+            if self.restore_provider:
+                payload['snapshot']['bot_restore'] = self.restore_provider()
+        except Exception as error:
+            # Unavailable updater metadata must not hide the core heartbeat.
+            # Withdraw both offers and automatic rollout; never claim the
+            # supervisor is healthy or weaken installation/restore gates.
+            payload['snapshot'].pop('bot_update', None)
+            payload['snapshot'].pop('bot_restore', None)
+            payload['snapshot']['update_state'] = 'manual_signed_install_only'
+            capability_issue = f'SUPERVISOR_UNAVAILABLE:{type(error).__name__}'
         if self.dashboard_provider:
             try:
                 payload["snapshot"]["dashboard"] = self.dashboard_provider()
@@ -177,7 +187,7 @@ class RemoteAgent:
         for item in controls:
             self.paper_controls.apply(item)
         if self.last_error is None:
-            self.last_error = dashboard_issue
+            self.last_error = capability_issue or dashboard_issue
 
     def run(self, *, stop=None, validate=None, report=None):
         failures = 0

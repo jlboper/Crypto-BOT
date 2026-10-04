@@ -34,3 +34,7 @@ jobs:
             [void][System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $path).Path, [ref]$tokens, [ref]$parseErrors)
             if ($parseErrors.Count -gt 0) { throw "$path : $($parseErrors -join '; ')" }
           }
+      - name: Verify Windows manager and repair process exclusion
+        if: matrix.os == 'windows-latest'
+        shell: powershell
+        run: ./tests/windows_manager_lifecycle.ps1

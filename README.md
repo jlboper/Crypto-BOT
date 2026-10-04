@@ -183,6 +183,8 @@ Desde 0.6.18, la app local sincroniza automáticamente los módulos del agente i
 
 Haz doble clic en `Crypto AI Trader.vbs` para abrir una aplicación gráfica sin consola. Desde allí puedes comprobar el estado conjunto, Spot Equity/Return, Futures Wallet/P&L y último ciclo; abrir el portal local o el remoto; buscar e instalar actualizaciones firmadas directamente desde la PC; reiniciar el motor; manejar el kill switch y configurar el inicio automático. Si Internet falla, el botón puede comprobar un paquete firmado previamente descargado; no puede descubrir versiones que no estén ya en la PC. El supervisor independiente debe estar configurado y la versión debe estar firmada, vigente y ser más reciente. Al minimizar o cerrar, el indicador continúa en el área de notificaciones de Windows y cambia de color según el estado.
 
+Desde 0.10.15, volver a abrir la app muestra el indicador existente en la misma sesión de Windows en lugar de crear otro; el inicio automático minimizado permanece silencioso. Las reparaciones del agente se ejecutan de una en una y solo declaran conexión recuperada después de dos sincronizaciones HTTPS nuevas. Los indicadores iniciados con código anterior deben cerrarse una vez mediante **Salir del indicador**, que no detiene el motor, antes de abrir la app actualizada. Si 0.10.14 dejó al supervisor independiente sin `native_protection_compat.py`, reiniciar ese agente no basta: primero debe recuperar ese módulo desde el inventario local firmado.
+
 ## Seguridad operacional
 
 - El dashboard escucha solo en `127.0.0.1`; no abras el puerto 8765 en el router.
