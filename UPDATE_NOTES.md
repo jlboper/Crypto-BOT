@@ -1,3 +1,11 @@
+# 0.10.24 — Recuperación automática de contratos Futures Demo
+
+- Futures vuelve a validar en cada ciclo los contratos bloqueados; un fallo temporal no elimina permanentemente una moneda. Si Binance Demo vuelve a exponer filtros/configuración válidos, el contrato regresa automáticamente a READY.
+- El sizing tolera un MARKET_LOT_SIZE incompleto usando LOT_SIZE únicamente cuando este último es internamente válido; /order/test sigue siendo la validación final antes de cualquier entrada.
+- La referencia de entrada usa ticker del Demo y, si falta temporalmente, markPrice/indexPrice del mismo Binance Futures Demo. No mezcla precios de producción.
+- El diagnóstico del portal identifica símbolo y causa exacta de cada BLOCKED / ASSET_UNAVAILABLE / NO_DATA, en vez de mostrar solo un contador genérico.
+- No cambian score, timeframe, leverage, límites de cartera, stops, IA final ni bloqueo de LIVE.
+
 # 0.10.23 — Más oportunidades observables con diagnóstico explícito
 
 - Futures Demo conserva 15 contratos, hasta 5 posiciones, 300 USDT de notional bruto, 7.5 USDT de pérdida estimada hasta stops, ISOLATED y pruebas 1x/2x/3x sin multiplicar exposición. Cambia únicamente su cadencia de señal a 1h y el score mínimo de 75 a 70; Spot continúa en 4h.
