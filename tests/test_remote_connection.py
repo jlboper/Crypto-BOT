@@ -119,6 +119,36 @@ class RemoteConnectionTests(unittest.TestCase):
         self.assertEqual(requests[0]['control_results'][0]['id'], 10)
         self.agent.paper_controls.apply.assert_called_once_with(control)
 
+    def test_broken_supervisor_metadata_keeps_heartbeat_but_withdraws_rollout(self):
+        Database(self.config.bot.database_path)
+        for provider in ('update_provider', 'restore_provider'):
+            with self.subTest(provider=provider):
+                self.agent.update_provider = lambda: {'enabled': True}
+                self.agent.restore_provider = lambda: {'enabled': True}
+                def unavailable():
+                    raise ModuleNotFoundError('private/path/native_protection_compat')
+                setattr(self.agent, provider, unavailable)
+                received = []
+                def send(request, timeout):
+                    received.append(json.loads(request.data))
+                    return io.BytesIO(b'{"commands":[],"jobs":[]}')
+                with patch.object(self.agent.opener, 'open', side_effect=send):
+                    self.agent.sync()
+                self.assertEqual(len(received), 1)
+                snapshot = received[0]['snapshot']
+                self.assertEqual(snapshot['mode'], self.config.bot.mode.upper())
+                self.assertEqual(snapshot['update_state'], 'manual_signed_install_only')
+                self.assertNotIn('bot_update', snapshot)
+                self.assertNotIn('bot_restore', snapshot)
+                self.assertEqual(self.agent.last_error, 'SUPERVISOR_UNAVAILABLE:ModuleNotFoundError')
+
+        self.agent.update_provider = lambda: None
+        self.agent.restore_provider = lambda: None
+        with patch.object(self.agent.opener, 'open', return_value=io.BytesIO(b'{"commands":[],"jobs":[]}')) as send:
+            self.agent.sync()
+        self.assertEqual(json.loads(send.call_args.args[0].data)['snapshot']['update_state'], 'signed_rollout')
+        self.assertIsNone(self.agent.last_error)
+
     def test_config_refresh_accepts_supervised_paper_to_testnet_ledger_switch(self):
         Database(self.config.bot.database_path)
         testnet_path = self.config.bot.database_path.parent / 'testnet-trader.db'

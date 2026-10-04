@@ -1,5 +1,8 @@
+import ast
 import hashlib
 import json
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -40,6 +43,36 @@ class AgentRefreshTests(unittest.TestCase):
         self.assertNotIn("from trader.portal_snapshot import dashboard_snapshot", agent_source)
         self.assertIn("from trader.config import load_config", agent_source)
         self.assertIn("trader/config.py", agent_source)
+
+    def test_refresh_inventory_matches_supervisor_capability_inventory(self):
+        root = Path(__file__).resolve().parents[1]
+        tree = ast.parse((root / 'scripts/windows_agent.py').read_text(encoding='utf-8'))
+        inventory = next(ast.literal_eval(node.value) for node in tree.body
+                         if isinstance(node, ast.Assign) and any(
+                             isinstance(target, ast.Name) and target.id == 'SUPERVISOR_MODULES'
+                             for target in node.targets))
+        self.assertEqual(MODULES, inventory)
+
+    def test_refreshed_independent_agent_imports_without_source_checkout(self):
+        # Copy real signed modules into an otherwise empty independent install.
+        # -I ensures the source checkout cannot hide a missing dependency.
+        root = Path(__file__).resolve().parents[1]
+        files = {}
+        for name in MODULES:
+            payload = (root / name).read_bytes()
+            (self.source / name).write_bytes(payload)
+            files[name] = hashlib.sha256(payload).hexdigest()
+        journal = self.agent / 'data/remote-updates/journal.json'
+        record = json.loads(journal.read_text())
+        record['files'] = files
+        journal.write_text(json.dumps(record))
+        (self.agent / 'data/REMOTE_STOP').write_text('stopped')
+        refresh(self.source, self.agent, apply=True)
+        result = subprocess.run([sys.executable, '-I', '-B', '-c',
+            'import sys; sys.path.insert(0, sys.argv[1]); '
+            'import scripts.windows_agent, scripts.remote_job, trader.update_supervisor',
+            str(self.agent)], cwd=self.agent, capture_output=True, text=True, timeout=15)
+        self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_preview_and_bounded_refresh_preserve_backup(self):
         before = refresh(self.source, self.agent)

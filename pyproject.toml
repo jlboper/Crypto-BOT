@@ -1,6 +1,6 @@
 [project]
 name = "crypto-ai-trading-bot"
-version = "0.10.14"
+version = "0.10.15"
 description = "Safety-first Binance Spot Testnet plus multi-asset Futures Demo forward lab with AI review, signal history, shadow strategies and supervised recovery"
 requires-python = ">=3.11"
 dependencies = []

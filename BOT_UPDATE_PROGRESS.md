@@ -6,6 +6,10 @@ Retry after fixing the merged-PR publication trigger to use `pull_request_target
 ## v0.10.3 publication trigger
 
 Visual-only portal motion release merged to main; this note exists only to emit the normal protected publication push. No runtime or trading behavior changes.
+# 0.10.15 repair candidate
+
+Source preparation reproduces and fixes the 0.10.14 independent-supervisor missing dependency, adds indicator ownership and serializes agent repairs. The owner's 3 October photo shows 0.10.14 in the Windows app and two tray icons; this is local version evidence, not proof of two trading engines or a healthy remote connection. The exact Windows error has not been read here. 0.10.15 remains uninstalled until protected publication, local dependency recovery if required, and a new authenticated heartbeat/version check are observed. See UPDATE_NOTES.md for regression checks and scope.
+
 # 0.9.7 publication handoff
 
 Version 0.9.7 is merged on `main`. The functional PR was merged through the GitHub API, which may not emit the protected `push` publication run in this repository. This documentation-only follow-up PR exists solely to be merged by the owner in the GitHub web UI so the normal `main` push event can trigger `portal-release.yml`. It does not change bot behavior, strategy, risk, leverage, credentials, ledgers, or LIVE state.

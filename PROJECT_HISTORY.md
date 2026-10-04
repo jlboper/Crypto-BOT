@@ -143,6 +143,12 @@ Each network write has a durable identity before submission. Unknown POST outcom
 
 Restoration to code without native support is blocked while native journals remain, including a second check after cooperative stop. Spot trailing replacements have a non-atomic cancellation/creation gap; offline operation preserves only the last confirmed levels. Demo verification and a fresh observation window remain required before claiming installed behavior; no LIVE permission is introduced.
 
+## 2026-10-03 — Independent supervisor dependency closure and UI ownership
+
+An isolated reproduction of the 0.10.14 refresh found that the signed bot contained `native_protection_compat.py`, while the independent-agent refresh inventory omitted it. Updating the supervisor without that dependency could break recovery/restore imports and block heartbeat delivery. The refresh and capability inventories must match, and CI must import the actual refreshed modules in a separate process without access to the source checkout. Optional updater metadata failure withdraws update/restore capabilities and automatic rollout while preserving the basic heartbeat; installation safety gates remain mandatory.
+
+The Windows indicator has separate ownership from the trading engine. A per-install/session mutex prevents duplicate indicators and their repair timers, and an OS file lock serializes signed agent refresh against other repairs and the app watchdog. Repair success requires new HTTPS evidence; a running process or copied files alone cannot prove reconnection. These protections cannot recover a powered-off PC or fix rejected credentials. An affected old independent supervisor may require a locally verified dependency recovery before remote rollout becomes available again.
+
 ## Ideas intentionally deferred
 
 The following have been discussed but should remain deferred until their prerequisites are met:
