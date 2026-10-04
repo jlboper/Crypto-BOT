@@ -104,6 +104,16 @@ class SpotCycleStatusTests(unittest.TestCase):
         self.assertEqual(self.report()['state'], 'RISK_HALT')
         self.review.assert_not_called()
 
+    def test_loss_gate_reports_exact_period_and_reset_time(self):
+        detail = self.engine._risk_halt(970.0)
+        self.assertEqual(detail["periods"], ["daily"])
+        self.assertAlmostEqual(detail["daily_return_pct"], -3.0)
+        self.assertEqual(detail["daily_limit_pct"], 2.0)
+        self.assertEqual(detail["weekly_limit_pct"], 5.0)
+        self.assertGreater(datetime.fromisoformat(detail["resets_at"]), datetime.now(UTC))
+        self.assertEqual(self.engine.db.setting("daily_halt"),
+                         datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0).isoformat())
+
     def test_fatal_error_replaces_success_and_recovers_on_next_cycle(self):
         self.evaluate.side_effect = lambda symbol, *_: replace(self.hold, symbol=symbol)
         self.engine.cycle()
