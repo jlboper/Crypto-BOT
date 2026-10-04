@@ -1,8 +1,12 @@
-# Current candidate — 0.10.16 portal audit; publication and installation pending
+# Current status — 0.10.16 published and observed installed/connected
 
 An authenticated audit on 2026-10-04 UTC observed the portal reporting installed 0.10.15 and Windows connected. Main, financial/health details, signals/shadow evidence, Research assets and the Options submenus were inspected. Trading/account controls were viewed without changing settings or sending trading orders.
 
-Version 0.10.16 is prepared on `release/v01016-portal-audit` to correct evidence presentation, Spot average-loss accounting and stale Futures health, with synthetic regressions. It preserves strategies, risk, execution and observation history. See `UPDATE_NOTES.md` and the audit decision in `PROJECT_HISTORY.md`. Protected publication and installed Windows version must still be confirmed independently; the status below describes the published baseline.
+PR [#93](https://github.com/jlboper/Crypto-BOT/pull/93) merged as `2b51e596d0df6bf4d19b44302ffa1e7082465099`. Protected release [37170161112](https://github.com/jlboper/Crypto-BOT/actions/runs/37170161112) completed successfully, verified the signature and published TESTNET bot 0.10.16 for source `614dc45a9f62a89682fbb6c32b74b28f5ba58053`. Linux/Windows CI passed 273 offline Python tests; release validation also passed 76 Node tests and the real Windows PowerShell manager/repair lifecycle checks.
+
+The authenticated portal subsequently showed an update job completed with `Bot 0.10.16 instalado; arranque y portal local comprobados en TESTNET`, followed by installed version 0.10.16, Windows connected over HTTPS, Spot operational and Futures active/waiting for a signal. The corrected UI showed separate strategy/technical closes, dated AI reviews and zero exposure for closed Spot assets. This confirms the reported installation/projection at the audit time, not permanent continuity or native protection behavior with no exposed positions.
+
+The release corrects evidence presentation, Spot average-loss accounting and stale Futures health. It preserves strategies, risk, execution and observation history. See `UPDATE_NOTES.md` and the audit decision in `PROJECT_HISTORY.md`. The 0.10.15 status below is the historical baseline.
 
 # Published baseline — 0.10.15; version and connection observed in authenticated portal
 

@@ -177,6 +177,8 @@ Several UI summaries mixed technical recovery closes with strategy closes even t
 
 The audit does not justify tuning strategy from a short or technically dominated history. Preserve the existing observation period, execution rules and risk controls, and reassess strategy only with sufficient attributable forward evidence and complete cost accounting. Regression fixtures cover zero-P&L closes, stale high-coverage cycles, multiple contracts, chronological AI reviews and pending update checks. Publication and Windows installation are separate from these source changes.
 
+Verification completed later in the same audit: PR [#93](https://github.com/jlboper/Crypto-BOT/pull/93) merged; protected [37170161112](https://github.com/jlboper/Crypto-BOT/actions/runs/37170161112) published signed TESTNET 0.10.16 for source `614dc45a9f62a89682fbb6c32b74b28f5ba58053`. CI passed 273 Python tests on Linux/Windows, 76 Node tests and Windows manager/repair lifecycle checks. The authenticated portal then reported a completed supervised installation/startup check, installed 0.10.16, Windows connected and both motors operational. No native order execution was exercised during this read-only audit; this point-in-time evidence is not a guarantee of future uptime.
+
 ## Ideas intentionally deferred
 
 The following have been discussed but should remain deferred until their prerequisites are met:
