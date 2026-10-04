@@ -109,6 +109,33 @@ class FuturesTestnetLabTests(unittest.TestCase):
             self.assertEqual(qty, 0)
             self.assertEqual(sum(c.args[1] == "/fapi/v1/order" for c in transport.call_args_list), 0)
 
+    def test_forward_quantity_uses_lot_size_when_market_lot_is_incomplete(self):
+        info = {
+            "symbol":"ATOMUSDT","status":"TRADING","contractType":"PERPETUAL","quoteAsset":"USDT",
+            "filters":[
+                {"filterType":"MARKET_LOT_SIZE","minQty":"0","maxQty":"0","stepSize":"0"},
+                {"filterType":"LOT_SIZE","minQty":"0.1","maxQty":"10000","stepSize":"0.1"},
+                {"filterType":"MIN_NOTIONAL","notional":"5"},
+            ],
+        }
+        with patch.object(self.lab, "_symbol_info", return_value=info),              patch.object(self.lab, "_reference", return_value=(Decimal("10"), None)),              patch("trader.futures_testnet.signed_request", return_value={}) as transport:
+            qty, price = self.lab.forward_quantity("ATOMUSDT","LONG",Decimal("60"),Decimal("60"))
+        self.assertEqual(price, Decimal("10"))
+        self.assertEqual(qty, Decimal("5.8"))
+        self.assertEqual(transport.call_args.args[:2], ("POST","/fapi/v1/order/test"))
+
+    def test_reference_falls_back_to_demo_mark_price(self):
+        def public(method, endpoint, fields=None, **kwargs):
+            if endpoint == "/fapi/v1/ticker/price":
+                raise FuturesTestnetExecutionError("temporary ticker gap")
+            if endpoint == "/fapi/v1/premiumIndex":
+                return {"symbol":"ATOMUSDT","markPrice":"12.5","indexPrice":"12.4","lastFundingRate":"0.0002"}
+            raise AssertionError(endpoint)
+        with patch("trader.futures_testnet.public_request", side_effect=public):
+            price, funding = self.lab._reference("ATOMUSDT")
+        self.assertEqual(price, Decimal("12.5"))
+        self.assertAlmostEqual(funding, 0.0002)
+
     def test_forward_quantity_rejects_unavailable_contract_without_order(self):
         with patch.object(self.lab,'_symbol_info',return_value={'status':'BREAK'}), \
              patch('trader.futures_testnet.signed_request') as transport:
@@ -278,6 +305,21 @@ class FuturesTestnetLabTests(unittest.TestCase):
         with patch("trader.futures_testnet.signed_request", side_effect=signed):
             with self.assertRaisesRegex(FuturesTestnetExecutionError, "open exposure"):
                 self.lab.ensure_flat_forward_configuration("BTCUSDT")
+
+    def test_symbol_config_falls_back_to_full_demo_list(self):
+        calls=[]
+        def signed(method, endpoint, fields=None):
+            fields=fields or {}; calls.append(dict(fields))
+            self.assertEqual((method,endpoint),("GET","/fapi/v1/symbolConfig"))
+            if fields.get("symbol")=="ATOMUSDT":
+                return []
+            return [{"symbol":"BTCUSDT","marginType":"isolated","leverage":"1"},
+                    {"symbol":"ATOMUSDT","marginType":"isolated","leverage":"1"}]
+        with patch("trader.futures_testnet.signed_request",side_effect=signed):
+            row=self.lab._symbol_config("ATOMUSDT")
+        self.assertEqual(row["symbol"],"ATOMUSDT")
+        self.assertEqual(len(calls),2)
+        self.assertEqual(calls[1],{})
 
     def test_flat_v3_positionrisk_omission_uses_symbol_config_for_confirmation(self):
         state={"leverage":2,"margin":"cross"}

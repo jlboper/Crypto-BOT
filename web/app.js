@@ -681,7 +681,17 @@ function renderFuturesCycle(futures,status){
   else if(c.state==='RISK_HALT')summary.textContent='Futures conserva protecciones, pero las nuevas entradas están bloqueadas por su límite de pérdida.';
   else summary.textContent=`Motor Futures activo · ${c.symbols} contratos configurados · timeframe ${String(c.timeframe||'—').toUpperCase()} · score mínimo ${c.minimum_score}/100.`;
   const entries=Object.entries(c.statuses||{}).sort((a,b)=>b[1]-a[1]);
-  detail.textContent='Ciclo: '+shortTime(c.at)+(entries.length?' · '+entries.map(([code,count])=>`${count}: ${reasons[code]||code.toLowerCase()}`).join(' · '):'');
+  const issues=Array.isArray(c.issues)?c.issues:[];
+  const issueText=issues.map(row=>{
+    const symbol=String(row.symbol||'').replace(/USDT$/,'')||'Contrato';
+    const raw=String(row.reason||reasons[row.status]||'contrato no disponible')
+      .replace(/^FuturesForwardAssetUnavailable:\s*/,'')
+      .replace(/^FuturesTestnetExecutionError:\s*/,'');
+    return symbol+': '+raw;
+  });
+  detail.textContent='Ciclo: '+shortTime(c.at)
+    +(entries.length?' · '+entries.map(([code,count])=>`${count}: ${reasons[code]||code.toLowerCase()}`).join(' · '):'')
+    +(issueText.length?' · Detalle: '+issueText.join(' · '):'');
 }
 
 async function refresh() {

@@ -139,6 +139,11 @@ class FuturesTestnetLab:
         row = next((item for item in rows if isinstance(item, dict)
                     and str(item.get("symbol", "")).upper() == symbol.upper()), None)
         if row is None:
+            fallback = signed_request("GET", "/fapi/v1/symbolConfig", {})
+            fallback_rows = [fallback] if isinstance(fallback, dict) else fallback if isinstance(fallback, list) else []
+            row = next((item for item in fallback_rows if isinstance(item, dict)
+                        and str(item.get("symbol", "")).upper() == symbol.upper()), None)
+        if row is None:
             raise FuturesTestnetExecutionError(f"Futures symbol configuration unavailable: {symbol}")
         leverage = _decimal(row.get("leverage", "0"))
         if leverage <= 0:
@@ -315,11 +320,31 @@ class FuturesTestnetLab:
 
     @staticmethod
     def _reference(symbol: str) -> tuple[Decimal, float | None]:
-        price_payload = public_request("GET", "/fapi/v1/ticker/price", {"symbol": symbol}, allow_fallback=False)
-        price = _decimal(price_payload.get("price", "0") if isinstance(price_payload, dict) else "0")
+        """Use only Demo-market references, with a same-host mark-price fallback."""
+        premium = None
+        price = Decimal("0")
+        try:
+            payload = public_request("GET", "/fapi/v1/ticker/price", {"symbol": symbol}, allow_fallback=False)
+            candidate = _decimal(payload.get("price", "0") if isinstance(payload, dict) else "0")
+            if candidate > 0:
+                price = candidate
+        except FuturesTestnetExecutionError:
+            pass
+        try:
+            premium = public_request("GET", "/fapi/v1/premiumIndex", {"symbol": symbol}, allow_fallback=False)
+        except FuturesTestnetExecutionError:
+            premium = None
+        if price <= 0 and isinstance(premium, dict):
+            for key in ("markPrice", "indexPrice"):
+                try:
+                    candidate = _decimal(premium.get(key, "0"))
+                except FuturesTestnetExecutionError:
+                    continue
+                if candidate > 0:
+                    price = candidate
+                    break
         if price <= 0:
-            raise FuturesTestnetExecutionError("Invalid Futures Testnet reference price")
-        premium = public_request("GET", "/fapi/v1/premiumIndex", {"symbol": symbol}, allow_fallback=False)
+            raise FuturesTestnetExecutionError(f"Futures Demo reference price unavailable: {symbol}")
         funding = None
         if isinstance(premium, dict):
             try:
@@ -331,14 +356,32 @@ class FuturesTestnetLab:
         return price, funding
 
     @staticmethod
+    def _market_lot_filter(info: dict) -> dict:
+        """Prefer MARKET_LOT_SIZE, but fall back to a valid LOT_SIZE.
+
+        Binance Demo can expose an incomplete MARKET_LOT_SIZE on an otherwise
+        tradable contract. Final sizing is still verified with /order/test.
+        """
+        filters = {row.get("filterType"): row for row in info.get("filters", []) if isinstance(row, dict)}
+        for key in ("MARKET_LOT_SIZE", "LOT_SIZE"):
+            row = filters.get(key) or {}
+            try:
+                step = _decimal(row.get("stepSize", "0"))
+                minimum = _decimal(row.get("minQty", "0"))
+                maximum = _decimal(row.get("maxQty", "0"))
+            except FuturesTestnetExecutionError:
+                continue
+            if step > 0 and minimum > 0 and maximum >= minimum:
+                return row
+        raise FuturesTestnetExecutionError("Futures Demo quantity filters unavailable")
+
+    @staticmethod
     def _probe_quantity(info: dict, price: Decimal, target_notional: Decimal) -> Decimal:
         """Smallest valid MARKET quantity for /order/test; this order is never executed."""
         filters = {row.get("filterType"): row for row in info.get("filters", []) if isinstance(row, dict)}
-        lot = filters.get("MARKET_LOT_SIZE") or filters.get("LOT_SIZE") or {}
+        lot = FuturesTestnetLab._market_lot_filter(info)
         step = _decimal(lot.get("stepSize", "0"))
         minimum = _decimal(lot.get("minQty", "0"))
-        if step <= 0 or minimum <= 0:
-            raise FuturesTestnetExecutionError("Futures Demo quantity filters unavailable")
         notional_filter = filters.get("MIN_NOTIONAL") or {}
         minimum_notional = _decimal(notional_filter.get("notional", "0"))
         required_notional = max(target_notional, minimum_notional)
@@ -359,12 +402,10 @@ class FuturesTestnetLab:
         if price <= 0:
             raise FuturesTestnetExecutionError("Futures reference price unavailable")
         filters = {r.get("filterType"): r for r in info.get("filters", [])}
-        lot = filters.get("MARKET_LOT_SIZE") or filters.get("LOT_SIZE") or {}
+        lot = self._market_lot_filter(info)
         step = _decimal(lot.get("stepSize", "0"))
         minimum = _decimal(lot.get("minQty", "0"))
         maximum = _decimal(lot.get("maxQty", "0"))
-        if step <= 0 or minimum <= 0 or maximum < minimum:
-            raise FuturesTestnetExecutionError("Futures forward quantity filters unavailable")
         # Reserve 2% for price movement, independently of the cost-loss reserve.
         safe_ceiling = ceiling / Decimal("1.02")
         qty = _floor_step(min(target, safe_ceiling) / price, step)

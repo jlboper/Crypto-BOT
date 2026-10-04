@@ -159,7 +159,7 @@ test('device sync accepts legacy and multi-asset Futures forward dashboard shape
     positions:[],position:null,trades:[],equity:[],closed_trades:0,gross_pnl:0,
     latest_signals:{},last_ai_reviews:{},shadow_scorecard:[],
     cycle_diagnostic:{state:'WAITING_CANDLE',at:'2026-10-04T17:00:00Z',timeframe:'1h',minimum_score:70,
-      symbols:3,evaluated:0,signals:0,reviews:0,opened:0,statuses:{NO_NEW_CANDLE:3}},
+      symbols:3,evaluated:0,signals:0,reviews:0,opened:0,statuses:{NO_NEW_CANDLE:3},issues:[]},
     guardrails:{margin_type:'ISOLATED',position_mode:'ONE_WAY',max_positions:3,forward_timeframe:'1h',forward_min_score:70},
     recovery:{durable_order_journal:true},live_readiness:{enabled:false},
     pause_diagnostics:{active:true,label:'3 errores consecutivos de protección Futures',
@@ -172,6 +172,17 @@ test('device sync accepts legacy and multi-asset Futures forward dashboard shape
       pending_reconciliation:true}
   };
   assert.equal((await f.sync({snapshot:modern,acks:[]})).status,200);
+  const issueSnapshot=structuredClone(modern);
+  issueSnapshot.dashboard.futures_forward.cycle_diagnostic={
+    state:'ATTENTION',at:'2026-10-04T17:00:00Z',timeframe:'1h',minimum_score:70,
+    symbols:3,evaluated:1,signals:0,reviews:0,opened:0,statuses:{FLAT:1,ASSET_UNAVAILABLE:2},
+    issues:[{symbol:'ATOMUSDT',status:'ASSET_UNAVAILABLE',reason:'reference unavailable'},
+            {symbol:'NEARUSDT',status:'ASSET_UNAVAILABLE',reason:'quantity filters unavailable'}]
+  };
+  assert.equal((await f.sync({snapshot:issueSnapshot,acks:[]})).status,200);
+  const badIssue=structuredClone(issueSnapshot);
+  badIssue.dashboard.futures_forward.cycle_diagnostic.issues[0].reason='x'.repeat(181);
+  assert.equal((await f.sync({snapshot:badIssue,acks:[]})).status,400);
   const trials=structuredClone(modern);
   trials.dashboard.futures_forward.symbols=['BTCUSDT','ETHUSDT','SOLUSDT','BNBUSDT','XRPUSDT'];
   trials.dashboard.futures_forward.leverage_trials={levels:[1,2,3],next_leverage:2,

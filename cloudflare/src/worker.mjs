@@ -163,13 +163,20 @@ function validateSnapshot(snapshot) {
         const states=['WAITING_CANDLE','NO_OPPORTUNITIES','FILTERED','LIMITED','OPENED','ATTENTION','RISK_HALT','ACTIVE'];
         const statusCodes=['NO_NEW_CANDLE','FLAT','OPEN','OPENED','CLOSED','POSITION_LIMIT','KILLED','PENDING_RECONCILIATION','RISK_HALT','OFF','ASSET_UNAVAILABLE',
           'BUDGET_LIMIT','MARGIN_LIMIT','TRIAL_MARGIN_RISK_LIMIT','AI_BUDGET','AI_REJECTED','BLOCKED','NO_DATA','ERROR'];
-        assert(object(x)&&Object.keys(x).every(k=>['state','at','timeframe','minimum_score','symbols','evaluated','signals','reviews','opened','statuses'].includes(k))
+        const validIssues=x.issues===undefined||(Array.isArray(x.issues)&&x.issues.length<=15
+          &&x.issues.every(row=>object(row)
+            &&Object.keys(row).every(k=>['symbol','status','reason'].includes(k))
+            &&typeof row.symbol==='string'&&/^[A-Z0-9]{2,20}$/.test(row.symbol)
+            &&['BLOCKED','ASSET_UNAVAILABLE','NO_DATA'].includes(row.status)
+            &&typeof row.reason==='string'&&row.reason.length<=180));
+        assert(object(x)&&Object.keys(x).every(k=>['state','at','timeframe','minimum_score','symbols','evaluated','signals','reviews','opened','statuses','issues'].includes(k))
           &&states.includes(x.state)&&typeof x.at==='string'&&x.at.length<=40&&Number.isFinite(Date.parse(x.at))
           &&typeof x.timeframe==='string'&&x.timeframe.length<=4
           &&Number.isInteger(x.minimum_score)&&x.minimum_score>=0&&x.minimum_score<=100
           &&['symbols','evaluated','signals','reviews','opened'].every(k=>Number.isInteger(x[k])&&x[k]>=0&&x[k]<=100)
           &&object(x.statuses)&&Object.entries(x.statuses).every(([k,v])=>statusCodes.includes(k)&&Number.isInteger(v)&&v>0&&v<=100)
-          &&JSON.stringify(x).length<2400,'Invalid Futures cycle diagnostic');
+          &&validIssues
+          &&JSON.stringify(x).length<6000,'Invalid Futures cycle diagnostic');
       }
       const oldShape=f.symbol==='BTCUSDT'&&(f.position===null||object(f.position));
       const newShape=Array.isArray(f.symbols)&&f.symbols.length>=1&&f.symbols.length<=15
