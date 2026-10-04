@@ -594,6 +594,48 @@ function exportResearchCsv() {
   link.download=`crypto-ai-research-${new Date().toISOString().slice(0,10)}.csv`; link.click(); URL.revokeObjectURL(link.href);
 }
 
+function renderSpotCycle(status){
+  const badge=document.getElementById('spotCycleState'),summary=document.getElementById('spotCycleSummary'),detail=document.getElementById('spotCycleReasons');
+  if(!badge||!summary||!detail)return;
+  const c=status?.spot_cycle;
+  const labels={RUNNING:'ANALIZANDO',NO_OPPORTUNITIES:'TRABAJANDO · SIN OPORTUNIDADES',FILTERED:'CANDIDATAS DESCARTADAS',
+    LIMITED:'ENTRADAS LIMITADAS',OPENED:'ENTRADAS EJECUTADAS',PAUSED:'NUEVAS ENTRADAS PAUSADAS',RISK_HALT:'LÍMITE DE PÉRDIDA',
+    ATTENTION:'REQUIERE ATENCIÓN',ERROR:'ERROR EN EL CICLO'};
+  const reasons={BELOW_SCORE:'no alcanzan el score mínimo',ALREADY_HELD:'ya tienen una posición abierta',
+    MISSING_CANDLES:'sin velas suficientes o disponibles',QUOTE_UNAVAILABLE:'sin cotización válida',PRICE_OUTSIDE_RANGE:'precio fuera del rango de entrada',
+    POSITION_COUNT_LIMIT:'máximo de posiciones',TOTAL_EXPOSURE_LIMIT:'máximo de exposición',EQUITY_LIMIT:'capital no disponible',
+    AI_CYCLE_LIMIT:'tope de revisiones IA por ciclo',AI_DAILY_LIMIT:'tope de revisiones IA diario',CANDLE_ALREADY_CHECKED:'vela ya evaluada para entrada',
+    AI_REJECTED:'descartadas por la revisión IA',AI_UNAVAILABLE:'fallo o indisponibilidad de IA',SIZE_LIMIT:'cantidad limitada por presupuesto o perfil de riesgo',
+    PAUSED:'entradas pausadas',LOSS_LIMIT:'límite diario o semanal de pérdida',EXCHANGE_RULES_UNAVAILABLE:'reglas de Binance no disponibles',
+    EXCHANGE_FILTER_PREFLIGHT:'cantidad o mínimos incompatibles con Binance',POSITION_SIZE_LIMIT:'tope de tamaño de posición',PER_TRADE_RISK_LIMIT:'tope de riesgo por operación',
+    LOCAL_ALLOCATION_LIMIT:'asignación insuficiente',LOCAL_CASH_LIMIT:'efectivo insuficiente',PRICE_MOVED_OUTSIDE_SIGNAL_RANGE:'precio cambió fuera del rango permitido',
+    EXCHANGE_FILTER_REJECTED:'Binance rechazó los filtros de cantidad',TESTNET_BALANCE_LIMIT:'saldo USDT insuficiente en Testnet',CYCLE_ERROR:'fallo operativo del ciclo'};
+  const errors={ORDER_RECONCILIATION_PENDING:'orden pendiente de conciliación',BTC_REGIME_UNAVAILABLE:'datos BTC no disponibles',
+    FRESH_PRICES_UNAVAILABLE:'cotizaciones recientes no disponibles',INVALID_SPOT_QUOTE:'cotización inválida',HELD_QUOTE_MISSING:'falta precio de una posición',
+    HELD_QUOTE_INVALID:'precio inválido de una posición',UNEXPECTED_VALUE_ERROR:'validación interna inesperada',TESTNET_EXECUTION_ERROR:'fallo de ejecución o conciliación Testnet',UNEXPECTED_ERROR:'fallo operativo inesperado'};
+  badge.className='state neutral'; detail.textContent='';
+  if(!c||!labels[c.state]){
+    badge.textContent='SIN DETALLE AÚN';
+    summary.textContent='Esperando el diagnóstico del próximo ciclo; todavía no se puede distinguir falta de oportunidades de un bloqueo.';
+    return;
+  }
+  const age=(Date.now()-Date.parse(c.at))/1000;
+  const cycleSeconds=Number(status.cycle_seconds)||900;
+  const stale=!c.fresh||!Number.isFinite(age)||age < -120||age>Math.max(cycleSeconds*1.5,cycleSeconds+120);
+  const state=stale?'STALE':c.state==='ERROR'?'ERROR':status.killed?'PAUSED':c.state;
+  badge.textContent=stale?'SIN DATOS RECIENTES':labels[state];
+  badge.className='state'+(['ERROR','STALE'].includes(state)?' offline':['ATTENTION','LIMITED','PAUSED','RISK_HALT'].includes(state)?' warning':state==='RUNNING'?' neutral':'');
+  if(state==='RUNNING')summary.textContent='El motor está analizando datos. El resultado aparecerá al terminar el ciclo.';
+  else if(stale)summary.textContent='El último diagnóstico quedó desactualizado. Comprueba la conexión y el próximo ciclo.';
+  else if(state==='ERROR')summary.textContent='El último ciclo no terminó correctamente: '+(errors[c.error_code]||'fallo operativo')+'.';
+  else if(['PAUSED','RISK_HALT'].includes(state))summary.textContent=state==='PAUSED'?'El bloqueo de nuevas entradas está activo.':'Las nuevas entradas están bloqueadas por el límite diario o semanal de pérdida.';
+  else summary.textContent=`Universo: ${c.universe} monedas · ${c.evaluated} evaluadas · ${c.signals} señales de compra · ${c.candidates} candidatas · ${c.reviews} revisiones IA · ${c.opened} entradas ejecutadas.`;
+  const entries=Object.entries(c.reasons||{}).sort(([a],[b])=>Number(a==='BELOW_SCORE')-Number(b==='BELOW_SCORE'));
+  detail.textContent='Ciclo: '+shortTime(c.at)+' · score mínimo '+c.minimum_score+'/100'+
+    (c.btc_bullish===null?'':c.btc_bullish?' · régimen BTC favorable':' · régimen BTC penaliza entradas')+
+    (entries.length?' · '+entries.map(([code,count])=>`${count}: ${reasons[code]||'descarte registrado'}`).join(' · '):'');
+}
+
 async function refresh() {
   try {
     const [status,positions,trades,reviews,equity,events,research,researchState,paperReport,futuresForward] = await Promise.all([
@@ -753,6 +795,7 @@ async function refresh() {
     button.textContent=status.killed?'Reanudar nuevas entradas':'Pausar nuevas entradas'; button.dataset.killed=String(status.killed);
 
     const activity=status.activity || {state:'starting',age_seconds:null};
+    renderSpotCycle(status);
     document.getElementById('operationSummary').textContent=activity.state==='operational'?
       `Motor ${modeUpper} activo. ${status.positions} posiciones abiertas de ${status.max_positions}; ${status.killed?'nuevas entradas pausadas y protecciones vigentes':'nuevas entradas sujetas a límites y revisión IA'}. Último ciclo ${ageLabel(activity.age_seconds)}.`:
       `Motor ${activityLabel(activity.state).toLowerCase()}. ${status.killed?'Nuevas entradas pausadas. ':'Comprueba la conexión de Windows antes de dar instrucciones. '}Último ciclo ${ageLabel(activity.age_seconds)}.`;
@@ -786,6 +829,12 @@ async function refresh() {
     botState.textContent='PORTAL SIN CONEXIÓN'; botState.classList.add('offline');
     document.getElementById('operationSummary').textContent='No se pudo consultar el motor. Comprueba la conexión con Windows antes de operar.';
     document.getElementById('updated').textContent='No fue posible consultar el motor';
+    const cycleBadge=document.getElementById('spotCycleState');
+    if(cycleBadge){cycleBadge.textContent='SIN DATOS RECIENTES';cycleBadge.className='state offline';}
+    const cycleSummary=document.getElementById('spotCycleSummary');
+    if(cycleSummary)cycleSummary.textContent='No se pudo consultar el diagnóstico de Spot. Comprueba la conexión con Windows.';
+    const cycleReasons=document.getElementById('spotCycleReasons');
+    if(cycleReasons)cycleReasons.textContent='';
   }
 }
 

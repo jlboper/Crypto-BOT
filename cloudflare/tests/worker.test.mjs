@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { readFileSync } from 'node:fs';
 import { pbkdf2Sync } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 import worker, { sha256 } from '../src/worker.mjs';
 
 // Real SQLite executes the same parameterized SQL; workerd/D1 is tested separately.
@@ -31,6 +32,51 @@ const origin='https://paper.example.workers.dev';
 const owner='A'.repeat(43), device='B'.repeat(43);
 const proof=(password,salt)=>pbkdf2Sync(password,salt,600000,32,'sha256').toString('hex');
 const snapshot=()=>({mode:'PAPER',equity:1000,cash:900,exposure:100,positions:[{symbol:'BTCUSDT',quantity:1,entry_price:100,stop_price:95,take_profit:110}],killed:false,last_cycle_at:new Date().toISOString(),ai_model:'gpt-5.6-luna',installed_version:'0.8.5',update_state:'signed_rollout'});
+
+test('Spot cycle diagnostics sync safely and preserve legacy snapshot compatibility',async t=>{
+  const f=await fixture(t);
+  const s={...snapshot(),dashboard:{status:{mode:'PAPER'},positions:[],equity:[],trades:[],reviews:[],events:[],
+    risk:{},research:{assets:[]},research_state:{running:false,error:null},updates:{}}};
+  assert.equal((await f.sync({snapshot:s,acks:[]})).status,200);
+  s.dashboard.status.spot_cycle=null;
+  assert.equal((await f.sync({snapshot:s,acks:[]})).status,200);
+  const c={state:'NO_OPPORTUNITIES',at:new Date().toISOString(),universe:30,evaluated:30,signals:0,
+    candidates:0,reviews:0,opened:0,reasons:{BELOW_SCORE:30},minimum_score:75,btc_bullish:false,
+    error_code:null,age_seconds:2,fresh:true};
+  s.dashboard.status.spot_cycle=c;
+  assert.equal((await f.sync({snapshot:s,acks:[]})).status,200);
+  await f.login();
+  assert.deepEqual((await f.request('/v1/status')).body.snapshot.dashboard.status.spot_cycle,c);
+  for(const update of [{state:'UNKNOWN'},{evaluated:true},{signals:-1},{universe:10001},
+    {reasons:{raw_secret:1}},{error_code:'raw_secret'},{secret:'raw_secret'},{fresh:'yes'}]){
+    const invalid=structuredClone(s);
+    Object.assign(invalid.dashboard.status.spot_cycle,update);
+    assert.equal((await f.sync({snapshot:invalid,acks:[]})).status,400,JSON.stringify(update));
+  }
+  // Failed writes retain the last valid diagnostic.
+  assert.deepEqual((await f.request('/v1/status')).body.snapshot.dashboard.status.spot_cycle,c);
+});
+
+test('Worker accepts the actual Python Spot projection for every emitted code and state',async t=>{
+  const f=await fixture(t);
+  const projected=JSON.parse(execFileSync('python',['-c',`
+import json
+from datetime import UTC, datetime
+from trader.monitoring import spot_cycle_status, SPOT_CYCLE_STATES, SPOT_CYCLE_REASONS, SPOT_CYCLE_ERRORS
+now=datetime.now(UTC)
+base=dict(at=now.isoformat(),universe=30,evaluated=31,signals=2,candidates=2,reviews=1,opened=0,
+          reasons={code:1 for code in SPOT_CYCLE_REASONS},minimum_score=75,btc_bullish=False,error_code=None)
+reports=[spot_cycle_status(dict(base,state=state),900,now) for state in sorted(SPOT_CYCLE_STATES)]
+reports += [spot_cycle_status(dict(base,state='ERROR',error_code=code),900,now) for code in sorted(SPOT_CYCLE_ERRORS)]
+print(json.dumps(reports))
+`],{cwd:new URL('../../',import.meta.url),encoding:'utf8'}));
+  for(const diagnostic of projected){
+    assert.ok(diagnostic);
+    const s={...snapshot(),dashboard:{status:{mode:'PAPER',spot_cycle:diagnostic},positions:[],equity:[],
+      trades:[],reviews:[],events:[],risk:{},research:{assets:[]},research_state:{running:false,error:null},updates:{}}};
+    assert.equal((await f.sync({snapshot:s,acks:[]})).status,200,JSON.stringify(diagnostic));
+  }
+});
 
 async function fixture(t){
   const env={DB:new LocalD1(),PORTAL_ORIGIN:origin,OWNER_KEY_HASH:await sha256(owner),DEVICE_KEY_HASH:await sha256(device),ASSETS:{fetch:async()=>new Response('<html>Portal shell</html>',{headers:{'Content-Type':'text/html'}})}};

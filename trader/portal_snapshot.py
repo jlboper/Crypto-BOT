@@ -7,7 +7,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from .research_runtime import studied_symbols
 from .domain import Position
-from .monitoring import activity_status, position_metrics, usable_price
+from .monitoring import activity_status, position_metrics, usable_price, spot_cycle_status
 from .paper_scorecard import paper_scorecard
 from .risk_control import PROFILES
 from .futures_testnet_ledger import FuturesTestnetLedger
@@ -219,7 +219,7 @@ def dashboard_snapshot(config, report_path=None):
             return [dict(row) for row in connection.execute(f'SELECT {columns} FROM {table} ORDER BY id DESC LIMIT ?', (limit,))]
         equity = rows('equity','equity,cash,exposure,created_at',300)
         latest = equity[0] if equity else {}
-        settings = dict(connection.execute("SELECT key,value FROM settings WHERE key IN ('market_prices','market_prices_at','paper_cash','paper_risk_profile','unified_testnet_pending_order','consecutive_errors','spot_last_error','spot_last_recovery','spot_native_protection','native_protection_started_at')"))
+        settings = dict(connection.execute("SELECT key,value FROM settings WHERE key IN ('market_prices','market_prices_at','paper_cash','paper_risk_profile','unified_testnet_pending_order','consecutive_errors','spot_last_error','spot_last_recovery','spot_last_cycle','spot_native_protection','native_protection_started_at')"))
         prices = json.loads(settings.get('market_prices','{}'))
         positions = [position_metrics(Position(**dict(p)),
                      usable_price(prices.get(p['symbol']), settings.get('market_prices_at'), config.bot.cycle_seconds), config.paper)
@@ -235,6 +235,7 @@ def dashboard_snapshot(config, report_path=None):
                        'positions':len(positions),'max_positions':config.risk.max_positions,'risk':asdict(config.risk),
                        'paper_risk_profile':settings.get('paper_risk_profile','normal') if settings.get('paper_risk_profile','normal') in PROFILES else 'invalid',
                        'cycle_seconds':config.bot.cycle_seconds,
+                       'spot_cycle':spot_cycle_status(settings.get('spot_last_cycle'), config.bot.cycle_seconds),
                        'native_protection':projection(json.loads(settings.get(SPOT_KEY) or '{}')) if config.bot.mode == 'testnet' else None,
                        'native_protection_started_at':settings.get('native_protection_started_at'),
                        'activity':activity_status(latest.get('created_at'),config.bot.cycle_seconds),

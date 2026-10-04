@@ -1,3 +1,11 @@
+# Candidate — 0.10.21 last Spot-cycle diagnosis
+
+Prepared from current main `c1f522e021f50aed70ca609374edd3a6cdae9d13` after the owner requested a visible distinction between a bot working without opportunities and an operational error. The shared local/remote Spot panel reports the last cycle's outcome, counters and safe reasons, and expires old evidence. Legacy snapshots remain supported. Source validation, protected publication and signed Windows installation remain separate gates. See `UPDATE_NOTES.md` for scope and regressions.
+
+Local validation passed 325 offline Python tests and 80 Node tests, including a real Python-to-Worker projection contract and browser-state rendering regressions. GitHub Linux/Windows validation and protected owner approval must still be verified for the exact PR head.
+
+The preceding authenticated portal audit observed installed 0.10.20, Windows connected, Spot operational with no positions and no active errors, and Futures waiting for a signal. That audit did not expose why the current Spot cycle had no entry; the new diagnostic becomes available only after the installed engine completes a new cycle.
+
 # Candidate — 0.10.19 update completion across configuration upgrades
 
 Prepared from main `c2064a97f7ef006916a21037552f8d466dc578ec`. Avoid re-reading new trading settings through the old imported independent-supervisor validator after successful install/restore; require confirmed outcome, exact identity and expected version. Relevant source tests precede the PR; publication and installation remain separate.

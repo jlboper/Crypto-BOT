@@ -20,7 +20,7 @@ from urllib.parse import parse_qs, urlparse
 from .research_runtime import studied_symbols
 from .config import AppConfig, PROJECT_ROOT
 from .database import Database
-from .monitoring import activity_status, position_metrics, usable_price
+from .monitoring import activity_status, position_metrics, usable_price, spot_cycle_status
 from .risk_control import profile_name
 
 
@@ -300,6 +300,7 @@ class DashboardServer:
                         "risk": asdict(outer.config.risk),
                         "paper_risk_profile": profile_name(outer.db),
                         "cycle_seconds": outer.config.bot.cycle_seconds,
+                        "spot_cycle": spot_cycle_status(outer.db.setting("spot_last_cycle"), outer.config.bot.cycle_seconds),
                         "native_protection": projection(json.loads(outer.db.setting(SPOT_KEY) or '{}')) if outer.config.bot.mode == 'testnet' else None,
                         "native_protection_started_at": outer.db.setting("native_protection_started_at"),
                         "activity": activity,

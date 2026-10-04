@@ -22,6 +22,7 @@ from .testnet import plan_order, TestnetPlanError
 from .risk_control import profile_multiplier
 from .futures_forward import FuturesForwardEngine
 from .futures_testnet_transport import public_request as futures_public_request
+from .monitoring import SPOT_CYCLE_ERRORS
 
 
 class TradingEngine:
@@ -43,7 +44,12 @@ class TradingEngine:
         return self.config.bot.kill_switch_path.exists()
 
     def cycle(self) -> dict:
+        diagnostic = {"state": "RUNNING", "universe": 0, "evaluated": 0, "signals": 0,
+                      "candidates": 0, "reviews": 0, "opened": 0, "reasons": {},
+                      "minimum_score": self.config.strategy.minimum_score,
+                      "btc_bullish": None, "error_code": None}
         try:
+            self._record_spot_cycle(diagnostic, "RUNNING")
             if self.config.bot.mode == "testnet" and not self.broker.reconcile_pending():
                 raise RuntimeError("Spot Testnet order awaiting reconciliation")
             # Protect holdings before universe/regime downloads can fail.
@@ -53,13 +59,18 @@ class TradingEngine:
                 self._require_spot_prices(protective_prices, held_symbols)
                 self._manage_positions({}, protective_prices)
             symbols = self.exchange.top_usdt_symbols(self.config.bot.universe_size)
+            diagnostic["universe"] = len(symbols)
             held_symbols = [position.symbol for position in self.db.positions()]
             futures_symbols = list(self.config.futures_testnet.forward_symbols) if self.futures_forward is not None else []
             monitored_symbols = list(dict.fromkeys([*symbols, *held_symbols, "BTCUSDT", *futures_symbols]))
             candle_map = self._fetch_candles(monitored_symbols)
+            missing = len((set(symbols) | {"BTCUSDT"}) - set(candle_map))
+            if missing:
+                self._spot_cycle_reason(diagnostic, "MISSING_CANDLES", missing)
             if "BTCUSDT" not in candle_map:
                 raise RuntimeError("BTC regime data unavailable")
             btc_bullish = self.strategy.btc_regime(candle_map["BTCUSDT"])
+            diagnostic["btc_bullish"] = btc_bullish
             if self.futures_forward is not None:
                 self._run_futures_forward_cycle(candle_map)
 
@@ -80,46 +91,66 @@ class TradingEngine:
                 self.db.event("WARN", "Kill switch active: protections monitored, new entries blocked")
                 self._errors = 0
                 self.db.set_setting("consecutive_errors", "0")
+                self._spot_cycle_reason(diagnostic, "PAUSED")
+                self._record_spot_cycle(diagnostic, "PAUSED")
                 return {"status": "killed", "equity": equity, "cash": cash, "exposure": exposure}
             if self._risk_halt(equity):
                 self.db.record_equity(equity, cash, exposure, prices["BTCUSDT"])
+                self._spot_cycle_reason(diagnostic, "LOSS_LIMIT")
+                self._record_spot_cycle(diagnostic, "RISK_HALT")
                 return {"status": "risk_halt", "equity": equity}
 
             held = {position.symbol for position in positions}
             candidates: list[Signal] = []
             for symbol, candles in candle_map.items():
                 if symbol in held:
+                    self._spot_cycle_reason(diagnostic, "ALREADY_HELD")
                     continue
                 signal = self.strategy.evaluate(symbol, candles, btc_bullish)
+                diagnostic["evaluated"] += 1
+                if signal.action != "BUY":
+                    self._spot_cycle_reason(diagnostic, "BELOW_SCORE")
                 if signal.action == "BUY" or signal.score >= self.config.strategy.minimum_score - 10:
                     self.db.record_signal(signal)
                 if signal.action == "BUY":
+                    diagnostic["signals"] += 1
                     spot = prices.get(symbol)
                     if (spot is not None and self._valid_spot(spot) and signal.stop_price
                             and signal.take_profit and signal.stop_price < spot < signal.take_profit):
                         candidates.append(replace(signal, price=spot))
+                    else:
+                        self._spot_cycle_reason(diagnostic, "QUOTE_UNAVAILABLE" if spot is None or not self._valid_spot(spot) else "PRICE_OUTSIDE_RANGE")
             candidates.sort(key=lambda signal: signal.score, reverse=True)
+            diagnostic["candidates"] = len(candidates)
 
             reviews = 0
             opened: list[str] = []
-            for signal in candidates:
+            for index, signal in enumerate(candidates):
+                remaining = len(candidates) - index
                 positions = self.db.positions()
                 held_now = [position.symbol for position in positions]
                 valuation_prices = self._position_execution_prices(held_now, prices)
                 equity, cash, exposure = self.broker.equity(valuation_prices)
                 if len(positions) >= self.config.risk.max_positions:
+                    self._spot_cycle_reason(diagnostic, "POSITION_COUNT_LIMIT", remaining)
                     break
                 if equity <= 0 or exposure / equity >= self.config.risk.max_total_exposure_pct:
+                    self._spot_cycle_reason(diagnostic, "EQUITY_LIMIT" if equity <= 0 else "TOTAL_EXPOSURE_LIMIT", remaining)
                     break
                 if reviews >= self.config.ai.max_reviews_per_cycle:
+                    self._spot_cycle_reason(diagnostic, "AI_CYCLE_LIMIT", remaining)
                     break
                 if self.killed():
+                    self._spot_cycle_reason(diagnostic, "PAUSED", remaining)
                     break
                 if not self._ai_budget_available():
+                    self._spot_cycle_reason(diagnostic, "AI_DAILY_LIMIT", remaining)
                     break
                 if not self.db.claim_entry(signal.symbol, candle_map[signal.symbol][-1].close_time):
+                    self._spot_cycle_reason(diagnostic, "CANDLE_ALREADY_CHECKED")
                     continue
                 if not self._claim_ai_budget():
+                    self._spot_cycle_reason(diagnostic, "AI_DAILY_LIMIT", remaining)
                     break
                 context = {
                     "equity_usdt": round(equity, 4),
@@ -129,13 +160,21 @@ class TradingEngine:
                 }
                 review = self.ai.review(signal, btc_bullish, context)
                 reviews += 1
+                diagnostic["reviews"] = reviews
                 self.db.record_ai_review(signal.symbol, review)
+                ai_unavailable = review.reason.startswith(("AI unavailable;", "AI review failed safely:", "AI review unavailable:"))
+                if ai_unavailable:
+                    self._spot_cycle_reason(diagnostic, "AI_UNAVAILABLE")
                 if review.verdict == "REJECT" or review.risk_multiplier <= 0:
+                    if not ai_unavailable:
+                        self._spot_cycle_reason(diagnostic, "AI_REJECTED")
                     continue
                 quantity = self._position_size(signal, equity, cash, exposure, review.risk_multiplier)
                 if quantity <= 0:
+                    self._spot_cycle_reason(diagnostic, "SIZE_LIMIT")
                     continue
                 if self.killed():
+                    self._spot_cycle_reason(diagnostic, "PAUSED", remaining)
                     break
                 if self.config.bot.mode == "testnet":
                     try:
@@ -145,6 +184,7 @@ class TradingEngine:
                         # Public symbol eligibility/filter reads do not mutate exposure.
                         self.db.record_order_preflight(signal.symbol, "blocked", ["TESTNET_RULES_UNAVAILABLE"])
                         self.db.event("WARN", f"{signal.symbol} entry filters unavailable: {type(exc).__name__}")
+                        self._spot_cycle_reason(diagnostic, "EXCHANGE_RULES_UNAVAILABLE")
                         continue
                     quantity = float(plan.quantity)
                     status, reasons = market_quantity_preflight(info, quantity, signal.price)
@@ -156,12 +196,14 @@ class TradingEngine:
                 self.db.record_order_preflight(signal.symbol, status, reasons)
                 if status == "incompatible":
                     self.db.event("INFO", f"{signal.symbol} entry skipped [EXCHANGE_FILTER_PREFLIGHT]")
+                    self._spot_cycle_reason(diagnostic, "EXCHANGE_FILTER_PREFLIGHT")
                     continue
                 if not self._buy_or_skip_guardrail(
-                    signal, quantity, f"score={signal.score}; AI={review.verdict}: {review.reason}"
+                    signal, quantity, f"score={signal.score}; AI={review.verdict}: {review.reason}", diagnostic
                 ):
                     continue
                 opened.append(signal.symbol)
+                diagnostic["opened"] = len(opened)
 
             held_final = [position.symbol for position in self.db.positions()]
             final_prices = self._position_execution_prices(held_final, prices)
@@ -175,6 +217,18 @@ class TradingEngine:
                 }, separators=(",", ":")))
             self._errors = 0
             self.db.set_setting("consecutive_errors", "0")
+            reasons = diagnostic["reasons"]
+            if any(code in reasons for code in ("MISSING_CANDLES", "QUOTE_UNAVAILABLE", "AI_UNAVAILABLE", "EXCHANGE_RULES_UNAVAILABLE")):
+                cycle_state = "ATTENTION"
+            elif "PAUSED" in reasons:
+                cycle_state = "PAUSED"
+            elif opened:
+                cycle_state = "OPENED"
+            elif any(code in reasons for code in ("POSITION_COUNT_LIMIT", "TOTAL_EXPOSURE_LIMIT", "EQUITY_LIMIT", "AI_CYCLE_LIMIT", "AI_DAILY_LIMIT", "SIZE_LIMIT", "POSITION_SIZE_LIMIT", "PER_TRADE_RISK_LIMIT", "LOCAL_ALLOCATION_LIMIT", "LOCAL_CASH_LIMIT", "TESTNET_BALANCE_LIMIT")):
+                cycle_state = "LIMITED"
+            else:
+                cycle_state = "FILTERED" if diagnostic["signals"] else "NO_OPPORTUNITIES"
+            self._record_spot_cycle(diagnostic, cycle_state)
             return {
                 "status": "ok",
                 "symbols": len(symbols),
@@ -192,6 +246,9 @@ class TradingEngine:
             failure["at"] = datetime.now(UTC).isoformat()
             failure["consecutive_errors"] = self._errors
             self.db.set_setting("spot_last_error", json.dumps(failure, separators=(",", ":")))
+            diagnostic["error_code"] = failure["code"] if failure["code"] in SPOT_CYCLE_ERRORS else "UNEXPECTED_ERROR"
+            self._spot_cycle_reason(diagnostic, "CYCLE_ERROR")
+            self._record_spot_cycle(diagnostic, "ERROR")
             self.db.event("ERROR", f"Cycle failed [{failure['code']}]: {failure['label']}")
             if self._errors >= self.config.risk.max_consecutive_errors:
                 self.config.bot.kill_switch_path.parent.mkdir(parents=True, exist_ok=True)
@@ -219,7 +276,16 @@ class TradingEngine:
             }.get(str(exc))
         return None
 
-    def _buy_or_skip_guardrail(self, signal: Signal, quantity: float, reason: str) -> bool:
+    @staticmethod
+    def _spot_cycle_reason(diagnostic: dict, code: str, count: int = 1) -> None:
+        reasons = diagnostic["reasons"]
+        reasons[code] = reasons.get(code, 0) + count
+
+    def _record_spot_cycle(self, diagnostic: dict, state: str) -> None:
+        diagnostic.update(state=state, at=datetime.now(UTC).isoformat())
+        self.db.set_setting("spot_last_cycle", json.dumps(diagnostic, separators=(",", ":")))
+
+    def _buy_or_skip_guardrail(self, signal: Signal, quantity: float, reason: str, diagnostic=None) -> bool:
         try:
             self.broker.buy(signal, quantity, reason)
             return True
@@ -229,6 +295,8 @@ class TradingEngine:
                 raise
             self.db.record_order_preflight(signal.symbol, "blocked", [code])
             self.db.event("INFO", f"{signal.symbol} entry skipped [{code}]")
+            if diagnostic is not None:
+                self._spot_cycle_reason(diagnostic, code)
             return False
 
     @staticmethod

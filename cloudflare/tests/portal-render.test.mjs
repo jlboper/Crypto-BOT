@@ -178,4 +178,45 @@ test('v0.9 multi-asset portal snapshot renders without falling into disconnected
   assert.match(el('researchFuturesAssets').innerHTML,/Falta forward independiente/);
   assert.notEqual(el('botState').textContent,'PORTAL SIN CONEXIÓN');
 
+  // Last-cycle evidence is distinct from the engine heartbeat and expires in the browser.
+  const status=responses['/api/status'];
+  delete status.spot_cycle;
+  await context.__refresh();
+  assert.equal(el('spotCycleState').textContent,'SIN DETALLE AÚN');
+  status.spot_cycle={state:'NO_OPPORTUNITIES',at:new Date().toISOString(),universe:30,evaluated:30,
+    signals:0,candidates:0,reviews:0,opened:0,reasons:{BELOW_SCORE:30},minimum_score:75,
+    btc_bullish:false,error_code:null,age_seconds:0,fresh:true};
+  await context.__refresh();
+  assert.equal(el('spotCycleState').textContent,'TRABAJANDO · SIN OPORTUNIDADES');
+  assert.match(el('spotCycleSummary').textContent,/30 evaluadas.*0 señales de compra/);
+  assert.match(el('spotCycleReasons').textContent,/30: no alcanzan el score mínimo/);
+  Object.assign(status.spot_cycle,{state:'FILTERED',signals:1,candidates:1,reviews:1,reasons:{AI_REJECTED:1}});
+  await context.__refresh();
+  assert.equal(el('spotCycleState').textContent,'CANDIDATAS DESCARTADAS');
+  assert.match(el('spotCycleReasons').textContent,/descartadas por la revisión IA/);
+  Object.assign(status.spot_cycle,{state:'ATTENTION',reasons:{AI_UNAVAILABLE:1}});
+  await context.__refresh();
+  assert.equal(el('spotCycleState').textContent,'REQUIERE ATENCIÓN');
+  Object.assign(status.spot_cycle,{state:'ERROR',error_code:'FRESH_PRICES_UNAVAILABLE',reasons:{CYCLE_ERROR:1}});
+  status.activity.state='offline';
+  await context.__refresh();
+  assert.equal(el('spotCycleState').textContent,'ERROR EN EL CICLO');
+  assert.match(el('spotCycleSummary').textContent,/cotizaciones recientes no disponibles/);
+  assert.match(el('spotCycleState').className,/offline/);
+  status.activity.state='operational';
+  Object.assign(status.spot_cycle,{state:'NO_OPPORTUNITIES',error_code:null,
+    at:new Date(Date.now()-3600000).toISOString(),fresh:true});
+  await context.__refresh();
+  assert.equal(el('spotCycleState').textContent,'SIN DATOS RECIENTES');
+  status.spot_cycle.at=new Date().toISOString();
+  status.killed=true;
+  await context.__refresh();
+  assert.equal(el('spotCycleState').textContent,'NUEVAS ENTRADAS PAUSADAS');
+  status.killed=false;
+  await context.__refresh();
+  window.portalApi=async()=>{throw Error('synthetic disconnect');};
+  await context.__refresh();
+  assert.equal(el('spotCycleState').textContent,'SIN DATOS RECIENTES');
+  assert.equal(el('spotCycleReasons').textContent,'');
+
 });

@@ -96,6 +96,29 @@ function validateSnapshot(snapshot) {
   if (snapshot.dashboard !== undefined) {
     const d = snapshot.dashboard;
     assert(object(d) && object(d.status) && d.status.mode === snapshot.mode, 'Invalid dashboard');
+    if(d.status.spot_cycle!=null){
+      const c=d.status.spot_cycle;
+      const counts=['universe','evaluated','signals','candidates','reviews','opened'];
+      const codes=['BELOW_SCORE','ALREADY_HELD','MISSING_CANDLES','QUOTE_UNAVAILABLE','PRICE_OUTSIDE_RANGE',
+        'POSITION_COUNT_LIMIT','TOTAL_EXPOSURE_LIMIT','EQUITY_LIMIT','AI_CYCLE_LIMIT','AI_DAILY_LIMIT',
+        'CANDLE_ALREADY_CHECKED','AI_REJECTED','AI_UNAVAILABLE','SIZE_LIMIT','PAUSED','LOSS_LIMIT',
+        'EXCHANGE_RULES_UNAVAILABLE','EXCHANGE_FILTER_PREFLIGHT','POSITION_SIZE_LIMIT','PER_TRADE_RISK_LIMIT',
+        'LOCAL_ALLOCATION_LIMIT','LOCAL_CASH_LIMIT','PRICE_MOVED_OUTSIDE_SIGNAL_RANGE','EXCHANGE_FILTER_REJECTED',
+        'TESTNET_BALANCE_LIMIT','CYCLE_ERROR'];
+      const errors=['ORDER_RECONCILIATION_PENDING','BTC_REGIME_UNAVAILABLE','FRESH_PRICES_UNAVAILABLE',
+        'INVALID_SPOT_QUOTE','HELD_QUOTE_MISSING','HELD_QUOTE_INVALID','UNEXPECTED_VALUE_ERROR',
+        'TESTNET_EXECUTION_ERROR','UNEXPECTED_ERROR'];
+      assert(object(c)&&Object.keys(c).every(k=>['state','at',...counts,'reasons','minimum_score','btc_bullish','error_code','age_seconds','fresh'].includes(k))
+        &&['RUNNING','NO_OPPORTUNITIES','FILTERED','LIMITED','OPENED','PAUSED','RISK_HALT','ATTENTION','ERROR'].includes(c.state)
+        &&typeof c.at==='string'&&c.at.length<=40&&Number.isFinite(Date.parse(c.at))
+        &&counts.every(k=>Number.isInteger(c[k])&&c[k]>=0&&c[k]<=10000)
+        &&Number.isInteger(c.minimum_score)&&c.minimum_score>=0&&c.minimum_score<=100
+        &&(c.btc_bullish===null||typeof c.btc_bullish==='boolean')
+        &&(c.error_code===null||errors.includes(c.error_code))
+        &&typeof c.fresh==='boolean'&&Number.isFinite(c.age_seconds)&&c.age_seconds>=0
+        &&object(c.reasons)&&Object.entries(c.reasons).every(([k,v])=>codes.includes(k)&&Number.isInteger(v)&&v>0&&v<=10000)
+        &&JSON.stringify(c).length<2400,'Invalid Spot cycle diagnostic');
+    }
     assert(Object.keys(d).every(k=>['status','positions','equity','trades','reviews','events','risk','research','research_state','testnet','testnet_execution','updates','paper_scorecard','futures_forward'].includes(k)), 'Unknown dashboard field');
     if(d.testnet_execution!==undefined){
       const x=d.testnet_execution;
