@@ -1,3 +1,7 @@
+# Candidate — 0.10.24 Futures asset resilience and exact diagnostics
+
+Prepared from main after the owner observed two Futures Demo contracts unavailable while the remaining contracts were healthy. The candidate keeps the 1h/score-70 strategy and all hard risk limits unchanged, retries flat-contract validation every cycle, tolerates incomplete Demo MARKET_LOT_SIZE when LOT_SIZE is valid, and falls back from Demo ticker to Demo mark/index reference only. The portal exposes bounded symbol-level failure reasons so transient Binance Demo gaps can be distinguished from structural contract unavailability. PR validation, main publication, signed rollout and Windows installation remain separate evidence gates.
+
 # Candidate — 0.10.23 faster Futures observation and explicit gate diagnostics
 
 Prepared on the existing 0.10.22 automatic-publication candidate under the owner's authorization after observing many hours without strategy entries. Futures Demo now uses its own 1h candle cadence and score 70 while Spot stays 4h; hard portfolio, stop-loss, leverage, margin-mode and AI gates remain unchanged. The portal projects bounded per-cycle Futures reasons and exact Spot loss-lock period/expiry. PRs still only validate; publication and signing require the current main push after successful Linux/Windows checks. Source, merge, publication and Windows installation remain separately verified.
