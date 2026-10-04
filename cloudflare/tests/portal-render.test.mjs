@@ -87,6 +87,18 @@ test('v0.9 multi-asset portal snapshot renders without falling into disconnected
   assert.match(el('futuresCycleSummary').textContent,/3 contratos evaluados en 1H.*score mínimo 70\/100/);
   assert.match(el('futuresCycleReasons').textContent,/3: sin señal LONG\/SHORT/);
   const futures=responses['/api/futures-forward'];
+  futures.cycle_diagnostic={state:'ATTENTION',at:new Date().toISOString(),timeframe:'1h',minimum_score:70,
+    symbols:3,evaluated:1,signals:0,reviews:0,opened:0,statuses:{FLAT:1,ASSET_UNAVAILABLE:2},
+    issues:[
+      {symbol:'ATOMUSDT',status:'ASSET_UNAVAILABLE',reason:'Futures Demo reference price unavailable: ATOMUSDT'},
+      {symbol:'NEARUSDT',status:'ASSET_UNAVAILABLE',reason:'Futures Demo quantity filters unavailable'},
+    ]};
+  await context.__refresh();
+  assert.equal(el('futuresCycleState').textContent,'REQUIERE ATENCIÓN');
+  assert.match(el('futuresCycleReasons').textContent,/ATOM: Futures Demo reference price unavailable/);
+  assert.match(el('futuresCycleReasons').textContent,/NEAR: Futures Demo quantity filters unavailable/);
+  futures.cycle_diagnostic={state:'NO_OPPORTUNITIES',at:new Date().toISOString(),timeframe:'1h',minimum_score:70,
+    symbols:3,evaluated:3,signals:0,reviews:0,opened:0,statuses:{FLAT:3},issues:[]};
   futures.symbols=['BTCUSDT','ETHUSDT','SOLUSDT','BNBUSDT','XRPUSDT'];
   futures.leverage_trials={levels:[1,2,3],next_leverage:3,fixed_notional:true,notional_limit_usdt:100,
     results:[1,2,3].map(leverage=>({leverage,closed_trades:0,gross_pnl_usdt:0}))};
