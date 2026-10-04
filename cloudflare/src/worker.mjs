@@ -161,7 +161,7 @@ function validateSnapshot(snapshot) {
       if(f.cycle_diagnostic!==undefined&&f.cycle_diagnostic!==null){
         const x=f.cycle_diagnostic;
         const states=['WAITING_CANDLE','NO_OPPORTUNITIES','FILTERED','LIMITED','OPENED','ATTENTION','RISK_HALT','ACTIVE'];
-        const statusCodes=['NO_NEW_CANDLE','FLAT','OPEN','OPENED','CLOSED','POSITION_LIMIT','KILLED','ASSET_UNAVAILABLE',
+        const statusCodes=['NO_NEW_CANDLE','FLAT','OPEN','OPENED','CLOSED','POSITION_LIMIT','KILLED','PENDING_RECONCILIATION','RISK_HALT','OFF','ASSET_UNAVAILABLE',
           'BUDGET_LIMIT','MARGIN_LIMIT','TRIAL_MARGIN_RISK_LIMIT','AI_BUDGET','AI_REJECTED','BLOCKED','NO_DATA','ERROR'];
         assert(object(x)&&Object.keys(x).every(k=>['state','at','timeframe','minimum_score','symbols','evaluated','signals','reviews','opened','statuses'].includes(k))
           &&states.includes(x.state)&&typeof x.at==='string'&&x.at.length<=40&&Number.isFinite(Date.parse(x.at))
