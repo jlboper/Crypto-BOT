@@ -31,20 +31,17 @@ export async function authorizePublisher(token,origin,now,transport=fetch){
   const workflowPath=`${repo}/.github/workflows/portal-release.yml@`;
   const mainPublisher=claim.ref==='refs/heads/main'&&claim.event_name==='push'
     &&claim.workflow_ref===workflowPath+'refs/heads/main';
-  const refParts=typeof claim.ref==='string'?claim.ref.split('/'):[];
-  const pullNumber=refParts.length===4?Number(refParts[2]):NaN;
-  const prRef=refParts.length===4&&refParts[0]==='refs'&&refParts[1]==='pull'
-    &&Number.isSafeInteger(pullNumber)&&pullNumber>0&&String(pullNumber)===refParts[2]&&refParts[3]==='merge';
-  const releaseHead=typeof claim.head_ref==='string'&&claim.head_ref.startsWith('release/')&&claim.head_ref.length>'release/'.length;
-  const expectedPrWorkflowRef=workflowPath+claim.ref;
-  const expectedMainWorkflowRef=workflowPath+'refs/heads/main';
-  const prPublisher=prRef&&claim.event_name==='pull_request'&&claim.base_ref==='main'&&releaseHead
-    &&(claim.workflow_ref===expectedPrWorkflowRef||claim.workflow_ref===expectedMainWorkflowRef);
   require(claim.repository===repo&&claim.repository_id===repositoryId&&claim.repository_owner_id==='328148059','Invalid publisher repository');
   require(claim.environment==='portal-production','Invalid publisher environment');
-  require(mainPublisher||prPublisher,'Invalid publisher workflow');
+  require(mainPublisher,'Invalid publisher workflow');
   require(Number.isInteger(claim.exp)&&claim.exp>now&&claim.exp<=now+900&&Number.isInteger(claim.nbf)&&claim.nbf<=now+30,'Expired publisher token');
   require(/^[a-f0-9]{40}$/.test(claim.sha)&&/^[1-9][0-9]{0,14}$/.test(claim.run_id),'Invalid publisher revision');
+  const current=await transport(`https://api.github.com/repos/${repo}/git/ref/heads/main`,{
+    headers:{Accept:'application/vnd.github+json','User-Agent':'CryptoPaperPortal'},
+    redirect:'manual',signal:AbortSignal.timeout(10000)});
+  require(current.ok,'Publisher revision unavailable');
+  const ref=await current.json();
+  require(ref?.object?.sha===claim.sha,'Publisher revision superseded');
   return claim;
 }
 export function validateManifest(m,claim,now){

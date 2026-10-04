@@ -108,13 +108,21 @@ function validateSnapshot(snapshot) {
       const errors=['ORDER_RECONCILIATION_PENDING','BTC_REGIME_UNAVAILABLE','FRESH_PRICES_UNAVAILABLE',
         'INVALID_SPOT_QUOTE','HELD_QUOTE_MISSING','HELD_QUOTE_INVALID','UNEXPECTED_VALUE_ERROR',
         'TESTNET_EXECUTION_ERROR','UNEXPECTED_ERROR'];
-      assert(object(c)&&Object.keys(c).every(k=>['state','at',...counts,'reasons','minimum_score','btc_bullish','error_code','age_seconds','fresh'].includes(k))
+      const h=c.risk_halt;
+      const validRiskHalt=h===undefined||h===null||(object(h)
+        &&Object.keys(h).every(k=>['periods','daily_return_pct','weekly_return_pct','daily_limit_pct','weekly_limit_pct','resets_at'].includes(k))
+        &&Array.isArray(h.periods)&&h.periods.length>=1&&h.periods.length<=2
+        &&new Set(h.periods).size===h.periods.length&&h.periods.every(p=>['daily','weekly'].includes(p))
+        &&['daily_return_pct','weekly_return_pct','daily_limit_pct','weekly_limit_pct'].every(k=>Number.isFinite(h[k]))
+        &&typeof h.resets_at==='string'&&h.resets_at.length<=40&&Number.isFinite(Date.parse(h.resets_at)));
+      assert(object(c)&&Object.keys(c).every(k=>['state','at',...counts,'reasons','minimum_score','btc_bullish','error_code','risk_halt','age_seconds','fresh'].includes(k))
         &&['RUNNING','NO_OPPORTUNITIES','FILTERED','LIMITED','OPENED','PAUSED','RISK_HALT','ATTENTION','ERROR'].includes(c.state)
         &&typeof c.at==='string'&&c.at.length<=40&&Number.isFinite(Date.parse(c.at))
         &&counts.every(k=>Number.isInteger(c[k])&&c[k]>=0&&c[k]<=10000)
         &&Number.isInteger(c.minimum_score)&&c.minimum_score>=0&&c.minimum_score<=100
         &&(c.btc_bullish===null||typeof c.btc_bullish==='boolean')
         &&(c.error_code===null||errors.includes(c.error_code))
+        &&validRiskHalt
         &&typeof c.fresh==='boolean'&&Number.isFinite(c.age_seconds)&&c.age_seconds>=0
         &&object(c.reasons)&&Object.entries(c.reasons).every(([k,v])=>codes.includes(k)&&Number.isInteger(v)&&v>0&&v<=10000)
         &&JSON.stringify(c).length<2400,'Invalid Spot cycle diagnostic');
@@ -149,6 +157,19 @@ function validateSnapshot(snapshot) {
           &&Number.isFinite(b.cost_buffer_pct)&&b.cost_buffer_pct>=.005&&b.cost_buffer_pct<=.02
           &&['notional_usdt','stop_loss_usdt'].every(k=>Number.isFinite(b[k])&&b[k]>=0)
           &&typeof b.at==='string'&&b.at.length<=40&&Number.isFinite(Date.parse(b.at)), 'Invalid Futures portfolio budget');
+      }
+      if(f.cycle_diagnostic!==undefined&&f.cycle_diagnostic!==null){
+        const x=f.cycle_diagnostic;
+        const states=['WAITING_CANDLE','NO_OPPORTUNITIES','FILTERED','LIMITED','OPENED','ATTENTION','RISK_HALT','ACTIVE'];
+        const statusCodes=['NO_NEW_CANDLE','FLAT','OPEN','OPENED','CLOSED','POSITION_LIMIT','KILLED','PENDING_RECONCILIATION','RISK_HALT','OFF','ASSET_UNAVAILABLE',
+          'BUDGET_LIMIT','MARGIN_LIMIT','TRIAL_MARGIN_RISK_LIMIT','AI_BUDGET','AI_REJECTED','BLOCKED','NO_DATA','ERROR'];
+        assert(object(x)&&Object.keys(x).every(k=>['state','at','timeframe','minimum_score','symbols','evaluated','signals','reviews','opened','statuses'].includes(k))
+          &&states.includes(x.state)&&typeof x.at==='string'&&x.at.length<=40&&Number.isFinite(Date.parse(x.at))
+          &&typeof x.timeframe==='string'&&x.timeframe.length<=4
+          &&Number.isInteger(x.minimum_score)&&x.minimum_score>=0&&x.minimum_score<=100
+          &&['symbols','evaluated','signals','reviews','opened'].every(k=>Number.isInteger(x[k])&&x[k]>=0&&x[k]<=100)
+          &&object(x.statuses)&&Object.entries(x.statuses).every(([k,v])=>statusCodes.includes(k)&&Number.isInteger(v)&&v>0&&v<=100)
+          &&JSON.stringify(x).length<2400,'Invalid Futures cycle diagnostic');
       }
       const oldShape=f.symbol==='BTCUSDT'&&(f.position===null||object(f.position));
       const newShape=Array.isArray(f.symbols)&&f.symbols.length>=1&&f.symbols.length<=15

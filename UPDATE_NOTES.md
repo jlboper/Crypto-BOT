@@ -1,3 +1,17 @@
+# 0.10.23 — Más oportunidades observables con diagnóstico explícito
+
+- Futures Demo conserva 15 contratos, hasta 5 posiciones, 300 USDT de notional bruto, 7.5 USDT de pérdida estimada hasta stops, ISOLATED y pruebas 1x/2x/3x sin multiplicar exposición. Cambia únicamente su cadencia de señal a 1h y el score mínimo de 75 a 70; Spot continúa en 4h.
+- El portal ahora explica cada ciclo Futures: contratos evaluados, señales LONG/SHORT, revisiones IA, entradas y motivos de descarte o bloqueo. Entre cierres de velas muestra explícitamente que espera una nueva vela, en lugar de confundirlo con inactividad.
+- Spot mantiene intactos sus límites diario/semanal. Cuando uno se activa, el portal muestra qué periodo bloquea, retorno observado, límite correspondiente y fecha/hora de expiración del bloqueo.
+- La publicación automática de main validado preparada en 0.10.22 se conserva: PRs validan; publicación/firma solo desde el commit exacto de main tras Linux y Windows.
+
+# 0.10.22 — Publicación automática de main validado
+
+- Los PR ejecutan pruebas sin publicar. Tras integrarlos, el push de `main` valida nuevamente ese commit exacto en Linux/Windows y publica desde el entorno existente. Respeta cualquier revisión que el propietario vuelva a configurar.
+- Scripts de despliegue/paquete y firmante OIDC admiten únicamente el push de main; rechazan identidades PR, cambios de SHA/ref y revisiones superadas por main. Se conserva firma Ed25519, inventario, secuencia, preflight de versión, migraciones, salud/rollback y rollout supervisado de Windows.
+- El centro de actualizaciones describe la publicación automática y solo ofrece una revisión pendiente si ambas plataformas aprobaron la revisión actual. Se actualizan instrucciones permanentes y documentación para evitar volver al flujo PR con aprobación.
+- Regresiones prueban rechazo de PRs, eventos manuales, otro repositorio/rama, sustitución de revisión, main avanzado y verificación no disponible. Motores, estrategias, límites, datos y dependencias del supervisor independiente conservan su comportamiento.
+
 # 0.10.21 — Motivo del último ciclo Spot
 
 - Spot muestra «Trabajando · sin oportunidades» cuando termina el análisis sin señales de compra. Distingue candidatas descartadas por IA/filtros/vela ya revisada, límites de entradas, pausa, límite de pérdida, entradas ejecutadas, datos o IA no disponibles y error operativo.

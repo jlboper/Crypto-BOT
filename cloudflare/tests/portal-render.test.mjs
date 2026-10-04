@@ -51,7 +51,8 @@ test('v0.9 multi-asset portal snapshot renders without falling into disconnected
     '/api/futures-forward':{enabled:true,killed:false,symbols:['BTCUSDT','ETHUSDT','SOLUSDT'],automatic_leverage:1,
       positions:[],position:null,trades:[],equity:[{wallet_balance:4999.43,available_balance:4999.43,unrealized_pnl:0,created_at:'2026-09-27T15:30:00Z'}],
       closed_trades:0,gross_pnl:0,latest_signals:{BTCUSDT:{long_score:65,short_score:15},ETHUSDT:{long_score:40,short_score:30},SOLUSDT:{long_score:55,short_score:25}},
-      last_ai_reviews:{},ai_model:'gpt-6-luna',guardrails:{margin_type:'ISOLATED',position_mode:'ONE_WAY',max_positions:3,forward_margin_usdt:100,forward_min_score:75,forward_minimum_stop_pct:.025,forward_stop_atr_multiple:2,forward_reward_to_risk:2},
+      last_ai_reviews:{},ai_model:'gpt-6-luna',guardrails:{margin_type:'ISOLATED',position_mode:'ONE_WAY',max_positions:3,forward_timeframe:'1h',forward_margin_usdt:100,forward_min_score:70,forward_minimum_stop_pct:.025,forward_stop_atr_multiple:2,forward_reward_to_risk:2},
+      cycle_diagnostic:{state:'NO_OPPORTUNITIES',at:new Date().toISOString(),timeframe:'1h',minimum_score:70,symbols:3,evaluated:3,signals:0,reviews:0,opened:0,statuses:{FLAT:3}},
       recovery:{durable_order_journal:true,startup_position_reconciliation:true,separate_kill_switch:true},
       observation_health:{state:'OK',samples:10,expected_samples:10,cycle_coverage_pct:100,average_cycle_gap_seconds:900,last_cycle_age_seconds:20,closed_trades:0,realized_pnl_usdt:0,consecutive_errors:0,incident_total:0,failure_attempt_total:0,cycle_total:10,reason_codes:[],integrity:{order_journal_clear:true,local_position_count_valid:true,evidence_gap_clear:true}},
       scorecard:{observed_days:1,closed_trades:0,gross_realized_pnl_usdt:0,sampled_max_drawdown_pct:0,win_rate_pct:null,profit_factor:null,average_win_usdt:null,average_loss_usdt:null,expectancy_usdt_per_close:null,mae_mfe_available:false,long_closed_trades:0,long_gross_pnl_usdt:0,short_closed_trades:0,short_gross_pnl_usdt:0,error_total:0,incident_total:0,failure_attempt_total:0,cycle_total:10,consecutive_errors:0},
@@ -81,6 +82,10 @@ test('v0.9 multi-asset portal snapshot renders without falling into disconnected
   assert.match(el('futuresForwardWallet').textContent,/4,999\.43 USDT/);
   assert.equal(el('futuresForwardPosition').textContent,'SIN POSICIÓN');
   assert.equal(el('futuresHealthCounters').textContent,'0 / 0 / 10');
+  assert.equal(el('futuresConfiguredTimeframe').textContent,'1H');
+  assert.equal(el('futuresCycleState').textContent,'SIN OPORTUNIDADES');
+  assert.match(el('futuresCycleSummary').textContent,/3 contratos evaluados en 1H.*score mínimo 70\/100/);
+  assert.match(el('futuresCycleReasons').textContent,/3: sin señal LONG\/SHORT/);
   const futures=responses['/api/futures-forward'];
   futures.symbols=['BTCUSDT','ETHUSDT','SOLUSDT','BNBUSDT','XRPUSDT'];
   futures.leverage_trials={levels:[1,2,3],next_leverage:3,fixed_notional:true,notional_limit_usdt:100,

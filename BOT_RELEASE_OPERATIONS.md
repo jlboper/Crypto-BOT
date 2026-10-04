@@ -2,37 +2,37 @@
 
 1. Work changes this repository, updates the bot version if packaged files
    changed, runs tests, and opens a PR. `web/` is shared by both portals.
-2. The current `portal-release.yml` runs on an opened/updated/reopened PR.
-   Linux and Windows validate the exact PR head. Same-repository `release/*`
-   branches then reach the protected publication job for the GitHub-generated
-   PR merge SHA. `portal-production` requires the owner's GitHub review.
-3. One protected publication job deploys the portal, then uploads the bot ZIP
+2. `portal-release.yml` validates opened/updated/reopened PRs without publishing.
+   A push to `main` validates that exact merged commit again on Linux and Windows.
+   Only a successful main push can run `publish` in `portal-production`. The owner
+   removed required reviewers on 2026-10-04 and authorized this automatic flow.
+   If the owner restores an environment review rule, that actual review is required.
+3. One environment-scoped publication job deploys the portal, then uploads the bot ZIP
    to `bot-releases/packages/<source commit>.zip`. Only allowlisted tracked
    source files are packaged. Configurations, databases and secrets are excluded.
 4. The job obtains a short-lived GitHub OIDC identity and asks the portal to
    sign its manifest. The portal validates issuer, signature, audience, repository
-   ID, environment, workflow, approved PR/main publication identity, expiry
-   and matching deployed commit.
+   ID, environment, main push/workflow identity, expiry, current GitHub main SHA
+   and matching deployed commit. PR publisher identities are rejected.
    The Ed25519 private key remains a Cloudflare secret. The public trust anchor
    is `release-signing.pub` (hexadecimal raw Ed25519 key).
-5. The owner chooses **Buscar actualizaciones** in the remote portal. The same
-   action checks the portal publication and asks Windows to download and verify
-   the signed bot manifest and ZIP. The portal then shows
-   the exact version and commit. **Instalar versión verificada** submits its
-   manifest hash; neither the portal nor Windows may substitute a newer package.
+5. The existing capable Windows agent automatically discovers the new signed
+   release at its next HTTPS sync. The job is bound to that release identity and
+   the supervisor verifies manifest, signature, sequence and package hashes.
+   **Buscar actualizaciones** / **Instalar versión verificada** remain manual
+   fallbacks; neither the portal nor Windows may substitute a newer package.
 6. The supervisor stops a compatible PAPER engine cooperatively, backs up files
    and SQLite, starts a candidate without financial cycles, checks its PID and
    local HTTP identity, commits and authorizes operation. Before commit, failure
    restores files and database. After commit, recovery preserves current balances.
 
-Before requesting environment approval, verify the actual `portal-release.yml`
-run for the current release PR, its head and merge SHA, and both validation
-jobs. Provide that run's exact GitHub URL. Older main-push recovery notes
-(including PR #11) describe a retired trigger; do not create empty follow-up
-releases to manufacture a push. Merge through the normal repository flow once
-required checks permit it. Validation, merge, protected publication, signing
-and Windows installation are distinct states. Never bypass environment review
-or claim an installation from a workflow result alone.
+Verify the actual main-push run, its merged SHA and both validation jobs before
+claiming publication. Deployment and package publication recheck the current
+GitHub main SHA; superseded runs fail closed and concurrency cancels obsolete
+runs. Provide that run's exact URL. Never create empty follow-up releases to
+manufacture a push. The former release-PR publisher is retired. Validation,
+merge, publication, signing and Windows installation remain separate states.
+Never bypass a restored review or infer installation from a workflow result.
 
 The portal may pass its post-deployment health check at one Cloudflare edge
 before the signer request reaches an edge with the same revision. When the
@@ -43,7 +43,7 @@ deployed and bot commits. Before claiming publication, confirm the protected
 job succeeded and `/v1/releases/latest` returns the expected signed version
 and commit. A failed run can have deployed portal assets and uploaded an
 unsigned ZIP; neither is an installable bot release. Rerunning a GitHub job
-requires a new `portal-production` owner approval.
+requires the commit still to be current main and all configured environment rules.
 
 The Windows app uses the independent supervisor for a local signed update
 center, with an online check or offline installation of a previously staged,

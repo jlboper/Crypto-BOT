@@ -62,6 +62,8 @@ class FuturesForwardTests(unittest.TestCase):
         self.assertEqual(self.config.bot.mode, "testnet")
         self.assertTrue(self.config.futures_testnet.forward_enabled)
         self.assertEqual(self.config.futures_testnet.forward_symbols, FUTURES_FORWARD_SYMBOLS)
+        self.assertEqual(self.config.futures_testnet.forward_timeframe, "1h")
+        self.assertEqual(self.config.futures_testnet.forward_min_score, 70)
         self.assertEqual(self.config.futures_testnet.forward_leverage, 1)
         self.assertEqual(self.config.futures_testnet.forward_margin_usdt, 100.0)
 

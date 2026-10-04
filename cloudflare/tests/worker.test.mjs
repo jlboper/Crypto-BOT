@@ -149,11 +149,18 @@ test('device sync accepts legacy and multi-asset Futures forward dashboard shape
   assert.equal((await f.sync({snapshot:legacy,acks:[]})).status,200);
 
   const modern=structuredClone(legacy);
+  modern.dashboard.status.spot_cycle={
+    state:'RISK_HALT',at:'2026-10-04T17:00:00Z',universe:30,evaluated:0,signals:0,candidates:0,reviews:0,opened:0,
+    reasons:{LOSS_LIMIT:1},minimum_score:70,btc_bullish:true,error_code:null,age_seconds:0,fresh:true,
+    risk_halt:{periods:['daily'],daily_return_pct:-2.71,weekly_return_pct:-2.71,daily_limit_pct:2,weekly_limit_pct:5,resets_at:'2026-10-05T00:00:00Z'}
+  };
   modern.dashboard.futures_forward={
     enabled:true,killed:false,symbols:['BTCUSDT','ETHUSDT','SOLUSDT'],automatic_leverage:1,
     positions:[],position:null,trades:[],equity:[],closed_trades:0,gross_pnl:0,
     latest_signals:{},last_ai_reviews:{},shadow_scorecard:[],
-    guardrails:{margin_type:'ISOLATED',position_mode:'ONE_WAY',max_positions:3},
+    cycle_diagnostic:{state:'WAITING_CANDLE',at:'2026-10-04T17:00:00Z',timeframe:'1h',minimum_score:70,
+      symbols:3,evaluated:0,signals:0,reviews:0,opened:0,statuses:{NO_NEW_CANDLE:3}},
+    guardrails:{margin_type:'ISOLATED',position_mode:'ONE_WAY',max_positions:3,forward_timeframe:'1h',forward_min_score:70},
     recovery:{durable_order_journal:true},live_readiness:{enabled:false},
     pause_diagnostics:{active:true,label:'3 errores consecutivos de protección Futures',
       detail:'three consecutive Futures protection errors',source:'automatic_safety',

@@ -260,10 +260,12 @@ def dashboard_snapshot(config, report_path=None):
                 'leverage_trials': futures_ledger.leverage_trial_status(
                     config.futures_testnet.forward_leverage_trials, config.futures_testnet.forward_margin_usdt),
                 'portfolio_budget': futures_ledger.setting('forward_portfolio_budget'),
+                'cycle_diagnostic': futures_ledger.setting('forward_last_cycle_diagnostic'),
                 'guardrails': {
                     'margin_type': config.futures_testnet.margin_type,
                     'position_mode': config.futures_testnet.position_mode,
                     'max_positions': config.futures_testnet.forward_max_positions,
+                    'forward_timeframe': config.futures_testnet.forward_timeframe,
                     'forward_margin_usdt': config.futures_testnet.forward_margin_usdt,
                     'forward_total_notional_usdt': config.futures_testnet.forward_total_notional_usdt,
                     'forward_total_stop_loss_usdt': config.futures_testnet.forward_total_stop_loss_usdt,

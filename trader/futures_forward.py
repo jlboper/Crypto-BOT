@@ -508,7 +508,7 @@ class FuturesForwardEngine:
             return {"symbol":symbol,"status":"NO_DATA"}
         if not self.ledger.claim_forward_decision(symbol, candles[-1].close_time):
             return {"symbol":symbol,"status":"NO_NEW_CANDLE"}
-        signal={**self._signal(candles),"symbol":symbol,"timeframe":self.config.bot.timeframe,
+        signal={**self._signal(candles),"symbol":symbol,"timeframe":self.settings.forward_timeframe,
                 "candle_close_time":candles[-1].close_time}
         self.ledger.record_signal(symbol,signal)
         self.ledger.set_setting(f"forward_last_signal_{symbol}",{**signal,"at":datetime.now(UTC).isoformat()})

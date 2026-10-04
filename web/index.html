@@ -122,7 +122,7 @@
         <article class="settings-card futures-card">
           <div class="settings-card-head"><div><span class="settings-kicker">SEGUNDO MOTOR · FORWARD TEST</span><h3>USDⓈ-M Futures Demo</h3></div><span class="state neutral" id="futuresState">CARGANDO</span></div>
           <div class="futures-guardrails">
-            <span id="futuresConfiguredSymbols">—</span><span id="futuresConfiguredLeverage">—</span><span>ISOLATED</span><span>ONE-WAY</span><span id="futuresConfiguredPositions">—</span>
+            <span id="futuresConfiguredSymbols">—</span><span id="futuresConfiguredTimeframe">—</span><span id="futuresConfiguredLeverage">—</span><span>ISOLATED</span><span>ONE-WAY</span><span id="futuresConfiguredPositions">—</span>
           </div>
           <p class="settings-help">Corre en paralelo con Spot Testnet, con ledger y kill switch propios. Pruebas Demo 1x/2x/3x por entrada, manteniendo el valor de posición.</p>
           <details class="update-details">
@@ -170,6 +170,11 @@
       <article class="panel engine-console futures-console">
         <div class="settings-card-head"><div><p class="eyebrow">MOTOR 2 · FUTURES</p><h2>USDⓈ-M Futures Demo</h2></div><span id="futuresForwardState" class="state neutral">CARGANDO</span></div>
         <p>LONG/SHORT · pruebas Demo 1x/2x/3x · ISOLATED · hasta cinco posiciones · revisión IA final · fondos ficticios.</p>
+        <div class="spot-cycle" role="status" aria-label="Último análisis Futures">
+          <div class="spot-cycle-head"><strong>Último análisis Futures</strong><span id="futuresCycleState" class="state neutral">SIN DETALLE AÚN</span></div>
+          <p id="futuresCycleSummary">Esperando el diagnóstico del próximo ciclo.</p>
+          <small id="futuresCycleReasons"></small>
+        </div>
         <div class="engine-kpis">
           <span><small>Wallet</small><strong id="futuresForwardWallet">—</strong><em>USDT Demo</em></span>
           <span><small>Retorno observado</small><strong id="futuresForwardReturn">—</strong><em id="futuresForwardClosed">—</em></span>

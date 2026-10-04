@@ -2,8 +2,8 @@
 
 This repository is the source for the same Windows PAPER bot and private portal
 at https://crypto-paper-private-portal.jlboper.workers.dev/. Work prepares changes;
-the protected GitHub workflow publishes them; the Windows agent installs only
-the exact signed version approved by the owner through the portal or app.
+the validated main GitHub workflow publishes them under the owner's automatic
+release policy; the Windows agent installs only the exact verified signed version.
 
 - Before each update, start from current `main`, use an isolated branch, and read
   `PROJECT_HANDOVER.md`, `PROJECT_HISTORY.md`, `WORK_CONTEXT.md`, this file,
@@ -16,9 +16,11 @@ the exact signed version approved by the owner through the portal or app.
   the future roadmap, update `PROJECT_HISTORY.md` or `PROJECT_HANDOVER.md`.
   Release-specific implementation details belong in `UPDATE_NOTES.md`.
 - Finish each update with a PR and relevant test results. If checks pass and no
-  conflicts remain, merge through the repository's normal flow, then provide the
-  exact protected publication approval URL. Keep prepared, published and installed
-  states explicit; a merge never means that the Windows installation changed.
+  conflicts remain, merge through the repository's normal flow. Verify the new
+  main publication run, its exact source and both platform validations, then
+  publication/signature and the authenticated installed status. Provide the actual
+  run URL; ask for review only if GitHub really has an environment review pending.
+  Keep prepared, merged, published and installed states explicit.
 
 - Keep PAPER. Never enable live orders, start a second engine, or touch operating
   credentials/data during development. Use an isolated copy and synthetic tests.
@@ -37,8 +39,11 @@ the exact signed version approved by the owner through the portal or app.
   the owner's explicit key rotation request.
 - Run `python scripts/test_offline.py` and, for portal/shared UI changes,
   `node --test tests/*.test.mjs` from `cloudflare/`. CI covers Windows and Linux.
-- Make changes through PRs against `main`. Do not bypass `portal-production`
-  review, make approval tokens, or grant repository administration to the portal.
+- Make changes through PRs against `main`. On 2026-10-04 the owner removed required
+  reviewers and authorized automatic publication after merge and validation.
+  PRs cannot publish; credentials remain scoped to `portal-production`, and the
+  signer accepts only the current main push/workflow identity. Do not bypass any
+  restored environment review, make approval tokens or give the portal repo admin.
 - Never commit `.env*`, `.secrets`, databases, logs, runtime state, private keys,
   or data backups. `bot-releases` contains only allowlisted signed-package code;
   do not upload a complete installation or working-folder ZIP.
@@ -46,4 +51,5 @@ the exact signed version approved by the owner through the portal or app.
   main publication job and matching deployed commit. Routine publication uses no
   signing secret in GitHub. The signature key is a Cloudflare secret.
 - A code update may change strategies and behavior, but must preserve risk
-  boundaries, data recovery and explicit owner approval. Never promise returns.
+  boundaries, data recovery and the owner's release policy. LIVE and strategy
+  promotion still require separate explicit authorization. Never promise returns.

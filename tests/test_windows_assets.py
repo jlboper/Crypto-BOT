@@ -90,15 +90,16 @@ class WindowsAssetTests(unittest.TestCase):
         self.assertIn("retriggerMotion(canvas,'motion-chart')", app)
         self.assertNotIn("setInterval(()=>requestAnimationFrame", app)
 
-    def test_release_workflow_uses_owner_approval_before_merge(self):
+    def test_release_workflow_publishes_only_validated_main_after_merge(self):
         workflow = (PROJECT_ROOT / ".github" / "workflows" / "portal-release.yml").read_text(encoding="utf-8")
         self.assertIn("pull_request:", workflow)
         self.assertIn("types: [opened, synchronize, reopened]", workflow)
         self.assertNotIn("pull_request_target:", workflow)
-        self.assertIn("startsWith(github.head_ref, 'release/')", workflow)
+        self.assertIn("if: github.event_name == 'push' && github.ref == 'refs/heads/main'", workflow)
         self.assertIn("github.event.pull_request.head.sha", workflow)
         self.assertIn("environment: portal-production", workflow)
-        self.assertNotIn("push:\n    branches: [main]", workflow)
+        self.assertIn("push:\n    branches: [main]", workflow)
+        self.assertIn("needs: [validate, validate-windows]", workflow)
 
 
     def test_options_menu_stays_above_engine_panels(self):

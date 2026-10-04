@@ -47,7 +47,7 @@ class TradingEngine:
         diagnostic = {"state": "RUNNING", "universe": 0, "evaluated": 0, "signals": 0,
                       "candidates": 0, "reviews": 0, "opened": 0, "reasons": {},
                       "minimum_score": self.config.strategy.minimum_score,
-                      "btc_bullish": None, "error_code": None}
+                      "btc_bullish": None, "error_code": None, "risk_halt": None}
         try:
             self._record_spot_cycle(diagnostic, "RUNNING")
             if self.config.bot.mode == "testnet" and not self.broker.reconcile_pending():
@@ -94,8 +94,10 @@ class TradingEngine:
                 self._spot_cycle_reason(diagnostic, "PAUSED")
                 self._record_spot_cycle(diagnostic, "PAUSED")
                 return {"status": "killed", "equity": equity, "cash": cash, "exposure": exposure}
-            if self._risk_halt(equity):
+            risk_halt = self._risk_halt(equity)
+            if risk_halt:
                 self.db.record_equity(equity, cash, exposure, prices["BTCUSDT"])
+                diagnostic["risk_halt"] = risk_halt if isinstance(risk_halt, dict) else None
                 self._spot_cycle_reason(diagnostic, "LOSS_LIMIT")
                 self._record_spot_cycle(diagnostic, "RISK_HALT")
                 return {"status": "risk_halt", "equity": equity}
@@ -444,25 +446,43 @@ class TradingEngine:
         quantity = min(by_risk, by_position_cap, by_exposure, by_cash)
         return math.floor(quantity * 1_000_000) / 1_000_000
 
-    def _risk_halt(self, equity: float) -> bool:
+    def _risk_halt(self, equity: float) -> dict | None:
         now = datetime.now(UTC)
         day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
         week_start = day_start - timedelta(days=day_start.weekday())
         day_base = self.db.equity_at_or_before(day_start.isoformat()) or self.db.first_equity_since(day_start.isoformat()) or self.config.paper.initial_cash_usdt
         week_base = self.db.equity_at_or_before(week_start.isoformat()) or self.db.first_equity_since(week_start.isoformat()) or self.config.paper.initial_cash_usdt
-        if self.db.setting("daily_halt") == day_start.isoformat() or self.db.setting("weekly_halt") == week_start.isoformat():
-            return True
         daily_return = (equity / day_base - 1.0) if day_base else 0.0
         weekly_return = (equity / week_base - 1.0) if week_base else 0.0
-        if daily_return <= -self.config.risk.daily_loss_limit_pct:
-            self.db.set_setting("daily_halt", day_start.isoformat())
+        active = []
+        daily_key = day_start.isoformat()
+        weekly_key = week_start.isoformat()
+        if self.db.setting("daily_halt") == daily_key:
+            active.append("daily")
+        elif daily_return <= -self.config.risk.daily_loss_limit_pct:
+            self.db.set_setting("daily_halt", daily_key)
             self.db.event("CRITICAL", f"Daily loss limit reached: {daily_return:.2%}")
-            return True
-        if weekly_return <= -self.config.risk.weekly_loss_limit_pct:
-            self.db.set_setting("weekly_halt", week_start.isoformat())
+            active.append("daily")
+        if self.db.setting("weekly_halt") == weekly_key:
+            active.append("weekly")
+        elif weekly_return <= -self.config.risk.weekly_loss_limit_pct:
+            self.db.set_setting("weekly_halt", weekly_key)
             self.db.event("CRITICAL", f"Weekly loss limit reached: {weekly_return:.2%}")
-            return True
-        return False
+            active.append("weekly")
+        if not active:
+            return None
+        resets = {
+            "daily": day_start + timedelta(days=1),
+            "weekly": week_start + timedelta(days=7),
+        }
+        return {
+            "periods": active,
+            "daily_return_pct": round(daily_return * 100, 4),
+            "weekly_return_pct": round(weekly_return * 100, 4),
+            "daily_limit_pct": round(self.config.risk.daily_loss_limit_pct * 100, 4),
+            "weekly_limit_pct": round(self.config.risk.weekly_loss_limit_pct * 100, 4),
+            "resets_at": max(resets[period] for period in active).isoformat(),
+        }
 
     def run_forever(self, should_stop=lambda: False) -> None:
         self.db.event("INFO", f"Trading engine started in {self.config.bot.mode.upper()} mode")
@@ -543,6 +563,65 @@ class TradingEngine:
             self.futures_forward.ledger.set_setting("forward_last_incident", resolved)
             self.futures_forward.ledger.set_setting("forward_active_incident", None)
 
+    def _futures_cycle_diagnostic(self, result: dict) -> dict:
+        rows = result.get("results", []) if isinstance(result, dict) else []
+        rows = rows if isinstance(rows, list) else []
+        statuses = {}
+        root_status = str(result.get("status", "ACTIVE")) if isinstance(result, dict) else "ACTIVE"
+        if not rows and root_status in {"KILLED", "PENDING_RECONCILIATION", "RISK_HALT", "OFF"}:
+            statuses[root_status] = 1
+        evaluated = signals = reviews = opened = 0
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            code = str(row.get("status", "UNKNOWN"))[:32]
+            statuses[code] = statuses.get(code, 0) + 1
+            signal = row.get("signal")
+            if isinstance(signal, dict):
+                evaluated += 1
+                if signal.get("direction") in {"LONG", "SHORT"}:
+                    signals += 1
+            if isinstance(row.get("ai_review"), dict):
+                reviews += 1
+            if code == "OPENED":
+                opened += 1
+        if root_status == "RISK_HALT":
+            state = "RISK_HALT"
+        elif root_status == "PENDING_RECONCILIATION":
+            state = "ATTENTION"
+        elif root_status in {"KILLED", "OFF"}:
+            state = "LIMITED"
+        elif opened:
+            state = "OPENED"
+        elif any(code in statuses for code in {"BLOCKED", "ASSET_UNAVAILABLE", "NO_DATA", "PENDING_RECONCILIATION"}):
+            state = "ATTENTION"
+        elif any(code in statuses for code in {"POSITION_LIMIT", "BUDGET_LIMIT", "MARGIN_LIMIT", "TRIAL_MARGIN_RISK_LIMIT", "AI_BUDGET", "KILLED"}):
+            state = "LIMITED"
+        elif statuses.get("AI_REJECTED"):
+            state = "FILTERED"
+        elif statuses.get("OPEN") and signals == 0:
+            state = "ACTIVE"
+        elif evaluated and signals == 0:
+            state = "NO_OPPORTUNITIES"
+        elif evaluated:
+            state = "FILTERED"
+        elif statuses and set(statuses).issubset({"NO_NEW_CANDLE"}):
+            state = "WAITING_CANDLE"
+        else:
+            state = "ACTIVE"
+        return {
+            "state": state,
+            "at": datetime.now(UTC).isoformat(),
+            "timeframe": self.config.futures_testnet.forward_timeframe,
+            "minimum_score": self.config.futures_testnet.forward_min_score,
+            "symbols": len(self.futures_forward.symbols),
+            "evaluated": evaluated,
+            "signals": signals,
+            "reviews": reviews,
+            "opened": opened,
+            "statuses": statuses,
+        }
+
     def _run_futures_forward_cycle(self, candle_map: dict[str, list[Candle]]) -> None:
         current_cycles = self.futures_forward.ledger.setting("forward_cycle_total") or 0
         self.futures_forward.ledger.set_setting("forward_cycle_total", int(current_cycles) + 1)
@@ -558,6 +637,8 @@ class TradingEngine:
             if not futures_map:
                 raise RuntimeError("Futures contract candles unavailable")
             result = self.futures_forward.cycle(futures_map)
+            self.futures_forward.ledger.set_setting(
+                "forward_last_cycle_diagnostic", self._futures_cycle_diagnostic(result))
             self.futures_forward.ledger.set_setting("forward_cycle_consecutive_errors", 0)
             self._resolve_futures_incident("cycle")
             self._sync_futures_legacy_error_counter()
@@ -571,6 +652,13 @@ class TradingEngine:
             self.futures_forward.ledger.set_setting("forward_cycle_consecutive_errors", count)
             self.futures_forward.ledger.set_setting("forward_last_cycle_error", detail)
             self.futures_forward.ledger.set_setting("forward_last_error", detail)
+            self.futures_forward.ledger.set_setting("forward_last_cycle_diagnostic", {
+                "state": "ATTENTION", "at": datetime.now(UTC).isoformat(),
+                "timeframe": self.config.futures_testnet.forward_timeframe,
+                "minimum_score": self.config.futures_testnet.forward_min_score,
+                "symbols": len(self.futures_forward.symbols), "evaluated": 0,
+                "signals": 0, "reviews": 0, "opened": 0, "statuses": {"ERROR": 1},
+            })
             self._sync_futures_legacy_error_counter()
             attempts = self.futures_forward.ledger.setting("forward_failure_attempt_total") or 0
             self.futures_forward.ledger.set_setting("forward_failure_attempt_total", int(attempts) + 1)
@@ -581,7 +669,7 @@ class TradingEngine:
 
     def _futures_candles(self, symbol: str) -> list[Candle]:
         now = int(time.time() * 1000)
-        interval = self.config.bot.timeframe
+        interval = self.config.futures_testnet.forward_timeframe
         duration = {"1m":60000,"5m":300000,"15m":900000,"30m":1800000,"1h":3600000,
                     "2h":7200000,"4h":14400000,"6h":21600000,"8h":28800000,"12h":43200000,"1d":86400000}[interval]
         cached = self._futures_candle_cache.get(symbol)

@@ -18,7 +18,12 @@ const token=(overrides={},header={alg:'RS256',kid:'test-key'})=>{
   const input=[header,{...claim,...overrides}].map(x=>Buffer.from(JSON.stringify(x)).toString('base64url')).join('.');
   return input+'.'+sign('RSA-SHA256',Buffer.from(input),rsa.privateKey).toString('base64url');
 };
-const transport=async url=>{assert.equal(url,'https://token.actions.githubusercontent.com/.well-known/jwks');return Response.json({keys:[{...rsa.publicKey.export({format:'jwk'}),kid:'test-key'}]});};
+const transport=async(url,options)=>{
+  if(url==='https://token.actions.githubusercontent.com/.well-known/jwks')return Response.json({keys:[{...rsa.publicKey.export({format:'jwk'}),kid:'test-key'}]});
+  assert.equal(url,'https://api.github.com/repos/jlboper/Crypto-BOT/git/ref/heads/main');
+  assert.equal(options.redirect,'manual');
+  return Response.json({object:{sha:claim.sha}});
+};
 const manifest=()=>({app:'crypto-ai-trading-bot',mode:'paper',version:'0.6.3',runtime_protocol:1,commit:claim.sha,sequence:12345,
   expires:now+86400,size:100,sha256:'b'.repeat(64),package_url:`https://raw.githubusercontent.com/jlboper/Crypto-BOT/bot-releases/packages/${claim.sha}.zip`,
   files:Object.fromEntries(['trader/__main__.py','trader/runtime_control.py','pyproject.toml'].map(p=>[p,'c'.repeat(64)]))});
@@ -27,9 +32,9 @@ test('publisher identity binds protected environment, repository, workflow, revi
   const prSha='d'.repeat(40), prRef='refs/pull/86/merge';
   const prClaim={ref:prRef,event_name:'pull_request',base_ref:'main',head_ref:'release/v0106-approval-before-merge',
     workflow_ref:`jlboper/Crypto-BOT/.github/workflows/portal-release.yml@${prRef}`,sha:prSha};
-  assert.equal((await authorizePublisher(token(prClaim),origin,now,transport)).sha,prSha);
-  assert.equal((await authorizePublisher(token({...prClaim,
-    workflow_ref:'jlboper/Crypto-BOT/.github/workflows/portal-release.yml@refs/heads/main'}),origin,now,transport)).sha,prSha);
+  await assert.rejects(authorizePublisher(token(prClaim),origin,now,transport),/Invalid publisher workflow/);
+  await assert.rejects(authorizePublisher(token({...prClaim,
+    workflow_ref:'jlboper/Crypto-BOT/.github/workflows/portal-release.yml@refs/heads/main'}),origin,now,transport),/Invalid publisher workflow/);
   for(const wrong of [
     {...prClaim,base_ref:'other'},
     {...prClaim,head_ref:'feature/not-release'},
@@ -50,6 +55,14 @@ test('publisher identity binds protected environment, repository, workflow, revi
   const other=generateKeyPairSync('rsa',{modulusLength:2048});
   const input=token().split('.').slice(0,2).join('.');
   await assert.rejects(authorizePublisher(input+'.'+sign('RSA-SHA256',Buffer.from(input),other.privateKey).toString('base64url'),origin,now,transport));
+});
+test('signer rejects a genuine main identity superseded by a newer commit',async()=>{
+  const changedMain=async(url,options)=>url.includes('api.github.com')
+    ? Response.json({object:{sha:'f'.repeat(40)}}):transport(url,options);
+  await assert.rejects(authorizePublisher(token(),origin,now,changedMain),/Publisher revision superseded/);
+  const unavailable=async(url,options)=>url.includes('api.github.com')
+    ? new Response('private provider detail',{status:503}):transport(url,options);
+  await assert.rejects(authorizePublisher(token(),origin,now,unavailable),/Publisher revision unavailable/);
 });
 test('signing creates verifiable Ed25519 envelopes and rejects sequence substitution',async t=>{
   const db=new DatabaseSync(':memory:');t.after(()=>db.close());

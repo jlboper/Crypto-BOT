@@ -1,13 +1,10 @@
-// Runs only in the approved GitHub environment; no owner/device keys in CI.
+// Runs only for validated main in the GitHub environment; no owner/device keys in CI.
 import {spawn} from 'node:child_process';
 import {readFile,writeFile,readdir} from 'node:fs/promises';
 import {configure} from './configure.mjs';
 import {checkMigrations} from './check-migrations.mjs';
-const releaseSha=process.env.RELEASE_SHA||process.env.GITHUB_SHA||'';
-const releaseRef=process.env.RELEASE_REF||process.env.GITHUB_REF||'';
-const prRelease=/^refs\/pull\/\d+\/merge$/.test(process.env.GITHUB_REF||'')&&process.env.GITHUB_EVENT_NAME==='pull_request'&&process.env.GITHUB_BASE_REF==='main'&&/^release\//.test(process.env.GITHUB_HEAD_REF||'');
-const mainRelease=process.env.GITHUB_REF==='refs/heads/main'&&process.env.GITHUB_EVENT_NAME==='push';
-if(process.env.GITHUB_REPOSITORY!=='jlboper/Crypto-BOT'||(!mainRelease&&!prRelease)||!/^[a-f0-9]{40}$/.test(releaseSha))throw Error('Unexpected release source');
+import {requireCurrentMain} from '../../scripts/release_source.mjs';
+const releaseSha=await requireCurrentMain(process.env);
 if(!process.env.CLOUDFLARE_API_TOKEN)throw Error('Environment deployment credential not configured');
 if(process.env.DEPLOYMENT_ENABLED!=='portal-production-v1')throw Error('Protected environment gate not configured');
 const template=JSON.parse(await readFile('wrangler.jsonc','utf8'));
@@ -23,6 +20,7 @@ async function wrangler(args,{capture=false}={}){
 await checkMigrations({accountId:config.account_id,databaseId:config.d1_databases[0].database_id,
   token:process.env.CLOUDFLARE_API_TOKEN,expected:(await readdir('migrations')).filter(name=>name.endsWith('.sql')).sort()});
 await wrangler(['deploy','--dry-run']);
+await requireCurrentMain(process.env);
 let deployed=false;
 try{
   await wrangler(['deploy','--strict']);deployed=true;
@@ -36,4 +34,4 @@ try{
   if(deployed)await wrangler(['rollback','--message',`Automatic rollback after health failure for ${releaseSha}`]);
   throw error;
 }
-console.log('Approved portal commit published and health verified. Windows bot was not installed.');
+console.log('Validated main portal commit published and health verified. Windows installation is verified separately.');
