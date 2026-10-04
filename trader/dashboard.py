@@ -366,6 +366,8 @@ class DashboardServer:
                         "pause_diagnostics": _futures_pause_diagnostics(outer.config, ledger),
                         "symbols": list(outer.config.futures_testnet.forward_symbols),
                         "automatic_leverage": outer.config.futures_testnet.forward_leverage,
+                        "leverage_trials": ledger.leverage_trial_status(
+                            outer.config.futures_testnet.forward_leverage_trials, outer.config.futures_testnet.forward_margin_usdt),
                         "ai_model": outer.config.ai.model,
                         "last_ai_reviews": {symbol: ledger.setting(f"forward_last_ai_review_{symbol}") for symbol in outer.config.futures_testnet.forward_symbols},
                         "symbol_health": ledger.setting("forward_symbol_health") or {},

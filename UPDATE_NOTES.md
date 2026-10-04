@@ -1,3 +1,12 @@
+# 0.10.17 — Five-asset Futures Demo and bounded leverage trials (candidate)
+
+- Add BNBUSDT and XRPUSDT to the existing BTC/ETH/SOL forward universe; retain three positions, 4H signals, score 75 and AI review.
+- Alternate confirmed Demo entries at 1x/2x/3x without scaling order quantity or the 100 USDT notional ceiling. Stops must consume less than 80% of estimated initial margin; existing account loss gates and native conditional protection remain.
+- Record the selected leverage/index in the durable open plan. Commit position accounting and rotation together; reconstruct an interrupted 2x/3x fill without resubmitting. Preserve existing positions' leverage and block incompatible code restoration while leveraged state remains.
+- Shared portal shows effective trial levels, next entry, leverage per close and dated gross strategy-close totals. Previous snapshots remain accepted; a bounded optional contract validates the new trial shape.
+- This is infrastructure testing with fictional funds, not a matched return comparison. Different entries and missing fees/funding prevent profitability conclusions. Histories remain; trial evidence starts separately.
+- Local validation: 282 offline Python tests and 76 Node tests passed, including rotation, 2x/3x configuration, crash recovery, caps, native protective-close integration and legacy/current snapshot acceptance. Linux/Windows CI, protected publication and signed Windows rollout remain separate pending checks.
+
 # Actualización 0.10.16 — auditoría de métricas y estados del portal
 
 - Separa cierres de estrategia y cierres técnicos Futures en los resúmenes. Win rate, profit factor y expectativa de estrategia usan únicamente su historial; los totales brutos y LONG/SHORT conservan todos los cierres y lo indican. Los cierres técnicos no completan las puertas de evidencia.

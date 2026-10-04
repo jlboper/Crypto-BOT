@@ -1,7 +1,7 @@
 """Multi-asset USDⓈ-M Futures Demo forward-test engine.
 
 Runs beside Spot Testnet with separate positions per configured symbol, a single
-durable order journal, isolated 1x execution, full signal history, and shadow
+durable order journal, isolated bounded Demo leverage, full signal history, and shadow
 strategy simulation. LIVE is not implemented.
 """
 from __future__ import annotations
@@ -15,12 +15,16 @@ from .futures_testnet import FuturesTestnetLab, FuturesTestnetExecutionError, _d
 from .indicators import atr, ema_series, rsi, sma
 from .native_protection import FuturesNativeProtection, FUTURES_KEY, projection
 
+FUTURES_LEVERAGE_TRIAL_PROTOCOL = 1
+
 
 class FuturesForwardEngine:
     def __init__(self, config, exchange):
         self.config=config; self.settings=config.futures_testnet; self.exchange=exchange
         self.lab=FuturesTestnetLab(self.settings); self.ledger=self.lab.ledger; self.ai=AIAdvisor(config.ai)
         self.native = FuturesNativeProtection(self)
+        if len(self.settings.forward_leverage_trials) > 1 and not self.ledger.setting("forward_leverage_trials_started_at"):
+            self.ledger.set_setting("forward_leverage_trials_started_at", datetime.now(UTC).isoformat())
 
     @property
     def symbols(self): return self.settings.forward_symbols
@@ -78,7 +82,8 @@ class FuturesForwardEngine:
     def _validated_rows(self, symbol: str, local: dict | None) -> list[dict]:
         rows = self._actual_rows(symbol)
         if local is not None and len(rows) == 1:
-            rows = [self.lab.ensure_forward_position_configuration(symbol, rows[0])]
+            self._assert_identity(symbol, local, rows)
+            rows = [self.lab.ensure_forward_position_configuration(symbol, rows[0], int(local["leverage"]))]
         self._assert_consistent(symbol, local, rows)
         return rows
 
@@ -104,7 +109,8 @@ class FuturesForwardEngine:
     def _assert_consistent(self,symbol:str,local:dict|None,rows:list[dict])->None:
         self._assert_identity(symbol,local,rows)
         if local is None:return
-        if int(float(rows[0].get("leverage",0) or 0))!=1: raise FuturesTestnetExecutionError("Automatic Futures leverage changed from 1x")
+        if int(local['leverage']) not in {1, 2, 3} or int(float(rows[0].get("leverage",0) or 0)) != int(local['leverage']):
+            raise FuturesTestnetExecutionError("Automatic Futures leverage differs from durable position")
         if str(rows[0].get("marginType","")).lower()!="isolated": raise FuturesTestnetExecutionError("Automatic Futures margin is not isolated")
 
     def _repair_cross_position(self,local:dict,row:dict)->dict:
@@ -272,7 +278,11 @@ class FuturesForwardEngine:
         stop=entry-distance if direction=="LONG" else entry+distance
         take=entry+Decimal(str(self.settings.forward_reward_to_risk))*distance if direction=="LONG" else entry-Decimal(str(self.settings.forward_reward_to_risk))*distance
         liquidation=_decimal(row.get("liquidationPrice","0"))
-        return {"symbol":symbol,"direction":direction,"leverage":1,"quantity":float(abs(amount)),
+        leverage = plan.get("leverage", 1)
+        if type(leverage) is not int or leverage not in {1, 2, 3} or leverage > self.settings.max_leverage:
+            raise FuturesTestnetExecutionError("Recovered Futures leverage plan is invalid")
+        return {"symbol":symbol,"direction":direction,"leverage":leverage,"quantity":float(abs(amount)),
+                **({"leverage_trial_index": plan["leverage_trial_index"]} if "leverage_trial_index" in plan else {}),
                 "entry_price":float(entry),"stop_price":float(stop),"take_profit":float(take),
                 "liquidation_price":float(liquidation) if liquidation>0 else None,
                 "signal_score":int(plan.get("score",0) or 0),"opened_at":str(plan.get("opened_at") or datetime.now(UTC).isoformat())}
@@ -334,7 +344,7 @@ class FuturesForwardEngine:
                 self.ledger.set_setting("forward_last_journal_recovery",{
                     "status":"RECOVERED_UNTRACKED_OPEN_CROSS_CLOSED","symbol":symbol,"at":datetime.now(UTC).isoformat()})
                 return {"resolved":True,"status":"RECOVERED_OPEN_CROSS_CLOSED","trade":closed}
-            refreshed=self.lab.ensure_forward_position_configuration(symbol,rows[0])
+            refreshed=self.lab.ensure_forward_position_configuration(symbol,rows[0], int(reconstructed['leverage']))
             self._assert_identity(symbol,reconstructed,[refreshed])
             self.ledger.set_setting("forward_last_journal_recovery",{
                 "status":"RECONSTRUCTED_CONFIRMED_OPEN","symbol":symbol,"at":datetime.now(UTC).isoformat()})
@@ -457,19 +467,26 @@ class FuturesForwardEngine:
             return {"symbol":symbol,"status":"MARGIN_LIMIT","signal":signal}
         distance=max(self.settings.forward_stop_atr_multiple*signal["atr"],
                      self.settings.forward_minimum_stop_pct*signal["price"])
+        trial_index = int(self.ledger.setting("forward_leverage_trial_cursor") or 0)
+        leverage = self.settings.forward_leverage_trials[trial_index % len(self.settings.forward_leverage_trials)]
+        if float(quantity) * distance >= float(estimated) / leverage * 0.8:
+            return {"symbol": symbol, "status": "TRIAL_MARGIN_RISK_LIMIT", "signal": signal}
         signal={**signal,"proposed_quantity":float(quantity),"proposed_notional_usdt":float(estimated),
-                "proposed_stop_distance":distance,"estimated_stop_loss_usdt":float(quantity)*distance}
+                "proposed_stop_distance":distance,"estimated_stop_loss_usdt":float(quantity)*distance,
+                "proposed_leverage": leverage}
         if not self.ledger.claim_ai_budget(self.config.ai.max_reviews_per_day):
             return {"symbol":symbol,"status":"AI_BUDGET","signal":signal}
         ai_review=self.ai.review_futures(signal,{"wallet_balance":float(account["wallet_balance"]),"available_balance":float(account["available_balance"]),
-            "unrealized_pnl":float(account["unrealized_pnl"]),"open_positions":float(len(self.ledger.forward_positions())),"automatic_leverage":1.0})
+            "unrealized_pnl":float(account["unrealized_pnl"]),"open_positions":float(len(self.ledger.forward_positions())),"automatic_leverage":float(leverage)})
         review={"model":self.config.ai.model,"verdict":ai_review.verdict,"confidence":ai_review.confidence,"reason":ai_review.reason,
                 "direction":signal["direction"],"score":int(signal["score"]),"at":datetime.now(UTC).isoformat()}
         self.ledger.set_setting(f"forward_last_ai_review_{symbol}",review)
         if ai_review.verdict!="ALLOW" or ai_review.risk_multiplier<=0:return {"symbol":symbol,"status":"AI_REJECTED","signal":signal,"ai_review":review}
         if self.killed(): return {"symbol":symbol,"status":"KILLED","signal":signal}
         side="BUY" if signal["direction"]=="LONG" else "SELL"
-        plan={"symbol":symbol,"direction":signal["direction"],"score":int(signal["score"]),"atr":float(signal["atr"]),"opened_at":datetime.now(UTC).isoformat()}
+        plan={"symbol":symbol,"direction":signal["direction"],"leverage":leverage,"leverage_trial_index":trial_index,
+              "score":int(signal["score"]),"atr":float(signal["atr"]),"opened_at":datetime.now(UTC).isoformat()}
+        self.lab.ensure_flat_forward_configuration(symbol, leverage)
         self.ledger.set_setting("forward_open_plan",plan)
         if self.killed():
             self.ledger.set_setting("forward_open_plan",None)
@@ -477,14 +494,15 @@ class FuturesForwardEngine:
         order=self.lab.forward_submit(symbol=symbol,side=side,quantity=quantity,reduce_only=False)
         rows=self._actual_rows(symbol)
         if len(rows)!=1: raise FuturesTestnetExecutionError(f"Futures forward open position not found: {symbol}")
-        row=self.lab.ensure_forward_position_configuration(symbol, rows[0])
+        row=self.lab.ensure_forward_position_configuration(symbol, rows[0], leverage)
         amount=_decimal(row["positionAmt"]); actual_qty=abs(amount); entry=_decimal(row.get("entryPrice",order.get("avgPrice","0")))
         if entry<=0: entry=self.lab._execution_price(order,symbol)
         distance=max(Decimal(str(self.settings.forward_stop_atr_multiple*signal["atr"])),Decimal(str(self.settings.forward_minimum_stop_pct))*entry)
         direction=signal["direction"]; stop=entry-distance if direction=="LONG" else entry+distance
         take=entry+Decimal(str(self.settings.forward_reward_to_risk))*distance if direction=="LONG" else entry-Decimal(str(self.settings.forward_reward_to_risk))*distance
         liquidation=_decimal(row.get("liquidationPrice","0"))
-        position={"symbol":symbol,"direction":direction,"leverage":1,"quantity":float(actual_qty),"entry_price":float(entry),"stop_price":float(stop),
+        position={"symbol":symbol,"direction":direction,"leverage":leverage,"leverage_trial_index":trial_index,
+            "quantity":float(actual_qty),"entry_price":float(entry),"stop_price":float(stop),
             "take_profit":float(take),"liquidation_price":float(liquidation) if liquidation>0 else None,"signal_score":int(signal["score"]),"opened_at":plan["opened_at"]}
         self.ledger.set_forward_position(position); self.ledger.set_setting("forward_open_plan",None); self.ledger.set_setting("forward_pending_order",None)
         self.native.ensure(position)
@@ -532,6 +550,7 @@ class FuturesForwardEngine:
     def snapshot(self)->dict:
         data=self.ledger.forward_snapshot()
         return {"enabled":self.settings.forward_enabled,"killed":self.killed(),"symbols":list(self.symbols),
+            "leverage_trials": self.ledger.leverage_trial_status(self.settings.forward_leverage_trials, self.settings.forward_margin_usdt),
             "automatic_leverage":1,"latest_signals":{s:self.ledger.setting(f"forward_last_signal_{s}") for s in self.symbols},
             "last_error":self.ledger.setting("forward_last_error"),"ai_model":self.config.ai.model,
             "last_ai_reviews":{s:self.ledger.setting(f"forward_last_ai_review_{s}") for s in self.symbols},

@@ -105,6 +105,19 @@ function validateSnapshot(snapshot) {
     }
     if(d.futures_forward!==undefined){
       const f=d.futures_forward;
+      if(f.leverage_trials!==undefined){
+        const t=f.leverage_trials;
+        assert(object(t)&&Object.keys(t).every(k=>['levels','next_leverage','fixed_notional','notional_limit_usdt','started_at','results'].includes(k))
+          &&Array.isArray(t.levels)&&t.levels.length>=1&&t.levels.length<=3
+          &&t.levels.every(l=>Number.isInteger(l)&&[1,2,3].includes(l))&&new Set(t.levels).size===t.levels.length
+          &&t.levels.includes(t.next_leverage)&&t.fixed_notional===true
+          &&Number.isFinite(t.notional_limit_usdt)&&t.notional_limit_usdt>=5&&t.notional_limit_usdt<=100
+          &&(t.started_at===null||(typeof t.started_at==='string'&&t.started_at.length<=40&&Number.isFinite(Date.parse(t.started_at))))
+          &&Array.isArray(t.results)&&t.results.length===t.levels.length
+          &&t.results.every((r,i)=>object(r)&&Object.keys(r).every(k=>['leverage','closed_trades','gross_pnl_usdt'].includes(k))
+            &&r.leverage===t.levels[i]&&Number.isInteger(r.closed_trades)&&r.closed_trades>=0&&Number.isFinite(r.gross_pnl_usdt)),
+          'Invalid Futures leverage trials');
+      }
       const oldShape=f.symbol==='BTCUSDT'&&(f.position===null||object(f.position));
       const newShape=Array.isArray(f.symbols)&&f.symbols.length>=1&&f.symbols.length<=5
         &&f.symbols.every(s=>typeof s==='string'&&/^[A-Z0-9]{2,30}$/.test(s))

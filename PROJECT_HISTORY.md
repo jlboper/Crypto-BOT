@@ -179,6 +179,14 @@ The audit does not justify tuning strategy from a short or technically dominated
 
 Verification completed later in the same audit: PR [#93](https://github.com/jlboper/Crypto-BOT/pull/93) merged; protected [37170161112](https://github.com/jlboper/Crypto-BOT/actions/runs/37170161112) published signed TESTNET 0.10.16 for source `614dc45a9f62a89682fbb6c32b74b28f5ba58053`. CI passed 273 Python tests on Linux/Windows, 76 Node tests and Windows manager/repair lifecycle checks. The authenticated portal then reported a completed supervised installation/startup check, installed 0.10.16, Windows connected and both motors operational. No native order execution was exercised during this read-only audit; this point-in-time evidence is not a guarantee of future uptime.
 
+## 2026-10-03 — Owner-authorized Futures universe and Demo leverage trials
+
+The owner requested more Futures assets and explicitly selected actual Binance Demo orders over a simulated comparison for 2x/3x. Candidate 0.10.17 activates the already supported BNBUSDT/XRPUSDT alongside BTC/ETH/SOL, retaining three simultaneous positions. Confirmed new entries rotate through 1x/2x/3x at the same quantity and fixed notional ceiling (100 USDT); leverage never multiplies the budget. This tests configuration, margin, execution and native protection, not leveraged strategy profitability.
+
+Position leverage is durable identity for configuration recovery. The open plan records the exact trial/index before submission; accounting and rotation advancement commit atomically, and reconstructed fills advance idempotently. Existing 1x positions remain 1x. Restoring code without this protocol is blocked while a 2x/3x position or open plan remains. Native journals, daily/weekly loss gates, signal thresholds, closed-candle deduplication, AI caps and LIVE prohibition are retained.
+
+The trial has its own dated results, excludes technical closes and retains prior financial history. Gross results from different entry opportunities are not an exposure-matched comparison and omit fees/funding. More observed assets or reduced margin cannot establish a trading edge. This changes the Futures observation regime; collect new evidence with that date rather than treating the earlier three-asset 1x period as equivalent. Prepared, signed/published and installed remain separate states.
+
 ## Ideas intentionally deferred
 
 The following have been discussed but should remain deferred until their prerequisites are met:

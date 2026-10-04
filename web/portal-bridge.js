@@ -289,7 +289,7 @@ document.addEventListener('DOMContentLoaded',()=>{
   );
   document.getElementById('resumeFuturesForward').onclick=()=>operationalAction(
     '/api/operations/futures-forward-resume',{},
-    '¿Reanudar el forward test automático de BTCUSDT Futures Demo a 1x?'
+    '¿Reanudar Futures Demo con los pares y pruebas de apalancamiento de la configuración instalada?'
   );
   let nextHistoryPage=0,historyBusy=false;
   async function loadHistory(reset=false){

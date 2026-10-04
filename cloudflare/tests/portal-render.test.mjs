@@ -82,6 +82,15 @@ test('v0.9 multi-asset portal snapshot renders without falling into disconnected
   assert.equal(el('futuresForwardPosition').textContent,'SIN POSICIÓN');
   assert.equal(el('futuresHealthCounters').textContent,'0 / 0 / 10');
   const futures=responses['/api/futures-forward'];
+  futures.symbols=['BTCUSDT','ETHUSDT','SOLUSDT','BNBUSDT','XRPUSDT'];
+  futures.leverage_trials={levels:[1,2,3],next_leverage:3,fixed_notional:true,notional_limit_usdt:100,
+    results:[1,2,3].map(leverage=>({leverage,closed_trades:0,gross_pnl_usdt:0}))};
+  await context.__refresh();
+  assert.equal(el('futuresLimitLeverage').textContent,'1x / 2x / 3x');
+  assert.equal(el('futuresConfiguredSymbols').textContent,'BTC / ETH / SOL / BNB / XRP');
+  assert.match(el('futuresLeverageTrials').innerHTML,/Próxima entrada: 3x/);
+  assert.match(el('futuresLeverageTrials').innerHTML,/sin comparación de rentabilidad equivalente/);
+
   Object.assign(futures.scorecard,{observed_days:31,closed_trades:40,strategy_closed_trades:1,
     technical_closed_trades:39,strategy_win_rate_pct:100,strategy_profit_factor:999});
   futures.shadow_scorecard=[{strategy_key:'old',legacy_measurement:true,pnl_pct:50,trades:2},
