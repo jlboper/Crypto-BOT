@@ -1,8 +1,14 @@
-# Current status — 0.10.15 published; installation and reconnection reported by owner
+# Current candidate — 0.10.16 portal audit; publication and installation pending
+
+An authenticated audit on 2026-10-04 UTC observed the portal reporting installed 0.10.15 and Windows connected. Main, financial/health details, signals/shadow evidence, Research assets and the Options submenus were inspected. Trading/account controls were viewed without changing settings or sending trading orders.
+
+Version 0.10.16 is prepared on `release/v01016-portal-audit` to correct evidence presentation, Spot average-loss accounting and stale Futures health, with synthetic regressions. It preserves strategies, risk, execution and observation history. See `UPDATE_NOTES.md` and the audit decision in `PROJECT_HISTORY.md`. Protected publication and installed Windows version must still be confirmed independently; the status below describes the published baseline.
+
+# Published baseline — 0.10.15; version and connection observed in authenticated portal
 
 PR [#91](https://github.com/jlboper/Crypto-BOT/pull/91) merged as `2e73c67b68e422bc236fe3e66323e1034b9c2b7a`. Protected release [37168205095](https://github.com/jlboper/Crypto-BOT/actions/runs/37168205095) completed successfully on 2026-10-04 UTC and signed 0.10.15 for source `4286f185719d080efce4da97f41ef8302b252e0d`. Linux/Windows validation passed 271 offline Python tests; release validation also passed 75 Node tests and real Windows PowerShell manager/repair lifecycle checks.
 
-The owner supplied Windows evidence of the 0.10.14 defect: the existing agent task was `Running`, its separate root lacked `trader/native_protection_compat.py`, and remote status showed `sync_ok=False` with `ModuleNotFoundError`. A local recovery copied only that missing helper from the committed, hash-verified signed installation and restarted only the existing agent. The owner then reported that Windows updated to 0.10.15 and the connection was visible again. This closes the reported recovery; it is not an independently captured Windows version/health check. Two fresh authenticated syncs, single-indicator ownership and native exchange protection must be verified separately rather than inferred from publication or the report.
+The owner supplied Windows evidence of the 0.10.14 defect: the existing agent task was `Running`, its separate root lacked `trader/native_protection_compat.py`, and remote status showed `sync_ok=False` with `ModuleNotFoundError`. A local recovery copied only that missing helper from the committed, hash-verified signed installation and restarted only the existing agent. The owner then reported that Windows updated to 0.10.15 and the connection was visible again. The subsequent authenticated portal audit also observed version 0.10.15 and Windows connected. Two fresh local authenticated syncs, single-indicator ownership and native exchange protection must be verified separately rather than inferred from publication or a connection badge.
 
 For the confirmed cause, recovery boundaries and mandatory prevention checks, read the 2026-10-03 incident in `PROJECT_HISTORY.md` and the agent handover section in `PROJECT_HANDOVER.md`. The older candidate/publication notes below are historical and do not override this status.
 

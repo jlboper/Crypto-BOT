@@ -1,3 +1,15 @@
+# Actualización 0.10.16 — auditoría de métricas y estados del portal
+
+- Separa cierres de estrategia y cierres técnicos Futures en los resúmenes. Win rate, profit factor y expectativa de estrategia usan únicamente su historial; los totales brutos y LONG/SHORT conservan todos los cierres y lo indican. Los cierres técnicos no completan las puertas de evidencia.
+- La curva Futures representa wallet más P&L no realizado. El P&L de toda la cuenta Demo se muestra aparte y nunca se usa para inferir el precio o el resultado de un contrato. Con varias posiciones, las tarjetas por activo muestran cantidad, entrada y protecciones sin atribuirles el total de la cuenta.
+- Selecciona la última revisión IA por fecha y muestra su activo y momento, también junto a las señales. Una revisión histórica no se presenta como evaluación de la señal actual.
+- Corrige la pérdida media Spot: los cierres en cero no se cuentan como pérdidas. Los activos cerrados sin exposición muestran cero; una posición abierta sin cotización reciente mantiene sus estimaciones ausentes.
+- Cuenta los preflights bloqueados y explica que el diagnóstico incluye versiones anteriores, sin confundir candidatas con órdenes ejecutadas. Aclara costos, períodos de los contadores y puntos porcentuales del benchmark.
+- El diagnóstico Futures detecta el último ciclo atrasado aunque una concentración de muestras antiguas produzca cobertura alta. La comparación conjunta también exige ausencia de errores consecutivos activos.
+- Durante una verificación pendiente del actualizador, el centro conserva el estado ocupado hasta recibir resultado de Windows. No ofrece otra instalación ni vuelve prematuramente a reposo.
+- El laboratorio muestra «Sin muestras» para regímenes vacíos y explica los informes anteriores sin desglose OOS por candidata. Las pequeñas pérdidas Futures conservan seis decimales; el sentinel del profit factor sin pérdidas se presenta con texto.
+- Conserva señales, estrategias, riesgo, cantidades, stops, leverage, journals y LIVE deshabilitado. No borra observaciones ni reinicia el período de auditoría. Publicación e instalación de esta versión requieren verificaciones separadas.
+
 # Actualización 0.10.15 — conexión del agente e indicador único
 
 - Corrige una dependencia omitida en el refresco del supervisor independiente: copia `native_protection_compat.py` desde el inventario firmado. La 0.10.14 podía instalar correctamente el bot y dejar al agente con `ModuleNotFoundError` después de la reparación.

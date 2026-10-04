@@ -41,6 +41,15 @@ function state(overrides={}){
   return {csrf:'csrf-token',stale:false,commands:[],jobs:[],snapshot:{dashboard:{}},...overrides};
 }
 
+test('pending update verification never returns to idle or offers a second install',async()=>{
+  const candidate={version:'0.10.16',enabled:true,expires:Date.now()/1000+3600};
+  const instance=bridge('paper.example.workers.dev',[{status:200,body:state({
+    jobs:[{action:'update_check',status:'pending'}],snapshot:{bot_update:candidate,dashboard:{}}})}]);
+  await instance.api('/api/status');
+  assert.equal(instance.elements.get('updateHeadline').textContent,'Verificando en Windows');
+  assert.equal(instance.elements.get('installBotUpdate').hidden,true);
+});
+
 test('bot install approval carries the exact verified release and CSRF token',async()=>{
   const candidate={release_id:'a'.repeat(64),version:'0.6.3',commit:'b'.repeat(40),expires:Date.now()/1000+3600,enabled:true};
   const instance=bridge('paper.example.workers.dev',[{status:200,body:state({snapshot:{bot_update:candidate}})},

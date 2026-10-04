@@ -122,7 +122,7 @@ class WindowsAssetTests(unittest.TestCase):
         self.assertIn('id="spotLastError"', html)
         self.assertIn("UNEXPECTED_VALUE_ERROR", (PROJECT_ROOT / "trader" / "engine.py").read_text(encoding="utf-8"))
         self.assertIn("Expectativa neta / cierre", app)
-        self.assertIn("Expectativa / cierre", app)
+        self.assertIn("Expectativa de estrategia / cierre", app)
         self.assertIn("PENDIENTE DE TELEMETRÍA", app)
         self.assertIn(".health-reason{", css)
         self.assertNotIn("String(futuresHealth.errors_total||0)+' total'", app)

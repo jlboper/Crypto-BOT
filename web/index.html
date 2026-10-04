@@ -169,9 +169,9 @@
           <span><small>Wallet</small><strong id="futuresForwardWallet">—</strong><em>USDT Demo</em></span>
           <span><small>Retorno observado</small><strong id="futuresForwardReturn">—</strong><em id="futuresForwardClosed">—</em></span>
           <span><small>Posición</small><strong id="futuresForwardPosition">—</strong><em id="futuresForwardRecovery">—</em></span>
-          <span><small>IA final</small><strong id="futuresForwardAi">—</strong><em id="futuresForwardAiModel">—</em></span>
+          <span><small>Última revisión IA</small><strong id="futuresForwardAi">—</strong><em id="futuresForwardAiModel">—</em></span>
         </div>
-        <div class="engine-chart-head"><span>Curva de wallet / equity</span><small>Forward test independiente</small></div>
+        <div class="engine-chart-head"><span>Equity · wallet + P&amp;L abierto</span><small>Últimas 120 muestras · cuenta Demo</small></div>
         <canvas id="futuresEquityChart" height="190" aria-label="Curva de equity Futures Demo"></canvas>
         <p id="futuresForwardPauseReason" class="settings-help" role="status" hidden></p>
         <p id="futuresForwardSafety" class="settings-help">Journal durable, conciliación tras reinicio y kill switch independiente. LIVE bloqueado.</p>
@@ -189,10 +189,10 @@
       <p id="observationHealthNote">Mide continuidad e integridad sin cambiar estrategia, riesgo ni ejecución.</p>
       <div class="health-grid">
         <article><div class="health-head"><h3>Spot Testnet</h3><span id="spotHealthState" class="state neutral">—</span></div><dl>
-          <div><dt>Cobertura de ciclos</dt><dd id="spotCycleCoverage">—</dd></div><div><dt>Muestras / esperadas</dt><dd id="spotCycleSamples">—</dd></div><div><dt>Gap promedio</dt><dd id="spotCycleGap">—</dd></div><div><dt>Errores / avisos (24 h)</dt><dd id="spotDailyErrors">—</dd></div><div><dt>Errores consecutivos activos</dt><dd id="spotConsecutiveErrors">—</dd></div><div><dt>Último diagnóstico</dt><dd id="spotLastError">—</dd></div><div><dt>IA: revisiones / rechazos</dt><dd id="spotDailyAi">—</dd></div><div><dt>Cierres / P&amp;L</dt><dd id="spotDailyTrading">—</dd></div><div><dt>Integridad</dt><dd id="spotIntegrity">—</dd></div>
+          <div><dt>Cobertura de ciclos</dt><dd id="spotCycleCoverage">—</dd></div><div><dt>Muestras / estimadas</dt><dd id="spotCycleSamples">—</dd></div><div><dt>Gap promedio</dt><dd id="spotCycleGap">—</dd></div><div><dt>Errores / avisos (24 h)</dt><dd id="spotDailyErrors">—</dd></div><div><dt>Errores consecutivos activos</dt><dd id="spotConsecutiveErrors">—</dd></div><div><dt>Último diagnóstico</dt><dd id="spotLastError">—</dd></div><div><dt>IA: revisiones / rechazos</dt><dd id="spotDailyAi">—</dd></div><div><dt>Cierres / P&amp;L</dt><dd id="spotDailyTrading">—</dd></div><div><dt>Integridad</dt><dd id="spotIntegrity">—</dd></div>
         </dl><p id="spotHealthReason" class="health-reason">Esperando diagnóstico de 24 h.</p></article>
         <article><div class="health-head"><h3>Futures Demo</h3><span id="futuresHealthState" class="state neutral">—</span></div><dl>
-          <div><dt>Cobertura de ciclos</dt><dd id="futuresCycleCoverage">—</dd></div><div><dt>Muestras / esperadas</dt><dd id="futuresCycleSamples">—</dd></div><div><dt>Gap promedio</dt><dd id="futuresCycleGap">—</dd></div><div><dt>Errores consecutivos</dt><dd id="futuresDailyErrors">—</dd></div><div><dt>Incidentes / intentos / ciclos</dt><dd id="futuresHealthCounters">—</dd></div><div><dt>Cierres / P&amp;L</dt><dd id="futuresDailyTrading">—</dd></div><div><dt>Integridad</dt><dd id="futuresIntegrity">—</dd></div>
+          <div><dt>Cobertura de ciclos</dt><dd id="futuresCycleCoverage">—</dd></div><div><dt>Muestras / estimadas</dt><dd id="futuresCycleSamples">—</dd></div><div><dt>Gap promedio</dt><dd id="futuresCycleGap">—</dd></div><div><dt>Errores consecutivos</dt><dd id="futuresDailyErrors">—</dd></div><div><dt>Incidentes / intentos / ciclos · historial total</dt><dd id="futuresHealthCounters">—</dd></div><div><dt>Cierres / P&amp;L bruto · 24 h</dt><dd id="futuresDailyTrading">—</dd></div><div><dt>Integridad</dt><dd id="futuresIntegrity">—</dd></div>
         </dl><p id="futuresHealthReason" class="health-reason">Esperando diagnóstico de 24 h.</p></article>
       </div>
     </section>
@@ -208,7 +208,7 @@
           <dl>
             <div><dt>Días observados</dt><dd id="spotObservedDays">—</dd></div>
             <div><dt>Cierres</dt><dd id="spotClosedTrades">—</dd></div>
-            <div><dt>P&amp;L neto</dt><dd id="spotObservedPnl">—</dd></div>
+            <div><dt>P&amp;L realizado neto</dt><dd id="spotObservedPnl">—</dd></div>
             <div><dt>Drawdown</dt><dd id="spotObservedDrawdown">—</dd></div>
           </dl>
         </article>
@@ -216,12 +216,13 @@
           <h3>Futures Demo · BTC / ETH / SOL · 1x</h3>
           <dl>
             <div><dt>Días observados</dt><dd id="futuresObservedDays">—</dd></div>
-            <div><dt>Cierres</dt><dd id="futuresObservedTrades">—</dd></div>
+            <div><dt>Cierres de estrategia</dt><dd id="futuresObservedTrades">—</dd></div>
+            <div><dt>Cierres técnicos · aparte</dt><dd id="futuresTechnicalTrades">—</dd></div>
             <div><dt>Retorno cuenta observado</dt><dd id="futuresObservedReturn">—</dd></div>
-            <div><dt>P&amp;L realizado bruto</dt><dd id="futuresObservedPnl">—</dd></div>
+            <div><dt>P&amp;L total bruto · incluye técnicos</dt><dd id="futuresObservedPnl">—</dd></div>
             <div><dt>Drawdown</dt><dd id="futuresObservedDrawdown">—</dd></div>
-            <div><dt>Win rate / profit factor</dt><dd id="futuresObservedQuality">—</dd></div>
-            <div><dt>LONG / SHORT</dt><dd id="futuresDirectionSplit">—</dd></div>
+            <div><dt>Win rate / profit factor · estrategia</dt><dd id="futuresObservedQuality">—</dd></div>
+            <div><dt>LONG / SHORT · historial total</dt><dd id="futuresDirectionSplit">—</dd></div>
             <div><dt>Errores</dt><dd id="futuresErrorRate">—</dd></div>
           </dl>
         </article>
@@ -280,13 +281,14 @@
           <dl>
             <div><dt>Contrato / dirección</dt><dd id="futuresPositionContract">—</dd></div>
             <div><dt>Cantidad</dt><dd id="futuresPositionQty">—</dd></div>
-            <div><dt>Entrada / estimado actual</dt><dd id="futuresPositionPrices">—</dd></div>
+            <div><dt>Precio de entrada</dt><dd id="futuresPositionPrices">—</dd></div>
             <div><dt>P&amp;L no realizado</dt><dd id="futuresPositionUnrealized">—</dd></div>
             <div><dt>Stop / objetivo</dt><dd id="futuresPositionProtection">—</dd></div>
             <div><dt>Apalancamiento / margen</dt><dd id="futuresPositionLeverage">—</dd></div>
             <div><dt>Abierta desde</dt><dd id="futuresPositionOpened">—</dd></div>
           </dl>
         </div>
+        <p class="settings-help">P&amp;L no realizado de toda la cuenta Demo: <strong id="futuresAccountUnrealized">—</strong>. La proyección no incluye cotizaciones por contrato; no se atribuye este total a una posición ni se infiere su precio actual.</p>
         <div id="futuresMultiAsset" class="futures-asset-grid"></div>
         <details class="finance-details"><summary>Señales recientes y estrategias sombra</summary>
           <h3>Señales por activo</h3>
@@ -322,7 +324,7 @@
         <thead><tr><th>Motivo de salida</th><th>Cierres</th><th>P&amp;L realizado neto</th></tr></thead>
         <tbody id="paperExitRows"><tr><td colspan="3" class="empty">Esperando historial del entorno activo.</td></tr></tbody>
       </table></div>
-      <p class="research-updated">P&amp;L realizado neto de comisiones; P&amp;L abierto estimado solo con cotizaciones recientes, incluyendo salida simulada. Drawdown muestreado. Sin libro de aportes/retiros; la referencia BTC invierte el 100% y descuenta costos simulados del entorno.</p>
+      <p class="research-updated">P&amp;L realizado neto de comisiones; P&amp;L abierto estimado solo con cotizaciones recientes, con costos de referencia de salida. Las comisiones registradas no certifican cobertura completa de todos los activos de comisión. Drawdown muestreado. Sin libro de aportes/retiros; la referencia BTC invierte el 100% y descuenta costos simulados del entorno.</p>
       </details>
 
       </article>
@@ -335,11 +337,11 @@
         <details class="finance-details"><summary>Ver métricas, puertas pendientes y cierres Futures</summary>
           <div id="futuresMoreMetrics" class="research-summary"></div>
           <div class="readiness-note"><h3>Antes de usar capital real</h3><ul id="futuresReadinessChecks"></ul>
-            <p>El forward test debe acumular evidencia y mantener reconciliación/integridad sin errores. LIVE continúa bloqueado y los stops nativos persistentes del exchange siguen pendientes.</p>
+            <p>La integración de stops nativos está disponible; su confirmación se verifica por posición en Binance. Sin exposición se comprueba al abrir. El forward test debe acumular evidencia de estrategia y mantener reconciliación/integridad; LIVE continúa bloqueado.</p>
           </div>
           <h3>Cierres recientes Futures</h3>
           <div class="table-wrap"><table class="asset-table">
-            <thead><tr><th>Dirección</th><th>Cantidad</th><th>Entrada</th><th>Salida</th><th>P&amp;L</th><th>Motivo</th></tr></thead>
+            <thead><tr><th>Contrato / dirección</th><th>Cantidad</th><th>Entrada</th><th>Salida</th><th>P&amp;L bruto</th><th>Motivo</th></tr></thead>
             <tbody id="futuresTradeRows"><tr><td colspan="6" class="empty">Aún no hay cierres Futures.</td></tr></tbody>
           </table></div>
           <p class="research-updated">P&amp;L bruto según fills del entorno Demo. Spot y Futures conservan ledgers completamente separados.</p>
@@ -392,7 +394,7 @@
       </details>
     <section class="split">
       <article class="panel">
-        <div class="panel-title"><h2>Últimas operaciones</h2><span>Incluye costos simulados</span></div>
+        <div class="panel-title"><h2>Últimas operaciones</h2><span>Fills TESTNET o simulación PAPER, según entorno</span></div>
         <div id="trades" class="feed"></div>
       </article>
       <article class="panel">

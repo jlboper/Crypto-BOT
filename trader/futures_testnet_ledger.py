@@ -323,6 +323,8 @@ class FuturesTestnetLedger:
         elapsed=max(0.0,(now-period_start).total_seconds()); expected=max(1,int(elapsed/cycle_seconds)+1) if first_at else 0
         times=sorted(v for v in (parse(r["created_at"]) for r in recent) if v); gaps=[(b-a).total_seconds() for a,b in zip(times,times[1:])]
         samples=len(recent); coverage=min(100.0,100.0*samples/expected) if expected else 0.0
+        last_age=max(0.0,(now-times[-1]).total_seconds()) if times else None
+        stale_cycle=last_age is None or last_age>cycle_seconds*2
         pending=self.setting("forward_pending_order"); consecutive=int(self.setting("forward_consecutive_errors") or 0)
         incidents=int(self.setting("forward_incident_sequence") or 0)
         attempts=int(self.setting("forward_failure_attempt_total") or self.setting("forward_error_total") or 0)
@@ -333,18 +335,19 @@ class FuturesTestnetLedger:
                    "evidence_gap_clear":not evidence_gap}
         reasons=[]
         if coverage<90: reasons.append("cycle_coverage_below_90")
+        if stale_cycle: reasons.append("cycle_stale")
         if consecutive>0: reasons.append("consecutive_errors_active")
         if not journal_clear: reasons.append("order_journal_pending")
         if position_count>3: reasons.append("position_count_exceeded")
         if evidence_gap: reasons.append("evidence_gap_present")
         healthy_integrity=all(integrity.values())
         state=("STARTING" if starting else
-               "ATTENTION" if coverage<70 or consecutive>=3 or not healthy_integrity else
+               "ATTENTION" if coverage<70 or consecutive>=3 or not healthy_integrity or stale_cycle else
                "WATCH" if coverage<90 or consecutive>0 else
                "OK")
         return {"window_hours":24,"state":state,"samples":samples,"expected_samples":expected,"cycle_coverage_pct":round(coverage,1),
             "average_cycle_gap_seconds":round(sum(gaps)/len(gaps),1) if gaps else None,
-            "last_cycle_age_seconds":round(max(0.0,(now-times[-1]).total_seconds()),1) if times else None,
+            "last_cycle_age_seconds":round(last_age,1) if last_age is not None else None,
             "closed_trades":int(closed["total"] or 0),"realized_pnl_usdt":round(float(closed["pnl"] or 0.0),8),
             "consecutive_errors":consecutive,
             "errors_total":int(self.setting("forward_error_total") or 0),

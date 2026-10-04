@@ -102,8 +102,12 @@ async function portalState(force=false){
     const restore=state.snapshot?.bot_restore;
     document.getElementById('restoreBotVersion').disabled=!(restore?.enabled&&!state.stale&&!activeJob);
     const latestUpdateCheck=(state.jobs||[]).find(job=>job.action==='update_check');
+    const activeUpdate=(state.jobs||[]).find(job=>job.action?.startsWith('update_')&&['pending','running'].includes(job.status));
     if(state.stale){
       setUpdateCenterState('warning','Windows sin conexión','Reconecta Windows para verificar o instalar una actualización.');
+    }else if(activeUpdate){
+      setUpdateCenterState('searching',activeUpdate.action==='update_check'?'Verificando en Windows':'Actualización supervisada en curso',
+        'Espera el resultado confirmado por Windows. El estado se actualizará automáticamente.');
     }else if(usable&&candidate.enabled&&!activeJob){
       setUpdateCenterState('update',`Nueva versión disponible · v${candidate.version}`,
         'Paquete firmado y supervisor verificados. Puedes instalarlo de forma supervisada.',candidate);

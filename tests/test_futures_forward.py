@@ -380,6 +380,19 @@ class FuturesForwardTests(unittest.TestCase):
         self.assertIsNone(self.engine.ledger.setting("forward_pending_order"))
         self.assertIsNone(self.engine.ledger.setting("forward_open_plan"))
 
+    def test_dense_old_samples_cannot_hide_stale_futures_cycle(self):
+        ledger = FuturesTestnetLedger(self.config.futures_testnet.database_path)
+        now = datetime(2026, 9, 26, 20, 0, tzinfo=UTC)
+        with ledger._connect() as db:
+            for minutes in range(60, 70):
+                db.execute('INSERT INTO forward_equity(wallet_balance,available_balance,unrealized_pnl,created_at) VALUES(?,?,?,?)',
+                           (5000,5000,0,(now-timedelta(minutes=minutes)).isoformat()))
+        health=ledger.observation_health(900,now=now)
+        self.assertEqual(health['cycle_coverage_pct'],100)
+        self.assertEqual(health['last_cycle_age_seconds'],3600)
+        self.assertEqual(health['state'],'ATTENTION')
+        self.assertIn('cycle_stale',health['reason_codes'])
+
     def test_observation_health_reports_cycle_coverage_and_pending_journal(self):
         ledger = FuturesTestnetLedger(self.config.futures_testnet.database_path)
         now = datetime(2026, 9, 26, 20, 0, tzinfo=UTC)

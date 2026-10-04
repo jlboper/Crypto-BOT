@@ -13,6 +13,20 @@ from trader.paper_scorecard import paper_scorecard
 from trader.futures_testnet_ledger import FuturesTestnetLedger
 
 class PortalSnapshotTests(unittest.TestCase):
+    def test_breakeven_close_does_not_dilute_average_loss_or_invent_open_exposure(self):
+        with tempfile.TemporaryDirectory() as folder:
+            db=Database(Path(folder)/'spot.db')
+            for pnl in (-6, 0, 3):
+                db.record_trade('BTCUSDT','SELL',1,100,0,pnl,'test')
+            with closing(sqlite3.connect(db.path.resolve().as_uri()+'?mode=ro',uri=True)) as connection:
+                report=paper_scorecard(connection)
+            self.assertEqual(report['closed_trades'],3)
+            self.assertEqual(report['average_loss_usdt'],-6)
+            self.assertEqual(report['average_win_usdt'],3)
+            self.assertEqual(report['expectancy_usdt_per_close'],-1)
+            self.assertEqual(report['by_asset'][0]['open_exposure_usdt'],0)
+            self.assertEqual(report['by_asset'][0]['estimated_open_pnl_usdt'],0)
+
     def test_projection_reads_without_mutating_and_redacts_event_credentials(self):
         with tempfile.TemporaryDirectory() as folder:
             path=Path(folder)/'trader.db'
