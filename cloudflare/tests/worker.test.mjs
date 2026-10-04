@@ -601,3 +601,23 @@ test('stale running job fails closed and no longer blocks a fresh request',async
   const statuses=(await f.request('/v1/status')).body.jobs;
   assert.equal(statuses.find(item=>item.id===first.id).status,'failed');
 });
+
+
+test('expanded research sync accepts bounded portfolios and rejects operating promotion or oversized evidence', async t=>{
+  const f=await fixture(t);
+  const scenario={method:'joint_execution_shared_cash',market:'FUTURES',profile:'base',leverage:10,
+    automatic_promotion:false,curve:[{time:1000,equity:1000}],limits:{positions:5},
+    net_return_pct:-2,max_drawdown_pct:3,closed_trades:20,fees:2,funding_cost:1,liquidations:0};
+  const research={mode:'RESEARCH_ONLY',auto_promotion:false,assets:Array.from({length:30},(_,i)=>({symbol:`A${i}USDT`})),
+    futures_assets:Array.from({length:15},(_,i)=>({symbol:`F${i}USDT`})),
+    joint_portfolios:Array.from({length:18},()=>structuredClone(scenario)),history:Array.from({length:12},()=>({assets:30}))};
+  const s={...snapshot(),dashboard:{status:{mode:'PAPER'},positions:[],equity:[],trades:[],reviews:[],events:[],
+    research,research_state:{running:false,automatic:true,next_run_at:'2026-10-05T00:00:00Z'}}};
+  assert.equal((await f.sync({snapshot:s,acks:[]})).status,200);
+  for(const mutate of [r=>r.joint_portfolios[0].automatic_promotion=true,
+    r=>r.joint_portfolios[0].curve=Array.from({length:121},()=>({equity:1000})),
+    r=>r.futures_assets.push({symbol:'EXTRAUSDT'}),r=>r.history.push({}),r=>r.extra='x'.repeat(240000)]){
+    const invalid=structuredClone(s);mutate(invalid.dashboard.research);
+    assert.equal((await f.sync({snapshot:invalid,acks:[]})).status,400);
+  }
+});

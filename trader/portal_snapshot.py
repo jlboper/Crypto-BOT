@@ -5,6 +5,7 @@ import sqlite3
 from dataclasses import asdict
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from .research_runtime import studied_symbols
 from .domain import Position
 from .monitoring import activity_status, position_metrics, usable_price
 from .paper_scorecard import paper_scorecard
@@ -245,7 +246,7 @@ def dashboard_snapshot(config, report_path=None):
             'risk':asdict(config.risk),
             'paper_scorecard':paper_scorecard(connection, prices=prices,
                 prices_at=settings.get('market_prices_at'), cycle_seconds=config.bot.cycle_seconds,
-                paper=config.paper, research_symbols=config.research.symbols, mode=config.bot.mode),
+                paper=config.paper, research_symbols=studied_symbols(config.research.report_path, config.research.symbols), mode=config.bot.mode),
             'research':{'mode':'RESEARCH_ONLY','status':'NOT_RUN','assets':[]},
             'research_state':{'running':False,'error':None},
             'updates':{'status':'not_configured','message':'Falta configurar el canal firmado y la recuperación supervisada.'},
@@ -299,10 +300,12 @@ def dashboard_snapshot(config, report_path=None):
                     if field in row:
                         row[field] = public_text(row[field])
         path = Path(report_path or config.research.report_path)
-        if path.is_file() and path.stat().st_size <= 300_000:
+        from .research_runtime import project_report, lab_state
+        payload['research_state'] = lab_state(path, automatic=config.research.automatic)
+        if path.is_file() and path.stat().st_size <= 12_000_000:
             report = json.loads(path.read_text(encoding='utf-8'))
             if report.get('mode') == 'RESEARCH_ONLY' and isinstance(report.get('assets'), list):
-                payload['research'] = report
+                payload['research'] = project_report(report)
         if len(json.dumps(payload,allow_nan=False).encode()) > 480_000:
             raise ValueError('Dashboard projection exceeds size budget')
         return payload

@@ -137,6 +137,7 @@ class ResearchSettings:
     train_bars: int
     test_bars: int
     report_path: Path
+    automatic: bool = True
 
 
 @dataclass(frozen=True)
@@ -149,6 +150,7 @@ class AppConfig:
     dashboard: DashboardSettings
     research: ResearchSettings
     futures_testnet: FuturesTestnetSettings
+    source_path: Path | None = None
 
 
 def _project_path(raw: str) -> Path:
@@ -257,7 +259,10 @@ def load_config(path: str | Path | None = None) -> AppConfig:
         raise ValueError("Invalid Futures forward-test reward/risk")
 
     selected_database = bot.get("testnet_database_path", "data/testnet-trader.db") if mode == "testnet" else bot["database_path"]
+    if type(research.get("automatic", True)) is not bool:
+        raise ValueError("Research automatic must be a boolean")
     return AppConfig(
+        source_path=config_path.resolve(),
         bot=BotSettings(
             mode=mode,
             cycle_seconds=int(bot["cycle_seconds"]),
@@ -313,5 +318,6 @@ def load_config(path: str | Path | None = None) -> AppConfig:
             train_bars=int(research.get("train_bars", 1200)),
             test_bars=int(research.get("test_bars", 400)),
             report_path=_project_path(str(research.get("report_path", "data/research/latest.json"))),
+            automatic=research.get("automatic", True),
         ),
     )

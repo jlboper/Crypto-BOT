@@ -1,3 +1,13 @@
+# 0.10.20 — Laboratorio diario, carteras conjuntas y seguimiento futuro
+
+- Ejecución automática cada 24 horas con Windows/app encendidos; botón «Actualizar análisis ahora» para adelantarla. Estado durable, última/próxima ejecución, progreso, exclusión mutua manual/diaria/remota/CLI, prioridad reducida y límite de duración. El análisis cede cooperativamente ante mantenimiento de actualizaciones y conserva el último informe completo.
+- Hasta 30 activos Spot del universo público líquido y los 15 configurados de Futures, separados. Datos cerrados públicos, cache incremental, mark/funding históricos USD-M y activos sin datos identificados; jamás sustituir Futures por Spot ni missing funding por cero. Histórico público de referencia, no fills Demo.
+- Carteras con un reloj, capital compartido, cinco posiciones, límites de riesgo/notional/exposición, LONG/SHORT en Futures y ejecución siguiente apertura. Stops primero, gaps, comisiones/slippage, funding y estrés de liquidación por mark. Tres perfiles simulados, con 1/2/3/5/10x en Futures (18 escenarios). Leverage cambia margen, no multiplica cantidades. Mantenimiento supuesto del 1%; sin calibración de brackets, estos resultados Futures no califican para promoción.
+- Selección de modelos solo en entrenamiento inicial; desarrollo OOS separado de ventana final y costos ×2. Comparar escenarios no selecciona automáticamente al ganador. Se conservan las puertas previas Spot y Monte Carlo; las ilustraciones antiguas por ventanas se etiquetan como tales.
+- Archivos completos de ejecuciones inmutables, hashes de datos, parámetros, curvas/netos/drawdowns/motivos de descarte. Portal local/remoto comparten proyección acotada, hasta doce ejecuciones recientes y las carteras conjuntas; cobertura de cierres usa los activos del último informe completo.
+- Cohorte de observación futura con reglas congeladas: hasta cinco Spot y hasta quince Futures. Solo velas abiertas después del registro; días/cierres separados (excluye cierres artificiales de fin de ventana), resultados simulados y gaps visibles. Ninguna promoción automática ni cambio de órdenes, configuración de riesgo operacional, capital o LIVE.
+- Trabajo remoto ejecuta el código instalado en un intérprete aislado nuevo; evita reutilizar el módulo de investigación del supervisor anterior. Inventarios de dependencias del supervisor permanecen iguales.
+
 # 0.10.19 — Confirm completed updates without the previous config validator
 
 - Update/install and restore jobs no longer parse trading settings through an already imported independent-supervisor validator. Research still uses the full configuration; signed staging, exact approval, runtime health and committed activation remain mandatory.

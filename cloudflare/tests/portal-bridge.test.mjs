@@ -277,3 +277,16 @@ test('password mismatch makes no request and failure clears sensitive inputs',as
   assert.equal(instance.elements.get('savePassword').disabled,false);
   assert.match(instance.elements.get('passwordMessage').textContent,/incorrecta/);
 });
+
+
+test('remote automatic research status preserves the installed scheduler and completed report over old jobs',async()=>{
+  const runtime={running:true,automatic:true,interval_hours:24,next_run_at:'2026-10-05T00:00:00Z',
+    last_completed_at:'2026-10-04T00:00:00Z',progress:'Datos Futures BTCUSDT',error:null};
+  const instance=bridge('paper.example.workers.dev',[{status:200,body:state({
+    snapshot:{dashboard:{research_state:runtime}},jobs:[{id:8,action:'research',status:'failed',message:'old error'}]
+  })}]);
+  const result=await instance.api('/api/research/status');
+  assert.equal(result.running,true);assert.equal(result.automatic,true);
+  assert.equal(result.progress,runtime.progress);assert.equal(result.next_run_at,runtime.next_run_at);
+  assert.equal(result.error,null);
+});

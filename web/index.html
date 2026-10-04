@@ -367,16 +367,19 @@
           <p class="eyebrow">EVALUACIÓN HISTÓRICA</p>
           <h2>Comparación multi-cripto</h2>
           <p class="research-copy">Compara cinco estrategias por activo contra efectivo y comprar y mantener ese activo, con costos, walk-forward y ventana final. Solo una estrategia que supere todas las puertas y un forward test posterior puede proponerse para la siguiente fase; ninguna se activa automáticamente.</p>
-          <p id="researchCoverage" class="research-copy">Calculando cuántos cierres PAPER corresponden a estos cinco activos.</p>
+          <p id="researchCoverage" class="research-copy">Calculando la cobertura de cierres Spot de la configuración de investigación.</p>
         </div>
         <div class="research-actions">
           <span id="researchState" class="state neutral">SIN EJECUTAR</span>
           <button id="exportResearch" class="secondary" disabled>Exportar CSV</button>
-          <button id="researchButton" class="primary">Ejecutar análisis</button>
+          <button id="researchButton" class="primary">Actualizar análisis ahora</button>
         </div>
       </div>
       <div class="methodology">
-        <span>BTC · ETH · SOL · BNB · XRP</span>
+        <span>Hasta 30 Spot + 15 Futures</span>
+        <span>Automático cada 24 h</span>
+        <span>Cartera conjunta · máximo 5 posiciones</span>
+        <span>3 perfiles · Futures 1x a 10x simulados</span>
         <span>5 estrategias / activo</span>
         <span>Fija vs. adaptativa</span>
         <span>Cash gate</span>
@@ -384,6 +387,7 @@
         <span>Puertas unificadas + forward test</span>
         <span>Solo investigación</span>
       </div>
+      <p id="researchSchedule" class="research-updated">El horario automático aparecerá cuando el bot sincronice esta versión.</p>
       <div id="researchSummary" class="research-summary"></div>
       <div class="table-wrap">
         <table class="research-table">
@@ -391,6 +395,24 @@
           <tbody id="researchAssets"><tr><td colspan="9" class="empty">Ejecuta el primer análisis desde este portal.</td></tr></tbody>
         </table>
       </div>
+      <details class="research-extra" open>
+        <summary>Carteras con capital compartido · Spot y Futures</summary>
+        <p class="research-copy">Cada cartera comparte efectivo, respeta cinco posiciones y cobra costos. Los perfiles son simulaciones. Cambiar apalancamiento mantiene las mismas señales y límites de exposición.</p>
+        <div class="table-wrap"><table class="research-table"><thead><tr><th>Mercado / perfil</th><th>Leverage</th><th>Neto OOS</th><th>Drawdown</th><th>Cierres</th><th>Comisiones / funding</th><th>Liquidaciones</th><th>Final / costos ×2</th></tr></thead><tbody id="researchPortfolios"></tbody></table></div>
+        <label for="researchCurveChoice">Curva e historial del escenario</label><select id="researchCurveChoice"></select>
+        <canvas id="researchCurve" aria-label="Curva de equity simulada fuera de muestra"></canvas>
+        <p id="researchCurveInfo" class="research-updated"></p>
+        <p id="researchDiscardReasons" class="research-updated"></p>
+        <p id="researchAssumptions" class="research-updated"></p>
+      </details>
+      <details class="research-extra"><summary>Modelos Futures · LONG y SHORT</summary>
+        <div class="table-wrap"><table class="research-table"><thead><tr><th>Activo</th><th>Modelo fijado</th><th>OOS por ventanas</th><th>Final / costos ×2</th><th>Motivos de descarte</th></tr></thead><tbody id="researchFuturesAssets"></tbody></table></div>
+      </details>
+      <div id="researchForward" class="research-copy"></div>
+      <details class="research-extra"><summary>Evolución de las ejecuciones</summary>
+        <p class="research-copy">Hasta 12 ejecuciones recientes del escenario seleccionado. Los informes completos se conservan. Universo, ventanas y candidatos pueden cambiar entre estudios. Repetir una ventana final necesita datos futuros para aportar evidencia independiente.</p>
+        <div class="table-wrap"><table class="research-table"><thead><tr><th>Fecha</th><th>Cobertura Spot / Futures</th><th>Neto OOS</th><th>Drawdown</th><th>Cierres</th><th>Liquidaciones</th></tr></thead><tbody id="researchHistory"></tbody></table></div>
+      </details>
       <div id="researchDetail" class="research-detail" hidden></div>
       <p id="researchUpdated" class="research-updated">El estudio descarga aproximadamente 5,000 velas cerradas por activo y puede tardar varios minutos.</p>
       </details>

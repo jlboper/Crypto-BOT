@@ -164,7 +164,9 @@ window.portalApi=async(path,options={})=>{
   if(path==='/api/research/status'){
     const job=(state.jobs||[]).find(item=>item.action==='research');
     const error=job?.status==='failed'?job.message:(job?.status==='expired'?'La solicitud venció antes de llegar a Windows':null);
-    return {running:!!job&&['pending','running'].includes(job.status),error};
+    const runtime=structuredClone(state.snapshot?.dashboard?.research_state||{});
+    return {...runtime,running:Boolean(runtime.running||(job&&['pending','running'].includes(job.status))),
+      error:runtime.error||(runtime.last_completed_at?null:error)};
   }
   const data=state.snapshot?.dashboard;
   if(!data)throw new Error('Esperando la primera sincronización del panel completo');

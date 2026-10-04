@@ -2,7 +2,6 @@
 import argparse
 import json
 import sys
-from dataclasses import replace
 from pathlib import Path
 ROOT=Path(__file__).resolve().parent.parent
 sys.path.insert(0,str(ROOT))
@@ -19,14 +18,16 @@ def main():
     job=json.loads((jobs.directory/(str(args.id)+'.json')).read_text())
     try:
         if job['action']=='research':
-            config=source_settings(args.source)
-            from trader.research import execute_research
-            report=(args.source/'data/research/latest.json').resolve()
-            config=replace(config,research=replace(config.research,report_path=report))
-            with single_instance(report.parent/'research.lock'):
-                from trader.runtime_control import RuntimeControl
-                RuntimeControl(config.bot.database_path.parent).guard_start()
-                execute_research(config)
+            import subprocess
+            source = args.source.resolve()
+            # Import research from the exact installed source in a fresh interpreter.
+            subprocess.run([sys.executable, '-I', '-B', str(source/'scripts/research_worker.py'),
+                            '--config', str(source/'config.toml'),
+                            '--report', str(source/'data/research/latest.json')],
+                           cwd=source, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                           stderr=subprocess.DEVNULL, timeout=6900, check=True,
+                           creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0)|
+                           getattr(subprocess, 'BELOW_NORMAL_PRIORITY_CLASS', 0))
             jobs.finish(args.id,'completed','Research Lab completado; informe sincronizado en el próximo ciclo del agente')
         elif job['action'] in ('update_check','update_install'):
             from trader.update_manager import UpdateManager
