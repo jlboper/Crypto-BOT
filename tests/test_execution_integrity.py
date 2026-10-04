@@ -219,6 +219,19 @@ class ExecutionIntegrityTests(unittest.TestCase):
         self.assertEqual(snapshot['futures_forward']['latest_signals']['ETHUSDT'],signal)
         self.assertIsNone(snapshot['futures_forward']['latest_signals']['BTCUSDT'])
 
+    def test_futures_cycle_diagnostic_keeps_symbol_level_failure_reason(self):
+        engine=TradingEngine(self.config)
+        result={"status":"ACTIVE","results":[
+            {"symbol":"ATOMUSDT","status":"ASSET_UNAVAILABLE","error":"reference unavailable","signal":self.fs},
+            {"symbol":"NEARUSDT","status":"NO_DATA","error":"stale Futures candle history"},
+        ]}
+        diagnostic=engine._futures_cycle_diagnostic(result)
+        self.assertEqual(diagnostic["state"],"ATTENTION")
+        self.assertEqual(diagnostic["statuses"],{"ASSET_UNAVAILABLE":1,"NO_DATA":1})
+        self.assertEqual(diagnostic["issues"][0]["symbol"],"ATOMUSDT")
+        self.assertEqual(diagnostic["issues"][0]["reason"],"reference unavailable")
+        self.assertEqual(diagnostic["issues"][1]["symbol"],"NEARUSDT")
+
     def test_futures_contract_data_excludes_forming_candle_and_caches(self):
         engine=TradingEngine(self.config)
         now=200000000
