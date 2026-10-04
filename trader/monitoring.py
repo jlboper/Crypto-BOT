@@ -3,9 +3,61 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from typing import Any
 import math
+import json
 
 from .config import PaperSettings
 from .domain import Position
+
+
+SPOT_CYCLE_STATES = {"RUNNING", "NO_OPPORTUNITIES", "FILTERED", "LIMITED", "OPENED", "PAUSED", "RISK_HALT", "ATTENTION", "ERROR"}
+SPOT_CYCLE_COUNTS = ("universe", "evaluated", "signals", "candidates", "reviews", "opened")
+SPOT_CYCLE_REASONS = {
+    "BELOW_SCORE", "ALREADY_HELD", "MISSING_CANDLES", "QUOTE_UNAVAILABLE", "PRICE_OUTSIDE_RANGE",
+    "POSITION_COUNT_LIMIT", "TOTAL_EXPOSURE_LIMIT", "EQUITY_LIMIT", "AI_CYCLE_LIMIT", "AI_DAILY_LIMIT",
+    "CANDLE_ALREADY_CHECKED", "AI_REJECTED", "AI_UNAVAILABLE", "SIZE_LIMIT", "PAUSED", "LOSS_LIMIT",
+    "EXCHANGE_RULES_UNAVAILABLE", "EXCHANGE_FILTER_PREFLIGHT", "POSITION_SIZE_LIMIT", "PER_TRADE_RISK_LIMIT",
+    "LOCAL_ALLOCATION_LIMIT", "LOCAL_CASH_LIMIT", "PRICE_MOVED_OUTSIDE_SIGNAL_RANGE", "EXCHANGE_FILTER_REJECTED",
+    "TESTNET_BALANCE_LIMIT", "CYCLE_ERROR",
+}
+SPOT_CYCLE_ERRORS = {
+    "ORDER_RECONCILIATION_PENDING", "BTC_REGIME_UNAVAILABLE", "FRESH_PRICES_UNAVAILABLE",
+    "INVALID_SPOT_QUOTE", "HELD_QUOTE_MISSING", "HELD_QUOTE_INVALID", "UNEXPECTED_VALUE_ERROR",
+    "TESTNET_EXECUTION_ERROR", "UNEXPECTED_ERROR",
+}
+
+
+def spot_cycle_status(raw, cycle_seconds, now=None):
+    """Project only bounded counters/codes; absent legacy data is never inferred as success."""
+    try:
+        report = json.loads(raw) if isinstance(raw, str) else raw
+        if not isinstance(report, dict) or report.get("state") not in SPOT_CYCLE_STATES:
+            return None
+        at = _parse_time(report.get("at"))
+        current = now or datetime.now(UTC)
+        if at is None or (at - current).total_seconds() > 120:
+            return None
+        counts = {key: report.get(key) for key in SPOT_CYCLE_COUNTS}
+        if any(type(value) is not int or not 0 <= value <= 10000 for value in counts.values()):
+            return None
+        reasons = report.get("reasons")
+        if not isinstance(reasons, dict) or any(
+            key not in SPOT_CYCLE_REASONS or type(value) is not int or not 0 < value <= 10000
+            for key, value in reasons.items()
+        ):
+            return None
+        score = report.get("minimum_score")
+        regime = report.get("btc_bullish")
+        error = report.get("error_code")
+        if (type(score) is not int or not 0 <= score <= 100 or
+                (regime is not None and type(regime) is not bool) or
+                (error is not None and error not in SPOT_CYCLE_ERRORS)):
+            return None
+        activity = activity_status(at.isoformat(), cycle_seconds, current)
+        return {"state": report["state"], "at": at.isoformat(), **counts, "reasons": reasons,
+                "minimum_score": score, "btc_bullish": regime, "error_code": error,
+                "age_seconds": activity["age_seconds"], "fresh": activity["state"] == "operational"}
+    except (ValueError, TypeError, AttributeError):
+        return None
 
 
 def _parse_time(value: str | None) -> datetime | None:

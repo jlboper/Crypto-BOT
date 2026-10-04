@@ -1,3 +1,11 @@
+# 0.10.21 — Motivo del último ciclo Spot
+
+- Spot muestra «Trabajando · sin oportunidades» cuando termina el análisis sin señales de compra. Distingue candidatas descartadas por IA/filtros/vela ya revisada, límites de entradas, pausa, límite de pérdida, entradas ejecutadas, datos o IA no disponibles y error operativo.
+- Guarda un resumen del último ciclo con fecha, universo, monedas evaluadas, señales, candidatas, revisiones IA y entradas. Muestra score mínimo, régimen BTC y contadores de motivos permitidos; no copia mensajes privados o respuestas de proveedores.
+- El panel local y remoto usan la misma proyección y diseño. Diagnósticos ausentes en instalaciones anteriores muestran «Sin detalle aún»; resultados antiguos o fallos de conexión muestran «Sin datos recientes». Un error reciente sigue visible aunque el último ciclo exitoso sea antiguo.
+- El campo remoto es opcional para conservar compatibilidad con snapshots antiguos; el Worker valida estados, motivos y contadores acotados. Una prueba de contrato sincroniza las proyecciones producidas realmente por Python para todos los códigos y estados.
+- Las reglas de señales, revisión IA, ejecución, protección y riesgo conservan su comportamiento. Las regresiones verifican rechazo versus fallo de IA, datos faltantes, presupuesto, deduplicación, pausa, pérdida, error/recuperación y una entrada PAPER completa con proyección de solo lectura.
+
 # 0.10.20 — Laboratorio diario, carteras conjuntas y seguimiento futuro
 
 - Ejecución automática cada 24 horas con Windows/app encendidos; botón «Actualizar análisis ahora» para adelantarla. Estado durable, última/próxima ejecución, progreso, exclusión mutua manual/diaria/remota/CLI, prioridad reducida y límite de duración. El análisis cede cooperativamente ante mantenimiento de actualizaciones y conserva el último informe completo.

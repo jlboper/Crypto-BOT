@@ -18,6 +18,11 @@
 .engine-chart-head small{color:#7890ad}
 .engine-console canvas{display:block;width:100%;max-width:100%;border-radius:10px;background:rgba(7,14,25,.45)}
 .compact-actions{margin-top:10px}
+.spot-cycle{padding:12px 14px;border:1px solid rgba(125,154,190,.16);border-radius:12px;background:rgba(9,18,31,.5)}
+.spot-cycle-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;font-size:12px}
+.spot-cycle-head .state{font-size:10px;white-space:normal}
+.spot-cycle p{margin:9px 0 6px;font-size:12px;line-height:1.5;color:#cdd9e8}
+.spot-cycle small{display:block;color:#8ca0bb;font-size:11px;line-height:1.5;overflow-wrap:anywhere}
 .consolidated-guardrail{margin:16px 0}
 .dual-observation{margin-top:16px}
 .options-menu button{min-height:38px}
