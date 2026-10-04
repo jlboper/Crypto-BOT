@@ -639,15 +639,20 @@ class TradingEngine:
         try:
             # Spot data is not interchangeable with the USD-M contract traded.
             futures_map = {}
+            data_errors = {}
             for symbol in self.futures_forward.symbols:
                 try:
                     futures_map[symbol] = self._futures_candles(symbol)
                 except Exception as exc:
+                    data_errors[symbol] = (type(exc).__name__ + ": " + str(exc))[:180]
                     self._emit_futures_warning("data_" + symbol,
                         f"Futures Demo {symbol} contract data unavailable: {type(exc).__name__}")
             if not futures_map:
                 raise RuntimeError("Futures contract candles unavailable")
             result = self.futures_forward.cycle(futures_map)
+            for row in result.get("results", []):
+                if row.get("status") == "NO_DATA" and row.get("symbol") in data_errors:
+                    row["error"] = data_errors[row["symbol"]]
             self.futures_forward.ledger.set_setting(
                 "forward_last_cycle_diagnostic", self._futures_cycle_diagnostic(result))
             self.futures_forward.ledger.set_setting("forward_cycle_consecutive_errors", 0)
