@@ -336,6 +336,18 @@ class TradingEngine:
                 "Testnet credentials unavailable": "credenciales Testnet no disponibles",
             }
             label = labels.get(str(exc), "fallo de ejecución o conciliación Spot Testnet")
+            api_reason = {
+                "Account has insufficient balance for requested action.": "saldo insuficiente",
+                "The relationship of the prices for the orders is not correct.": "relación entre precios OCO incorrecta",
+                "Order would trigger immediately.": "la orden se dispararía inmediatamente",
+                "Filter failure: NOTIONAL": "filtro NOTIONAL",
+                "Filter failure: MIN_NOTIONAL": "filtro MIN_NOTIONAL",
+                "Filter failure: LOT_SIZE": "filtro LOT_SIZE",
+                "Filter failure: PRICE_FILTER": "filtro PRICE_FILTER",
+                "Filter failure: PERCENT_PRICE_BY_SIDE": "filtro PERCENT_PRICE_BY_SIDE",
+                "Filter failure: PERCENT_PRICE": "filtro PERCENT_PRICE",
+                "Filter failure: MAX_NUM_ALGO_ORDERS": "máximo de órdenes condicionales",
+            }.get(exc.api_message)
             if type(exc.code) is int and -10000 <= exc.code < 0:
                 label += f" · Binance {exc.code}"
                 if exc.code == -2013:
@@ -344,6 +356,8 @@ class TradingEngine:
                     label += ": clave, permisos o IP no válidos"
                 elif exc.code == -1021:
                     label += ": reloj fuera de la ventana permitida"
+            if api_reason:
+                label += " · " + api_reason
             return {"code": "TESTNET_EXECUTION_ERROR", "label": label, "type": type(exc).__name__}
         if isinstance(exc, ValueError):
             label = {"Native protection PRICE_FILTER unavailable": "PRICE_FILTER de protección no disponible",

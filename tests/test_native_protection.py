@@ -361,11 +361,18 @@ class SpotNativeTests(unittest.TestCase):
     def test_definite_oco_rejection_keeps_local_stop_available(self):
         original = self.exchange.request
         def reject_oco(method, endpoint, fields):
-            if endpoint == "/api/v3/orderList/oco": raise TestnetExecutionError("filter failure", code=-1013)
+            if endpoint == "/api/v3/orderList/oco":
+                raise TestnetExecutionError("Testnet HTTP 400 · Binance -1013: Filter failure: NOTIONAL", code=-1013)
             return original(method, endpoint, fields)
         with patch("trader.testnet_broker.signed_request", side_effect=reject_oco):
             with self.assertRaises(TestnetExecutionError): self.arm()
         self.assertEqual(self.broker.native.records()["BTCUSDT"]["state"], "REJECTED")
+        calls_before = len(self.exchange.calls)
+        with self.assertRaises(TestnetExecutionError) as caught:
+            self.broker.native.ensure(self.position)
+        self.assertEqual(caught.exception.code, -1013)
+        self.assertEqual(caught.exception.api_message, 'Filter failure: NOTIONAL')
+        self.assertEqual(len(self.exchange.calls), calls_before)
         self.broker.sell(self.position, 94, "protective stop")
         self.assertIsNone(self.db.position("BTCUSDT"))
 

@@ -18,6 +18,9 @@ class EngineTests(unittest.TestCase):
         self.assertIn('Binance -2013', result['label'])
         self.assertNotIn('secret', result['label'])
         self.assertIn('no se asume cancelada', result['label'])
+        rejected = TestnetExecutionError('Spot native OCO was rejected; local exits remain available, new entries blocked',
+            code=-1013, api_message='Filter failure: NOTIONAL')
+        self.assertIn('filtro NOTIONAL', TradingEngine._spot_failure_projection(rejected)['label'])
 
     def test_spot_failure_does_not_suppress_independent_futures_cycle(self):
         engine = TradingEngine.__new__(TradingEngine)
