@@ -2,14 +2,39 @@ import tempfile
 import unittest
 from dataclasses import replace
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import patch, Mock
 
 from trader.config import load_config
 from trader.domain import Candle, Position, Signal
 from trader.engine import TradingEngine
+from trader.testnet_transport import TestnetExecutionError
 
 
 class EngineTests(unittest.TestCase):
+    def test_testnet_error_is_classified_before_its_valueerror_parent(self):
+        error = TestnetExecutionError('secret signed URL', code=-2013, api_message='secret token')
+        result = TradingEngine._spot_failure_projection(error)
+        self.assertEqual(result['code'], 'TESTNET_EXECUTION_ERROR')
+        self.assertIn('Binance -2013', result['label'])
+        self.assertNotIn('secret', result['label'])
+        self.assertIn('no se asume cancelada', result['label'])
+        rejected = TestnetExecutionError('Spot native OCO was rejected; local exits remain available, new entries blocked',
+            code=-1013, api_message='Filter failure: NOTIONAL')
+        self.assertIn('filtro NOTIONAL', TradingEngine._spot_failure_projection(rejected)['label'])
+
+    def test_spot_failure_does_not_suppress_independent_futures_cycle(self):
+        engine = TradingEngine.__new__(TradingEngine)
+        engine.futures_forward = Mock()
+        with patch.object(engine, '_spot_cycle', side_effect=TestnetExecutionError('blocked')), \
+             patch.object(engine, '_run_futures_forward_cycle') as futures:
+            with self.assertRaises(TestnetExecutionError):
+                engine.cycle()
+            futures.assert_called_once_with({})
+        with patch.object(engine, '_spot_cycle', return_value={'status':'killed'}), \
+             patch.object(engine, '_run_futures_forward_cycle') as futures:
+            self.assertEqual(engine.cycle(), {'status':'killed'})
+            futures.assert_called_once_with({})
+
     def test_paper_profile_reduces_risk_and_cannot_raise_base_cap(self):
         with tempfile.TemporaryDirectory() as folder:
             config = load_config()

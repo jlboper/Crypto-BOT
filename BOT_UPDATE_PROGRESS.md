@@ -244,3 +244,6 @@ been observed on the operating PC.
 
 Do not describe a new version as installed until all three gates are recorded as
 completed. No Android app or push-notification delivery is implemented here.
+# Candidate — 0.10.26 Spot incident diagnosis and market isolation
+
+Prepared from main 8cb9cd4874abb8991157c496b576fcbf11a075b1 after the authenticated portal showed repeated Spot errors and stale Futures analysis. TestnetExecutionError inherits ValueError and was hidden by the parent classification. Emit safe exchange code/known native reason and run independent Futures once after each Spot attempt, including failed attempts. Preserve pause flags, journals and all risk boundaries. Publication and installation require separate verification; the underlying exchange failure must be observed after installation before claiming Spot recovery.

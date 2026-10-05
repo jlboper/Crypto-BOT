@@ -723,3 +723,8 @@ La versión 0.5.0 incorpora un canal estable en línea. El Centro de Control avi
 ## Aplicación gráfica
 
 `Crypto AI Trader.vbs` abre un centro de control sin mostrar PowerShell. Incluye estado, resumen de inversión, último ciclo y botones para abrir los portales, reiniciar, manejar el kill switch, configurar el inicio automático e instalar actualizaciones. Al minimizarlo queda como indicador en el área de notificaciones. El actualizador continúa disponible por consola como mecanismo alternativo de recuperación.
+# 0.10.26 — isolate market cycles and diagnose Spot exchange failures
+
+Spot reconciliation failures no longer suppress the independent Futures cycle. Spot retains its exception, journal, automatic halt and all risk controls; Futures retains its own kill switch and ledger. Its cycle still uses USD-M candles, never the unused Spot map.
+
+Classify TestnetExecutionError before ValueError (its parent), retain a bounded Binance numeric code and allowlisted native-protection explanations, and omit arbitrary exception/API text. Missing orders remain unresolved; this release does not delete journals, recreate ambiguous orders or clear an automatic halt. Offline regressions cover market isolation and safe exchange-error classification.

@@ -9,6 +9,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from decimal import Decimal, ROUND_CEILING, ROUND_FLOOR
 import json
+import re
 import secrets
 
 from .futures_testnet_transport import signed_request as futures_request, FuturesTestnetExecutionError
@@ -341,7 +342,11 @@ class SpotNativeProtection:
         client = BinanceClient(timeout=10)
         records = self.records(); record = records.get(symbol)
         if record and record["state"] == "REJECTED":
-            raise TestnetExecutionError("Spot native OCO was rejected; local exits remain available, new entries blocked")
+            # Keep the original numeric rejection evidence across subsequent
+            # cycles. Never infer that an ambiguous SENDING write was rejected.
+            match = re.fullmatch(r"Testnet HTTP \d{3} · Binance (-\d{1,5}): (.{1,180})", str(record.get("error", "")))
+            raise TestnetExecutionError("Spot native OCO was rejected; local exits remain available, new entries blocked",
+                code=int(match[1]) if match else None, api_message=match[2] if match else None)
         if record and record["status"] == "ARMED" and record["position"]["stop_price"] == position.stop_price:
             return
         # Trailing updates replace the pair only after confirmed cancellation.
