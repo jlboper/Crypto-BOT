@@ -44,6 +44,15 @@ class TradingEngine:
         return self.config.bot.kill_switch_path.exists()
 
     def cycle(self) -> dict:
+        # Each market owns its journal and kill switch. Spot reconciliation must
+        # not suppress the independent Futures diagnostic/protection cycle.
+        try:
+            return self._spot_cycle()
+        finally:
+            if self.futures_forward is not None:
+                self._run_futures_forward_cycle({})
+
+    def _spot_cycle(self) -> dict:
         diagnostic = {"state": "RUNNING", "universe": 0, "evaluated": 0, "signals": 0,
                       "candidates": 0, "reviews": 0, "opened": 0, "reasons": {},
                       "minimum_score": self.config.strategy.minimum_score,
@@ -71,9 +80,6 @@ class TradingEngine:
                 raise RuntimeError("BTC regime data unavailable")
             btc_bullish = self.strategy.btc_regime(candle_map["BTCUSDT"])
             diagnostic["btc_bullish"] = btc_bullish
-            if self.futures_forward is not None:
-                self._run_futures_forward_cycle(candle_map)
-
             try:
                 prices = self.exchange.latest_prices(set(monitored_symbols))
                 self._require_spot_prices(prices, [*held_symbols, "BTCUSDT"])
@@ -315,10 +321,35 @@ class TradingEngine:
         if str(exc) in known:
             code, label = known[str(exc)]
             return {"code": code, "label": label, "type": type(exc).__name__}
-        if isinstance(exc, ValueError):
-            return {"code": "UNEXPECTED_VALUE_ERROR", "label": "validación interna no clasificada", "type": "ValueError"}
         if isinstance(exc, TestnetExecutionError):
-            return {"code": "TESTNET_EXECUTION_ERROR", "label": "fallo de ejecución o conciliación Spot Testnet", "type": type(exc).__name__}
+            labels = {
+                "Spot native OCO identity/status mismatch": "identidad o estado OCO incompatible",
+                "Spot native OCO member identity mismatch": "identidad de las órdenes OCO incompatible",
+                "Spot native leg quantity/trigger identity mismatch": "cantidad o disparador OCO incompatible",
+                "Spot native journal position mismatch": "posición y journal OCO incompatibles",
+                "Spot native execution/cancellation awaits reconciliation": "ejecución o cancelación OCO pendiente de conciliación",
+                "Spot native OCO was rejected; local exits remain available, new entries blocked": "OCO rechazado; nuevas entradas bloqueadas",
+                "Spot native trigger range already crossed": "precio fuera del rango de protección OCO",
+                "Spot native protection quantity below exchange filters (dust)": "cantidad OCO inferior a los mínimos del exchange",
+                "Insufficient free Spot balance for native protection": "saldo libre insuficiente para protección OCO",
+                "Testnet response uncertain; reconcile before another action": "respuesta Testnet incierta; requiere conciliación",
+                "Testnet credentials unavailable": "credenciales Testnet no disponibles",
+            }
+            label = labels.get(str(exc), "fallo de ejecución o conciliación Spot Testnet")
+            if type(exc.code) is int and -10000 <= exc.code < 0:
+                label += f" · Binance {exc.code}"
+                if exc.code == -2013:
+                    label += ": orden no encontrada; no se asume cancelada"
+                elif exc.code == -2015:
+                    label += ": clave, permisos o IP no válidos"
+                elif exc.code == -1021:
+                    label += ": reloj fuera de la ventana permitida"
+            return {"code": "TESTNET_EXECUTION_ERROR", "label": label, "type": type(exc).__name__}
+        if isinstance(exc, ValueError):
+            label = {"Native protection PRICE_FILTER unavailable": "PRICE_FILTER de protección no disponible",
+                     "Native protection price outside exchange filter": "precio de protección fuera de filtros",
+                     "Non-finite native protection value": "valor de protección no finito"}.get(str(exc), "validación interna no clasificada")
+            return {"code": "UNEXPECTED_VALUE_ERROR", "label": label, "type": "ValueError"}
         return {
             "code": "UNEXPECTED_" + type(exc).__name__.upper(),
             "label": "fallo operativo no clasificado",

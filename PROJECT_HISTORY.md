@@ -233,3 +233,6 @@ Deferral is not rejection. A future maintainer should reassess these ideas again
 ## How to maintain this log
 
 Add entries for architectural decisions, abandoned approaches, major safety lessons and future-direction changes. Do not duplicate every patch note; detailed release-by-release implementation belongs in `UPDATE_NOTES.md`.
+# 2026-10-05 — independent market cycles and exchange-error identity
+
+The authenticated 0.10.25 portal showed an active Spot error halt while HTTPS remained connected, with Futures analysis stale. Source review found Futures was reached only after successful Spot journal reconciliation. 0.10.26 moves its once-per-cycle call into the outer cycle's finally block; each market retains separate journals, risk limits and pause controls. Spot exceptions remain fatal to Spot and are not treated as successful cycles. A second finding was classification order: TestnetExecutionError derives from ValueError, so the generic parent hid exchange failures. Safe diagnostics now prioritize the subtype, with allowlisted explanations and numeric Binance codes only. Do not infer the exchange root cause or clear an ambiguous journal from generic errors.
