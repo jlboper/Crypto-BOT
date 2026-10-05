@@ -95,6 +95,32 @@ test('v0.9 multi-asset portal snapshot renders without falling into disconnected
     ]};
   await context.__refresh();
   assert.equal(el('futuresCycleState').textContent,'REQUIERE ATENCIÓN');
+  assert.equal(el('futuresForwardState').textContent,'ACTIVO · DATOS PARCIALES');
+  assert.equal(el('futuresHealthState').textContent,'VIGILAR');
+  assert.equal(el('observationHealthState').textContent,'VIGILAR');
+  assert.match(el('futuresHealthReason').textContent,/bloqueo parcial/);
+  assert.match(el('futuresCycleSummary').textContent,/3 contratos.*1 evaluados.*0 señales.*0 revisiones IA/);
+  assert.match(el('futuresMultiAsset').innerHTML,/dato histórico/);
+  assert.doesNotMatch(el('futuresMultiAsset').innerHTML,/65 \/ 15/);
+  futures.latest_signals.BTCUSDT={long_score:65,short_score:15,at:new Date().toISOString(),timeframe:'1h'};
+  futures.cycle_diagnostic.issues.push({symbol:'BTCUSDT',status:'ASSET_UNAVAILABLE',reason:'Reference <missing>'});
+  await context.__refresh();
+  assert.match(el('futuresMultiAsset').innerHTML,/Score LONG \/ SHORT · sobre 100/);
+  assert.match(el('futuresMultiAsset').innerHTML,/65 \/ 15/);
+  assert.match(el('futuresMultiAsset').innerHTML,/DATOS NO DISPONIBLES/);
+  assert.match(el('futuresMultiAsset').innerHTML,/Reference &lt;missing&gt;/);
+  futures.latest_signals.BTCUSDT.at=new Date(Date.now()-7200000).toISOString();
+  await context.__refresh();
+  assert.doesNotMatch(el('futuresSignalGrid').innerHTML,/65 \/ 15/);
+  assert.match(el('futuresSignalGrid').innerHTML,/DATO HISTÓRICO/);
+  futures.cycle_diagnostic.at=new Date(Date.now()-3600000).toISOString();
+  await context.__refresh();
+  assert.equal(el('futuresForwardState').textContent,'SIN ANÁLISIS RECIENTE');
+  assert.equal(el('futuresCycleState').textContent,'SIN DATOS RECIENTES');
+  assert.doesNotMatch(el('futuresMultiAsset').innerHTML,/Reference &lt;missing&gt;/);
+
+  futures.cycle_diagnostic.at=new Date().toISOString();
+  await context.__refresh();
   assert.match(el('futuresCycleReasons').textContent,/ATOM: Futures Demo reference price unavailable/);
   assert.match(el('futuresCycleReasons').textContent,/NEAR: Futures Demo quantity filters unavailable/);
   futures.cycle_diagnostic={state:'NO_OPPORTUNITIES',at:new Date().toISOString(),timeframe:'1h',minimum_score:70,
@@ -104,6 +130,7 @@ test('v0.9 multi-asset portal snapshot renders without falling into disconnected
     results:[1,2,3].map(leverage=>({leverage,closed_trades:0,gross_pnl_usdt:0}))};
   await context.__refresh();
   assert.equal(el('futuresLimitLeverage').textContent,'1x / 2x / 3x');
+  assert.equal(el('futuresHealthState').textContent,'ESTABLE');
   assert.equal(el('futuresConfiguredSymbols').textContent,'BTC / ETH / SOL / BNB / XRP');
   assert.match(el('futuresLeverageTrials').innerHTML,/Próxima entrada: 3x/);
   assert.match(el('futuresLeverageTrials').innerHTML,/sin comparación de rentabilidad equivalente/);
@@ -194,6 +221,23 @@ test('v0.9 multi-asset portal snapshot renders without falling into disconnected
   assert.match(el('researchForward').innerHTML,/Esperando velas/);
   assert.match(el('researchFuturesAssets').innerHTML,/Falta forward independiente/);
   assert.notEqual(el('botState').textContent,'PORTAL SIN CONEXIÓN');
+
+  responses['/api/research/status'].error='Análisis detenido: ValueError';
+  await context.__refresh();
+  assert.match(el('researchSchedule').textContent,/informe anterior.*0 activos Spot y 1 Futures/);
+  const riskProfiles={minimo:.25,leve:.35,prudente:.5,moderado:.65,alto:.85,normal:1};
+  for(const [name,fraction] of Object.entries(riskProfiles)){
+    responses['/api/status'].paper_risk_profile=name;
+    await context.__refresh();
+    assert.equal(Number(el('riskTrade').textContent.replace('%','')),Number((.75*fraction).toFixed(2)));
+  }
+  Object.assign(responses['/api/paper-scorecard'],{win_rate_pct:25,profit_factor:.39,expectancy_usdt_per_close:-1.69});
+  await context.__refresh();
+  assert.equal(el('spotObservedQuality').textContent,'25.0% / 0.39');
+  assert.equal(el('spotObservedReturn').textContent,'+0.20%');
+  assert.equal(el('futuresObservedExpectancy').textContent,'0.00 USDT');
+  assert.match(el('spotObservedExpectancy').textContent,/-1.69 USDT/);
+  assert.match(el('futuresMoreMetrics').innerHTML,/ATRIBUCIÓN PENDIENTE/);
 
   // Last-cycle evidence is distinct from the engine heartbeat and expires in the browser.
   const status=responses['/api/status'];

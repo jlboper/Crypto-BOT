@@ -191,7 +191,7 @@
         </div>
       </article>
     </section>
-    <section class="panel" aria-label="Pruebas de apalancamiento Futures Demo"><details class="update-details"><summary>Futures Demo · pruebas de apalancamiento</summary><p id="futuresPortfolioBudget" class="settings-help">Esperando límites de cartera del motor.</p>
+    <section class="panel" aria-label="Pruebas de apalancamiento Futures Demo"><details class="update-details"><summary>Futures Demo · pruebas de apalancamiento</summary>
           <div id="futuresLeverageTrials"></div></details></section>
     <section class="panel observation-health" aria-label="Salud de observación últimas 24 horas">
       <div class="panel-title">
@@ -204,7 +204,7 @@
           <div><dt>Cobertura de ciclos</dt><dd id="spotCycleCoverage">—</dd></div><div><dt>Muestras / estimadas</dt><dd id="spotCycleSamples">—</dd></div><div><dt>Gap promedio</dt><dd id="spotCycleGap">—</dd></div><div><dt>Errores / avisos (24 h)</dt><dd id="spotDailyErrors">—</dd></div><div><dt>Errores consecutivos activos</dt><dd id="spotConsecutiveErrors">—</dd></div><div><dt>Último diagnóstico</dt><dd id="spotLastError">—</dd></div><div><dt>IA: revisiones / rechazos</dt><dd id="spotDailyAi">—</dd></div><div><dt>Cierres / P&amp;L</dt><dd id="spotDailyTrading">—</dd></div><div><dt>Integridad</dt><dd id="spotIntegrity">—</dd></div>
         </dl><p id="spotHealthReason" class="health-reason">Esperando diagnóstico de 24 h.</p></article>
         <article><div class="health-head"><h3>Futures Demo</h3><span id="futuresHealthState" class="state neutral">—</span></div><dl>
-          <div><dt>Cobertura de ciclos</dt><dd id="futuresCycleCoverage">—</dd></div><div><dt>Muestras / estimadas</dt><dd id="futuresCycleSamples">—</dd></div><div><dt>Gap promedio</dt><dd id="futuresCycleGap">—</dd></div><div><dt>Errores consecutivos</dt><dd id="futuresDailyErrors">—</dd></div><div><dt>Incidentes / intentos / ciclos · historial total</dt><dd id="futuresHealthCounters">—</dd></div><div><dt>Cierres / P&amp;L bruto · 24 h</dt><dd id="futuresDailyTrading">—</dd></div><div><dt>Integridad</dt><dd id="futuresIntegrity">—</dd></div>
+          <div><dt>Cobertura de ciclos</dt><dd id="futuresCycleCoverage">—</dd></div><div><dt>Muestras / estimadas</dt><dd id="futuresCycleSamples">—</dd></div><div><dt>Gap promedio</dt><dd id="futuresCycleGap">—</dd></div><div><dt>Errores consecutivos activos</dt><dd id="futuresDailyErrors">—</dd></div><div><dt>Último diagnóstico</dt><dd id="futuresHealthLatest">—</dd></div><div><dt>Incidentes / intentos / ciclos · historial total</dt><dd id="futuresHealthCounters">—</dd></div><div><dt>Cierres / P&amp;L bruto · 24 h</dt><dd id="futuresDailyTrading">—</dd></div><div><dt>Integridad</dt><dd id="futuresIntegrity">—</dd></div>
         </dl><p id="futuresHealthReason" class="health-reason">Esperando diagnóstico de 24 h.</p></article>
       </div>
     </section>
@@ -219,9 +219,9 @@
           <h3>Spot Testnet</h3>
           <dl>
             <div><dt>Días observados</dt><dd id="spotObservedDays">—</dd></div>
-            <div><dt>Cierres</dt><dd id="spotClosedTrades">—</dd></div>
+            <div><dt>Cierres</dt><dd id="spotClosedTrades">—</dd></div><div><dt>Retorno cuenta observado</dt><dd id="spotObservedReturn">—</dd></div>
             <div><dt>P&amp;L realizado neto</dt><dd id="spotObservedPnl">—</dd></div>
-            <div><dt>Drawdown</dt><dd id="spotObservedDrawdown">—</dd></div>
+            <div><dt>Drawdown muestreado</dt><dd id="spotObservedDrawdown">—</dd></div><div><dt>Win rate / profit factor · cierres</dt><dd id="spotObservedQuality">—</dd></div><div><dt>Expectativa neta / cierre</dt><dd id="spotObservedExpectancy">—</dd></div><div><dt>P&amp;L abierto estimado</dt><dd id="spotObservedOpenPnl">—</dd></div>
           </dl>
         </article>
         <article>
@@ -232,13 +232,14 @@
             <div><dt>Cierres técnicos · aparte</dt><dd id="futuresTechnicalTrades">—</dd></div>
             <div><dt>Retorno cuenta observado</dt><dd id="futuresObservedReturn">—</dd></div>
             <div><dt>P&amp;L total bruto · incluye técnicos</dt><dd id="futuresObservedPnl">—</dd></div>
-            <div><dt>Drawdown</dt><dd id="futuresObservedDrawdown">—</dd></div>
+            <div><dt>Drawdown muestreado</dt><dd id="futuresObservedDrawdown">—</dd></div><div><dt>P&amp;L de estrategia bruto</dt><dd id="futuresStrategyPnl">—</dd></div><div><dt>Expectativa bruta / cierre de estrategia</dt><dd id="futuresObservedExpectancy">—</dd></div><div><dt>P&amp;L abierto · cuenta Demo</dt><dd id="futuresObservedOpenPnl">—</dd></div>
             <div><dt>Win rate / profit factor · estrategia</dt><dd id="futuresObservedQuality">—</dd></div>
             <div><dt>LONG / SHORT · historial total</dt><dd id="futuresDirectionSplit">—</dd></div>
             <div><dt>Errores</dt><dd id="futuresErrorRate">—</dd></div>
           </dl>
         </article>
       </div>
+      <p class="settings-help">Ventanas y capitales distintos por motor. Spot descuenta las comisiones registradas; su cobertura completa no está certificada. Futures muestra P&amp;L bruto sin comisiones ni funding por operación. El retorno observado usa la equity de cada cuenta y no separa aportes/retiros. Los cierres técnicos no evalúan la estrategia.</p>
       <div class="readiness-note">
         <h3>Regla de observación antes de discutir LIVE</h3>
         <ul id="dualReadinessChecks"></ul>
@@ -276,7 +277,7 @@
           <div><dt>Stop mínimo / ATR</dt><dd id="futuresLimitStop">—</dd></div>
           <div><dt>Reward / Risk</dt><dd id="futuresLimitRR">—</dd></div>
         </dl>
-        <p class="settings-help">Forward test de 15 monedas · ONE_WAY · hasta cinco posiciones aisladas · kill switch independiente. Los valores automáticos no se modifican desde esta pantalla.</p>
+        <p class="settings-help">Forward test de 15 monedas · ONE_WAY · hasta cinco posiciones aisladas · kill switch independiente. Los valores automáticos no se modifican desde esta pantalla.</p><p id="futuresPortfolioBudget" class="settings-help">Esperando límites de cartera del motor.</p>
       </article>
     </section>
 

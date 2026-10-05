@@ -1,3 +1,12 @@
+# 0.10.25 — Comparable evidence and current contract diagnostics
+
+- Shared Spot/Futures scorecards now show account return, win rate/profit factor, expectancy and open P&L together, with separate net/gross labels, account windows, technical closes and cost-attribution limits.
+- Futures last-cycle counters match the Spot presentation. A partial contract-data failure or stale cycle also degrades the headline/observation summary; high cycle coverage cannot imply full contract availability.
+- Per-contract scores identify LONG/SHORT, timeframe and analysis date. Historical/undated scores no longer appear as current opportunities; current unavailable-contract reasons appear on the affected card.
+- Aggregate Futures exposure/loss-to-stop budgets are visible in Limits. Fix the displayed Spot risk percentage for leve/moderado/alto using the same six-profile mapping as the description; execution limits are unchanged.
+- Research failures retain a bounded, allowlisted diagnostic and safe stage instead of only an exception class. The portal dates the retained older report and identifies its actual Spot/Futures coverage. The previously observed generic ValueError is not assigned a cause without new execution evidence.
+- Preserve strategies, thresholds, timeframes, leverage, signed rollout, journals, histories, exchange order handling and the LIVE prohibition. No database/schema or independent-agent dependency change.
+
 # 0.10.24 — Recuperación automática de contratos Futures Demo
 
 - Futures vuelve a validar en cada ciclo los contratos bloqueados; un fallo temporal no elimina permanentemente una moneda. Si Binance Demo vuelve a exponer filtros/configuración válidos, el contrato regresa automáticamente a READY.

@@ -88,6 +88,29 @@ def progress(report_path: Path, text: str) -> None:
     atomic(report_path.parent/'state.json', state)
 
 
+def failure_message(error: Exception, state: dict) -> str:
+    """Expose known research diagnostics, never arbitrary exception text or logs."""
+    import re
+    labels = {
+        'Invalid or insufficient research windows': 'Ventanas de investigación inválidas o insuficientes',
+        'BTC history unavailable; previous report retained': 'Historial BTC no disponible; se conserva el informe anterior',
+        'Insufficient aligned portfolio history': 'Historial conjunto insuficiente para las ventanas configuradas',
+        'invalid, unordered or gapped market history': 'Historial desordenado o con huecos',
+        'Research projection exceeds size budget': 'El informe excede el presupuesto de sincronización',
+        'Out of range float values are not JSON compliant: inf': 'El cálculo produjo un valor infinito',
+        'Out of range float values are not JSON compliant: nan': 'El cálculo produjo un valor no numérico',
+    }
+    label = labels.get(str(error), type(error).__name__)
+    stage = state.get('progress', '')
+    if not isinstance(stage, str) or not re.fullmatch(
+        r'(?:Datos Spot [A-Z0-9]{2,30} \(\d{1,2}/\d{1,2}\)|'
+        r'Datos Futures, mark y funding: [A-Z0-9]{2,30}|'
+        r'Cartera Spot: señales [A-Z0-9]{2,30}|Futures: cinco modelos [A-Z0-9]{2,30}|'
+        r'Spot: walk-forward, Monte Carlo y ventana reservada|Guardando historial y curvas de cartera)', stage):
+        stage = ''
+    return ('Análisis detenido: '+label+(' · Etapa: '+stage if stage else ''))[:300]
+
+
 def studied_symbols(report_path: Path, fallback=()):
     import re
     symbols = read(report_path.parent/'state.json').get('studied_spot', [])
