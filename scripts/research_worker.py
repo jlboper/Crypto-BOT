@@ -14,7 +14,7 @@ sys.path.insert(0, str(ROOT))
 def main():
     from trader.config import load_config
     from trader.research import execute_research
-    from trader.research_runtime import DAY, atomic, read
+    from trader.research_runtime import DAY, atomic, read, failure_message
     from trader.runtime import single_instance
     from trader.runtime_control import RuntimeControl
     parser = argparse.ArgumentParser()
@@ -37,7 +37,7 @@ def main():
             report = execute_research(config)
         except Exception as error:
             state = read(path)
-            state.update(running=False, status='FAILED', error='Análisis detenido: '+type(error).__name__, progress='')
+            state.update(running=False, status='FAILED', error=failure_message(error, state), progress='')
             atomic(path, state)
             raise
         else:

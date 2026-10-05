@@ -88,6 +88,23 @@ function futuresEquityValue(row) {
   return wallet!=null&&pnl!=null?wallet+pnl:optionalNumber(row.equity ?? row.value);
 }
 
+function futuresCycleFresh(futures, status={}) {
+  const age=(Date.now()-Date.parse(futures?.cycle_diagnostic?.at))/1000;
+  const seconds=Number(status.cycle_seconds)||900;
+  return Number.isFinite(age)&&age>=-120&&age<=Math.max(seconds*1.5,seconds+120);
+}
+function futuresSignalEvidence(futures, symbol) {
+  const signal=futures?.latest_signals?.[symbol]||{};
+  const age=(Date.now()-Date.parse(signal.at))/1000;
+  const timeframe=String(signal.timeframe||futures?.guardrails?.forward_timeframe||'');
+  const match=/^(\d+)([mh])$/.exec(timeframe);
+  const seconds=match?Number(match[1])*(match[2]==='h'?3600:60):0;
+  const fresh=seconds>0&&Number.isFinite(age)&&age>=-120&&age<=seconds+1800;
+  const issue=futuresCycleFresh(futures)?futures?.cycle_diagnostic?.issues?.find(row=>row.symbol===symbol):null;
+  return {signal,fresh,issue,score:fresh?String(signal.long_score??'—')+' / '+String(signal.short_score??'—'):'— / —',
+    stamp:(signal.at?shortTime(signal.at):'Sin fecha')+' · '+(timeframe?timeframe.toUpperCase()+' · ':'')+(fresh?'último análisis':'dato histórico')};
+}
+
 function renderPaperEvidence(report, equity, trades) {
   const evidenceMode=String(report?.mode||currentExecutionMode||'paper').toUpperCase();
   const state=document.getElementById('paperEvidenceState');
@@ -195,19 +212,27 @@ function renderFuturesChart(points) {
   retriggerMotion(canvas,'motion-chart');
 }
 
-function renderDualEvidence(spot, futures) {
+function renderDualEvidence(spot, futures, status={}) {
   const score=futures?.scorecard||{};
   const finite=value=>Number.isFinite(Number(value))?Number(value):0;
   const set=(id,value)=>{const node=document.getElementById(id);if(node)node.textContent=value;};
   set('spotObservedDays', Number(spot?.observed_days||0).toFixed(1));
   set('spotClosedTrades', String(Number(spot?.closed_trades||0)));
   set('spotObservedPnl', money(spot?.net_realized_pnl_usdt||0));
+  set('spotObservedReturn',status.return_pct==null?'—':pct(status.return_pct));
+  set('spotObservedQuality',(spot?.win_rate_pct==null?'—':Number(spot.win_rate_pct).toFixed(1)+'%')+' / '+profitFactorLabel(spot?.profit_factor));
+  set('spotObservedExpectancy',spot?.expectancy_usdt_per_close==null?'—':money(spot.expectancy_usdt_per_close));
+  set('spotObservedOpenPnl',spot?.estimated_open_pnl_usdt==null?'—':money(spot.estimated_open_pnl_usdt));
   set('spotObservedDrawdown', finite(spot?.sampled_max_drawdown_pct).toFixed(2)+'%');
   set('futuresObservedDays', finite(score.observed_days).toFixed(1));
   set('futuresObservedTrades', score.strategy_closed_trades==null?'—':String(finite(score.strategy_closed_trades).toFixed(0)));
   set('futuresTechnicalTrades', score.technical_closed_trades==null?'—':String(finite(score.technical_closed_trades).toFixed(0)));
   set('futuresObservedReturn', score.account_return_pct==null?'—':pct(score.account_return_pct));
   set('futuresObservedPnl', money(score.gross_realized_pnl_usdt||0));
+  set('futuresStrategyPnl',score.strategy_gross_pnl_usdt==null?'—':money(score.strategy_gross_pnl_usdt));
+  set('futuresObservedExpectancy',score.strategy_closed_trades>0&&score.strategy_gross_pnl_usdt!=null?money(score.strategy_gross_pnl_usdt/score.strategy_closed_trades):'—');
+  const last=(futures?.equity||[]).at(-1);
+  set('futuresObservedOpenPnl',last?.unrealized_pnl==null?'—':money(last.unrealized_pnl));
   set('futuresObservedDrawdown', finite(score.sampled_max_drawdown_pct).toFixed(2)+'%');
   set('futuresObservedQuality', (score.strategy_win_rate_pct==null?'—':finite(score.strategy_win_rate_pct).toFixed(1)+'%')+' / '+profitFactorLabel(score.strategy_profit_factor));
   set('futuresDirectionSplit','L '+finite(score.long_closed_trades).toFixed(0)+' ('+money(score.long_gross_pnl_usdt||0)+') · S '+finite(score.short_closed_trades).toFixed(0)+' ('+money(score.short_gross_pnl_usdt||0)+')');
@@ -328,8 +353,9 @@ function renderFuturesParity(futures) {
     '<article><span>P&amp;L total bruto · incluye técnicos</span><strong>'+money(score.gross_realized_pnl_usdt||0)+'</strong></article>'+
     '<article><span>Ganancia media · todos los cierres</span><strong>'+(score.average_win_usdt==null?'—':money(score.average_win_usdt))+'</strong></article>'+
     '<article><span>Pérdida media · todos los cierres</span><strong>'+(score.average_loss_usdt==null?'—':money(score.average_loss_usdt))+'</strong></article>'+
-    '<article><span>LONG P&amp;L</span><strong>'+money(score.long_gross_pnl_usdt||0)+'</strong></article>'+
-    '<article><span>SHORT P&amp;L</span><strong>'+money(score.short_gross_pnl_usdt||0)+'</strong></article>'+
+    '<article><span>LONG bruto · incluye técnicos</span><strong>'+money(score.long_gross_pnl_usdt||0)+'</strong></article>'+
+    '<article><span>SHORT bruto · incluye técnicos</span><strong>'+money(score.short_gross_pnl_usdt||0)+'</strong></article>'+
+    '<article><span>Comisiones y funding por operación</span><strong>ATRIBUCIÓN PENDIENTE</strong></article>'+
     '<article><span>Incidentes</span><strong>'+finite(score.incident_total).toFixed(0)+'</strong></article>'+
     '<article><span>Intentos fallidos</span><strong>'+finite(score.failure_attempt_total).toFixed(0)+'</strong></article>'+
     '<article><span>Errores consecutivos</span><strong>'+finite(score.consecutive_errors).toFixed(0)+'</strong></article>'+
@@ -356,15 +382,18 @@ function renderFuturesParity(futures) {
       const long=split.LONG||{}, short=split.SHORT||{};
       const native=futures?.native_protection?.positions?.[symbol];
       const nativeLabel=p?(native?.status==='ARMED'?'CONFIRMADA EN BINANCE':native?.status||'POR CONFIRMAR'):(native?'CONCILIACIÓN PENDIENTE':'SIN EXPOSICIÓN');
+      const evidence=futuresSignalEvidence(futures,symbol);
       return '<article class="futures-asset-card"><h4>'+esc(symbol.replace('USDT',''))+'</h4><dl>'+
-        '<div><dt>Estado</dt><dd>'+(p?esc(p.direction)+' · '+esc(String(p.leverage||1))+'x':'ESPERANDO')+'</dd></div>'+
+        '<div><dt>Estado</dt><dd>'+(p?esc(p.direction)+' · '+esc(String(p.leverage||1))+'x':evidence.issue?'DATOS NO DISPONIBLES':'ESPERANDO')+'</dd></div>'+
+        (evidence.issue?'<div><dt>Bloqueo del último ciclo</dt><dd>'+esc(evidence.issue.reason||evidence.issue.status)+'</dd></div>':'')+
         (p?'<div><dt>Cantidad / entrada</dt><dd>'+num(p.quantity,6)+' / '+num(p.entry_price,2)+'</dd></div><div><dt>Stop / objetivo</dt><dd>'+num(p.stop_price,2)+' / '+num(p.take_profit,2)+'</dd></div>':'')+
         '<div><dt>Protección nativa</dt><dd>'+esc(nativeLabel)+'</dd></div>'+
         (native?.confirmed_at?'<div><dt>Última confirmación</dt><dd>'+esc(shortTime(native.confirmed_at))+'</dd></div>':'')+
         (native?.error?'<div><dt>Detalle</dt><dd>'+esc(native.error)+'</dd></div>':'')+
         '<div><dt>LONG · historial total</dt><dd>'+String(long.trades||0)+' · '+money(long.gross_pnl_usdt||0)+'</dd></div>'+
         '<div><dt>SHORT · historial total</dt><dd>'+String(short.trades||0)+' · '+money(short.gross_pnl_usdt||0)+'</dd></div>'+
-        '<div><dt>Score</dt><dd>'+esc(String((futures?.latest_signals||{})[symbol]?.long_score??'—'))+' / '+esc(String((futures?.latest_signals||{})[symbol]?.short_score??'—'))+'</dd></div>'+
+        '<div><dt>Score LONG / SHORT · sobre 100</dt><dd>'+esc(evidence.score)+'</dd></div>'+
+        '<div><dt>Fecha de señal</dt><dd>'+esc(evidence.stamp)+'</dd></div>'+
       '</dl></article>';
     }).join('');
   }
@@ -374,10 +403,13 @@ function renderFuturesParity(futures) {
     signalGrid.innerHTML=symbols.map(symbol=>{
       const s=(futures?.latest_signals||{})[symbol]||{};
       const r=(futures?.last_ai_reviews||{})[symbol]||{};
+      const evidence=futuresSignalEvidence(futures,symbol);
       return '<article class="futures-asset-card"><h4>'+esc(symbol)+'</h4><dl>'+
-        '<div><dt>LONG / SHORT</dt><dd>'+esc(String(s.long_score??'—'))+' / '+esc(String(s.short_score??'—'))+'</dd></div>'+
-        '<div><dt>Dirección</dt><dd>'+esc(s.direction||'SIN SEÑAL')+'</dd></div>'+
-        '<div><dt>RSI</dt><dd>'+(s.rsi==null?'—':num(s.rsi,1))+'</dd></div>'+
+        '<div><dt>LONG / SHORT · sobre 100</dt><dd>'+esc(evidence.score)+'</dd></div>'+
+        '<div><dt>Fecha de señal</dt><dd>'+esc(evidence.stamp)+'</dd></div>'+
+        '<div><dt>Dirección del último análisis</dt><dd>'+esc(evidence.fresh?(s.direction||'SIN SEÑAL'):'DATO HISTÓRICO')+'</dd></div>'+
+        (evidence.issue?'<div><dt>Bloqueo del último ciclo</dt><dd>'+esc(evidence.issue.reason||evidence.issue.status)+'</dd></div>':'')+
+        '<div><dt>RSI</dt><dd>'+(!evidence.fresh||s.rsi==null?'—':num(s.rsi,1))+'</dd></div>'+
         '<div><dt>Última revisión IA</dt><dd>'+esc(r.verdict||'SIN REVISIÓN')+(r.at?' · '+esc(shortTime(r.at)):'')+'</dd></div>'+
       '</dl></article>';
     }).join('');
@@ -392,7 +424,15 @@ function renderFuturesParity(futures) {
   if(body)body.innerHTML=rows.length?rows.map(t=>'<tr><td><strong>'+esc(t.symbol)+' '+esc(t.direction)+' · '+esc(String(t.leverage||1))+'x</strong></td><td>'+num(t.quantity,6)+'</td><td>'+num(t.entry_price,2)+'</td><td>'+num(t.exit_price,2)+'</td><td class="'+(Number(t.gross_pnl)>=0?'positive':'negative')+'">'+(Number(t.gross_pnl)>=0?'+':'')+num(t.gross_pnl,6)+'</td><td>'+esc(t.exit_reason||'—')+'</td></tr>').join(''):emptyRow(6,'Aún no hay cierres Futures.');
 }
 
-function renderObservationHealth(spotHealth, futuresHealth) {
+function renderObservationHealth(spotHealth, futuresHealth, futures, status={}) {
+  // Continuity alone cannot certify that every contract is available now.
+  if(futures?.cycle_diagnostic){
+    const stale=!futuresCycleFresh(futures,status);
+    const partial=!stale&&futures.cycle_diagnostic.state==='ATTENTION';
+    if(stale||partial)futuresHealth={...futuresHealth,
+      state:futuresHealth?.state==='ATTENTION'?'ATTENTION':'WATCH',
+      reason_codes:[...(futuresHealth?.reason_codes||[]),stale?'cycle_stale':'contract_data_unavailable']};
+  }
   const set=(id,value)=>{const node=document.getElementById(id);if(node)node.textContent=value;};
   const stateClass=value=>value==='OK'?'':value==='ATTENTION'?'offline':'warning';
   const stateLabel=value=>({OK:'ESTABLE',WATCH:'VIGILAR',ATTENTION:'ATENCIÓN',STARTING:'INICIANDO'})[value]||'SIN DATOS';
@@ -408,7 +448,8 @@ function renderObservationHealth(spotHealth, futuresHealth) {
     market_prices_stale:'cotizaciones de mercado desactualizadas',
     consecutive_errors_active:'errores consecutivos activos',
     evidence_gap_present:'hay una brecha de evidencia marcada',
-    cycle_stale:'último ciclo desactualizado'
+    cycle_stale:'último ciclo desactualizado',
+    contract_data_unavailable:'datos insuficientes o bloqueo parcial de contratos en el último ciclo'
   };
   const reasonText=(health,stable)=>{
     const reasons=Array.isArray(health?.reason_codes)?health.reason_codes.map(code=>reasonLabels[code]||String(code).replaceAll('_',' ')):[];
@@ -443,6 +484,7 @@ function renderObservationHealth(spotHealth, futuresHealth) {
   set('futuresDailyTrading',futuresHealth?String(futuresHealth.closed_trades||0)+' · '+money(futuresHealth.realized_pnl_usdt||0):'—');
   set('futuresIntegrity',integrityText(futuresHealth?.integrity));
   set('futuresHealthReason',reasonText(futuresHealth,'Sin bloqueos de journal, integridad o errores consecutivos.'));
+  set('futuresHealthLatest',futures?.cycle_diagnostic?.at?shortTime(futures.cycle_diagnostic.at)+' · '+(futuresCycleFresh(futures,status)?'reciente':'desactualizado'):'Sin diagnóstico del último ciclo');
   const states=[spotHealth?.state,futuresHealth?.state];
   const overall=states.includes('ATTENTION')?'ATTENTION':states.includes('WATCH')?'WATCH':states.every(x=>x==='OK')?'OK':'STARTING';
   renderState('observationHealthState',overall);
@@ -460,6 +502,8 @@ function renderResearch(report, state) {
   document.getElementById('researchSchedule').textContent=(state.automatic===undefined?'Actualiza el bot para habilitar el horario diario.':
     `Automático ${state.automatic?'cada 24 h':'desactivado'} · Último completo: ${shortTime(state.last_completed_at||report.generated_at)} · Próximo: ${state.automatic?shortTime(state.next_run_at):'—'} · Requiere Windows y el bot encendidos.`)
     +(state.progress?` · ${state.progress}`:'')+(state.status==='INTERRUPTED'?' · La ejecución anterior se interrumpió; puedes actualizar ahora.':'');
+  if(state.error&&report.generated_at)document.getElementById('researchSchedule').textContent+=
+    ` Se muestra el informe anterior de ${shortTime(report.generated_at)}: ${report.assets?.length||0} activos Spot y ${report.futures_assets?.length||0} Futures; la ampliación no está validada en este informe.`;
   renderResearchExperiments(report);
   if (state.running) {
     badge.textContent='ANALIZANDO'; badge.className='state warning';
@@ -662,9 +706,7 @@ function renderFuturesCycle(futures,status){
     summary.textContent='Esperando el diagnóstico del próximo ciclo Futures.';
     return;
   }
-  const age=(Date.now()-Date.parse(c.at))/1000;
-  const cycleSeconds=Number(status?.cycle_seconds)||900;
-  const stale=!Number.isFinite(age)||age < -120||age>Math.max(cycleSeconds*1.5,cycleSeconds+120);
+  const stale=!futuresCycleFresh(futures,status);
   if(stale){
     badge.textContent='SIN DATOS RECIENTES';badge.className='state offline';
     summary.textContent='El diagnóstico de Futures quedó desactualizado. Comprueba la conexión de Windows y el próximo ciclo.';
@@ -680,6 +722,7 @@ function renderFuturesCycle(futures,status){
   else if(c.state==='ATTENTION')summary.textContent='El último ciclo encontró un bloqueo operativo o datos insuficientes en al menos un contrato.';
   else if(c.state==='RISK_HALT')summary.textContent='Futures conserva protecciones, pero las nuevas entradas están bloqueadas por su límite de pérdida.';
   else summary.textContent=`Motor Futures activo · ${c.symbols} contratos configurados · timeframe ${String(c.timeframe||'—').toUpperCase()} · score mínimo ${c.minimum_score}/100.`;
+  summary.textContent=`Universo: ${c.symbols??'—'} contratos · ${c.evaluated??'—'} evaluados · ${c.signals??'—'} señales · ${c.reviews??'—'} revisiones IA · ${c.opened??'—'} entradas ejecutadas. `+summary.textContent;
   const entries=Object.entries(c.statuses||{}).sort((a,b)=>b[1]-a[1]);
   const issues=Array.isArray(c.issues)?c.issues:[];
   const issueText=issues.map(row=>{
@@ -745,6 +788,13 @@ async function refresh() {
         : (!futuresForward?.enabled?'INACTIVO · FORWARD DESHABILITADO':null);
       forwardState.textContent=forwardDisabledReason || (futuresForward.killed?'PAUSADO':futuresForward.scorecard?.risk_halt?.active?'LÍMITE DE PÉRDIDA · PROTECCIONES ACTIVAS':(forwardPositions.length?forwardPositions.length+' POSICIÓN'+(forwardPositions.length===1?' ABIERTA':'ES ABIERTAS'):'ACTIVO · ESPERANDO SEÑAL'));
       forwardState.className='state'+((forwardDisabledReason||futuresForward?.killed||futuresForward?.scorecard?.risk_halt?.active)?' warning':'');
+      if(!forwardDisabledReason&&!futuresForward?.killed&&!futuresForward?.scorecard?.risk_halt?.active){
+        if(futuresForward?.cycle_diagnostic&&!futuresCycleFresh(futuresForward,status)){
+          forwardState.textContent='SIN ANÁLISIS RECIENTE';forwardState.className='state warning';
+        }else if(futuresForward?.cycle_diagnostic?.state==='ATTENTION'){
+          forwardState.textContent='ACTIVO · DATOS PARCIALES';forwardState.className='state warning';
+        }
+      }
     }
     const fWallet=document.getElementById('futuresForwardWallet');
     if(fWallet){
@@ -842,7 +892,7 @@ async function refresh() {
     document.getElementById('riskProfileNote').textContent=paperControlsAvailable()?
       `Actual: ${riskDescription}. El cambio afecta nuevas entradas ${modeUpper}; los topes de posición y exposición no aumentan.`:
       'Esperando conexión y controles del motor en Windows.';
-    const effectiveRisk={...risk,risk_per_trade_pct:Number(risk.risk_per_trade_pct)*({minimo:.25,prudente:.5,normal:1}[riskName]??0)};
+    const effectiveRisk={...risk,risk_per_trade_pct:riskSelected?Number(risk.risk_per_trade_pct)*riskSelected[1]:null};
     for(const [id,key] of [['riskTrade','risk_per_trade_pct'],['riskPosition','max_position_pct'],['riskExposure','max_total_exposure_pct'],['riskDaily','daily_loss_limit_pct'],['riskWeekly','weekly_loss_limit_pct']]){
       const value=Number(effectiveRisk[key]);
       document.getElementById(id).textContent=effectiveRisk[key]!=null&&Number.isFinite(value)?`${(value*100).toFixed(2).replace(/\.00$/,'')}%`:'—';
@@ -878,9 +928,9 @@ async function refresh() {
     renderChart(equity);
     renderResearch(research,researchState);
     renderPaperEvidence(paperReport,equity,trades);
-    renderDualEvidence(paperReport,futuresForward);
+    renderDualEvidence(paperReport,futuresForward,status);
     renderFuturesParity(futuresForward);
-    renderObservationHealth(status?.observation_health,futuresForward?.observation_health);
+    renderObservationHealth(status?.observation_health,futuresForward?.observation_health,futuresForward,status);
     renderFuturesChart(futuresForward?.equity||[]);
     document.getElementById('updated').textContent=`Último ciclo ${ageLabel(activity.age_seconds)} · ${shortTime(activity.last_cycle_at)}`;
   } catch(error) {

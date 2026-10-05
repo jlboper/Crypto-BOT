@@ -6,11 +6,19 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 from trader.config import load_config
-from trader.research_runtime import DAY, ResearchScheduler, archive_report, atomic, lab_state, project_report
+from trader.research_runtime import DAY, ResearchScheduler, archive_report, atomic, lab_state, project_report, failure_message
 from trader.runtime import single_instance
 
 
 class ResearchRuntimeTests(unittest.TestCase):
+    def test_failure_diagnostic_includes_known_stage_without_exposing_arbitrary_text(self):
+        message = failure_message(ValueError('Insufficient aligned portfolio history'),
+                                  {'progress': 'Cartera Spot: señales BTCUSDT'})
+        self.assertIn('Historial conjunto insuficiente', message)
+        self.assertIn('Etapa: Cartera Spot: señales BTCUSDT', message)
+        self.assertEqual(failure_message(ValueError('private credential'), {'progress': 'private path'}),
+                         'Análisis detenido: ValueError')
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
