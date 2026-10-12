@@ -54,6 +54,7 @@ class FuturesLeverageTrialTests(unittest.TestCase):
             return self.engine.cycle_symbol(symbol, [candle], self.account)
 
     def test_confirmed_entries_rotate_without_multiplying_quantity_and_keep_position_cap(self):
+        self.engine.settings = replace(self.engine.settings, forward_max_positions=5)
         for symbol, leverage in zip(self.engine.symbols[:5], (1,2,3,1,2)):
             result = self.enter(symbol)
             self.assertEqual(result['status'], 'OPENED')
@@ -65,12 +66,40 @@ class FuturesLeverageTrialTests(unittest.TestCase):
         self.assertEqual(len(self.orders), 5)
         self.assertEqual(self.engine.ledger.setting('forward_leverage_trial_cursor'), 5)
 
+    def test_ten_positions_are_supported_and_eleventh_is_blocked(self):
+        self.assertEqual(self.engine.settings.forward_max_positions, 10)
+        for symbol in self.engine.symbols[:10]:
+            self.assertEqual(self.enter(symbol)['status'], 'OPENED')
+        self.assertEqual(self.enter(self.engine.symbols[10])['status'], 'POSITION_LIMIT')
+        self.assertEqual(len(self.orders), 10)
+        self.assertTrue(self.engine.ledger.observation_health(900, max_positions=10)
+                        ['integrity']['local_position_count_valid'])
+
+    def test_ten_slot_sizing_distributes_existing_budget_without_expanding_it(self):
+        with patch.object(self.engine.lab, '_position_rows', return_value=[]), \
+             patch.object(self.engine.lab, '_reference', return_value=(Decimal('100'), None)), \
+             patch.object(self.engine.lab, 'forward_quantity', return_value=(Decimal('.2'), Decimal('100'))) as sizing:
+            self.engine._entry_quantity('BTCUSDT', self.signal)
+        self.assertEqual(sizing.call_args.args[2], Decimal('30.0'))
+        self.assertEqual(self.engine.settings.forward_total_notional_usdt, 300)
+        self.assertEqual(self.engine.settings.forward_total_stop_loss_usdt, 7.5)
+
     def test_one_unavailable_candidate_does_not_pause_other_assets(self):
         result=self.enter('NEARUSDT',size_effect=FuturesTestnetExecutionError('contract unavailable'))
         self.assertEqual(result['status'],'ASSET_UNAVAILABLE')
         self.assertEqual(self.orders,[])
         self.assertFalse(self.engine.killed())
         self.assertEqual(self.enter('ETHUSDT')['status'],'OPENED')
+
+    def test_pre_order_connection_failure_can_retry_same_candle_without_duplicate_order(self):
+        failure=FuturesTestnetExecutionError('Futures public connection failed at https://testnet.binancefuture.com')
+        result=self.enter('ETHUSDT',size_effect=failure)
+        self.assertEqual(result['status'],'ASSET_UNAVAILABLE')
+        self.assertFalse(self.orders)
+        self.assertIsNone(self.engine.ledger.setting('forward_ai_budget'))
+        self.assertEqual(self.enter('ETHUSDT')['status'],'OPENED')
+        self.assertEqual(self.enter('ETHUSDT')['status'],'NO_NEW_CANDLE')
+        self.assertEqual(len(self.orders),1)
 
     def test_aggregate_stop_budget_blocks_new_entry_but_preserves_existing_positions(self):
         self.assertEqual(self.enter('BTCUSDT', quantity='1')['status'], 'BUDGET_LIMIT')
@@ -179,7 +208,7 @@ class FuturesLeverageTrialTests(unittest.TestCase):
     def test_config_rejects_expanded_caps_and_nonfinite_portfolio_limits(self):
         source=Path('config.toml').read_text()
         path=self.root/'invalid.toml'
-        for old,new in [('forward_max_positions = 5','forward_max_positions = 6'),
+        for old,new in [('forward_max_positions = 10','forward_max_positions = 11'),
                         ('forward_total_notional_usdt = 300.0','forward_total_notional_usdt = 301'),
                         ('forward_total_stop_loss_usdt = 7.5','forward_total_stop_loss_usdt = nan'),
                         ('forward_total_stop_loss_usdt = 7.5','forward_total_stop_loss_usdt = 8'),

@@ -9,6 +9,7 @@ import hashlib
 import hmac
 import json
 import os
+import threading
 import time
 import urllib.error
 import urllib.parse
@@ -26,6 +27,7 @@ _PUBLIC = {
     ("GET", "/fapi/v1/klines"),
 }
 _SIGNED = {
+    ("GET", "/fapi/v1/income"),
     ("GET", "/fapi/v3/account"),
     ("GET", "/fapi/v3/positionRisk"),
     ("GET", "/fapi/v1/order"),
@@ -61,13 +63,16 @@ def _signed_opener():
 
 def _public_opener():
     return urllib.request.build_opener(
+        urllib.request.ProxyHandler({}),
         type("NoRedirect", (urllib.request.HTTPRedirectHandler,),
              {"redirect_request": lambda *args: None})(),
     )
 
 
-def _decode(response) -> Any:
-    raw = response.read(262145)
+def _decode(response, maximum: int = 262144) -> Any:
+    raw = response.read(maximum+1)
+    if len(raw) > maximum:
+        raise FuturesTestnetExecutionError('Futures response exceeds size limit')
     try:
         return json.loads(raw)
     except (TypeError, ValueError, json.JSONDecodeError):
@@ -85,7 +90,13 @@ def public_request(method: str, endpoint: str, fields: dict | None = None, *, al
         request = urllib.request.Request(url, method=method)
         try:
             with _public_opener().open(request, timeout=10) as response:
-                return _decode(response)
+                # exchangeInfo is a full contract catalogue even when a symbol
+                # is supplied; it now exceeds the former 256 KiB read budget.
+                return _decode(response, maximum=2097152 if endpoint == '/fapi/v1/exchangeInfo' else 262144)
+        except FuturesTestnetExecutionError:
+            # Semantic/size errors inherit ValueError; never label them as a
+            # network outage or silently switch their data source.
+            raise
         except urllib.error.HTTPError as error:
             last_error = FuturesTestnetExecutionError(
                 "Futures public HTTP " + str(error.code) + " at " + host
@@ -97,14 +108,56 @@ def public_request(method: str, endpoint: str, fields: dict | None = None, *, al
     raise last_error or FuturesTestnetExecutionError("Futures public connection failed")
 
 
+_clock_lock = threading.Lock()
+_clock_sample: tuple[int, float] | None = None
+
+
+def _request_timestamp() -> int:
+    """Anchor signed timestamps to Demo time, independent of Windows clock jumps."""
+    global _clock_sample
+    with _clock_lock:
+        now = time.monotonic()
+        if _clock_sample is None or not 0 <= now - _clock_sample[1] < 300:
+            _clock_sample = None
+            started = time.monotonic()
+            payload = public_request("GET", "/fapi/v1/time", allow_fallback=False)
+            received = time.monotonic()
+            server_time = payload.get("serverTime") if isinstance(payload, dict) else None
+            if type(server_time) is not int or server_time <= 0:
+                raise FuturesTestnetExecutionError("Futures Demo server time unavailable")
+            if not 0 <= received - started <= 2:
+                raise FuturesTestnetExecutionError("Futures Demo server time response too slow")
+            # Use the received server time conservatively: no latency estimate
+            # may push a timestamp ahead of Binance's one-second tolerance.
+            _clock_sample = (server_time, received)
+            now = received
+        return _clock_sample[0] + int((now - _clock_sample[1]) * 1000)
+
+
 def signed_request(method: str, endpoint: str, fields: dict | None = None) -> Any:
+    global _clock_sample
+    # Only a read can be retried. Order and cancellation writes always go
+    # through their existing durable reconciliation before another write.
+    for attempt in range(2 if method == "GET" else 1):
+        try:
+            return _signed_request_once(method, endpoint, fields)
+        except FuturesTestnetExecutionError as exc:
+            if exc.code != -1021:
+                raise
+            with _clock_lock:
+                _clock_sample = None
+            if method != "GET" or attempt == 1:
+                raise
+
+
+def _signed_request_once(method: str, endpoint: str, fields: dict | None = None) -> Any:
     if (method, endpoint) not in _SIGNED:
         raise FuturesTestnetExecutionError("Futures Testnet endpoint blocked")
     key = os.getenv("BINANCE_FUTURES_TESTNET_API_KEY", "")
     secret = os.getenv("BINANCE_FUTURES_TESTNET_API_SECRET", "")
     if not key or not secret:
         raise FuturesTestnetExecutionError("Futures Testnet credentials unavailable")
-    values = {**(fields or {}), "timestamp": int(time.time() * 1000), "recvWindow": 5000}
+    values = {**(fields or {}), "timestamp": _request_timestamp(), "recvWindow": 5000}
     query = urllib.parse.urlencode(values)
     signature = hmac.new(secret.encode(), query.encode(), hashlib.sha256).hexdigest()
     encoded = f"{query}&signature={signature}"

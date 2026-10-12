@@ -465,5 +465,10 @@ class BinanceTestnetBroker(PaperBroker):
             if price <= updated.stop_price:
                 self.sell(updated, price, "protective stop")
                 return None, "protective stop"
-            self.native.ensure(updated)
+            # A definite rejection has no live exchange order to reconcile.
+            # Keep local exits and valuation running; buy() still requires
+            # ensure_all() and blocks entries until protection is repaired.
+            record = self.native.records().get(updated.symbol, {})
+            if record.get("state") != "REJECTED":
+                self.native.ensure(updated)
         return updated, reason

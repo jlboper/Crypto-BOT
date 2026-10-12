@@ -10,6 +10,29 @@ from trader.futures_testnet import FuturesTestnetLab
 from trader.futures_testnet_transport import FuturesTestnetExecutionError, HOST, PUBLIC_FALLBACK_HOST, signed_request
 
 
+class FuturesPublicCatalogueTests(unittest.TestCase):
+    def test_large_exchange_catalogue_is_complete_and_bounded(self):
+        import io, json
+        from unittest.mock import Mock
+        from trader.futures_testnet_transport import public_request
+        payload={'symbols':[{'symbol':'BTCUSDT','description':'x'*900000}]}
+        opener=Mock()
+        opener.open.return_value=io.BytesIO(json.dumps(payload).encode())
+        with patch('trader.futures_testnet_transport._public_opener',return_value=opener):
+            result=public_request('GET','/fapi/v1/exchangeInfo',{'symbol':'BTCUSDT'},allow_fallback=False)
+        self.assertEqual(result,payload)
+
+    def test_oversize_catalogue_is_not_misclassified_or_retried_on_production(self):
+        import io
+        from unittest.mock import Mock
+        from trader.futures_testnet_transport import public_request
+        opener=Mock(); opener.open.return_value=io.BytesIO(b'x'*2097153)
+        with patch('trader.futures_testnet_transport._public_opener',return_value=opener):
+            with self.assertRaisesRegex(FuturesTestnetExecutionError,'size limit'):
+                public_request('GET','/fapi/v1/exchangeInfo')
+        self.assertEqual(opener.open.call_count,1)
+
+
 class FuturesTestnetLabTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()

@@ -6,6 +6,25 @@ from trader.exchange import BinanceClient, ExchangeError
 
 
 class ExchangeTests(unittest.TestCase):
+    def test_ranked_universe_fills_from_supported_assets_and_excludes_stablecoins(self):
+        symbols = ['BADUSDT','USD1USDT','RLUSDUSDT','BTCUSDT','ETHUSDT','SOLUSDT','中文USDT']
+        info = {'symbols':[{'symbol':s,'baseAsset':s[:-4],'quoteAsset':'USDT','status':'TRADING'} for s in symbols]}
+        tickers = [{'symbol':s,'quoteVolume':str(1000-i)} for i,s in enumerate(symbols)]
+        client = BinanceClient()
+        with patch.object(client,'_request',side_effect=[info,tickers]):
+            result = client.top_usdt_symbols(2,supported_symbols={'USD1USDT','RLUSDUSDT','BTCUSDT','ETHUSDT','SOLUSDT'})
+        self.assertEqual(result,['BTCUSDT','ETHUSDT'])
+
+    def test_testnet_eligibility_is_cached_and_requires_oco_market_legs(self):
+        client = BinanceClient()
+        good = {'symbol':'ETHUSDT','status':'TRADING','quoteAsset':'USDT','ocoAllowed':True,
+                'orderTypes':['MARKET','STOP_LOSS','TAKE_PROFIT']}
+        bad = {**good,'symbol':'BADUSDT','ocoAllowed':False}
+        with patch.object(client,'_request',return_value={'symbols':[good,bad]}) as request:
+            self.assertEqual(client.testnet_tradeable_symbols(),{'ETHUSDT'})
+            self.assertEqual(client.testnet_tradeable_symbols(),{'ETHUSDT'})
+        request.assert_called_once()
+        self.assertEqual(client.base_url,'https://api.binance.com')
     def test_transient_read_retry_and_write_rejection(self):
         client = BinanceClient()
         error = ExchangeError("network")

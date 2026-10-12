@@ -3,16 +3,154 @@ import sqlite3
 import tempfile
 import unittest
 from contextlib import closing
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, timedelta, timezone
 from pathlib import Path
 from dataclasses import replace
 from trader.config import load_config
 from trader.database import Database
-from trader.portal_snapshot import dashboard_snapshot, public_text
+from trader.portal_snapshot import dashboard_snapshot, public_text, _spot_observation_health, spot_observation_health
 from trader.paper_scorecard import paper_scorecard
 from trader.futures_testnet_ledger import FuturesTestnetLedger
 
 class PortalSnapshotTests(unittest.TestCase):
+    def spot_health(self, database, config, settings=None):
+        with closing(sqlite3.connect(database.path)) as connection:
+            connection.row_factory = sqlite3.Row
+            latest = dict(connection.execute('SELECT * FROM equity ORDER BY id DESC LIMIT 1').fetchone())
+            return _spot_observation_health(connection, config, latest, [], settings or {
+                'market_prices_at': datetime.now(UTC).isoformat(), 'consecutive_errors': '0'})
+
+    def test_spot_health_excludes_futures_events_but_keeps_unknown_alerts(self):
+        with tempfile.TemporaryDirectory() as folder:
+            database = Database(Path(folder)/'spot.db')
+            database.record_equity(1000,1000,0)
+            config = load_config()
+            database.event('WARN','Futures Demo protection failed: FuturesTestnetExecutionError')
+            database.event('ERROR','Futures Demo forward cycle failed: RuntimeError')
+            health = self.spot_health(database, config)
+            self.assertEqual((health['warnings'],health['errors']),(0,0))
+            self.assertNotIn('warnings_observed',health['reason_codes'])
+            database.event('WARN','Spot order protection warning')
+            database.event('WARN','Unclassified warning must remain visible')
+            database.event('ERROR','Unclassified error must remain visible')
+            health = self.spot_health(database, config)
+            self.assertEqual((health['warnings'],health['errors']),(2,1))
+            self.assertIn('warnings_observed',health['reason_codes'])
+            self.assertIn('errors_observed',health['reason_codes'])
+
+    def test_legacy_spot_recovery_requires_completed_cycle_and_preserves_history(self):
+        with tempfile.TemporaryDirectory() as folder:
+            database = Database(Path(folder)/'spot.db')
+            now = datetime.now(UTC)
+            error = {'code':'UNEXPECTED_VALUE_ERROR','at':(now-timedelta(hours=2)).isoformat(),
+                     'consecutive_errors':282}
+            recovered = (now-timedelta(hours=1)).astimezone(timezone(timedelta(hours=-6))).isoformat()
+            database.record_equity(1000,1000,0)
+            database.event('INFO','Cycle complete: 60 symbols, 0 buys, opened 0')
+            with closing(sqlite3.connect(database.path)) as connection:
+                connection.execute('UPDATE events SET created_at=?',(recovered,))
+                connection.commit()
+            settings = {'market_prices_at':now.isoformat(),'consecutive_errors':'0',
+                        'spot_last_error':json.dumps(error)}
+            before = database.path.read_bytes()
+            health = self.spot_health(database,load_config(),settings)
+            self.assertIsNone(health['last_error'])
+            self.assertEqual(json.loads(settings['spot_last_error']),error)
+            self.assertEqual(health['last_recovery'],{'recovered_errors':282,'at':recovered})
+            self.assertNotIn('consecutive_errors_active',health['reason_codes'])
+            self.assertNotIn('spot_last_recovery',settings)
+            self.assertEqual(database.path.read_bytes(),before)
+
+    def test_spot_recovery_is_not_inferred_from_zero_counter_alone(self):
+        with tempfile.TemporaryDirectory() as folder:
+            database = Database(Path(folder)/'spot.db')
+            database.record_equity(1000,1000,0)
+            now = datetime.now(UTC)
+            for active, offset, event in ((0,-3600,False),(3,-3600,True),(0,3600,True)):
+                with self.subTest(active=active,offset=offset,event=event):
+                    if event:
+                        database.event('INFO','Cycle complete: 60 symbols, 0 buys, opened 0')
+                    settings = {'market_prices_at':now.isoformat(),'consecutive_errors':str(active),
+                        'spot_last_error':json.dumps({'at':(now+timedelta(seconds=offset)).isoformat()})}
+                    health=self.spot_health(database,load_config(),settings)
+                    self.assertIsNone(health['last_recovery'])
+                    self.assertIsNotNone(health['last_error'])
+
+    def test_current_diagnostic_clears_only_after_confirmed_recovery(self):
+        with tempfile.TemporaryDirectory() as folder:
+            db=Database(Path(folder)/'spot.db')
+            db.record_equity(1000,1000,0)
+            now=datetime.now(UTC)
+            error={'code':'TESTNET_EXECUTION_ERROR','at':(now-timedelta(hours=1)).isoformat()}
+            for counter,recovery,cleared in (
+                    (0,(now-timedelta(minutes=30)).isoformat(),True),
+                    (2,(now-timedelta(minutes=30)).isoformat(),False),
+                    (0,(now-timedelta(hours=2)).isoformat(),False),
+                    (0,'invalid timestamp',False)):
+                with self.subTest(counter=counter,recovery=recovery):
+                    settings={'market_prices_at':now.isoformat(),'consecutive_errors':str(counter),
+                        'spot_last_error':json.dumps(error),
+                        'spot_last_recovery':json.dumps({'at':recovery,'recovered_errors':1})}
+                    health=self.spot_health(db,load_config(),settings)
+                    self.assertEqual(health['last_error'],None if cleared else error)
+                    self.assertEqual(json.loads(settings['spot_last_error']),error)
+
+    def test_local_observation_reader_preserves_database_and_unknown_alerts(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path=Path(folder)/'spot.db'
+            db=Database(path)
+            db.record_equity(1000,1000,0)
+            db.record_market_snapshot({'BTCUSDT':100})
+            error={'code':'UNEXPECTED_VALUE_ERROR','at':datetime.now(UTC).isoformat()}
+            db.set_setting('spot_last_error',json.dumps(error))
+            db.set_setting('consecutive_errors','1')
+            db.event('WARN','unknown alert')
+            config=load_config()
+            config=replace(config,bot=replace(config.bot,database_path=path))
+            before=path.read_bytes()
+            health=spot_observation_health(config)
+            self.assertEqual(health['last_error'],error)
+            self.assertEqual(health['consecutive_errors'],1)
+            self.assertEqual(health['warnings'],1)
+            self.assertEqual(path.read_bytes(),before)
+
+    def test_low_spot_coverage_is_watch_only_while_latest_cycle_is_fresh(self):
+        with tempfile.TemporaryDirectory() as folder:
+            database = Database(Path(folder)/'spot.db')
+            database.record_equity(1000,1000,0)
+            database.record_equity(1000,1000,0)
+            with closing(sqlite3.connect(database.path)) as connection:
+                connection.execute('UPDATE equity SET created_at=? WHERE id=1',
+                                   ((datetime.now(UTC)-timedelta(hours=23)).isoformat(),))
+                connection.commit()
+            config=load_config()
+            health=self.spot_health(database,config)
+            self.assertLess(health['cycle_coverage_pct'],70)
+            self.assertEqual(health['state'],'WATCH')
+            self.assertIn('cycle_coverage_below_90',health['reason_codes'])
+            with closing(sqlite3.connect(database.path)) as connection:
+                connection.execute('UPDATE equity SET created_at=? WHERE id=2',
+                    ((datetime.now(UTC)-timedelta(seconds=config.bot.cycle_seconds*3)).isoformat(),))
+                connection.commit()
+            health=self.spot_health(database,config)
+            self.assertEqual(health['state'],'ATTENTION')
+            self.assertIn('cycle_stale',health['reason_codes'])
+
+    def test_financial_strategy_result_excludes_smoke_and_reconciles_flat_allocation(self):
+        with tempfile.TemporaryDirectory() as folder:
+            db=Database(Path(folder)/'spot.db')
+            db.record_trade('BTCUSDT','SELL',1,100,0,-2,'TESTNET protective stop')
+            db.record_trade('BTCUSDT','SELL',1,100,0,-.01,'TESTNET supervised smoke SELL')
+            db.record_equity(997.99,997.99,0)
+            with closing(sqlite3.connect(db.path.resolve().as_uri()+'?mode=ro',uri=True)) as connection:
+                report=paper_scorecard(connection,paper=load_config().paper)
+            finance=report['financial']
+            self.assertEqual(finance['strategy_closed_trades'],1)
+            self.assertEqual(finance['technical_closed_trades'],1)
+            self.assertEqual(finance['strategy_net_expectancy_usdt'],-2)
+            self.assertEqual(finance['flat_allocation_reconciliation_usdt'],0)
+            self.assertEqual(finance['result'],'NEGATIVE_EXPECTANCY')
+
     def test_breakeven_close_does_not_dilute_average_loss_or_invent_open_exposure(self):
         with tempfile.TemporaryDirectory() as folder:
             db=Database(Path(folder)/'spot.db')
@@ -51,7 +189,7 @@ class PortalSnapshotTests(unittest.TestCase):
             self.assertIsNone(payload['status']['observation_health']['last_error'])
             self.assertIn('observation_health',payload['futures_forward'])
             self.assertIn('order_journal_clear',payload['futures_forward']['observation_health']['integrity'])
-            self.assertEqual(payload['futures_forward']['guardrails']['max_positions'],5)
+            self.assertEqual(payload['futures_forward']['guardrails']['max_positions'],10)
             self.assertEqual(payload['futures_forward']['guardrails']['forward_timeframe'],'1h')
             self.assertEqual(payload['futures_forward']['guardrails']['forward_min_score'],70)
             self.assertEqual(payload['futures_forward']['guardrails']['margin_type'],'ISOLATED')

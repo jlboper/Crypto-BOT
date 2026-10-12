@@ -129,10 +129,10 @@ def _spot_observation_health(connection, config, latest, positions, settings):
     times = sorted(value for value in times if value is not None)
     gaps = [(b-a).total_seconds() for a,b in zip(times,times[1:])]
     errors = int(connection.execute(
-        "SELECT COUNT(*) AS n FROM events WHERE created_at>=? AND level IN ('ERROR','CRITICAL')", (since_iso,)
+        "SELECT COUNT(*) AS n FROM events WHERE created_at>=? AND level IN ('ERROR','CRITICAL') AND message NOT GLOB 'Futures Demo *'", (since_iso,)
     ).fetchone()["n"])
     warnings = int(connection.execute(
-        "SELECT COUNT(*) AS n FROM events WHERE created_at>=? AND level='WARN'", (since_iso,)
+        "SELECT COUNT(*) AS n FROM events WHERE created_at>=? AND level='WARN' AND message NOT GLOB 'Futures Demo *'", (since_iso,)
     ).fetchone()["n"])
     ai = connection.execute(
         """SELECT COUNT(*) AS total,
@@ -168,9 +168,33 @@ def _spot_observation_health(connection, config, latest, positions, settings):
         last_recovery = json.loads(settings.get("spot_last_recovery", "null") or "null")
     except (TypeError, ValueError, json.JSONDecodeError):
         last_recovery = None
+    # Older restarts reset the in-memory counter without writing a recovery.
+    # Use a recorded successful cycle as evidence; keep the original error.
+    error_at = _timestamp(last_error.get("at")) if isinstance(last_error, dict) else None
+    recovered_at = _timestamp(last_recovery.get("at")) if isinstance(last_recovery, dict) else None
+    if (consecutive_errors == 0 and error_at and last_at and last_at > error_at
+            and (recovered_at is None or recovered_at <= error_at)):
+        recovery_row = connection.execute(
+            """SELECT created_at FROM events WHERE level='INFO'
+               AND message GLOB 'Cycle complete: *'
+               AND julianday(created_at)>julianday(?)
+               AND julianday(created_at)<=julianday(?)
+               ORDER BY julianday(created_at) LIMIT 1""",
+            (error_at.isoformat(), last_at.isoformat()),
+        ).fetchone()
+        if recovery_row:
+            last_recovery = {"recovered_errors": int(last_error.get("consecutive_errors", 0) or 0),
+                             "at": recovery_row["created_at"]}
+    recovered_at = _timestamp(last_recovery.get("at")) if isinstance(last_recovery, dict) else None
+    error_resolved = (consecutive_errors == 0 and error_at is not None
+                      and recovered_at is not None and recovered_at > error_at
+                      and last_at is not None and last_at > error_at)
+    stale_cycle = last_age is None or last_age > config.bot.cycle_seconds * 2
     reasons = []
     if coverage < 90:
         reasons.append("cycle_coverage_below_90")
+    if stale_cycle:
+        reasons.append("cycle_stale")
     if errors:
         reasons.append("errors_observed")
     if warnings:
@@ -185,7 +209,7 @@ def _spot_observation_health(connection, config, latest, positions, settings):
         reasons.append("market_prices_stale")
     active_attention = consecutive_errors >= max(2, int(config.risk.max_consecutive_errors) - 1)
     state = ("STARTING" if starting else
-             "ATTENTION" if coverage < 70 or active_attention or not healthy_integrity else
+             "ATTENTION" if stale_cycle or active_attention or not healthy_integrity else
              "WATCH" if coverage < 90 or errors > 0 or warnings > 0 or consecutive_errors > 0 else
              "OK")
     return {
@@ -199,7 +223,9 @@ def _spot_observation_health(connection, config, latest, positions, settings):
         "errors": errors,
         "warnings": warnings,
         "consecutive_errors": consecutive_errors,
-        "last_error": last_error if isinstance(last_error, dict) else None,
+        # Keep the stored error and events, but don't export a confirmed
+        # recovery as an outstanding failure, including to older clients.
+        "last_error": last_error if isinstance(last_error, dict) and not error_resolved else None,
         "last_recovery": last_recovery if isinstance(last_recovery, dict) else None,
         "ai_reviews": int(ai["total"] or 0),
         "ai_rejects": int(ai["rejected"] or 0),
@@ -208,6 +234,21 @@ def _spot_observation_health(connection, config, latest, positions, settings):
         "reason_codes": reasons,
         "integrity": integrity,
     }
+
+
+def spot_observation_health(config):
+    """Read the same observation projection for the local status endpoint."""
+    connection = sqlite3.connect(config.bot.database_path.resolve().as_uri()+'?mode=ro', uri=True, timeout=3)
+    connection.row_factory = sqlite3.Row
+    try:
+        connection.execute('BEGIN')
+        row = connection.execute('SELECT * FROM equity ORDER BY id DESC LIMIT 1').fetchone()
+        latest = dict(row) if row else {}
+        positions = list(connection.execute('SELECT symbol FROM positions'))
+        settings = dict(connection.execute("SELECT key,value FROM settings WHERE key IN ('market_prices_at','consecutive_errors','spot_last_error','spot_last_recovery')"))
+        return _spot_observation_health(connection, config, latest, positions, settings)
+    finally:
+        connection.close()
 
 
 def dashboard_snapshot(config, report_path=None):

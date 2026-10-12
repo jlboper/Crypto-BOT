@@ -94,10 +94,20 @@ class FuturesForwardEngine:
 
     def _record_account(self)->dict:
         account=self.lab._account(); wallet=float(_decimal(account.get("totalWalletBalance","0")))
-        available=float(_decimal(account.get("availableBalance","0"))); unrealized=0.0
+        available=float(_decimal(account.get("availableBalance","0"))); unrealized=0.0; metrics={}
         for symbol in self.symbols:
-            unrealized+=sum(float(_decimal(r.get("unRealizedProfit","0"))) for r in self._actual_rows(symbol))
+            rows=self._actual_rows(symbol)
+            unrealized+=sum(float(_decimal(r.get("unRealizedProfit","0"))) for r in rows)
+            local=self.ledger.forward_position(symbol)
+            if local and len(rows)==1:
+                row=rows[0]; mark=float(_decimal(row.get('markPrice','0')))
+                if mark>0:
+                    metrics[symbol]={'mark_price':mark,'unrealized_pnl_usdt':float(_decimal(row.get('unRealizedProfit','0'))),
+                                     'opened_at':local['opened_at'],'quantity':local['quantity']}
         self.ledger.record_forward_equity(wallet,available,unrealized)
+        self.ledger.set_setting('forward_position_metrics',{'at':datetime.now(UTC).isoformat(),'positions':metrics})
+        from .futures_finance import sync_income
+        sync_income(self.ledger)
         return {"wallet_balance":wallet,"available_balance":available,"unrealized_pnl":unrealized}
 
     def _assert_identity(self,symbol:str,local:dict|None,rows:list[dict])->None:
@@ -164,7 +174,14 @@ class FuturesForwardEngine:
         if not self.killed(): return None
         try: reason=self.settings.kill_switch_path.read_text(encoding="utf-8",errors="replace").strip().lower()
         except OSError:return None
-        return reason if reason.startswith("three consecutive futures ") else None
+        automatic_timestamp = {
+            "automatic futures timestamp validation pause",
+            "futures demo http 400 · binance -1021: timestamp for this request is outside of the recvwindow.",
+        }
+        missing_prefix = "tracked futures position missing or ambiguous: "
+        native_close_pause = (reason.startswith(missing_prefix)
+                              and reason[len(missing_prefix):].upper() in self.symbols)
+        return reason if reason.startswith("three consecutive futures ") or reason in automatic_timestamp or native_close_pause else None
 
     def _attempt_auto_recovery(self)->bool:
         """Auto-resume only automatic error pauses after full safe reconciliation."""
@@ -179,6 +196,10 @@ class FuturesForwardEngine:
             # flattened by the same identity-first repair used by protection_tick.
             for local in list(self.ledger.forward_positions()):
                 rows=self._actual_rows(local["symbol"])
+                if not rows:
+                    self.native.reconcile(local["symbol"])
+                    if self.ledger.forward_position(local["symbol"]) is None:
+                        continue
                 self._assert_identity(local["symbol"],local,rows)
                 if str(rows[0].get("marginType","")).lower()!="isolated":
                     self._repair_cross_position(local,rows[0])
@@ -212,6 +233,10 @@ class FuturesForwardEngine:
             raise FuturesTestnetExecutionError("Futures safe resume blocked by pending reconciliation")
         for local in list(self.ledger.forward_positions()):
             rows=self._actual_rows(local["symbol"])
+            if not rows:
+                self.native.reconcile(local["symbol"])
+                if self.ledger.forward_position(local["symbol"]) is None:
+                    continue
             self._assert_identity(local["symbol"],local,rows)
             if str(rows[0].get("marginType","")).lower()!="isolated":
                 self._repair_cross_position(local,rows[0])
@@ -426,12 +451,25 @@ class FuturesForwardEngine:
             symbol=local["symbol"]
             try:
                 raw_rows=self._actual_rows(symbol)
+                if not raw_rows:
+                    # A native stop can fill after _recover_journal's earlier
+                    # read. Require its owned execution evidence before treating
+                    # exchange flatness as a missing-position incident.
+                    trade = self.native.reconcile(symbol)
+                    if trade:
+                        closed.append(trade)
+                        continue
                 self._assert_identity(symbol,local,raw_rows)
                 if str(raw_rows[0].get("marginType","")).lower()!="isolated":
                     closed.append(self._repair_cross_position(local,raw_rows[0]))
                     continue
                 rows=self._validated_rows(symbol, local)
-            except Exception as exc:self._halt(str(exc)); raise
+            except Exception as exc:
+                reason = ("automatic Futures timestamp validation pause"
+                          if isinstance(exc, FuturesTestnetExecutionError) and exc.code == -1021
+                          else str(exc))
+                self._halt(reason)
+                raise
             mark=_decimal(rows[0].get("markPrice","0"))
             if mark<=0: raise FuturesTestnetExecutionError("Futures mark price unavailable")
             hit=(local["direction"]=="LONG" and (mark<=_decimal(local["stop_price"]) or mark>=_decimal(local["take_profit"]))) or (
@@ -506,6 +544,8 @@ class FuturesForwardEngine:
         if local: self.native.ensure(local)
         if not candles:
             return {"symbol":symbol,"status":"NO_DATA"}
+        if candles[-1].close_time >= int(datetime.now(UTC).timestamp()*1000):
+            return {"symbol":symbol,"status":"INVALID_CANDLE_TIME"}
         if not self.ledger.claim_forward_decision(symbol, candles[-1].close_time):
             return {"symbol":symbol,"status":"NO_NEW_CANDLE"}
         signal={**self._signal(candles),"symbol":symbol,"timeframe":self.settings.forward_timeframe,
@@ -523,6 +563,10 @@ class FuturesForwardEngine:
         try:
             quantity, reference, distance, portfolio = self._entry_quantity(symbol, signal)
         except FuturesForwardAssetUnavailable as exc:
+            if str(exc).startswith('Futures public connection failed'):
+                # No AI call or exchange write has happened. A transient read
+                # should not consume the sole decision for this closed candle.
+                self.ledger.release_unsubmitted_decision(symbol, candles[-1].close_time)
             return {"symbol":symbol,"status":"ASSET_UNAVAILABLE","error":str(exc),"signal":signal}
         estimated = reference * quantity
         if quantity <= 0:
@@ -534,11 +578,18 @@ class FuturesForwardEngine:
         leverage = self.settings.forward_leverage_trials[trial_index % len(self.settings.forward_leverage_trials)]
         if float(quantity) * distance >= float(estimated) / leverage * 0.8:
             return {"symbol": symbol, "status": "TRIAL_MARGIN_RISK_LIMIT", "signal": signal}
-        signal={**signal,"proposed_quantity":float(quantity),"proposed_notional_usdt":float(estimated),
+        # Indicators use the closed candle; sizing uses a refreshed executable
+        # reference. Keep both prices explicit so price drift is not mistaken
+        # for an inconsistent quantity/notional proposal by the reviewer.
+        signal={**signal,"proposed_reference_price":float(reference),
+                "proposed_quantity":float(quantity),"proposed_notional_usdt":float(estimated),
                 "proposed_stop_distance":distance,"estimated_stop_loss_usdt":float(quantity)*distance,
                 "proposed_leverage": leverage}
         if not self.ledger.claim_ai_budget(self.config.ai.max_reviews_per_day):
             return {"symbol":symbol,"status":"AI_BUDGET","signal":signal}
+        signal={**signal,"reviewed_at_utc":datetime.now(UTC).isoformat(),
+                "candle_close_time_unit":"unix_milliseconds",
+                "candle_close_utc":datetime.fromtimestamp(candles[-1].close_time/1000,UTC).isoformat()}
         ai_review=self.ai.review_futures(signal,{"wallet_balance":float(account["wallet_balance"]),"available_balance":float(account["available_balance"]),
             "unrealized_pnl":float(account["unrealized_pnl"]),"open_positions":float(len(self.ledger.forward_positions())),"automatic_leverage":float(leverage)})
         review={"model":self.config.ai.model,"verdict":ai_review.verdict,"confidence":ai_review.confidence,"reason":ai_review.reason,
@@ -594,7 +645,20 @@ class FuturesForwardEngine:
         account=self._record_account(); results=[]
         if self._risk_halt(account):
             return {"enabled":True,"status":"RISK_HALT",**account}
-        for symbol in self.symbols:
+        def priority(symbol):
+            # Manage owned positions before allocating slots/reviews. Eligible
+            # entries compete by signal strength, rather than config order.
+            if self.ledger.forward_position(symbol) is not None:
+                return (0, 0)
+            candles = candle_map.get(symbol)
+            if not candles:
+                return (3, 0)
+            try:
+                signal = self._signal(candles)
+                return (1 if signal['direction'] else 2, -signal['score'])
+            except ValueError:
+                return (3, 0)
+        for symbol in sorted(self.symbols, key=priority):
             if health.get(symbol,{}).get("status")=="BLOCKED" and self.ledger.forward_position(symbol) is None:
                 results.append({"symbol":symbol,"status":"BLOCKED","error":health[symbol].get("error")})
                 continue

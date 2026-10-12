@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 from trader.config import load_config
 from trader.database import Database
-from trader.domain import Signal
+from trader.domain import Signal, Position
 from trader.engine import TradingEngine
 from trader.testnet_broker import BinanceTestnetBroker
 from trader.testnet_transport import TestnetExecutionError
@@ -35,6 +35,17 @@ class UnifiedTestnetBrokerTests(unittest.TestCase):
                 {"filterType": "MIN_NOTIONAL", "minNotional": "5", "applyToMarket": True},
             ],
         }
+
+    def test_tenth_spot_position_is_allowed_and_eleventh_is_blocked_before_network(self):
+        self.assertEqual(self.config.risk.max_positions, 10)
+        for index in range(9):
+            self.db.upsert_position(Position(f'COIN{index}USDT', .1, 100, 95, 110, 100, 2, 0, 'now'))
+        self.broker._validate_buy(self.signal, .1)
+        self.db.upsert_position(Position('COIN9USDT', .1, 100, 95, 110, 100, 2, 0, 'now'))
+        with patch('trader.testnet_broker.signed_request') as request:
+            with self.assertRaisesRegex(ValueError, 'position count limit'):
+                self.broker.buy(self.signal, .1, 'blocked eleventh entry')
+        request.assert_not_called()
 
     def test_filled_testnet_buy_updates_local_accounting_from_exchange_fill(self):
         def signed(method, endpoint, fields):

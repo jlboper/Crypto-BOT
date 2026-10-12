@@ -199,11 +199,13 @@ test('device sync accepts legacy and multi-asset Futures forward dashboard shape
   pf.portfolio_budget={notional_limit_usdt:300,stop_loss_limit_usdt:7.5,cost_buffer_pct:.005,
     notional_usdt:250,stop_loss_usdt:7,at:'2026-10-04T03:00:00Z'};
   assert.equal((await f.sync({snapshot:portfolio,acks:[]})).status,200);
+  pf.positions=pf.symbols.slice(0,10).map(symbol=>({symbol,leverage:1}));
+  assert.equal((await f.sync({snapshot:portfolio,acks:[]})).status,200);
   // Existing exposure above a cap still synchronizes; only new entries are blocked.
   pf.portfolio_budget.notional_usdt=350;
   pf.portfolio_budget.stop_loss_usdt=10;
   assert.equal((await f.sync({snapshot:portfolio,acks:[]})).status,200);
-  for(const change of [x=>x.symbols.push('EXTRAUSDT'),x=>x.positions.push({symbol:'ADAUSDT'}),
+  for(const change of [x=>x.symbols.push('EXTRAUSDT'),x=>x.positions.push({symbol:'LTCUSDT'}),
     x=>x.portfolio_budget.notional_limit_usdt=301,x=>x.portfolio_budget.stop_loss_limit_usdt=8,
     x=>x.portfolio_budget.cost_buffer_pct=0,x=>x.portfolio_budget.secret='unexpected']){
     const bad=structuredClone(portfolio);change(bad.dashboard.futures_forward);

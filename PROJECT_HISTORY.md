@@ -233,3 +233,9 @@ Deferral is not rejection. A future maintainer should reassess these ideas again
 ## How to maintain this log
 
 Add entries for architectural decisions, abandoned approaches, major safety lessons and future-direction changes. Do not duplicate every patch note; detailed release-by-release implementation belongs in `UPDATE_NOTES.md`.
+
+## 2026-10-12 — Owner-authorized ten-position observation
+
+The owner requested ten positions per operating bot to increase Testnet observation. Spot and Futures caps rise from five to ten; portfolio exposure/loss budgets, signal thresholds, leverage and native protection remain fixed. Futures distributes its unchanged 300 USDT gross budget across ten slots, targeting 30 USDT for new entries before exchange filters and remaining-risk checks. Existing positions retain their quantities. More slots are capacity, not an instruction to force entries or evidence of strategy profitability. Research scenarios remain separately frozen at five positions.
+
+The signed release must preserve the operational repairs already active locally from 8–11 October (net Futures costs, clock synchronization, native-fill reconciliation and resolved-incident diagnostics). Replacing them with the older GitHub baseline would undo the stability being observed. Independent-agent config parsing and the Worker snapshot position-array bound must support ten together; never patch the running bot's count alone and leave its monitor rejecting the new state.

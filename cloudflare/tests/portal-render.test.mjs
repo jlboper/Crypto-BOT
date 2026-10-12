@@ -188,7 +188,7 @@ test('v0.9 multi-asset portal snapshot renders without falling into disconnected
   assert.match(el('futuresEvidenceMetrics').innerHTML,/P&amp;L de estrategia bruto/);
   assert.match(el('futuresForwardAi').textContent,/^BTC · REJECT · \d+%$/);
   assert.equal(el('futuresPositionPrices').textContent,'100');
-  assert.equal(el('futuresPositionUnrealized').textContent,'Sin cotización por contrato');
+  assert.equal(el('futuresPositionUnrealized').textContent,'Sin cotización reciente por contrato');
   assert.match(el('futuresAccountUnrealized').textContent,/12\.00 USDT/);
   // A second contract cannot inherit account-wide P&L or an invented mark.
   futures.positions.push({symbol:'ETHUSDT',direction:'SHORT',quantity:1,entry_price:200,
@@ -235,9 +235,9 @@ test('v0.9 multi-asset portal snapshot renders without falling into disconnected
   await context.__refresh();
   assert.equal(el('spotObservedQuality').textContent,'25.0% / 0.39');
   assert.equal(el('spotObservedReturn').textContent,'+0.20%');
-  assert.equal(el('futuresObservedExpectancy').textContent,'0.00 USDT');
+  assert.equal(el('futuresObservedExpectancy').textContent,'—');
   assert.match(el('spotObservedExpectancy').textContent,/-1.69 USDT/);
-  assert.match(el('futuresMoreMetrics').innerHTML,/ATRIBUCIÓN PENDIENTE/);
+  assert.match(el('futuresMoreMetrics').innerHTML,/Conciliación de costos.*PENDING · 0 \/ 38 cierres/);
 
   // Last-cycle evidence is distinct from the engine heartbeat and expires in the browser.
   const status=responses['/api/status'];

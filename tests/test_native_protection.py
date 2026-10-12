@@ -164,6 +164,63 @@ class FuturesNativeTests(unittest.TestCase):
         self.engine.protection_tick()
         self.assertTrue(self.engine.killed()); self.assertEqual(self.engine.ledger.forward_snapshot()["closed_trades"], 1)
 
+    def test_stop_between_journal_read_and_position_read_does_not_pause_engine(self):
+        self.arm()
+        recover = self.engine._recover_journal
+        def trigger_after_journal():
+            result = recover()
+            self.exchange.trigger()
+            return result
+        with patch.object(self.engine, '_recover_journal', side_effect=trigger_after_journal), \
+             patch.object(self.engine.lab, 'forward_submit') as market:
+            result = self.engine.protection_tick()
+        market.assert_not_called()
+        self.assertEqual(result['status'], 'CLOSED')
+        self.assertEqual(result['closed'][0]['exit_reason'], 'STOP')
+        self.assertFalse(self.engine.killed())
+        self.engine.protection_tick()
+        self.assertEqual(self.engine.ledger.forward_snapshot()['closed_trades'], 1)
+
+    def test_legacy_missing_position_pause_recovers_only_after_owned_fill(self):
+        self.arm()
+        self.engine._halt('Tracked Futures position missing or ambiguous: BTCUSDT')
+        self.exchange.trigger()
+        with patch.object(self.engine, '_preflight_flat_symbols', return_value={'BTCUSDT': {'status': 'READY'}}), \
+             patch.object(self.engine, '_record_account') as account, \
+             patch.object(self.engine.lab, 'forward_submit') as market:
+            self.assertTrue(self.engine._attempt_auto_recovery())
+        market.assert_not_called()
+        account.assert_called_once()
+        self.assertFalse(self.engine.killed())
+        self.assertEqual(self.engine.ledger.forward_snapshot()['closed_trades'], 1)
+
+    def test_missing_position_pause_without_native_fill_stays_blocked(self):
+        self.arm()
+        self.engine._halt('Tracked Futures position missing or ambiguous: BTCUSDT')
+        self.exchange.rows = []
+        with patch.object(self.engine, '_record_account') as account, \
+             patch.object(self.engine.lab, 'forward_submit') as market:
+            self.assertFalse(self.engine._attempt_auto_recovery())
+        account.assert_not_called()
+        market.assert_not_called()
+        self.assertTrue(self.engine.killed())
+        self.assertEqual(self.engine.ledger.forward_snapshot()['closed_trades'], 0)
+
+    def test_owned_stop_during_recovery_audit_is_reconciled_before_identity(self):
+        self.arm()
+        self.engine._halt('three consecutive Futures protection errors')
+        recover = self.engine._recover_journal
+        def trigger_after_journal():
+            result = recover()
+            self.exchange.trigger()
+            return result
+        with patch.object(self.engine, '_recover_journal', side_effect=trigger_after_journal), \
+             patch.object(self.engine, '_preflight_flat_symbols', return_value={'BTCUSDT': {'status': 'READY'}}), \
+             patch.object(self.engine, '_record_account'):
+            self.assertTrue(self.engine._attempt_auto_recovery())
+        self.assertFalse(self.engine.killed())
+        self.assertEqual(self.engine.ledger.forward_snapshot()['closed_trades'], 1)
+
     def test_flat_without_fill_evidence_never_fabricates_trade(self):
         self.arm(); self.exchange.rows = []
         # No native fill; existing engine identity guard must fail closed.
@@ -369,6 +426,25 @@ class SpotNativeTests(unittest.TestCase):
         self.broker.sell(self.position, 94, "protective stop")
         self.assertIsNone(self.db.position("BTCUSDT"))
 
+    def test_rejected_oco_keeps_monitoring_and_blocks_new_entries(self):
+        original = self.exchange.request
+        def reject_oco(method, endpoint, fields):
+            if endpoint == "/api/v3/orderList/oco":
+                raise TestnetExecutionError("filter failure", code=-1013)
+            return original(method, endpoint, fields)
+        with patch("trader.testnet_broker.signed_request", side_effect=reject_oco):
+            with self.assertRaises(TestnetExecutionError):
+                self.arm()
+        before = len(self.exchange.calls)
+        updated, reason = self.broker.protect(self.position, 101, 2)
+        self.assertEqual(updated.high_water, 101)
+        self.assertIsNone(reason)
+        self.assertEqual(len(self.exchange.calls), before)
+        with self.assertRaises(TestnetExecutionError):
+            self.broker.native.ensure_all()
+        self.broker.protect(updated, 94, 2)
+        self.assertIsNone(self.db.position("BTCUSDT"))
+
     def test_native_receipt_does_not_overwrite_unrelated_pending_market_order(self):
         self.arm(); self.exchange.trigger()
         self.broker._save_pending({"client_order_id": "other", "symbol": "ETHUSDT"})
@@ -426,7 +502,8 @@ class NativeTransportTests(unittest.TestCase):
             opener = MagicMock(); opener.open.return_value.__enter__.return_value.read.return_value = b'{}'
             target = "trader." + name + ("." + opener_name if opener_name else ".urllib.request.build_opener")
             with self.subTest(name=name), patch.dict("os.environ", {key_name: "synthetic-key", secret_name: "synthetic-secret"}), \
-                 patch(target, return_value=opener):
+                 patch(target, return_value=opener), \
+                 patch('trader.futures_testnet_transport._request_timestamp', return_value=123456789):
                 module.signed_request("DELETE", endpoint, fields)
             request = opener.open.call_args.args[0]
             parsed = urlsplit(request.full_url); query, signature = parsed.query.rsplit("&signature=", 1)

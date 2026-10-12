@@ -1,3 +1,7 @@
+# Candidate — 0.10.27 ten positions per bot
+
+Prepared on current main 8cb9cd4874abb8991157c496b576fcbf11a075b1 following the owner's 12 October request. Preserves the installed operational fixes and existing risk/exposure budgets; expands both engine limits and remote snapshot compatibility. Publication, signature, installed limits and two fresh HTTPS heartbeats require independent verification after CI and merge.
+
 # Candidate — 0.10.25 portal evidence audit
 
 Prepared from current main `086fe50c04846a64d685e1b2098cefa6d65537e6` after an authenticated review of the installed 0.10.24 portal. Correct partial/stale Futures status, timestamp contract scores, add comparable financial fields and explicit accounting limitations, expose portfolio budgets and fix six-profile displayed risk. Research now retains safe failure stage/reason and labels the old report's actual coverage; the earlier generic failure's cause remains unverified. Strategies, risk boundaries, trading execution and operational data remain unchanged. See UPDATE_NOTES.md. Local validation passed 331 offline Python tests and 85 Node tests, including partial/stale contract states, dated scores, escaped reasons, six risk profiles and safe research diagnostics. PR validation, main publication/signature and Windows installation are separate gates.

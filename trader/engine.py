@@ -50,6 +50,10 @@ class TradingEngine:
                       "btc_bullish": None, "error_code": None, "risk_halt": None}
         try:
             self._record_spot_cycle(diagnostic, "RUNNING")
+            # Futures has its own data, ledger and failure gates. A Spot order
+            # reconciliation or market download must not suppress its cycle.
+            if self.futures_forward is not None:
+                self._run_futures_forward_cycle({})
             if self.config.bot.mode == "testnet" and not self.broker.reconcile_pending():
                 raise RuntimeError("Spot Testnet order awaiting reconciliation")
             # Protect holdings before universe/regime downloads can fail.
@@ -58,11 +62,13 @@ class TradingEngine:
                 protective_prices = self._position_execution_prices(held_symbols)
                 self._require_spot_prices(protective_prices, held_symbols)
                 self._manage_positions({}, protective_prices)
-            symbols = self.exchange.top_usdt_symbols(self.config.bot.universe_size)
+            symbols = (self.exchange.top_usdt_symbols(self.config.bot.universe_size,
+                         supported_symbols=self.exchange.testnet_tradeable_symbols())
+                       if self.config.bot.mode == 'testnet'
+                       else self.exchange.top_usdt_symbols(self.config.bot.universe_size))
             diagnostic["universe"] = len(symbols)
             held_symbols = [position.symbol for position in self.db.positions()]
-            futures_symbols = list(self.config.futures_testnet.forward_symbols) if self.futures_forward is not None else []
-            monitored_symbols = list(dict.fromkeys([*symbols, *held_symbols, "BTCUSDT", *futures_symbols]))
+            monitored_symbols = list(dict.fromkeys([*symbols, *held_symbols, "BTCUSDT"]))
             candle_map = self._fetch_candles(monitored_symbols)
             missing = len((set(symbols) | {"BTCUSDT"}) - set(candle_map))
             if missing:
@@ -71,8 +77,6 @@ class TradingEngine:
                 raise RuntimeError("BTC regime data unavailable")
             btc_bullish = self.strategy.btc_regime(candle_map["BTCUSDT"])
             diagnostic["btc_bullish"] = btc_bullish
-            if self.futures_forward is not None:
-                self._run_futures_forward_cycle(candle_map)
 
             try:
                 prices = self.exchange.latest_prices(set(monitored_symbols))
@@ -94,6 +98,15 @@ class TradingEngine:
                 self._spot_cycle_reason(diagnostic, "PAUSED")
                 self._record_spot_cycle(diagnostic, "PAUSED")
                 return {"status": "killed", "equity": equity, "cash": cash, "exposure": exposure}
+            if self.config.bot.mode == "testnet" and any(
+                record.get("state") == "REJECTED" for record in self.broker.native.records().values()
+            ):
+                self.db.record_equity(equity, cash, exposure, prices["BTCUSDT"])
+                self._errors = 0
+                self.db.set_setting("consecutive_errors", "0")
+                self._spot_cycle_reason(diagnostic, "NATIVE_PROTECTION_BLOCKED")
+                self._record_spot_cycle(diagnostic, "ATTENTION")
+                return {"status": "protection_blocked", "equity": equity, "cash": cash, "exposure": exposure}
             risk_halt = self._risk_halt(equity)
             if risk_halt:
                 self.db.record_equity(equity, cash, exposure, prices["BTCUSDT"])
@@ -105,6 +118,8 @@ class TradingEngine:
             held = {position.symbol for position in positions}
             candidates: list[Signal] = []
             for symbol, candles in candle_map.items():
+                if symbol not in symbols:
+                    continue
                 if symbol in held:
                     self._spot_cycle_reason(diagnostic, "ALREADY_HELD")
                     continue
@@ -252,7 +267,7 @@ class TradingEngine:
             self._spot_cycle_reason(diagnostic, "CYCLE_ERROR")
             self._record_spot_cycle(diagnostic, "ERROR")
             self.db.event("ERROR", f"Cycle failed [{failure['code']}]: {failure['label']}")
-            if self._errors >= self.config.risk.max_consecutive_errors:
+            if self._errors >= self.config.risk.max_consecutive_errors and not self.killed():
                 self.config.bot.kill_switch_path.parent.mkdir(parents=True, exist_ok=True)
                 self.config.bot.kill_switch_path.write_text("automatic halt after consecutive errors\n", encoding="utf-8")
                 self.db.event("CRITICAL", "Kill switch activated after consecutive errors")
@@ -315,10 +330,10 @@ class TradingEngine:
         if str(exc) in known:
             code, label = known[str(exc)]
             return {"code": code, "label": label, "type": type(exc).__name__}
-        if isinstance(exc, ValueError):
-            return {"code": "UNEXPECTED_VALUE_ERROR", "label": "validación interna no clasificada", "type": "ValueError"}
         if isinstance(exc, TestnetExecutionError):
             return {"code": "TESTNET_EXECUTION_ERROR", "label": "fallo de ejecución o conciliación Spot Testnet", "type": type(exc).__name__}
+        if isinstance(exc, ValueError):
+            return {"code": "UNEXPECTED_VALUE_ERROR", "label": "validación interna no clasificada", "type": "ValueError"}
         return {
             "code": "UNEXPECTED_" + type(exc).__name__.upper(),
             "label": "fallo operativo no clasificado",

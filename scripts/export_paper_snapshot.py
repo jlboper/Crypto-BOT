@@ -10,6 +10,20 @@ from scripts.windows_agent import source_settings
 from trader.portal_snapshot import dashboard_snapshot
 
 
+def compatible_remote_projection(payload):
+    """Preserve the deployed portal schema; new finance stays local until release."""
+    payload.get('paper_scorecard', {}).pop('financial', None)
+    futures = payload.get('futures_forward', {})
+    futures.get('scorecard', {}).pop('financial', None)
+    positions = list(futures.get('positions') or [])
+    if isinstance(futures.get('position'), dict):
+        positions.append(futures['position'])
+    for position in positions:
+        for key in ('mark_price', 'unrealized_pnl_usdt', 'priced_at', 'unrealized_after_accrued_costs_usdt'):
+            position.pop(key, None)
+    return payload
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--source', type=Path, required=True)
@@ -18,7 +32,7 @@ def main():
         raise ValueError('Installed source mismatch')
     config = source_settings(source)
     payload = dashboard_snapshot(config, source / 'data/research/latest.json')
-    print(json.dumps(payload, allow_nan=False, separators=(',', ':')))
+    print(json.dumps(compatible_remote_projection(payload), allow_nan=False, separators=(',', ':')))
 
 
 if __name__ == '__main__':

@@ -279,6 +279,7 @@ class DashboardServer:
                     return
                 if path == "/api/status":
                     from .native_protection import SPOT_KEY, projection
+                    from .portal_snapshot import spot_observation_health
                     equity_rows = outer.db.recent("equity", 1)
                     latest = equity_rows[0] if equity_rows else {}
                     initial = outer.config.paper.initial_cash_usdt
@@ -301,6 +302,7 @@ class DashboardServer:
                         "paper_risk_profile": profile_name(outer.db),
                         "cycle_seconds": outer.config.bot.cycle_seconds,
                         "spot_cycle": spot_cycle_status(outer.db.setting("spot_last_cycle"), outer.config.bot.cycle_seconds),
+                        "observation_health": spot_observation_health(outer.config),
                         "native_protection": projection(json.loads(outer.db.setting(SPOT_KEY) or '{}')) if outer.config.bot.mode == 'testnet' else None,
                         "native_protection_started_at": outer.db.setting("native_protection_started_at"),
                         "activity": activity,
@@ -331,6 +333,9 @@ class DashboardServer:
                         "enabled": bool(outer.config.bot.mode == "testnet" and outer.config.futures_testnet.forward_enabled),
                         "killed": outer.config.futures_testnet.kill_switch_path.exists(),
                         "pause_diagnostics": _futures_pause_diagnostics(outer.config, ledger),
+                        "observation_health": ledger.observation_health(outer.config.bot.cycle_seconds,
+                            max_positions=outer.config.futures_testnet.forward_max_positions),
+                        "cycle_diagnostic": ledger.setting('forward_last_cycle_diagnostic'),
                         "symbols": list(outer.config.futures_testnet.forward_symbols),
                         "automatic_leverage": outer.config.futures_testnet.forward_leverage,
                         "portfolio_budget": ledger.setting("forward_portfolio_budget"),

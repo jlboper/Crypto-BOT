@@ -844,7 +844,7 @@ def _execute_research(
         selected.insert(0, 'BTCUSDT')
     selected = selected[:30]
     futures_selected = list(dict.fromkeys(config.futures_testnet.forward_symbols))[:15]
-    if any(not re.fullmatch(r'[A-Z0-9]{2,26}USDT', symbol) for symbol in selected+futures_selected):
+    if any(not re.fullmatch(r'[A-Z0-9]{1,26}USDT', symbol) for symbol in selected+futures_selected):
         raise ValueError('Invalid research symbol')
     directory = config.research.report_path.parent
     failures = []

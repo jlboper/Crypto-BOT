@@ -91,7 +91,10 @@ class WindowsAssetTests(unittest.TestCase):
         self.assertNotIn("setInterval(()=>requestAnimationFrame", app)
 
     def test_release_workflow_publishes_only_validated_main_after_merge(self):
-        workflow = (PROJECT_ROOT / ".github" / "workflows" / "portal-release.yml").read_text(encoding="utf-8")
+        path = PROJECT_ROOT / ".github" / "workflows" / "portal-release.yml"
+        if not path.exists() and not (PROJECT_ROOT / '.git').exists():
+            self.skipTest('CI workflow is not shipped in the installed application')
+        workflow = path.read_text(encoding="utf-8")
         self.assertIn("pull_request:", workflow)
         self.assertIn("types: [opened, synchronize, reopened]", workflow)
         self.assertNotIn("pull_request_target:", workflow)

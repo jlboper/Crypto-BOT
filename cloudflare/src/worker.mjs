@@ -104,7 +104,7 @@ function validateSnapshot(snapshot) {
         'CANDLE_ALREADY_CHECKED','AI_REJECTED','AI_UNAVAILABLE','SIZE_LIMIT','PAUSED','LOSS_LIMIT',
         'EXCHANGE_RULES_UNAVAILABLE','EXCHANGE_FILTER_PREFLIGHT','POSITION_SIZE_LIMIT','PER_TRADE_RISK_LIMIT',
         'LOCAL_ALLOCATION_LIMIT','LOCAL_CASH_LIMIT','PRICE_MOVED_OUTSIDE_SIGNAL_RANGE','EXCHANGE_FILTER_REJECTED',
-        'TESTNET_BALANCE_LIMIT','CYCLE_ERROR'];
+        'TESTNET_BALANCE_LIMIT','NATIVE_PROTECTION_BLOCKED','CYCLE_ERROR'];
       const errors=['ORDER_RECONCILIATION_PENDING','BTC_REGIME_UNAVAILABLE','FRESH_PRICES_UNAVAILABLE',
         'INVALID_SPOT_QUOTE','HELD_QUOTE_MISSING','HELD_QUOTE_INVALID','UNEXPECTED_VALUE_ERROR',
         'TESTNET_EXECUTION_ERROR','UNEXPECTED_ERROR'];
@@ -181,7 +181,7 @@ function validateSnapshot(snapshot) {
       const oldShape=f.symbol==='BTCUSDT'&&(f.position===null||object(f.position));
       const newShape=Array.isArray(f.symbols)&&f.symbols.length>=1&&f.symbols.length<=15
         &&f.symbols.every(s=>typeof s==='string'&&/^[A-Z0-9]{2,30}$/.test(s))
-        &&Array.isArray(f.positions)&&f.positions.length<=5
+        &&Array.isArray(f.positions)&&f.positions.length<=10
         &&f.positions.every(p=>object(p)&&typeof p.symbol==='string'&&/^[A-Z0-9]{2,30}$/.test(p.symbol));
       if(f.latest_signals!==undefined){
         const allowed=['symbol','timeframe','candle_close_time','direction','score','long_score','short_score',
