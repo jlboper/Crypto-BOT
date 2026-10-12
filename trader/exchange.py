@@ -6,6 +6,7 @@ import json
 import os
 import math
 import random
+import re
 import time
 import urllib.error
 import urllib.parse
@@ -84,13 +85,13 @@ class BinanceClient:
     def server_time(self) -> int:
         return int(self._request("GET", "/api/v3/time")["serverTime"])
 
-    def top_usdt_symbols(self, limit: int) -> list[str]:
+    def top_usdt_symbols(self, limit: int, *, supported_symbols: set[str] | None = None) -> list[str]:
         if self._info_cache is None or time.monotonic() >= self._info_until:
             self._info_cache = self._request("GET", "/api/v3/exchangeInfo")
             self._info_until = time.monotonic() + 3600
         info = self._info_cache
         tickers = self._request("GET", "/api/v3/ticker/24hr")
-        excluded_bases = {"USDC", "FDUSD", "TUSD", "USDP", "DAI", "EUR", "TRY", "BRL", "MXN"}
+        excluded_bases = {"USDC", "FDUSD", "TUSD", "USDP", "DAI", "USD1", "RLUSD", "U", "EUR", "TRY", "BRL", "MXN"}
         allowed: set[str] = set()
         for item in info.get("symbols", []):
             base = item.get("baseAsset", "")
@@ -100,6 +101,8 @@ class BinanceClient:
                 and item.get("quoteAsset") == "USDT"
                 and item.get("isSpotTradingAllowed", True)
                 and base not in excluded_bases
+                and re.fullmatch(r'[A-Z0-9]{1,26}USDT', symbol) is not None
+                and (supported_symbols is None or symbol in supported_symbols)
                 and not base.endswith(("UP", "DOWN", "BULL", "BEAR"))
             ):
                 allowed.add(symbol)
@@ -109,9 +112,28 @@ class BinanceClient:
             reverse=True,
         )
         symbols = [item["symbol"] for item in ranked[:limit]]
-        if "BTCUSDT" not in symbols:
+        if "BTCUSDT" not in symbols and (supported_symbols is None or "BTCUSDT" in supported_symbols):
             symbols.insert(0, "BTCUSDT")
         return symbols
+
+    def testnet_tradeable_symbols(self) -> set[str]:
+        """Public cached eligibility, before ranking or spending AI reviews."""
+        if time.monotonic() < getattr(self, '_testnet_symbols_until', 0):
+            return set(self._testnet_symbols)
+        original = self.base_url
+        self.base_url = 'https://testnet.binance.vision'
+        try:
+            info = self._request('GET', '/api/v3/exchangeInfo')
+        finally:
+            self.base_url = original
+        self._testnet_symbols = {row['symbol'] for row in info.get('symbols', [])
+            if row.get('status') == 'TRADING' and row.get('quoteAsset') == 'USDT'
+            and row.get('isSpotTradingAllowed', True) and row.get('ocoAllowed') is True
+            and {'MARKET','STOP_LOSS','TAKE_PROFIT'}.issubset(row.get('orderTypes', []))}
+        if not self._testnet_symbols:
+            raise ExchangeError('Testnet market universe unavailable')
+        self._testnet_symbols_until = time.monotonic()+1800
+        return set(self._testnet_symbols)
 
     def cached_symbol_info(self, symbol: str) -> dict | None:
         """Use the exchangeInfo already fetched for universe selection; no new request."""

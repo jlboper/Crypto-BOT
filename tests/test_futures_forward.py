@@ -13,6 +13,16 @@ from trader.futures_testnet_ledger import FuturesTestnetLedger
 
 
 class FuturesForwardTests(unittest.TestCase):
+    def test_future_candle_is_rejected_without_claiming_a_decision(self):
+        candles=self.candles()
+        candles[-1]=replace(candles[-1],close_time=int((datetime.now(UTC)+timedelta(hours=1)).timestamp()*1000))
+        with patch.object(self.engine.native,'reconcile'), \
+             patch.object(self.engine,'_validated_rows',return_value=[]), \
+             patch.object(self.engine.ledger,'claim_forward_decision') as claim:
+            result=self.engine.cycle_symbol('BTCUSDT',candles,{})
+        self.assertEqual(result['status'],'INVALID_CANDLE_TIME')
+        claim.assert_not_called()
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
@@ -141,6 +151,46 @@ class FuturesForwardTests(unittest.TestCase):
             self.assertFalse(self.engine._attempt_auto_recovery())
             preflight.assert_not_called()
         self.assertTrue(self.engine.killed())
+
+    def test_timestamp_pause_reconciles_open_position_and_protection_before_resume(self):
+        local = {'symbol': 'SOLUSDT', 'direction': 'LONG', 'leverage': 1,
+                 'quantity': .1, 'entry_price': 100., 'stop_price': 95.,
+                 'take_profit': 110., 'liquidation_price': None, 'signal_score': 80,
+                 'opened_at': '2026-10-09T00:00:00+00:00'}
+        self.engine.ledger.set_forward_position(local)
+        legacy_reason = 'Futures Demo HTTP 400 · Binance -1021: Timestamp for this request is outside of the recvWindow.'
+        self.engine._halt(legacy_reason)
+        row = {'symbol': 'SOLUSDT', 'positionAmt': '.1', 'marginType': 'isolated', 'positionSide': 'BOTH'}
+        with patch.object(self.engine, '_actual_rows', return_value=[row]), \
+             patch.object(self.engine, '_validated_rows') as validate, \
+             patch.object(self.engine.native, 'ensure') as protect, \
+             patch.object(self.engine, '_preflight_flat_symbols', return_value={'BTCUSDT': {'status': 'READY'}}), \
+             patch.object(self.engine, '_record_account') as account:
+            self.assertTrue(self.engine._attempt_auto_recovery())
+        validate.assert_called_once()
+        protect.assert_called_once_with(local)
+        account.assert_called_once()
+        self.assertFalse(self.engine.killed())
+
+    def test_timestamp_pause_cannot_resume_if_audit_fails(self):
+        self.engine._halt('automatic Futures timestamp validation pause')
+        with patch.object(self.engine, '_preflight_flat_symbols', return_value={'BTCUSDT': {'status': 'BLOCKED'}}), \
+             patch.object(self.engine, '_record_account') as account:
+            self.assertFalse(self.engine._attempt_auto_recovery())
+        account.assert_not_called()
+        self.assertTrue(self.engine.killed())
+
+    def test_protection_timestamp_error_marks_a_recoverable_pause(self):
+        self.engine.ledger.set_forward_position({
+            'symbol': 'SOLUSDT', 'direction': 'LONG', 'leverage': 1,
+            'quantity': .1, 'entry_price': 100., 'stop_price': 95.,
+            'take_profit': 110., 'signal_score': 80,
+            'opened_at': '2026-10-09T00:00:00+00:00',
+        })
+        with patch.object(self.engine, '_actual_rows', side_effect=FuturesTestnetExecutionError('synthetic timestamp error', code=-1021)):
+            with self.assertRaises(FuturesTestnetExecutionError):
+                self.engine.protection_tick()
+        self.assertEqual(self.engine._automatic_pause_reason(), 'automatic futures timestamp validation pause')
 
     def test_flat_reduce_only_journal_clears_without_querying_old_order(self):
         pending = {
@@ -321,6 +371,22 @@ class FuturesForwardTests(unittest.TestCase):
         self.assertEqual(short_signal["direction"], "SHORT")
         self.assertGreaterEqual(short_signal["score"], self.config.futures_testnet.forward_min_score)
 
+    def test_positions_are_managed_first_then_strongest_entry_signal(self):
+        self.engine.settings = replace(self.engine.settings,forward_symbols=('BTCUSDT','ETHUSDT','SOLUSDT'))
+        rows = {s:[Candle(0,1,2,1,float(i+1),100,999)] for i,s in enumerate(self.engine.symbols)}
+        account={'wallet_balance':5000,'available_balance':5000,'unrealized_pnl':0}
+        with patch.object(self.engine,'_recover_journal',return_value=None), \
+             patch.object(self.engine,'protection_tick'), \
+             patch.object(self.engine,'portfolio_budget'), \
+             patch.object(self.engine,'_preflight_flat_symbols',return_value={}), \
+             patch.object(self.engine,'_record_account',return_value=account), \
+             patch.object(self.engine,'_risk_halt',return_value=False), \
+             patch.object(self.engine.ledger,'forward_position',side_effect=lambda s: {} if s=='BTCUSDT' else None), \
+             patch.object(self.engine,'_signal',side_effect=lambda c: {'direction':'LONG','score':100 if c[-1].close==3 else 70}), \
+             patch.object(self.engine,'cycle_symbol',side_effect=lambda symbol,candles,account: {'symbol':symbol,'status':'FLAT'}) as process:
+            self.engine.cycle(rows)
+        self.assertEqual([call.args[0] for call in process.call_args_list],['BTCUSDT','SOLUSDT','ETHUSDT'])
+
     def test_forward_scorecard_tracks_return_drawdown_direction_and_errors(self):
         ledger = FuturesTestnetLedger(self.config.futures_testnet.database_path)
         with ledger._connect() as db:
@@ -382,6 +448,31 @@ class FuturesForwardTests(unittest.TestCase):
         self.assertEqual(self.engine.ledger.forward_position("BTCUSDT")["direction"], "LONG")
         self.assertIsNone(self.engine.ledger.setting("forward_pending_order"))
         self.assertIsNone(self.engine.ledger.setting("forward_open_plan"))
+
+    def test_low_futures_coverage_is_watch_after_confirmed_resume(self):
+        ledger = FuturesTestnetLedger(self.config.futures_testnet.database_path)
+        now = datetime(2026,9,26,20,0,tzinfo=UTC)
+        with ledger._connect() as db:
+            for at in (now-timedelta(hours=23),now):
+                db.execute('INSERT INTO forward_equity(wallet_balance,available_balance,unrealized_pnl,created_at) VALUES(?,?,?,?)',
+                           (5000,5000,0,at.isoformat()))
+        health=ledger.observation_health(900,now=now)
+        self.assertLess(health['cycle_coverage_pct'],70)
+        self.assertEqual(health['state'],'WATCH')
+        self.assertEqual(health['reason_codes'],['cycle_coverage_below_90'])
+        stale=ledger.observation_health(900,now=now+timedelta(minutes=31))
+        self.assertEqual(stale['state'],'ATTENTION')
+        self.assertIn('cycle_stale',stale['reason_codes'])
+        for key,value,reason in (
+                ('forward_consecutive_errors',3,'consecutive_errors_active'),
+                ('forward_pending_order',{'symbol':'BTCUSDT'},'order_journal_pending'),
+                ('forward_evidence_gap',{'reason':'unknown fill'},'evidence_gap_present')):
+            with self.subTest(key=key):
+                ledger.set_setting(key,value)
+                health=ledger.observation_health(900,now=now)
+                self.assertEqual(health['state'],'ATTENTION')
+                self.assertIn(reason,health['reason_codes'])
+                ledger.set_setting(key,None)
 
     def test_dense_old_samples_cannot_hide_stale_futures_cycle(self):
         ledger = FuturesTestnetLedger(self.config.futures_testnet.database_path)

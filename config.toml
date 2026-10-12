@@ -2,10 +2,10 @@
 # Primary operating mode: Binance Spot Testnet. LIVE remains unsupported.
 # Futures Demo forward testing is enabled only while this mode is TESTNET.
 mode = "testnet"
-cycle_seconds = 900
+cycle_seconds = 300
 protection_seconds = 30
 timeframe = "4h"
-universe_size = 30
+universe_size = 60
 max_parallel_requests = 6
 database_path = "data/trader.db"
 testnet_database_path = "data/testnet-trader.db"
@@ -18,7 +18,7 @@ fee_rate = 0.001
 slippage_rate = 0.0005
 
 [risk]
-max_positions = 5
+max_positions = 10
 max_position_pct = 0.15
 max_total_exposure_pct = 0.60
 risk_per_trade_pct = 0.0075
@@ -69,7 +69,7 @@ forward_enabled = true
 # Futures has its own observation cadence; Spot remains on bot.timeframe (4h).
 forward_timeframe = "1h"
 forward_symbols = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT", "ADAUSDT", "DOGEUSDT", "LINKUSDT", "AVAXUSDT", "DOTUSDT", "LTCUSDT", "BCHUSDT", "TRXUSDT", "ATOMUSDT", "NEARUSDT"]
-forward_max_positions = 5
+forward_max_positions = 10
 forward_total_notional_usdt = 300.0
 forward_total_stop_loss_usdt = 7.5
 forward_cost_buffer_pct = 0.005

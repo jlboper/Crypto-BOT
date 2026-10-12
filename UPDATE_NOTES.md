@@ -1,3 +1,10 @@
+# 0.10.27 — Diez posiciones y conservación de las correcciones operativas
+
+- Spot Testnet y Futures Demo admiten hasta diez posiciones cada uno. Se amplía el validador Futures de cinco a diez, limitado también al número de contratos configurados.
+- Se conservan exposición Spot del 60%, riesgo por operación del 0,75%, límites de pérdida diarios/semanales y presupuestos Futures de 300 USDT de notional bruto y 7,5 USDT de pérdida estimada hasta stops. El dimensionamiento Futures existente distribuye las nuevas entradas a un objetivo de 30 USDT por cupo, sujeto a mínimos y presupuesto restante.
+- Regresiones verifican el décimo cupo, el rechazo del undécimo, el presupuesto conservado y la proyección de límites. El contrato remoto acepta hasta diez posiciones Futures y conserva compatibilidad con snapshots anteriores.
+- Consolida las correcciones locales ya instaladas entre el 8 y el 11 de octubre: contabilidad neta Futures con comisiones/funding, transporte de reloj, conciliación de protección nativa, rechazo previo a órdenes y diagnósticos resueltos. Conserva la cadencia Spot de cinco minutos y el universo de sesenta activos que usa la instalación actual, sin cambiar señales, stops, apalancamiento ni las estrategias activas. La actualización firmada no debe revertir estas correcciones al ampliar los cupos.
+
 # 0.10.25 — Comparable evidence and current contract diagnostics
 
 - Shared Spot/Futures scorecards now show account return, win rate/profit factor, expectancy and open P&L together, with separate net/gross labels, account windows, technical closes and cost-attribution limits.

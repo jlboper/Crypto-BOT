@@ -232,7 +232,7 @@ def load_config(path: str | Path | None = None) -> AppConfig:
     allowed_forward_symbols = set(FUTURES_FORWARD_SYMBOLS)
     if any(symbol not in allowed_forward_symbols for symbol in futures_forward_symbols):
         raise ValueError("Unsupported Futures forward symbol")
-    if not 1 <= futures_forward_max_positions <= min(5, len(futures_forward_symbols)):
+    if not 1 <= futures_forward_max_positions <= min(10, len(futures_forward_symbols)):
         raise ValueError("Invalid Futures forward max positions")
     total_notional = float(futures_testnet.get("forward_total_notional_usdt", 300))
     total_stop_loss = float(futures_testnet.get("forward_total_stop_loss_usdt", 7.5))

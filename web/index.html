@@ -169,7 +169,7 @@
 
       <article class="panel engine-console futures-console">
         <div class="settings-card-head"><div><p class="eyebrow">MOTOR 2 · FUTURES</p><h2>USDⓈ-M Futures Demo</h2></div><span id="futuresForwardState" class="state neutral">CARGANDO</span></div>
-        <p>LONG/SHORT · pruebas Demo 1x/2x/3x · ISOLATED · hasta cinco posiciones · revisión IA final · fondos ficticios.</p>
+        <p>LONG/SHORT · pruebas Demo 1x/2x/3x · ISOLATED · hasta diez posiciones · revisión IA final · fondos ficticios.</p>
         <div class="spot-cycle" role="status" aria-label="Último análisis Futures">
           <div class="spot-cycle-head"><strong>Último análisis Futures</strong><span id="futuresCycleState" class="state neutral">SIN DETALLE AÚN</span></div>
           <p id="futuresCycleSummary">Esperando el diagnóstico del próximo ciclo.</p>
@@ -231,15 +231,15 @@
             <div><dt>Cierres de estrategia</dt><dd id="futuresObservedTrades">—</dd></div>
             <div><dt>Cierres técnicos · aparte</dt><dd id="futuresTechnicalTrades">—</dd></div>
             <div><dt>Retorno cuenta observado</dt><dd id="futuresObservedReturn">—</dd></div>
-            <div><dt>P&amp;L total bruto · incluye técnicos</dt><dd id="futuresObservedPnl">—</dd></div>
-            <div><dt>Drawdown muestreado</dt><dd id="futuresObservedDrawdown">—</dd></div><div><dt>P&amp;L de estrategia bruto</dt><dd id="futuresStrategyPnl">—</dd></div><div><dt>Expectativa bruta / cierre de estrategia</dt><dd id="futuresObservedExpectancy">—</dd></div><div><dt>P&amp;L abierto · cuenta Demo</dt><dd id="futuresObservedOpenPnl">—</dd></div>
-            <div><dt>Win rate / profit factor · estrategia</dt><dd id="futuresObservedQuality">—</dd></div>
+            <div><dt>P&amp;L total neto · incluye técnicos</dt><dd id="futuresObservedPnl">—</dd></div>
+            <div><dt>Drawdown muestreado</dt><dd id="futuresObservedDrawdown">—</dd></div><div><dt>P&amp;L de estrategia neto</dt><dd id="futuresStrategyPnl">—</dd></div><div><dt>Expectativa neta / cierre de estrategia</dt><dd id="futuresObservedExpectancy">—</dd></div><div><dt>P&amp;L abierto · cuenta Demo</dt><dd id="futuresObservedOpenPnl">—</dd></div>
+            <div><dt>Win rate / profit factor netos · estrategia</dt><dd id="futuresObservedQuality">—</dd></div>
             <div><dt>LONG / SHORT · historial total</dt><dd id="futuresDirectionSplit">—</dd></div>
             <div><dt>Errores</dt><dd id="futuresErrorRate">—</dd></div>
           </dl>
         </article>
       </div>
-      <p class="settings-help">Ventanas y capitales distintos por motor. Spot descuenta las comisiones registradas; su cobertura completa no está certificada. Futures muestra P&amp;L bruto sin comisiones ni funding por operación. El retorno observado usa la equity de cada cuenta y no separa aportes/retiros. Los cierres técnicos no evalúan la estrategia.</p>
+      <p class="settings-help">Ventanas y capitales distintos por motor. Los resultados netos descuentan costos registrados; Futures concilia comisiones y funding con Binance Demo. Si falta evidencia, el neto queda pendiente. El retorno observado de cuenta no separa aportes/retiros. Los cierres técnicos no evalúan la estrategia. No se incluyen costos de la API de IA.</p>
       <div class="readiness-note">
         <h3>Regla de observación antes de discutir LIVE</h3>
         <ul id="dualReadinessChecks"></ul>
@@ -277,7 +277,7 @@
           <div><dt>Stop mínimo / ATR</dt><dd id="futuresLimitStop">—</dd></div>
           <div><dt>Reward / Risk</dt><dd id="futuresLimitRR">—</dd></div>
         </dl>
-        <p class="settings-help">Forward test de 15 monedas · ONE_WAY · hasta cinco posiciones aisladas · kill switch independiente. Los valores automáticos no se modifican desde esta pantalla.</p><p id="futuresPortfolioBudget" class="settings-help">Esperando límites de cartera del motor.</p>
+        <p class="settings-help">Forward test de 15 monedas · ONE_WAY · hasta diez posiciones aisladas · kill switch independiente. Los valores automáticos no se modifican desde esta pantalla.</p><p id="futuresPortfolioBudget" class="settings-help">Esperando límites de cartera del motor.</p>
       </article>
     </section>
 
@@ -301,7 +301,7 @@
             <div><dt>Abierta desde</dt><dd id="futuresPositionOpened">—</dd></div>
           </dl>
         </div>
-        <p class="settings-help">P&amp;L no realizado de toda la cuenta Demo: <strong id="futuresAccountUnrealized">—</strong>. La proyección no incluye cotizaciones por contrato; no se atribuye este total a una posición ni se infiere su precio actual.</p>
+        <p class="settings-help">P&amp;L no realizado de toda la cuenta Demo: <strong id="futuresAccountUnrealized">—</strong>. Cada posición muestra su mark y P&amp;L cuando hay cotización reciente. El resultado tras costos acumulados incluye comisiones y funding ya registrados; no anticipa los costos de salida.</p>
         <div id="futuresMultiAsset" class="futures-asset-grid"></div>
         <details class="finance-details"><summary>Señales recientes y estrategias sombra</summary>
           <h3>Señales por activo</h3>
@@ -344,7 +344,7 @@
       <article class="panel futures-scorecard" aria-label="Seguimiento financiero Futures">
         <div class="panel-title"><h2>Seguimiento financiero Futures · DEMO</h2><span id="futuresEvidenceState" class="state neutral">SIN DATOS</span></div>
         <p id="futuresEvidenceNote">Los resultados observados de Futures no autorizan operar con dinero real.</p>
-        <p class="finance-strategy">Estrategia de esta versión: 15 monedas LONG/SHORT, pruebas 1x/2x/3x, ISOLATED, hasta cinco posiciones y revisión IA final.</p>
+        <p class="finance-strategy">Estrategia de esta versión: 15 monedas LONG/SHORT, pruebas 1x/2x/3x, ISOLATED, hasta diez posiciones y revisión IA final.</p>
         <div id="futuresEvidenceMetrics" class="research-summary"></div>
         <div id="futuresEvidenceSummary" class="benchmark-note">Esperando muestras suficientes del forward test.</div>
         <details class="finance-details"><summary>Ver métricas, puertas pendientes y cierres Futures</summary>

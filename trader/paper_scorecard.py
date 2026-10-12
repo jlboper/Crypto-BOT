@@ -145,6 +145,15 @@ def paper_scorecard(connection, *, prices=None, prices_at=None, cycle_seconds=No
         * (1 - paper.slippage_rate) / (1 + paper.slippage_rate)
         * (1 - paper.fee_rate) / (1 + paper.fee_rate) - 1
     )) if comparable and paper is not None else None
+    strategy_closes = connection.execute('''
+        SELECT realized_pnl FROM trades WHERE side='SELL'
+        AND lower(reason) NOT LIKE '%smoke%' ORDER BY id
+    ''').fetchall()
+    strategy_pnl = [float(row[0]) for row in strategy_closes]
+    strategy_profit = sum(value for value in strategy_pnl if value > 0)
+    strategy_loss = -sum(value for value in strategy_pnl if value < 0)
+    strategy_count = len(strategy_pnl)
+    strategy_net = sum(strategy_pnl)
     return {
         'mode': str(mode).upper(), 'status': 'REVIEW_REQUIRED' if observed_days >= 30 and closed >= 30 and invalid == 0 else 'INSUFFICIENT_EVIDENCE',
         'started_at': start.isoformat() if start else None,
@@ -152,6 +161,19 @@ def paper_scorecard(connection, *, prices=None, prices_at=None, cycle_seconds=No
         'observed_days': round(observed_days, 2), 'equity_points': points,
         'invalid_points': invalid, 'closed_trades': closed,
         'net_realized_pnl_usdt': round(net_realized, 4),
+        'financial': {
+            'strategy_closed_trades': strategy_count,
+            'technical_closed_trades': closed-strategy_count,
+            'strategy_net_pnl_usdt': round(strategy_net, 4),
+            'strategy_net_expectancy_usdt': round(strategy_net/strategy_count, 4) if strategy_count else None,
+            'strategy_net_win_rate_pct': round(100*sum(v>0 for v in strategy_pnl)/strategy_count, 2) if strategy_count else None,
+            'strategy_net_profit_factor': round(strategy_profit/strategy_loss, 3) if strategy_loss else None,
+            'result': ('NEGATIVE_EXPECTANCY' if strategy_count and strategy_net < 0 else
+                       'POSITIVE_SAMPLE' if strategy_count and strategy_net > 0 else 'INSUFFICIENT_EVIDENCE'),
+            'flat_allocation_reconciliation_usdt': round(last_equity-paper.initial_cash_usdt-net_realized, 8)
+                if points and not open_rows and paper is not None else None,
+            'limitations': ['openai_api_costs_not_recorded', 'sample_does_not_prove_future_profitability'],
+        },
         'fees_usdt': round(fees, 4),
         'win_rate_pct': round(100*wins/closed, 2) if closed else None,
         'profit_factor': round(gross_profit/gross_loss_abs, 3) if gross_loss_abs else None,

@@ -155,6 +155,21 @@ class ExecutionIntegrityTests(unittest.TestCase):
             self.assertEqual(self.engine.cycle_symbol('BTCUSDT',self.candles,self.account)['status'],'KILLED')
             submit.assert_not_called()
 
+    def test_ai_proposal_distinguishes_closed_candle_from_sizing_reference(self):
+        with patch.object(self.engine,'_validated_rows',return_value=[]), \
+             patch.object(self.engine,'_signal',return_value=self.fs), \
+             patch.object(self.engine.lab,'_position_rows',return_value=[]), \
+             patch.object(self.engine.lab,'_reference',return_value=(Decimal('99'),None)), \
+             patch.object(self.engine.lab,'forward_quantity',return_value=(Decimal('.1'),Decimal('99'))), \
+             patch.object(self.engine.ai,'review_futures',return_value=AIReview('REJECT',1,0,'unit')) as review:
+            result=self.engine.cycle_symbol('ETHUSDT',self.candles,self.account)
+        self.assertEqual(result['status'],'AI_REJECTED')
+        proposal=review.call_args.args[0]
+        self.assertEqual(proposal['price'],100.)
+        self.assertEqual(proposal['proposed_reference_price'],99.)
+        self.assertAlmostEqual(proposal['proposed_quantity']*proposal['proposed_reference_price'],
+                               proposal['proposed_notional_usdt'])
+
     def test_notional_ceiling_is_strict_and_blocks_before_ai(self):
         with patch.object(self.engine,'_validated_rows',return_value=[]), \
              patch.object(self.engine,'_signal',return_value=self.fs), \
@@ -253,6 +268,7 @@ class ExecutionIntegrityTests(unittest.TestCase):
         info=dict(symbol='BTCUSDT',status='TRADING',isSpotTradingAllowed=True,
                   filters=[dict(filterType='LOT_SIZE',minQty='.001',maxQty='10',stepSize='.001')])
         with patch.object(engine.broker,'reconcile_pending',return_value=True), \
+             patch.object(engine.exchange,'testnet_tradeable_symbols',return_value={'BTCUSDT'}), \
              patch.object(engine.exchange,'top_usdt_symbols',return_value=['BTCUSDT']), \
              patch.object(engine,'_fetch_candles',return_value={'BTCUSDT':self.candles}), \
              patch.object(engine,'_run_futures_forward_cycle'), \

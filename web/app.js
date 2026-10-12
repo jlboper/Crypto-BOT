@@ -133,6 +133,9 @@ function renderPaperEvidence(report, equity, trades) {
   const finite=value=>Number.isFinite(Number(value))?Number(value):0;
   const optionalMoney=value=>value==null?'—':`${finite(value).toFixed(2)} USDT`;
   const metrics=[
+    ['Cierres de estrategia / técnicos',complete&&report.financial?`${report.financial.strategy_closed_trades} / ${report.financial.technical_closed_trades}`:'—'],
+    ['P&amp;L neto de estrategia',complete?optionalMoney(report.financial?.strategy_net_pnl_usdt):'—'],
+    ['Expectativa neta de estrategia / cierre',complete?optionalMoney(report.financial?.strategy_net_expectancy_usdt):'—'],
     ['Días observados',finite(values.days).toFixed(1)],
     ['Operaciones cerradas',finite(values.trades).toFixed(0)],
     ['P&amp;L realizado neto',`${finite(values.pnl).toFixed(2)} USDT`],
@@ -228,13 +231,14 @@ function renderDualEvidence(spot, futures, status={}) {
   set('futuresObservedTrades', score.strategy_closed_trades==null?'—':String(finite(score.strategy_closed_trades).toFixed(0)));
   set('futuresTechnicalTrades', score.technical_closed_trades==null?'—':String(finite(score.technical_closed_trades).toFixed(0)));
   set('futuresObservedReturn', score.account_return_pct==null?'—':pct(score.account_return_pct));
-  set('futuresObservedPnl', money(score.gross_realized_pnl_usdt||0));
-  set('futuresStrategyPnl',score.strategy_gross_pnl_usdt==null?'—':money(score.strategy_gross_pnl_usdt));
-  set('futuresObservedExpectancy',score.strategy_closed_trades>0&&score.strategy_gross_pnl_usdt!=null?money(score.strategy_gross_pnl_usdt/score.strategy_closed_trades):'—');
+  const finance=score.financial||{};
+  set('futuresObservedPnl', finance.net_realized_pnl_usdt==null?'—':money(finance.net_realized_pnl_usdt));
+  set('futuresStrategyPnl',finance.strategy_net_pnl_usdt==null?'—':money(finance.strategy_net_pnl_usdt));
+  set('futuresObservedExpectancy',finance.strategy_net_expectancy_usdt==null?'—':money(finance.strategy_net_expectancy_usdt));
   const last=(futures?.equity||[]).at(-1);
   set('futuresObservedOpenPnl',last?.unrealized_pnl==null?'—':money(last.unrealized_pnl));
   set('futuresObservedDrawdown', finite(score.sampled_max_drawdown_pct).toFixed(2)+'%');
-  set('futuresObservedQuality', (score.strategy_win_rate_pct==null?'—':finite(score.strategy_win_rate_pct).toFixed(1)+'%')+' / '+profitFactorLabel(score.strategy_profit_factor));
+  set('futuresObservedQuality', (finance.strategy_net_win_rate_pct==null?'—':finite(finance.strategy_net_win_rate_pct).toFixed(1)+'%')+' / '+profitFactorLabel(finance.strategy_net_profit_factor));
   set('futuresDirectionSplit','L '+finite(score.long_closed_trades).toFixed(0)+' ('+money(score.long_gross_pnl_usdt||0)+') · S '+finite(score.short_closed_trades).toFixed(0)+' ('+money(score.short_gross_pnl_usdt||0)+')');
   const cycles=finite(score.cycle_total),incidents=finite(score.incident_total),attempts=finite(score.failure_attempt_total);
   set('futuresErrorRate',incidents.toFixed(0)+' incidentes · '+attempts.toFixed(0)+' intentos fallidos · '+cycles.toFixed(0)+' ciclos');
@@ -317,8 +321,8 @@ function renderFuturesParity(futures) {
     const direction=String(pos.direction||'—');
     set('futuresPositionContract',String(pos.symbol||futures?.symbol||'BTCUSDT')+' · '+direction);
     set('futuresPositionQty',Number.isFinite(qty)?num(qty,6):'—');
-    set('futuresPositionPrices',num(entry,2));
-    set('futuresPositionUnrealized','Sin cotización por contrato');
+    set('futuresPositionPrices',num(entry,4)+(pos.mark_price==null?'':' / mark '+num(pos.mark_price,4)));
+    set('futuresPositionUnrealized',pos.unrealized_after_accrued_costs_usdt!=null?money(pos.unrealized_after_accrued_costs_usdt)+' tras costos acumulados':pos.unrealized_pnl_usdt!=null?money(pos.unrealized_pnl_usdt)+' bruto':'Sin cotización reciente por contrato');
     const pnlNode=document.getElementById('futuresPositionUnrealized');
     if(pnlNode)pnlNode.className='';
     set('futuresPositionProtection',num(pos.stop_price,2)+' / '+num(pos.take_profit,2));
@@ -355,7 +359,10 @@ function renderFuturesParity(futures) {
     '<article><span>Pérdida media · todos los cierres</span><strong>'+(score.average_loss_usdt==null?'—':money(score.average_loss_usdt))+'</strong></article>'+
     '<article><span>LONG bruto · incluye técnicos</span><strong>'+money(score.long_gross_pnl_usdt||0)+'</strong></article>'+
     '<article><span>SHORT bruto · incluye técnicos</span><strong>'+money(score.short_gross_pnl_usdt||0)+'</strong></article>'+
-    '<article><span>Comisiones y funding por operación</span><strong>ATRIBUCIÓN PENDIENTE</strong></article>'+
+    '<article><span>P&amp;L cerrado neto · incluye técnicos</span><strong>'+(score.financial?.net_realized_pnl_usdt==null?'PENDIENTE':money(score.financial.net_realized_pnl_usdt))+'</strong></article>'+
+    '<article><span>Comisiones · cuenta Demo</span><strong>'+(score.financial?.account_commissions_usdt==null?'—':money(score.financial.account_commissions_usdt))+'</strong></article>'+
+    '<article><span>Funding neto · cuenta Demo</span><strong>'+(score.financial?.account_funding_pnl_usdt==null?'—':money(score.financial.account_funding_pnl_usdt))+'</strong></article>'+
+    '<article><span>Conciliación de costos</span><strong>'+esc(score.financial?.status||'PENDING')+' · '+finite(score.financial?.attributed_closed_trades).toFixed(0)+' / '+finite(score.closed_trades).toFixed(0)+' cierres</strong></article>'+
     '<article><span>Incidentes</span><strong>'+finite(score.incident_total).toFixed(0)+'</strong></article>'+
     '<article><span>Intentos fallidos</span><strong>'+finite(score.failure_attempt_total).toFixed(0)+'</strong></article>'+
     '<article><span>Errores consecutivos</span><strong>'+finite(score.consecutive_errors).toFixed(0)+'</strong></article>'+
@@ -386,7 +393,7 @@ function renderFuturesParity(futures) {
       return '<article class="futures-asset-card"><h4>'+esc(symbol.replace('USDT',''))+'</h4><dl>'+
         '<div><dt>Estado</dt><dd>'+(p?esc(p.direction)+' · '+esc(String(p.leverage||1))+'x':evidence.issue?'DATOS NO DISPONIBLES':'ESPERANDO')+'</dd></div>'+
         (evidence.issue?'<div><dt>Bloqueo del último ciclo</dt><dd>'+esc(evidence.issue.reason||evidence.issue.status)+'</dd></div>':'')+
-        (p?'<div><dt>Cantidad / entrada</dt><dd>'+num(p.quantity,6)+' / '+num(p.entry_price,2)+'</dd></div><div><dt>Stop / objetivo</dt><dd>'+num(p.stop_price,2)+' / '+num(p.take_profit,2)+'</dd></div>':'')+
+        (p?'<div><dt>Cantidad / entrada</dt><dd>'+num(p.quantity,6)+' / '+num(p.entry_price,4)+'</dd></div><div><dt>Mark / P&amp;L abierto bruto</dt><dd>'+(p.mark_price==null?'—':num(p.mark_price,4))+' / '+(p.unrealized_pnl_usdt==null?'—':money(p.unrealized_pnl_usdt))+'</dd></div><div><dt>P&amp;L tras costos acumulados</dt><dd>'+(p.unrealized_after_accrued_costs_usdt==null?'—':money(p.unrealized_after_accrued_costs_usdt))+'</dd></div><div><dt>Stop / objetivo</dt><dd>'+num(p.stop_price,4)+' / '+num(p.take_profit,4)+'</dd></div>':'')+
         '<div><dt>Protección nativa</dt><dd>'+esc(nativeLabel)+'</dd></div>'+
         (native?.confirmed_at?'<div><dt>Última confirmación</dt><dd>'+esc(shortTime(native.confirmed_at))+'</dd></div>':'')+
         (native?.error?'<div><dt>Detalle</dt><dd>'+esc(native.error)+'</dd></div>':'')+
@@ -422,6 +429,18 @@ function renderFuturesParity(futures) {
   const body=document.getElementById('futuresTradeRows');
   const rows=(futures?.trades||[]).slice(0,12);
   if(body)body.innerHTML=rows.length?rows.map(t=>'<tr><td><strong>'+esc(t.symbol)+' '+esc(t.direction)+' · '+esc(String(t.leverage||1))+'x</strong></td><td>'+num(t.quantity,6)+'</td><td>'+num(t.entry_price,2)+'</td><td>'+num(t.exit_price,2)+'</td><td class="'+(Number(t.gross_pnl)>=0?'positive':'negative')+'">'+(Number(t.gross_pnl)>=0?'+':'')+num(t.gross_pnl,6)+'</td><td>'+esc(t.exit_reason||'—')+'</td></tr>').join(''):emptyRow(6,'Aún no hay cierres Futures.');
+}
+
+function spotDiagnostic(health) {
+  const error=health?.last_error;
+  const recovery=health?.last_recovery;
+  const active=Number(health?.consecutive_errors||0)>0;
+  const recovered=!active&&Number.isFinite(new Date(recovery?.at).getTime())
+    &&(!error||new Date(recovery.at).getTime()>new Date(error.at).getTime());
+  const label=recovered?'Sin errores activos · recuperado '+shortTime(recovery.at)
+    :error?.code?'['+String(error.code)+'] '+String(error.label||'diagnóstico disponible')+' · '+shortTime(error.at)
+    :active?'Errores activos; diagnóstico no disponible':'Sin diagnóstico persistente';
+  return {label,recovered};
 }
 
 function renderObservationHealth(spotHealth, futuresHealth, futures, status={}) {
@@ -462,17 +481,12 @@ function renderObservationHealth(spotHealth, futuresHealth, futures, status={}) 
   set('spotCycleGap',formatGap(spotHealth?.average_cycle_gap_seconds));
   set('spotDailyErrors',spotHealth?String(spotHealth.errors||0)+' errores · '+String(spotHealth.warnings||0)+' avisos':'—');
   set('spotConsecutiveErrors',spotHealth?String(spotHealth.consecutive_errors||0)+' activos':'—');
-  const lastSpotError=spotHealth?.last_error;
-  const lastSpotRecovery=spotHealth?.last_recovery;
-  const lastSpotLabel=lastSpotError?.code
-    ? '['+String(lastSpotError.code)+'] '+String(lastSpotError.label||'diagnóstico disponible')
-      +(Number(spotHealth?.consecutive_errors||0)===0&&lastSpotRecovery?.at?' · recuperado':'')
-    : 'Sin diagnóstico persistente';
-  set('spotLastError',lastSpotLabel);
+  const diagnosis=spotDiagnostic(spotHealth);
+  set('spotLastError',diagnosis.label);
   set('spotDailyAi',spotHealth?String(spotHealth.ai_reviews||0)+' revisiones · '+String(spotHealth.ai_rejects||0)+' rechazos':'—');
   set('spotDailyTrading',spotHealth?String(spotHealth.closed_trades||0)+' · '+money(spotHealth.realized_pnl_usdt||0):'—');
   set('spotIntegrity',integrityText(spotHealth?.integrity));
-  const spotStable=spotHealth?.last_error&&Number(spotHealth?.consecutive_errors||0)===0
+  const spotStable=diagnosis.recovered
     ? 'El último error quedó recuperado; no hay errores consecutivos activos.'
     : 'Sin incidencias operativas relevantes en la ventana de 24 h.';
   set('spotHealthReason',reasonText(spotHealth,spotStable));
@@ -654,7 +668,7 @@ function renderSpotCycle(status){
     PAUSED:'entradas pausadas',LOSS_LIMIT:'límite diario o semanal de pérdida',EXCHANGE_RULES_UNAVAILABLE:'reglas de Binance no disponibles',
     EXCHANGE_FILTER_PREFLIGHT:'cantidad o mínimos incompatibles con Binance',POSITION_SIZE_LIMIT:'tope de tamaño de posición',PER_TRADE_RISK_LIMIT:'tope de riesgo por operación',
     LOCAL_ALLOCATION_LIMIT:'asignación insuficiente',LOCAL_CASH_LIMIT:'efectivo insuficiente',PRICE_MOVED_OUTSIDE_SIGNAL_RANGE:'precio cambió fuera del rango permitido',
-    EXCHANGE_FILTER_REJECTED:'Binance rechazó los filtros de cantidad',TESTNET_BALANCE_LIMIT:'saldo USDT insuficiente en Testnet',CYCLE_ERROR:'fallo operativo del ciclo'};
+    EXCHANGE_FILTER_REJECTED:'Binance rechazó los filtros de cantidad',TESTNET_BALANCE_LIMIT:'saldo USDT insuficiente en Testnet',CYCLE_ERROR:'fallo operativo del ciclo',NATIVE_PROTECTION_BLOCKED:'protección nativa rechazada; salidas vigiladas, entradas bloqueadas'};
   const errors={ORDER_RECONCILIATION_PENDING:'orden pendiente de conciliación',BTC_REGIME_UNAVAILABLE:'datos BTC no disponibles',
     FRESH_PRICES_UNAVAILABLE:'cotizaciones recientes no disponibles',INVALID_SPOT_QUOTE:'cotización inválida',HELD_QUOTE_MISSING:'falta precio de una posición',
     HELD_QUOTE_INVALID:'precio inválido de una posición',UNEXPECTED_VALUE_ERROR:'validación interna inesperada',TESTNET_EXECUTION_ERROR:'fallo de ejecución o conciliación Testnet',UNEXPECTED_ERROR:'fallo operativo inesperado'};

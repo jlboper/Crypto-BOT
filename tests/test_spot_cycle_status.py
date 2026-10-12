@@ -47,8 +47,8 @@ class SpotCycleStatusTests(unittest.TestCase):
         self.assertEqual(self.engine.cycle()['status'], 'ok')
         report = self.report()
         self.assertEqual(report['state'], 'NO_OPPORTUNITIES')
-        self.assertEqual((report['universe'],report['evaluated'],report['signals'],report['reviews']), (1,2,0,0))
-        self.assertEqual(report['reasons'], {'BELOW_SCORE': 2})
+        self.assertEqual((report['universe'],report['evaluated'],report['signals'],report['reviews']), (1,1,0,0))
+        self.assertEqual(report['reasons'], {'BELOW_SCORE': 1})
         self.review.assert_not_called()
         self.assertFalse(self.engine.db.recent('trades'))
 
@@ -128,6 +128,47 @@ class SpotCycleStatusTests(unittest.TestCase):
         self.engine.cycle()
         self.assertEqual(self.report()['state'], 'NO_OPPORTUNITIES')
         self.assertEqual(self.engine.db.setting('consecutive_errors'), '0')
+
+    def test_testnet_transport_error_is_not_generic_value_error(self):
+        from trader.testnet_transport import TestnetExecutionError
+        failure = self.engine._spot_failure_projection(TestnetExecutionError('private diagnostic', code=-1013))
+        self.assertEqual(failure['code'], 'TESTNET_EXECUTION_ERROR')
+        self.assertNotIn('private diagnostic', json.dumps(failure))
+
+    def test_errors_preserve_manual_pause_and_do_not_repeat_activation(self):
+        marker = self.engine.config.bot.kill_switch_path
+        marker.write_text('manual kill switch\n')
+        self.engine._errors = 3
+        with patch.object(self.engine.exchange, 'top_usdt_symbols', side_effect=ValueError('synthetic')):
+            with self.assertRaises(ValueError):
+                self.engine.cycle()
+        self.assertEqual(marker.read_text(), 'manual kill switch\n')
+        self.assertFalse(any(row['level'] == 'CRITICAL' for row in self.engine.db.recent('events', 10)))
+
+    def test_rejected_protection_updates_equity_without_reviewing_entries(self):
+        from unittest.mock import Mock
+        self.engine.config = replace(self.engine.config, bot=replace(self.engine.config.bot, mode='testnet'))
+        self.engine.broker.native = Mock()
+        self.engine.broker.native.records.return_value = {'TESTUSDT': {'state': 'REJECTED'}}
+        self.engine.broker.reconcile_pending = Mock(return_value=True)
+        self.engine.exchange.testnet_tradeable_symbols = Mock(return_value={'TESTUSDT','BTCUSDT'})
+        result = self.engine.cycle()
+        self.assertEqual(result['status'], 'protection_blocked')
+        self.assertEqual(self.report()['state'], 'ATTENTION')
+        self.assertEqual(self.report()['reasons'], {'NATIVE_PROTECTION_BLOCKED': 1})
+        self.review.assert_not_called()
+        self.assertTrue(self.engine.db.recent('equity', 1))
+
+    def test_futures_cycle_runs_even_when_spot_reconciliation_fails(self):
+        from unittest.mock import Mock
+        self.engine.config = replace(self.engine.config, bot=replace(self.engine.config.bot, mode='testnet'))
+        self.engine.futures_forward = Mock()
+        self.engine.broker.reconcile_pending = Mock(return_value=False)
+        with patch.object(self.engine, '_run_futures_forward_cycle') as forward:
+            with self.assertRaisesRegex(RuntimeError, 'awaiting reconciliation'):
+                self.engine.cycle()
+        forward.assert_called_once_with({})
+        self.review.assert_not_called()
 
     def test_guardrail_is_limited_without_fatal_error_or_order(self):
         self.review.return_value = AIReview('ALLOW',1,1,'unit')

@@ -16,6 +16,11 @@ class FuturesTestnetLedger:
             db.execute("PRAGMA journal_mode=WAL")
             db.executescript("""
             CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY,value TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS forward_income(
+                income_type TEXT NOT NULL,tran_id TEXT NOT NULL,symbol TEXT NOT NULL,
+                asset TEXT NOT NULL,income REAL NOT NULL,time_ms INTEGER NOT NULL,
+                PRIMARY KEY(income_type,tran_id));
+            CREATE INDEX IF NOT EXISTS forward_income_time ON forward_income(time_ms);
             CREATE TABLE IF NOT EXISTS forward_decisions(
                 symbol TEXT NOT NULL,candle_close_time INTEGER NOT NULL,
                 PRIMARY KEY(symbol,candle_close_time));
@@ -198,6 +203,12 @@ class FuturesTestnetLedger:
             return db.execute("INSERT OR IGNORE INTO forward_decisions VALUES(?,?)",
                               (symbol,int(candle_close_time))).rowcount == 1
 
+    def release_unsubmitted_decision(self, symbol: str, candle_close_time: int) -> None:
+        """Only the pre-AI, pre-order read failure path may release a candle."""
+        with self._connect() as db:
+            db.execute('DELETE FROM forward_decisions WHERE symbol=? AND candle_close_time=?',
+                       (symbol,int(candle_close_time)))
+
     def claim_ai_budget(self, maximum: int) -> bool:
         today = datetime.now(UTC).date().isoformat()
         with self._connect() as db:
@@ -280,9 +291,11 @@ class FuturesTestnetLedger:
         return rows
 
     def forward_scorecard(self) -> dict:
+        from .futures_finance import financial_scorecard
         with self._connect() as db:
             trades=[dict(r) for r in db.execute("SELECT symbol,direction,gross_pnl,exit_reason,opened_at,closed_at FROM forward_trades ORDER BY id")]
             equity=[dict(r) for r in db.execute("SELECT wallet_balance,available_balance,unrealized_pnl,created_at FROM forward_equity ORDER BY id")]
+            financial = financial_scorecard(db, self.setting('forward_income_sync'))
         values=[float(r["wallet_balance"])+float(r["unrealized_pnl"]) for r in equity]
         peak=0.0; max_dd=0.0
         for value in values:
@@ -310,7 +323,7 @@ class FuturesTestnetLedger:
                 by_symbol[symbol][direction]={"trades":len(dr),"gross_pnl_usdt":sum(float(r["gross_pnl"]) for r in dr),
                     "win_rate_pct":100.0*sum(float(r["gross_pnl"])>0 for r in dr)/len(dr) if dr else None}
         return {"status":"REVIEW_REQUIRED" if observed>=30 and len(strategy)>=30 else "INSUFFICIENT_EVIDENCE",
-            "observed_days":observed,"equity_points":len(equity),"closed_trades":len(trades),
+            "observed_days":observed,"equity_points":len(equity),"closed_trades":len(trades),"financial":financial,
             "technical_closed_trades":len(technical),"strategy_closed_trades":len(strategy),
             "strategy_gross_pnl_usdt":sum(strategy_pnl),
             "strategy_win_rate_pct":100.0*len(strategy_wins)/len(strategy) if strategy else None,
@@ -338,6 +351,7 @@ class FuturesTestnetLedger:
         with self._connect() as db:
             first=db.execute("SELECT created_at FROM forward_equity ORDER BY id LIMIT 1").fetchone()
             recent=[dict(r) for r in db.execute("SELECT created_at FROM forward_equity WHERE created_at>=? ORDER BY id DESC LIMIT 200",(since_iso,))]
+            sample_count=int(db.execute("SELECT COUNT(*) FROM forward_equity WHERE created_at>=?",(since_iso,)).fetchone()[0])
             closed=db.execute("SELECT COUNT(*) total,COALESCE(SUM(gross_pnl),0) pnl FROM forward_trades WHERE closed_at>=?",(since_iso,)).fetchone()
             position_count=int(db.execute("SELECT COUNT(*) n FROM forward_position").fetchone()["n"])
         def parse(v):
@@ -347,7 +361,7 @@ class FuturesTestnetLedger:
         period_start=max(datetime.fromtimestamp(now.timestamp()-86400,UTC),first_at) if first_at else now
         elapsed=max(0.0,(now-period_start).total_seconds()); expected=max(1,int(elapsed/cycle_seconds)+1) if first_at else 0
         times=sorted(v for v in (parse(r["created_at"]) for r in recent) if v); gaps=[(b-a).total_seconds() for a,b in zip(times,times[1:])]
-        samples=len(recent); coverage=min(100.0,100.0*samples/expected) if expected else 0.0
+        samples=sample_count; coverage=min(100.0,100.0*samples/expected) if expected else 0.0
         last_age=max(0.0,(now-times[-1]).total_seconds()) if times else None
         stale_cycle=last_age is None or last_age>cycle_seconds*2
         pending=self.setting("forward_pending_order"); consecutive=int(self.setting("forward_consecutive_errors") or 0)
@@ -367,7 +381,7 @@ class FuturesTestnetLedger:
         if evidence_gap: reasons.append("evidence_gap_present")
         healthy_integrity=all(integrity.values())
         state=("STARTING" if starting else
-               "ATTENTION" if coverage<70 or consecutive>=3 or not healthy_integrity or stale_cycle else
+               "ATTENTION" if consecutive>=3 or not healthy_integrity or stale_cycle else
                "WATCH" if coverage<90 or consecutive>0 else
                "OK")
         return {"window_hours":24,"state":state,"samples":samples,"expected_samples":expected,"cycle_coverage_pct":round(coverage,1),
@@ -390,6 +404,20 @@ class FuturesTestnetLedger:
             signals=[dict(r) for r in db.execute("SELECT * FROM forward_signals ORDER BY id DESC LIMIT 60")]
             equity=[dict(r) for r in db.execute("SELECT * FROM forward_equity ORDER BY id DESC LIMIT 120")]
         score=self.forward_scorecard()
+        from .futures_finance import milliseconds
+        metrics=self.setting('forward_position_metrics') or {}
+        try:
+            fresh=0 <= int(datetime.now(UTC).timestamp()*1000)-milliseconds(metrics.get('at')) <= 600000
+        except (TypeError,ValueError):
+            fresh=False
+        costs={r['symbol']:r for r in score['financial']['open_costs']}
+        for position in positions:
+            value=metrics.get('positions',{}).get(position['symbol'],{})
+            if fresh and value.get('opened_at')==position['opened_at'] and value.get('quantity')==position['quantity']:
+                position.update(mark_price=value['mark_price'],unrealized_pnl_usdt=value['unrealized_pnl_usdt'],priced_at=metrics['at'])
+                cost=costs.get(position['symbol'],{})
+                if cost.get('fees_usdt') is not None and cost.get('funding_pnl_usdt') is not None:
+                    position['unrealized_after_accrued_costs_usdt']=value['unrealized_pnl_usdt']-cost['fees_usdt']+cost['funding_pnl_usdt']
         return {"native_protection":projection(self.setting(FUTURES_KEY) or {}),
             "native_protection_started_at":self.setting("native_protection_started_at"),
             "position":positions[0] if len(positions)==1 else None,"positions":positions,"trades":trades,

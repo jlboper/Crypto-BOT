@@ -5,6 +5,7 @@ import os
 import unittest
 import urllib.error
 import urllib.request
+from datetime import UTC, datetime, timedelta
 from dataclasses import replace
 from http.server import ThreadingHTTPServer
 from pathlib import Path
@@ -20,6 +21,49 @@ from trader.update_supervisor import ProcessRuntime
 
 
 class DashboardTests(unittest.TestCase):
+    def test_local_status_exposes_recovery_and_new_errors_without_erasing_history(self):
+        from trader.futures_testnet_ledger import FuturesTestnetLedger
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder)
+            config=load_config()
+            config=replace(config,bot=replace(config.bot,database_path=root/'spot.db',kill_switch_path=root/'spot-kill'),
+                futures_testnet=replace(config.futures_testnet,database_path=root/'futures.db',kill_switch_path=root/'futures-kill'),
+                research=replace(config.research,report_path=root/'research.json'))
+            db=Database(config.bot.database_path)
+            db.record_equity(1000,1000,0)
+            db.record_market_snapshot({'BTCUSDT':100})
+            now=datetime.now(UTC)
+            original=json.dumps({'code':'UNEXPECTED_VALUE_ERROR','at':(now-timedelta(hours=2)).isoformat()})
+            db.set_setting('spot_last_error',original)
+            db.set_setting('spot_last_recovery',json.dumps({'at':(now-timedelta(hours=1)).isoformat(),'recovered_errors':1}))
+            db.set_setting('consecutive_errors','0')
+            ledger=FuturesTestnetLedger(config.futures_testnet.database_path)
+            ledger.set_setting('forward_last_cycle_diagnostic',{'state':'WAITING_CANDLE','at':now.isoformat()})
+            dashboard=DashboardServer(config,db)
+            server=ThreadingHTTPServer(('127.0.0.1',0),dashboard._handler())
+            thread=threading.Thread(target=server.serve_forever,daemon=True)
+            thread.start()
+            try:
+                base=f'http://127.0.0.1:{server.server_port}'
+                with urllib.request.urlopen(base+'/api/status') as response:
+                    health=json.load(response)['observation_health']
+                    self.assertEqual(response.headers['Cache-Control'],'no-store')
+                    self.assertIsNone(health['last_error'])
+                    self.assertIsNotNone(health['last_recovery'])
+                self.assertEqual(db.setting('spot_last_error'),original)
+                db.set_setting('spot_last_error',json.dumps({'code':'NEW_FAILURE','at':datetime.now(UTC).isoformat()}))
+                db.set_setting('consecutive_errors','1')
+                with urllib.request.urlopen(base+'/api/status') as response:
+                    health=json.load(response)['observation_health']
+                    self.assertEqual(health['last_error']['code'],'NEW_FAILURE')
+                    self.assertEqual(health['consecutive_errors'],1)
+                with urllib.request.urlopen(base+'/api/futures-forward') as response:
+                    payload=json.load(response)
+                    self.assertIn('observation_health',payload)
+                    self.assertEqual(payload['cycle_diagnostic']['state'],'WAITING_CANDLE')
+            finally:
+                server.shutdown();server.server_close();thread.join(timeout=2)
+
     def test_local_paper_close_uses_fresh_quote_and_blocks_reentry(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
