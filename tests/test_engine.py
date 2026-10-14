@@ -154,6 +154,21 @@ class EngineTests(unittest.TestCase):
             self.assertEqual(projection['code'], 'UNEXPECTED_VALUE_ERROR')
             self.assertNotIn('secret raw detail', projection['label'])
 
+    def test_filter_failure_after_filled_buy_is_not_misreported_as_skipped(self):
+        from trader.testnet_transport import TestnetExecutionError
+        with tempfile.TemporaryDirectory() as folder:
+            config=load_config()
+            config=replace(config,bot=replace(config.bot,mode='testnet',database_path=Path(folder)/'s.db',
+                                             kill_switch_path=Path(folder)/'KILL'))
+            engine=TradingEngine(config)
+            signal=Signal('BTCUSDT','BUY',80,100,95,110,2,60,101,99,1.3,'synthetic','now')
+            error=TestnetExecutionError('Spot native protection outside percent price filter')
+            with patch.object(engine.broker,'buy',side_effect=error):
+                self.assertFalse(engine._buy_or_skip_guardrail(signal,.1,'pre-write filter'))
+                engine.db.upsert_position(Position('BTCUSDT',.1,100,95,110,100,2,0,'now'))
+                with self.assertRaises(TestnetExecutionError):
+                    engine._buy_or_skip_guardrail(signal,.1,'post-fill protection failure')
+
 
 
 if __name__ == "__main__":

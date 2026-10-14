@@ -228,7 +228,7 @@ function validateSnapshot(snapshot) {
         &&Array.isArray(f.equity)&&f.equity.length<=120
         &&Number.isInteger(f.closed_trades)&&f.closed_trades>=0
         &&typeof f.gross_pnl==='number'&&Number.isFinite(f.gross_pnl)
-        &&JSON.stringify(f).length<80000,'Invalid Futures forward status');
+        &&JSON.stringify(f).length<120000,'Invalid Futures forward status');
     }
     if(d.paper_scorecard!==undefined){
       const s=d.paper_scorecard;

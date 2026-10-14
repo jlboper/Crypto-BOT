@@ -152,6 +152,26 @@ class FuturesForwardTests(unittest.TestCase):
             preflight.assert_not_called()
         self.assertTrue(self.engine.killed())
 
+    def test_transient_signed_read_pause_requires_full_successful_audit(self):
+        self.engine._halt('Futures Testnet response uncertain; reconcile before another write')
+        with patch.object(self.engine,'_recover_journal',return_value=None), \
+             patch.object(self.engine,'_preflight_flat_symbols',return_value={'BTCUSDT':{'status':'BLOCKED'}}), \
+             patch.object(self.engine,'_record_account') as account:
+            self.assertFalse(self.engine._attempt_auto_recovery())
+        account.assert_not_called();self.assertTrue(self.engine.killed())
+        with patch.object(self.engine,'_recover_journal',return_value=None), \
+             patch.object(self.engine,'_preflight_flat_symbols',return_value={'BTCUSDT':{'status':'READY'}}), \
+             patch.object(self.engine,'_record_account') as account:
+            self.assertTrue(self.engine._attempt_auto_recovery())
+        account.assert_called_once();self.assertFalse(self.engine.killed())
+
+    def test_uncertain_write_journal_prevents_transient_pause_recovery(self):
+        self.engine._halt('Futures Testnet response uncertain; reconcile before another write')
+        with patch.object(self.engine,'_recover_journal',return_value={'resolved':False}), \
+             patch.object(self.engine,'_preflight_flat_symbols') as preflight:
+            self.assertFalse(self.engine._attempt_auto_recovery())
+        preflight.assert_not_called();self.assertTrue(self.engine.killed())
+
     def test_timestamp_pause_reconciles_open_position_and_protection_before_resume(self):
         local = {'symbol': 'SOLUSDT', 'direction': 'LONG', 'leverage': 1,
                  'quantity': .1, 'entry_price': 100., 'stop_price': 95.,

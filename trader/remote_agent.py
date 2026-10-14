@@ -152,7 +152,10 @@ class RemoteAgent:
             reason = self._known_rejection(error)
             if reason not in {'Oversized PAPER scorecard', 'Unknown dashboard field',
                               'Dashboard rows exceeded', 'Invalid research report',
-                              'Invalid dashboard', 'Invalid Testnet status'} or 'dashboard' not in payload['snapshot']:
+                              'Invalid dashboard', 'Invalid Testnet status', 'Invalid Futures forward status',
+                              'Invalid Futures pause diagnostics', 'Invalid Spot cycle diagnostic',
+                              'Invalid Futures cycle diagnostic', 'Invalid Futures latest signals',
+                              'Invalid financial scorecard'} or 'dashboard' not in payload['snapshot']:
                 self.last_error = f'HTTPError:{error.code}' + (f':{reason}' if reason else '')
                 raise
             # Preserve a working heartbeat and update jobs when an optional
@@ -222,6 +225,9 @@ class RemoteAgent:
         allowed = {'Unknown dashboard field', 'Oversized PAPER scorecard',
                    'Dashboard rows exceeded', 'Invalid research report',
                    'Invalid dashboard', 'Invalid Testnet status',
+                   'Invalid Futures forward status', 'Invalid Futures pause diagnostics',
+                   'Invalid Spot cycle diagnostic', 'Invalid Futures cycle diagnostic',
+                   'Invalid Futures latest signals', 'Invalid financial scorecard',
                    'Invalid balance', 'Invalid position', 'Invalid position value',
                    'Invalid bot release', 'Invalid restore offer',
                    'Invalid model', 'Invalid cycle time', 'Invalid acknowledgements',

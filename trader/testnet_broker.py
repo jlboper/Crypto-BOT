@@ -221,7 +221,7 @@ class BinanceTestnetBroker(PaperBroker):
                                    stop_price=reference * stop_ratio,
                                    take_profit=reference * take_ratio)
         self._validate_buy(execution_signal, quantity)
-        self.native.preflight(info, execution_signal.stop_price, execution_signal.take_profit)
+        self.native.preflight_with_client(client, info, execution_signal.stop_price, execution_signal.take_profit)
         plan = plan_order(signal.symbol, "BUY", reference, info, quantity=quantity)
         if plan.status != "READY_FOR_MANUAL_REVIEW":
             raise TestnetExecutionError("Testnet filters reject engine quantity")
@@ -469,6 +469,6 @@ class BinanceTestnetBroker(PaperBroker):
             # Keep local exits and valuation running; buy() still requires
             # ensure_all() and blocks entries until protection is repaired.
             record = self.native.records().get(updated.symbol, {})
-            if record.get("state") != "REJECTED":
+            if record.get("state") != "REJECTED" or self.native.retryable_filter_rejection(record):
                 self.native.ensure(updated)
         return updated, reason

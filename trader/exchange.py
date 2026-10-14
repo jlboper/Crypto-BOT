@@ -248,3 +248,36 @@ class BinanceClient:
             return price
         finally:
             self.base_url = original
+
+    def testnet_percent_price_references(self, symbol: str, rules: list[dict]) -> dict[int, str]:
+        """Read the matching-engine reference, then the exact VWAP window if null.
+
+        Last ticker price is not a substitute for an exchange percentage band.
+        All reads stay on Testnet; unavailable evidence blocks new protection.
+        """
+        original = self.base_url
+        self.base_url = "https://testnet.binance.vision"
+        try:
+            windows = {int(rule["avgPriceMins"]) for rule in rules}
+            if any(window < 0 for window in windows): raise ExchangeError("Invalid Testnet price window")
+            reference = self._request("GET", "/api/v3/referencePrice", {"symbol": symbol})
+            if not isinstance(reference, dict) or reference.get("symbol") != symbol:
+                raise ExchangeError("Invalid Testnet percentage reference")
+            value = reference.get("referencePrice")
+            if value is not None:
+                if not math.isfinite(float(value)) or float(value) <= 0:
+                    raise ExchangeError("Invalid Testnet percentage reference")
+                return {window: str(value) for window in windows}
+            values = {}
+            if windows - {0}:
+                average = self._request("GET", "/api/v3/avgPrice", {"symbol": symbol})
+                if not isinstance(average, dict) or set(windows - {0}) != {average.get("mins")}:
+                    raise ExchangeError("Testnet percentage average window mismatch")
+                value = average.get("price")
+                if not math.isfinite(float(value)) or float(value) <= 0:
+                    raise ExchangeError("Invalid Testnet percentage average")
+                values.update({window: str(value) for window in windows if window})
+            if 0 in windows: values[0] = str(self.testnet_reference_price(symbol))
+            return values
+        finally:
+            self.base_url = original
