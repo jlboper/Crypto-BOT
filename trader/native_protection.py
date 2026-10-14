@@ -59,7 +59,8 @@ def projection(records):
         "status": row.get("status", "UNCONFIRMED"),
         "stop_price": row.get("stop_price"), "take_profit": row.get("take_profit"),
         "quantity": row.get("quantity", row.get("position", {}).get("quantity")),
-        "unprotected_quantity": max(0.0, float(row.get("position", {}).get("quantity", 0)) - float(row.get("quantity", row.get("position", {}).get("quantity", 0)))),
+        "unprotected_quantity": max(0.0, float(row.get("position", {}).get("quantity", 0)) - (
+            float(row.get("quantity", row.get("position", {}).get("quantity", 0))) if row.get("status") == "ARMED" else 0.0)),
         "confirmed_at": row.get("confirmed_at"),
         "error": row.get("error"),
     } for symbol, row in records.items()}}
@@ -262,10 +263,37 @@ class SpotNativeProtection:
         self.db.set_setting(SPOT_KEY, json.dumps(records, separators=(",", ":")))
 
     @staticmethod
-    def preflight(info, stop, take):
+    def preflight(info, stop, take, *, references=None):
         if info.get("ocoAllowed") is not True or not {"STOP_LOSS", "TAKE_PROFIT"}.issubset(info.get("orderTypes", [])):
             raise TestnetExecutionError("Spot Testnet native OCO market protection unavailable")
-        return price_tick(info, stop), price_tick(info, take)
+        prices = price_tick(info, stop), price_tick(info, take)
+        for rule in info.get("filters", []):
+            kind = rule.get("filterType")
+            if kind not in {"PERCENT_PRICE", "PERCENT_PRICE_BY_SIDE"}: continue
+            try:
+                reference = decimal((references or {})[int(rule["avgPriceMins"])])
+                low = decimal(rule["askMultiplierDown" if kind == "PERCENT_PRICE_BY_SIDE" else "multiplierDown"])
+                high = decimal(rule["askMultiplierUp" if kind == "PERCENT_PRICE_BY_SIDE" else "multiplierUp"])
+                if not 0 < low <= high or reference <= 0: raise ValueError("Invalid band")
+            except (KeyError, TypeError, ValueError):
+                raise TestnetExecutionError("Spot native protection price reference unavailable") from None
+            if any(not reference * low <= decimal(price) <= reference * high for price in prices):
+                raise TestnetExecutionError("Spot native protection outside percent price filter")
+        return prices
+
+    @classmethod
+    def preflight_with_client(cls, client, info, stop, take):
+        rules = [r for r in info.get("filters", []) if r.get("filterType") in {"PERCENT_PRICE", "PERCENT_PRICE_BY_SIDE"}]
+        references = client.testnet_percent_price_references(info["symbol"], rules) if rules else None
+        return cls.preflight(info, stop, take, references=references)
+
+    @staticmethod
+    def retryable_filter_rejection(record):
+        # A definite rejection proves this pair was never installed. Ambiguous
+        # writes must keep their identity and can only be reconciled by query.
+        return (record.get("state") == "REJECTED" and
+                int(record.get("filter_rearm_attempts", 0)) < 3 and
+                "Binance -1013: Filter failure: PERCENT_PRICE" in record.get("error", ""))
 
     def _query(self, record):
         response = self.request("GET", "/api/v3/orderList", {"origClientOrderId": record["id"]})
@@ -340,19 +368,27 @@ class SpotNativeProtection:
         from .testnet import plan_order
         client = BinanceClient(timeout=10)
         records = self.records(); record = records.get(symbol)
-        if record and record["state"] == "REJECTED":
+        replace_rejected = record and self.retryable_filter_rejection(record)
+        if record and record["state"] == "REJECTED" and not replace_rejected:
             raise TestnetExecutionError("Spot native OCO was rejected; local exits remain available, new entries blocked")
         if record and record["status"] == "ARMED" and record["position"]["stop_price"] == position.stop_price:
             return
         # Trailing updates replace the pair only after confirmed cancellation.
         if record and record["status"] == "ARMED":
+            # Keep the confirmed old stop if a proposed trailing pair cannot
+            # pass the current exchange band; never cancel first and discover
+            # an unprotectable replacement afterwards.
+            info = client.testnet_symbol_info(symbol)
+            self.preflight_with_client(client, info, position.stop_price, position.take_profit)
             self.reconcile(symbol, cancel=True)
             position = self.db.position(symbol)
             if position is None: return
             records = self.records(); record = records.get(symbol)
-        if record is None:
+        if record is None or replace_rejected:
+            if replace_rejected and not same_position(position.to_dict(), record["position"]):
+                raise TestnetExecutionError("Spot native rejected journal position mismatch")
             info = client.testnet_symbol_info(symbol)
-            stop, take = self.preflight(info, position.stop_price, position.take_profit)
+            stop, take = self.preflight_with_client(client, info, position.stop_price, position.take_profit)
             reference = client.testnet_reference_price(symbol)
             if not decimal(stop) < decimal(reference) < decimal(take):
                 raise TestnetExecutionError("Spot native trigger range already crossed")
@@ -361,8 +397,10 @@ class SpotNativeProtection:
                 raise TestnetExecutionError("Spot native protection quantity below exchange filters (dust)")
             if self.broker._account_balance(str(info.get("baseAsset", ""))) < decimal(plan.quantity):
                 raise TestnetExecutionError("Insufficient free Spot balance for native protection")
+            rearm_attempts = int(record.get("filter_rearm_attempts", 0)) + 1 if replace_rejected else 0
             record = {"id": "cait-oco-" + secrets.token_hex(12), "position": position.to_dict(),
                 "quantity": plan.quantity, "base_asset": str(info["baseAsset"]), "stop_price": stop, "take_profit": take,
+                "filter_rearm_attempts": rearm_attempts,
                 "status": "INSTALLING", "state": "UNSENT", "legs": [
                     {"id": "cait-n-" + secrets.token_hex(12), "type": kind, "price": price, "reason": reason}
                     for kind, price, reason in (("TAKE_PROFIT", take, "take profit"), ("STOP_LOSS", stop, "protective stop"))]}

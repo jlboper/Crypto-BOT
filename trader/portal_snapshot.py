@@ -22,6 +22,29 @@ def public_text(value):
     return value[:1000]
 
 
+def bounded_futures_projection(futures, maximum=72000):
+    """Bound the remote view, preserving all live safety evidence and totals.
+
+    Financial ledgers are untouched. Only optional historical rows are thinned;
+    chronological equity keeps its newest point, newest-first tables keep theirs.
+    The deployed validator also accepts older exporters up to 120,000 characters.
+    """
+    histories = ("signals", "equity", "trades", "shadow_scorecard")
+    # Match the exporter's ASCII-safe wire encoding (including escaped Unicode).
+    def size(): return len(json.dumps(futures, ensure_ascii=True, separators=(",", ":")))
+    while size() >= maximum:
+        candidates = [key for key in histories if isinstance(futures.get(key), list) and len(futures[key]) > 1]
+        if not candidates: raise ValueError("Futures safety evidence exceeds remote budget")
+        key = max(candidates, key=lambda key: len(json.dumps(futures[key], ensure_ascii=True)))
+        rows = futures[key]
+        # Equity is oldest first; retain both endpoints and reduce interior rows.
+        if key == "equity" and len(rows) > 2:
+            futures[key] = [rows[0], *rows[1:-1:2], rows[-1]]
+        elif key == "equity": futures[key] = rows[-1:]
+        else: futures[key] = rows[:max(1, len(rows) // 2)]
+    return futures
+
+
 
 def _timestamp(value):
     try:

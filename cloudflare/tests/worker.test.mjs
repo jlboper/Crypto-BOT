@@ -4,6 +4,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { readFileSync } from 'node:fs';
 import { pbkdf2Sync } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import worker, { sha256 } from '../src/worker.mjs';
 
 // Real SQLite executes the same parameterized SQL; workerd/D1 is tested separately.
@@ -32,6 +33,31 @@ const origin='https://paper.example.workers.dev';
 const owner='A'.repeat(43), device='B'.repeat(43);
 const proof=(password,salt)=>pbkdf2Sync(password,salt,600000,32,'sha256').toString('hex');
 const snapshot=()=>({mode:'PAPER',equity:1000,cash:900,exposure:100,positions:[{symbol:'BTCUSDT',quantity:1,entry_price:100,stop_price:95,take_profit:110}],killed:false,last_cycle_at:new Date().toISOString(),ai_model:'gpt-5.6-luna',installed_version:'0.8.5',update_state:'signed_rollout'});
+
+test('legacy Futures history above 80k keeps device sync and remains bounded',async t=>{
+  const f=await fixture(t);
+  const s={...snapshot(),dashboard:{status:{mode:'PAPER'},positions:[],equity:[],trades:[],reviews:[],events:[],research:{assets:[]},
+    futures_forward:{enabled:true,killed:false,symbols:['BTCUSDT'],automatic_leverage:1,
+      positions:[],position:null,trades:[],equity:[],closed_trades:0,gross_pnl:0,
+      signals:[{diagnostic:'x'.repeat(81000)}]}}};
+  assert.ok(JSON.stringify(s.dashboard.futures_forward).length>80000);
+  assert.equal((await f.sync({snapshot:s,acks:[]})).status,200);
+  s.dashboard.futures_forward.signals[0].diagnostic='x'.repeat(120000);
+  assert.equal((await f.sync({snapshot:s,acks:[]})).status,400);
+});
+
+test('actual Python exporter keeps ten-position history under the Worker budget',async t=>{
+  const f=await fixture(t);
+  const dashboard=JSON.parse(execFileSync(process.env.PYTHON||'python',[
+    fileURLToPath(new URL('../../tests/emit_futures_budget_fixture.py',import.meta.url))],
+    {encoding:'utf8'}));
+  const s={...snapshot(),mode:'TESTNET',dashboard};
+  assert.equal(dashboard.futures_forward.positions.length,10);
+  assert.ok(Buffer.byteLength(JSON.stringify(dashboard.futures_forward))<72000);
+  assert.equal(dashboard.futures_forward.closed_trades,500);
+  const response=await f.sync({snapshot:s,acks:[]});
+  assert.equal(response.status,200,JSON.stringify(response.body));
+});
 
 test('Spot cycle diagnostics sync safely and preserve legacy snapshot compatibility',async t=>{
   const f=await fixture(t);

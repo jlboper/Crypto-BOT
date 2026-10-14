@@ -451,6 +451,63 @@ class SpotNativeTests(unittest.TestCase):
         self.broker.native.reconcile_all()
         self.assertEqual(self.broker._pending()["client_order_id"], "other")
 
+    def test_gns_style_rejection_rearms_only_after_fresh_filter_validation(self):
+        original=self.exchange.request
+        def reject(method,endpoint,fields):
+            if method=='POST' and endpoint=='/api/v3/orderList/oco':
+                raise TestnetExecutionError('Testnet HTTP 400 · Binance -1013: Filter failure: PERCENT_PRICE_BY_SIDE',code=-1013)
+            return original(method,endpoint,fields)
+        with patch('trader.testnet_broker.signed_request',side_effect=reject):
+            with self.assertRaises(TestnetExecutionError):self.arm()
+        old_id=self.broker.native.records()['BTCUSDT']['id']
+        info={**INFO,'filters':[*INFO['filters'],{'filterType':'PERCENT_PRICE_BY_SIDE','avgPriceMins':5,
+              'askMultiplierDown':'.8','askMultiplierUp':'1.2'}]}
+        self.client.testnet_symbol_info.return_value=info
+        self.client.testnet_percent_price_references.return_value={5:'120'}
+        with self.assertRaises(TestnetExecutionError):self.arm()
+        self.assertEqual(self.broker.native.records()['BTCUSDT']['id'],old_id)
+        self.assertFalse(self.exchange.lists)
+        self.client.testnet_percent_price_references.return_value={5:'100'}
+        self.arm()
+        record=self.broker.native.records()['BTCUSDT']
+        self.assertNotEqual(record['id'],old_id);self.assertEqual(record['status'],'ARMED')
+        self.assertEqual(self.db.position('BTCUSDT'),self.position)
+
+    def test_percent_filter_blocks_buy_before_market_post(self):
+        self.db.delete_position('BTCUSDT')
+        self.client.testnet_symbol_info.return_value={**INFO,'filters':[*INFO['filters'],
+          {'filterType':'PERCENT_PRICE_BY_SIDE','avgPriceMins':5,'askMultiplierDown':'.98','askMultiplierUp':'1.2'}]}
+        self.client.testnet_percent_price_references.return_value={5:'100'}
+        signal=Signal('BTCUSDT','BUY',80,100,95,110,2,60,101,99,1.3,'unit','now')
+        with self.assertRaisesRegex(TestnetExecutionError,'outside percent price filter'):
+            self.broker.buy(signal,.1,'blocked')
+        self.assertFalse(any(m=='POST' for m,_,_ in self.exchange.calls))
+        self.assertFalse(self.db.recent('trades',10))
+
+    def test_repeated_definite_filter_rejections_have_a_hard_rearm_bound(self):
+        original=self.exchange.request
+        def reject(method,endpoint,fields):
+            if method=='POST' and endpoint=='/api/v3/orderList/oco':
+                raise TestnetExecutionError('Testnet HTTP 400 · Binance -1013: Filter failure: PERCENT_PRICE_BY_SIDE',code=-1013)
+            return original(method,endpoint,fields)
+        with patch('trader.testnet_broker.signed_request',side_effect=reject) as request:
+            for _ in range(8):
+                with self.assertRaises(TestnetExecutionError):self.arm()
+        posts=[c for c in request.call_args_list if c.args[0]=='POST']
+        self.assertEqual(len(posts),4)  # original attempt + three audited replacements
+        self.assertEqual(self.broker.native.records()['BTCUSDT']['filter_rearm_attempts'],3)
+
+    def test_invalid_trailing_replacement_keeps_confirmed_old_pair(self):
+        self.arm()
+        old=self.broker.native.records()['BTCUSDT']['id'];before=len(self.exchange.calls)
+        self.client.testnet_symbol_info.return_value={**INFO,'filters':[*INFO['filters'],
+          {'filterType':'PERCENT_PRICE_BY_SIDE','avgPriceMins':5,'askMultiplierDown':'.8','askMultiplierUp':'1.05'}]}
+        self.client.testnet_percent_price_references.return_value={5:'100'}
+        with self.assertRaises(TestnetExecutionError):self.broker.protect(self.position,107,2)
+        self.assertFalse(any(m=='DELETE' for m,_,_ in self.exchange.calls[before:]))
+        self.assertEqual(self.broker.native.records()['BTCUSDT']['id'],old)
+        self.assertEqual(self.broker.native.records()['BTCUSDT']['status'],'ARMED')
+
 
 class NativeFilterTests(unittest.TestCase):
     def test_rounding_is_conservative_for_long_and_short(self):

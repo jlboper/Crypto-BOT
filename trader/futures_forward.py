@@ -178,10 +178,15 @@ class FuturesForwardEngine:
             "automatic futures timestamp validation pause",
             "futures demo http 400 · binance -1021: timestamp for this request is outside of the recvwindow.",
         }
+        # A failed signed READ does not prove position drift. Re-audit every
+        # tracked position, native order and flat symbol before releasing it.
+        automatic_read_failures = {
+            "futures testnet response uncertain; reconcile before another write",
+        }
         missing_prefix = "tracked futures position missing or ambiguous: "
         native_close_pause = (reason.startswith(missing_prefix)
                               and reason[len(missing_prefix):].upper() in self.symbols)
-        return reason if reason.startswith("three consecutive futures ") or reason in automatic_timestamp or native_close_pause else None
+        return reason if reason.startswith("three consecutive futures ") or reason in automatic_timestamp | automatic_read_failures or native_close_pause else None
 
     def _attempt_auto_recovery(self)->bool:
         """Auto-resume only automatic error pauses after full safe reconciliation."""

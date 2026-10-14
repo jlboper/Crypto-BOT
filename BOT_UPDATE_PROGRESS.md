@@ -1,3 +1,7 @@
+# Candidate — 0.10.28 native filters and remote continuity
+
+Prepared from main 361af475a9d38668d275a5a021228af7c4139bc6 after the 14 October incident. GNS OCO was definitively rejected by PERCENT_PRICE_BY_SIDE; local exits continued with entries blocked. A real 80,545-character Futures view reproduced the 80,000-character Worker rejection. A transient signed-read failure independently left Futures paused despite later confirmed native orders. This release validates protective bands before buys, repairs only definitive rejections after fresh checks, bounds remote history and preserves authenticated update delivery. Automatic read pauses require a complete audit before resume. Financial data, ten slots, leverage and risk budgets are preserved. CI, main publication, signature, installation and two fresh complete HTTPS syncs require independent verification.
+
 # Candidate — 0.10.27 ten positions per bot
 
 Prepared on current main 8cb9cd4874abb8991157c496b576fcbf11a075b1 following the owner's 12 October request. Preserves the installed operational fixes and existing risk/exposure budgets; expands both engine limits and remote snapshot compatibility. Publication, signature, installed limits and two fresh HTTPS heartbeats require independent verification after CI and merge.

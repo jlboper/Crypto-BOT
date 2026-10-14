@@ -104,6 +104,25 @@ class RemoteConnectionTests(unittest.TestCase):
         self.assertEqual(self.agent.last_error, 'DASHBOARD_UNAVAILABLE:RuntimeError')
         self.assertNotIn('private credential', self.agent.last_error)
 
+    def test_futures_history_rejection_keeps_authenticated_update_delivery(self):
+        Database(self.config.bot.database_path)
+        self.agent.dashboard_provider=lambda:{'status':{'mode':'TESTNET'}}
+        self.agent.jobs=Mock();self.agent.jobs.results.return_value=[]
+        self.agent.update_provider=lambda:{'version':'0.10.28','enabled':True}
+        calls=[]
+        job={'id':3,'action':'update_install','release_id':'a'*64}
+        def send(request,timeout):
+            body=json.loads(request.data);calls.append(body)
+            if len(calls)==1:
+                raise urllib.error.HTTPError(request.full_url,400,'Bad Request',{},
+                      io.BytesIO(b'{"error":"Invalid Futures forward status"}'))
+            return io.BytesIO(json.dumps({'commands':[],'jobs':[job]}).encode())
+        with patch.object(self.agent.opener,'open',side_effect=send):self.agent.sync()
+        self.assertEqual(len(calls),2);self.assertNotIn('dashboard',calls[1]['snapshot'])
+        self.assertEqual(calls[1]['snapshot']['bot_update']['version'],'0.10.28')
+        self.agent.jobs.accept.assert_called_once_with(job)
+        self.assertEqual(self.agent.last_error,'DASHBOARD_REJECTED:Invalid Futures forward status')
+
     def test_remote_paper_control_executes_after_authenticated_device_sync_and_reports_result(self):
         Database(self.config.bot.database_path)
         self.agent.paper_controls = Mock(available=True)

@@ -276,7 +276,7 @@ class TradingEngine:
     @staticmethod
     def _entry_rejection_code(exc: Exception) -> str | None:
         """Classify only expected pre-write entry guardrails; unknown failures still abort the cycle."""
-        if isinstance(exc, ValueError):
+        if isinstance(exc, ValueError) and not isinstance(exc, TestnetExecutionError):
             return {
                 "position count limit": "POSITION_COUNT_LIMIT",
                 "position exposure limit": "POSITION_SIZE_LIMIT",
@@ -290,6 +290,8 @@ class TradingEngine:
                 "Spot Testnet price moved outside signal protection range": "PRICE_MOVED_OUTSIDE_SIGNAL_RANGE",
                 "Testnet filters reject engine quantity": "EXCHANGE_FILTER_REJECTED",
                 "Insufficient Spot Testnet USDT": "TESTNET_BALANCE_LIMIT",
+                "Spot native protection outside percent price filter": "EXCHANGE_FILTER_REJECTED",
+                "Spot native protection price reference unavailable": "EXCHANGE_RULES_UNAVAILABLE",
             }.get(str(exc))
         return None
 
@@ -308,7 +310,7 @@ class TradingEngine:
             return True
         except Exception as exc:
             code = self._entry_rejection_code(exc)
-            if code is None:
+            if code is None or (self.config.bot.mode == "testnet" and self.db.position(signal.symbol) is not None):
                 raise
             self.db.record_order_preflight(signal.symbol, "blocked", [code])
             self.db.event("INFO", f"{signal.symbol} entry skipped [{code}]")

@@ -1,3 +1,11 @@
+# 0.10.28 — Protección Spot y continuidad remota
+
+- GNS se compró y su OCO fue rechazado por PERCENT_PRICE_BY_SIDE. Ahora stop y objetivo redondeados se validan contra la referencia de Binance Testnet y las bandas SELL antes de comprar. Una referencia nula exige la ventana VWAP exacta. Los niveles no se recortan ni amplían para hacer pasar una orden.
+- Un rechazo definitivo de banda puede repararse tras comprobar filtros, saldo e identidad de posición, con identidad nueva y un máximo de tres reparaciones. Una respuesta incierta conserva la identidad original y exige consulta. Un trailing inválido conserva la protección anterior. Las cantidades sin confirmación se muestran sin protección, corrigiendo el falso cero.
+- El historial Futures superó 80.000 caracteres y provocó HTTP 400. El portal acepta hasta 120.000 para el exportador anterior; el nuevo reduce solo filas históricas de la vista a menos de 72.000. Conserva posiciones, protecciones, pausas y totales; SQLite permanece completo. Si el portal rechaza esa proyección opcional, el agente conserva heartbeat autenticado y actualizaciones e informa degradación.
+- La pausa automática por una respuesta incierta de lectura Futures se recupera solo después de conciliar journals, identidad/exposición, configuración, protecciones y cuenta. Las pausas manuales y escrituras pendientes siguen bloqueadas.
+- Se conservan diez cupos, presupuestos, apalancamiento, estrategias, credenciales y datos financieros. Regresiones reproducen la banda GNS, el rechazo tras compra, trailing, intentos limitados, historial Python→Worker, fallback y recuperación segura.
+
 # 0.10.27 — Diez posiciones y conservación de las correcciones operativas
 
 - Spot Testnet y Futures Demo admiten hasta diez posiciones cada uno. Se amplía el validador Futures de cinco a diez, limitado también al número de contratos configurados.
