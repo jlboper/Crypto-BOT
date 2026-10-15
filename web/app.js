@@ -519,6 +519,16 @@ function renderResearch(report, state) {
   if(state.error&&report.generated_at)document.getElementById('researchSchedule').textContent+=
     ` Se muestra el informe anterior de ${shortTime(report.generated_at)}: ${report.assets?.length||0} activos Spot y ${report.futures_assets?.length||0} Futures; la ampliación no está validada en este informe.`;
   renderResearchExperiments(report);
+  const references=Array.isArray(report.operating_baselines)?report.operating_baselines.filter(b=>b.evidence==='SIGNAL_PARITY_ONLY'):[];
+  document.getElementById('researchOperatingReference').hidden=references.length===0;
+  document.getElementById('researchOperatingBaselines').innerHTML=references.map(b=>{
+    const limits=b.configuration?.limits||{};
+    const window=b.windows?.development_oos||{};
+    const count=b.market==='SPOT'?limits.max_positions:limits.forward_max_positions;
+    const budget=b.market==='SPOT'?`Exposición ≤${num(Number(limits.max_total_exposure_pct||0)*100,0)}%`:
+      `Notional ≤${money(limits.forward_total_notional_usdt)} · pérdida estimada hasta stops ≤${money(limits.forward_total_stop_loss_usdt)}`;
+    return `<article><span>${esc(b.market)} · ${esc(String(b.timeframe||'').toUpperCase())} · score ${Number(b.configuration?.minimum_score||0)}</span><strong>${Number(window.eligible_signals||0)} señales elegibles</strong><small>En ${Number(window.evaluated_symbol_bars||0)} velas/activo evaluadas fuera de entrenamiento · hasta ${Number(count||0)} posiciones · ${budget}</small></article>`;
+  }).join('');
   if (state.running) {
     badge.textContent='ANALIZANDO'; badge.className='state warning';
   } else if (state.error) {
@@ -568,11 +578,12 @@ function renderResearchExperiments(report) {
   document.getElementById('researchFuturesAssets').innerHTML=(report.futures_assets||[]).map(a=>`<tr><td>${esc(a.symbol)}</td><td>${esc(a.champion_candidate)}<small>Elegido solo en entrenamiento inicial</small></td><td>${pct(a.oos_return_pct)}<small>${Number(a.folds?.length||0)} ventanas</small></td><td>${pct(a.holdout?.net_return_pct)} / ${pct(a.double_cost_holdout?.net_return_pct)}</td><td>${(a.discarded_reasons||[]).map(r=>esc(names[r]||r)).join(' · ')}</td></tr>`).join('')||emptyRow(5,'Sin evidencia Futures en este informe.');
   const unavailable=report.coverage?.unavailable||[];
   document.getElementById('researchAssumptions').textContent=runs.length?
+    `Velas del estudio: Spot ${String(report.experiment?.spot_timeframe||report.experiment?.timeframe||'sin dato').toUpperCase()} · Futures ${String(report.experiment?.futures_timeframe||report.experiment?.timeframe||'sin dato').toUpperCase()}. `+
     'Futures: histórico público USD-M, mark y funding reales; liquidación como estrés de margen aislado con mantenimiento supuesto del 1% y comisiones/slippage configurados. Requiere calibración por contrato antes de calificar. '+
     (unavailable.length?`Sin datos válidos: ${unavailable.map(a=>`${a.market} ${a.symbol} (${a.reason})`).join(', ')}.`:'Cobertura de datos completa para los activos solicitados.'):'No hay simulaciones conjuntas en el informe anterior.';
   document.getElementById('researchForward').innerHTML=(report.forward_observation||[]).map(f=>{
     const labels={WAITING_NEW_DATA:'Esperando velas posteriores al registro',OBSERVING:'Observando reglas congeladas',DATA_UNAVAILABLE:'Faltan datos de la cohorte',HISTORY_GAP:'Historial incompleto'};
-    return `<p><strong>Seguimiento futuro ${esc(f.market)}:</strong> ${esc(labels[f.status]||f.status)} · ${num(f.observed_days,1)}/30 días · ${Number(f.simulation?.closed_trades||0)}/30 cierres · ${f.simulation?pct(f.simulation.net_return_pct):'sin resultado todavía'}. Cohorte de ${Number(f.symbols?.length||0)} activos fijada ${shortTime(f.registered_at)}. Observación simulada con datos nuevos; ninguna promoción automática.</p>`;
+    return `<p><strong>Seguimiento futuro ${esc(f.market)} ${esc(String(f.timeframe||report.experiment?.timeframe||'').toUpperCase())}:</strong> ${esc(labels[f.status]||f.status)} · ${num(f.observed_days,1)}/30 días · ${Number(f.simulation?.closed_trades||0)}/30 cierres · ${f.simulation?pct(f.simulation.net_return_pct):'sin resultado todavía'}. Cohorte de ${Number(f.symbols?.length||0)} activos fijada ${shortTime(f.registered_at)}. Observación simulada con datos nuevos; ninguna promoción automática.</p>`;
   }).join('');
   renderResearchCurve();
 }
@@ -710,6 +721,7 @@ function renderFuturesCycle(futures,status){
     LIMITED:'ENTRADAS LIMITADAS',OPENED:'ENTRADA EJECUTADA',ATTENTION:'REQUIERE ATENCIÓN',RISK_HALT:'LÍMITE DE PÉRDIDA',ACTIVE:'ACTIVO'};
   const reasons={NO_NEW_CANDLE:'esperando el cierre de una nueva vela',FLAT:'sin señal LONG/SHORT',OPEN:'posición ya abierta',
     AI_REJECTED:'rechazada por IA',AI_BUDGET:'tope diario de revisiones IA',POSITION_LIMIT:'máximo de posiciones',
+    PRICE_OUTSIDE_RANGE:'precio fuera del stop/objetivo de la señal revisada',
     BUDGET_LIMIT:'presupuesto agregado de riesgo/exposición',MARGIN_LIMIT:'margen Demo insuficiente',TRIAL_MARGIN_RISK_LIMIT:'riesgo incompatible con el leverage de prueba',
     BLOCKED:'contrato bloqueado por preflight',ASSET_UNAVAILABLE:'filtros o referencia del contrato no disponibles',NO_DATA:'sin datos del contrato',
     KILLED:'motor pausado',PENDING_RECONCILIATION:'conciliación de orden pendiente',RISK_HALT:'límite de pérdida activo',OFF:'forward test deshabilitado',

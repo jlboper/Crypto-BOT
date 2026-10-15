@@ -142,17 +142,54 @@ def forward_observation(report, spot, futures, marks, funding, models, config):
     fingerprint = hashlib.sha256(json.dumps({'strategy': asdict(config.strategy),
         'risk': asdict(config.risk), 'paper': asdict(config.paper), 'timeframe': config.bot.timeframe,
         'method': '0.10.20-frozen-forward'}, sort_keys=True).encode()).hexdigest()
+    timeframes = {'SPOT': config.bot.timeframe, 'FUTURES': config.futures_testnet.forward_timeframe}
+
+    def market_fingerprint(market, interval):
+        return hashlib.sha256(json.dumps({'configuration': fingerprint, 'market': market,
+            'timeframe': interval, 'method': 'frozen-forward-market-timeframes-v1'},
+            sort_keys=True).encode()).hexdigest()
+
+    market_fingerprints = {market: market_fingerprint(market, interval)
+                           for market, interval in timeframes.items()}
     baseline = read(path)
-    previous = baseline
+
+    def archive_baseline(previous):
+        if path.is_file() and previous:
+            identity = hashlib.sha256(json.dumps(previous, sort_keys=True).encode()).hexdigest()[:12]
+            atomic(path.parent/'forward-cohorts'/f"{previous['fingerprint']}-{identity}.json", previous)
+
+    now = datetime.now(UTC)
+    registered_at, start_after = now.isoformat(), int(now.timestamp()*1000)
     if baseline.get('fingerprint') != fingerprint:
-        baseline = {'fingerprint': fingerprint, 'registered_at': datetime.now(UTC).isoformat(),
+        archive_baseline(baseline)
+        baseline = {'fingerprint': fingerprint, 'registered_at': registered_at,
             'spot': {a['symbol']: a['champion_candidate'] for a in report['assets'][:5]},
             'futures': {a['symbol']: a['champion_candidate'] for a in report['futures_assets']},
-            'start_after': {'SPOT': int(datetime.now(UTC).timestamp()*1000), 'FUTURES': int(datetime.now(UTC).timestamp()*1000)}}
-        # Retain old registrations instead of silently replacing their evidence.
-        if path.is_file():
-            atomic(path.parent/'forward-cohorts'/f"{previous['fingerprint']}-{previous['start_after']['SPOT']}.json", previous)
+            'start_after': {market: start_after for market in timeframes},
+            'timeframes': timeframes, 'market_fingerprints': market_fingerprints,
+            'registered_at_by_market': {market: registered_at for market in timeframes}}
         atomic(path, baseline)
+    else:
+        # Legacy reports used the Spot interval for both markets. Keep their Spot
+        # cohort, but never count its Futures 4h history as unseen Futures 1h data.
+        previous_timeframes = baseline.get('timeframes',
+            {'SPOT': config.bot.timeframe, 'FUTURES': config.bot.timeframe})
+        previous_fingerprints = baseline.get('market_fingerprints',
+            {market: market_fingerprint(market, interval) for market, interval in previous_timeframes.items()})
+        changed = [market for market in timeframes if previous_fingerprints.get(market) != market_fingerprints[market]]
+        if changed:
+            archive_baseline(baseline)
+        if changed or 'market_fingerprints' not in baseline:
+            baseline['registered_at_by_market'] = baseline.get('registered_at_by_market',
+                {market: baseline['registered_at'] for market in timeframes})
+            for market in changed:
+                key = 'spot' if market == 'SPOT' else 'futures'
+                assets = report['assets'][:5] if market == 'SPOT' else report['futures_assets']
+                baseline[key] = {a['symbol']: a['champion_candidate'] for a in assets}
+                baseline['start_after'][market] = start_after
+                baseline['registered_at_by_market'][market] = registered_at
+            baseline.update(timeframes=timeframes, market_fingerprints=market_fingerprints)
+            atomic(path, baseline)
     result = []
     for market, data in (('SPOT', spot), ('FUTURES', futures)):
         frozen = baseline['spot' if market == 'SPOT' else 'futures']
@@ -160,10 +197,12 @@ def forward_observation(report, spot, futures, marks, funding, models, config):
             frozen = {a['symbol']: a['champion_candidate'] for a in (report['assets'][:5] if market == 'SPOT' else report['futures_assets'])}
             baseline['spot' if market == 'SPOT' else 'futures'] = frozen
             baseline['start_after'][market] = int(datetime.now(UTC).timestamp()*1000)
+            baseline['registered_at_by_market'][market] = datetime.now(UTC).isoformat()
             atomic(path, baseline)
         missing = [s for s in frozen if s not in data]
-        item = {'market': market, 'stage': 'OBSERVATION_ONLY', 'registered_at': baseline['registered_at'],
-                'model_fingerprint': fingerprint, 'symbols': list(frozen), 'automatic_promotion': False,
+        item = {'market': market, 'stage': 'OBSERVATION_ONLY',
+                'registered_at': baseline['registered_at_by_market'][market], 'timeframe': timeframes[market],
+                'model_fingerprint': market_fingerprints[market], 'symbols': list(frozen), 'automatic_promotion': False,
                 'minimum_days': 30, 'minimum_closes': 30, 'observed_days': 0,
                 'status': 'WAITING_NEW_DATA', 'missing_symbols': missing}
         subset = {s: data[s] for s in frozen if s in data}

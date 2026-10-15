@@ -1,3 +1,9 @@
+# Corrección 0.10.30 — temporalidad y referencia operativa
+
+Spot usa sus velas configuradas de 4h y Futures/mark las de Futures (1h). Cada cache valida la duración y cadencia solicitadas. La cohorte Futures 4h anterior queda archivada; el seguimiento 1h comienza con velas posteriores a su nueva inscripción, conservando la observación Spot. Los informes antiguos identifican su temporalidad histórica.
+
+La referencia de los bots actuales reutiliza las funciones de señal operativas y registra configuración, límites y conteos de señales por ventana. Se etiqueta SIGNAL_PARITY_ONLY: no simula órdenes, IA, costos/fills, salidas, trailing, límites de pérdida ni conciliación. No produce retorno ni selecciona/promueve una estrategia. Las carteras históricas de cinco cupos y tamaños proporcionales continúan como experimentos separados; no equivalen a los límites operativos de diez cupos, 300 USDT y 7,5 USDT de Futures.
+
 # Laboratorio 0.10.20 — metodología vigente
 
 El estudio corre automáticamente cada 24 horas con Windows y la aplicación encendidos. Una fecha vencida se atiende una sola vez al volver a iniciar; «Actualizar análisis ahora» adelanta la ejecución. Un proceso separado, con prioridad reducida, bloqueo compartido y plazo máximo de 6,900 segundos limita el impacto en el motor. Las actualizaciones solicitan cancelación cooperativa; el informe previo permanece disponible.
