@@ -5,7 +5,6 @@ import math
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import UTC, datetime, timedelta
-from dataclasses import replace
 
 from .ai_advisor import AIAdvisor
 from .broker import PaperBroker
@@ -134,7 +133,7 @@ class TradingEngine:
                     spot = prices.get(symbol)
                     if (spot is not None and self._valid_spot(spot) and signal.stop_price
                             and signal.take_profit and signal.stop_price < spot < signal.take_profit):
-                        candidates.append(replace(signal, price=spot))
+                        candidates.append(signal.at_entry_price(spot))
                     else:
                         self._spot_cycle_reason(diagnostic, "QUOTE_UNAVAILABLE" if spot is None or not self._valid_spot(spot) else "PRICE_OUTSIDE_RANGE")
             candidates.sort(key=lambda signal: signal.score, reverse=True)

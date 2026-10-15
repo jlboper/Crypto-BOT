@@ -1,3 +1,11 @@
+# 0.10.30 — Planes de entrada consistentes y evaluación de las reglas actuales
+
+- Spot conserva los porcentajes de stop/objetivo y la relación recompensa/riesgo al pasar del cierre al precio actual. Mantiene los límites originales de admisión hasta el preflight Testnet y escala el ATR inicial al fill; las posiciones existentes y sus protecciones no se reescriben. El journal conserva un signal compatible con la versión anterior y separa la observación original.
+- Futures rechaza referencias fuera del stop/objetivo del cierre o de la propuesta revisada por IA, antes de abrir. Revalidar cantidad y presupuesto no revive una señal invalidada. No afecta conciliación ni cierres protectores; el portal explica el descarte.
+- El laboratorio descarga Futures y mark en su propia temporalidad (1h); Spot sigue en 4h. Valida cadencia/duración, separa caches y conserva la cohorte anterior. El cambio de temporalidad reinicia solo Futures; nunca cuenta el antiguo 4h como observación nueva 1h.
+- Añade referencias de señales y límites actuales de ambos bots. Futures comparte exactamente el cálculo operativo, con regresión de 56 casos; no se atribuye PnL a esta referencia de señales. La interfaz distingue temporalidades, reglas actuales y escenarios históricos.
+- La auditoría y comparaciones de RSI/extensión no encontraron una alternativa con ventaja consistente después de costos. No se promueve una estrategia por una ventana favorable, ni se amplían exposición, leverage, score o permisos LIVE. El rendimiento futuro sigue sin demostrarse.
+
 # 0.10.29 — Recuperación de pausas por reloj Futures Demo
 
 - Una respuesta del reloj Demo de más de dos segundos dejó Futures pausado aunque después se confirmaran las protecciones. Los motivos exactos de reloj lento/no disponible ahora admiten la auditoría automática completa existente.

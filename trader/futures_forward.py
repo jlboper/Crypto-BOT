@@ -8,11 +8,12 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+import math
 
 from .domain import Candle
 from .ai_advisor import AIAdvisor
 from .futures_testnet import FuturesTestnetLab, FuturesTestnetExecutionError, _decimal
-from .indicators import atr, ema_series, rsi, sma
+from .futures_strategy import evaluate_futures_signal
 from .native_protection import FuturesNativeProtection, FUTURES_KEY, projection
 
 FUTURES_LEVERAGE_TRIAL_PROTOCOL = 1
@@ -44,38 +45,7 @@ class FuturesForwardEngine:
             self.ledger.set_setting("forward_last_error",{"message":str(reason)[:200],"at":datetime.now(UTC).isoformat()})
 
     def _signal(self,candles:list[Candle])->dict:
-        s=self.config.strategy
-        required=max(s.ema_slow+5,s.breakout_period+2,s.atr_period+2,s.volume_period+2)
-        if len(candles)<required: raise ValueError("Futures forward history unavailable")
-        closes=[c.close for c in candles]; highs=[c.high for c in candles]; lows=[c.low for c in candles]; volumes=[c.volume for c in candles]
-        price=closes[-1]; fast_series=ema_series(closes,s.ema_fast); slow_series=ema_series(closes,s.ema_slow)
-        fast=fast_series[-1]; slow=slow_series[-1]; current_rsi=rsi(closes,s.rsi_period)
-        current_atr=atr(highs,lows,closes,s.atr_period); avg=sma(volumes[:-1],s.volume_period)
-        volume_ratio=volumes[-1]/avg if avg>0 else 0.0
-        prior_high=max(highs[-s.breakout_period-1:-1]); prior_low=min(lows[-s.breakout_period-1:-1])
-        momentum=(price/closes[-6])-1.0
-        long_score=0; short_score=0
-        if price>fast>slow: long_score+=25
-        if price<fast<slow: short_score+=25
-        if len(fast_series)>=4 and fast_series[-1]>fast_series[-4]: long_score+=10
-        if len(fast_series)>=4 and fast_series[-1]<fast_series[-4]: short_score+=10
-        if 52<=current_rsi<=72: long_score+=15
-        elif 48<=current_rsi<52: long_score+=7
-        if 28<=current_rsi<=48: short_score+=15
-        elif 48<current_rsi<=52: short_score+=7
-        if volume_ratio>=1.2: long_score+=15; short_score+=15
-        elif volume_ratio>=1.0: long_score+=8; short_score+=8
-        if price>prior_high: long_score+=20
-        if price<prior_low: short_score+=20
-        if momentum>=0.01: long_score+=15
-        if momentum<=-0.01: short_score+=15
-        if current_atr/price>0.12: long_score-=15; short_score-=15
-        long_score=max(0,min(100,long_score)); short_score=max(0,min(100,short_score)); score=max(long_score,short_score)
-        direction=None
-        if score>=self.settings.forward_min_score and abs(long_score-short_score)>=10:
-            direction="LONG" if long_score>short_score else "SHORT"
-        return {"direction":direction,"score":score,"long_score":long_score,"short_score":short_score,
-                "price":price,"atr":current_atr,"rsi":current_rsi,"ema_fast":fast,"ema_slow":slow,"volume_ratio":volume_ratio}
+        return evaluate_futures_signal(candles, self.config.strategy, self.settings)
 
     @staticmethod
     def _shadow_variants()->list[dict]:
@@ -548,6 +518,26 @@ class FuturesForwardEngine:
             quantity = Decimal("0")
         return quantity, reference, distance, state
 
+    def _entry_reference_valid(self, signal: dict, reference: Decimal) -> bool:
+        """A fresh quantity cannot revive a setup whose stop/target was crossed.
+
+        Check both the closed-candle setup and the exact proposal reviewed by
+        AI. Existing positions and protective exits never use this entry gate.
+        """
+        price = float(reference)
+        anchor = float(signal['price'])
+        distance = max(self.settings.forward_stop_atr_multiple*signal['atr'],
+                       self.settings.forward_minimum_stop_pct*anchor)
+        ranges = [(anchor, distance)]
+        if 'proposed_reference_price' in signal:
+            ranges.append((float(signal['proposed_reference_price']), float(signal['proposed_stop_distance'])))
+        if not math.isfinite(price) or price <= 0:
+            return False
+        side = 1 if signal['direction'] == 'LONG' else -1
+        return all(math.isfinite(center) and math.isfinite(width) and center > 0 and width > 0
+                   and -width < side*(price-center) < self.settings.forward_reward_to_risk*width
+                   for center, width in ranges)
+
     def cycle_symbol(self,symbol:str,candles:list[Candle],account:dict)->dict:
         self.native.reconcile(symbol)
         local=self.ledger.forward_position(symbol); rows=self._validated_rows(symbol, local)
@@ -581,6 +571,8 @@ class FuturesForwardEngine:
         estimated = reference * quantity
         if quantity <= 0:
             return {"symbol":symbol,"status":"BUDGET_LIMIT","signal":signal}
+        if not self._entry_reference_valid(signal, reference):
+            return {"symbol":symbol,"status":"PRICE_OUTSIDE_RANGE","signal":signal}
         budget=Decimal(str(self.settings.forward_margin_usdt))
         if _decimal(account["available_balance"])<max(budget,estimated)*Decimal("1.25"):
             return {"symbol":symbol,"status":"MARGIN_LIMIT","signal":signal}
@@ -614,6 +606,8 @@ class FuturesForwardEngine:
         quantity = min(quantity, refreshed_qty)
         if quantity <= 0:
             return {"symbol":symbol,"status":"BUDGET_LIMIT","signal":signal,"ai_review":review}
+        if not self._entry_reference_valid(signal, reference):
+            return {"symbol":symbol,"status":"PRICE_OUTSIDE_RANGE","signal":signal,"ai_review":review}
         if float(quantity) * distance >= float(reference * quantity) / leverage * 0.8:
             return {"symbol":symbol,"status":"TRIAL_MARGIN_RISK_LIMIT","signal":signal}
         side="BUY" if signal["direction"]=="LONG" else "SELL"

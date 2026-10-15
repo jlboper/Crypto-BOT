@@ -198,6 +198,11 @@ test('device sync accepts legacy and multi-asset Futures forward dashboard shape
       pending_reconciliation:true}
   };
   assert.equal((await f.sync({snapshot:modern,acks:[]})).status,200);
+  const priceGuard=structuredClone(modern);
+  priceGuard.dashboard.futures_forward.cycle_diagnostic={
+    state:'FILTERED',at:'2026-10-04T17:00:00Z',timeframe:'1h',minimum_score:70,
+    symbols:3,evaluated:1,signals:1,reviews:1,opened:0,statuses:{PRICE_OUTSIDE_RANGE:1},issues:[]};
+  assert.equal((await f.sync({snapshot:priceGuard,acks:[]})).status,200);
   const issueSnapshot=structuredClone(modern);
   issueSnapshot.dashboard.futures_forward.cycle_diagnostic={
     state:'ATTENTION',at:'2026-10-04T17:00:00Z',timeframe:'1h',minimum_score:70,

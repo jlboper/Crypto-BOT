@@ -158,6 +158,38 @@ class FuturesLeverageTrialTests(unittest.TestCase):
         self.assertEqual(self.orders, [])
         self.assertIsNone(self.engine.ledger.setting('forward_leverage_trial_cursor'))
 
+    def test_price_crossing_setup_before_review_blocks_ai_and_order(self):
+        with patch.object(self.engine.ai, 'review_futures') as ai:
+            result=self.enter('BTCUSDT',size_effect=[(Decimal('.1'),Decimal('120'))])
+        self.assertEqual(result['status'],'PRICE_OUTSIDE_RANGE')
+        self.assertNotIn('ai_review',result)
+        self.assertIsNone(self.engine.ledger.setting('forward_ai_budget'))
+        self.assertEqual(self.orders,[])
+        self.assertIsNone(self.engine.ledger.setting('forward_open_plan'))
+
+    def test_price_crossing_closed_or_reviewed_setup_after_ai_never_submits(self):
+        for direction, initial, refreshed in (('LONG','100','120'),('SHORT','100','90'),
+                                               ('LONG','107','98'),('SHORT','93','102')):
+            with self.subTest(direction=direction, initial=initial, refreshed=refreshed):
+                self.signal['direction']=direction
+                symbol=self.engine.symbols[len(self.orders)]
+                # Every subcase has a new closed-candle identity; none may open.
+                candle_id={'120':10,'90':20,'98':30,'102':40}[refreshed]
+                result=self.enter(symbol,candle_id=candle_id,size_effect=[
+                    (Decimal('.1'),Decimal(initial)),(Decimal('.1'),Decimal(refreshed))])
+                self.assertEqual(result['status'],'PRICE_OUTSIDE_RANGE')
+                self.assertEqual(result['ai_review']['verdict'],'ALLOW')
+                self.assertEqual(self.orders,[])
+                self.assertIsNone(self.engine.ledger.setting('forward_open_plan'))
+                self.assertIsNone(self.engine.ledger.setting('forward_leverage_trial_cursor'))
+
+    def test_reference_at_stop_or_target_is_invalid_for_both_directions(self):
+        for direction, prices in (('LONG',(96,108)),('SHORT',(92,104))):
+            signal={**self.signal,'direction':direction}
+            for price in prices:
+                self.assertFalse(self.engine._entry_reference_valid(signal,Decimal(price)))
+            self.assertTrue(self.engine._entry_reference_valid(signal,Decimal('100')))
+
     def test_trial_rejects_excess_notional_and_stop_that_consumes_margin(self):
         self.engine.ledger.set_setting('forward_leverage_trial_cursor', 2)
         self.assertEqual(self.enter('BTCUSDT', quantity='2')['status'], 'BUDGET_LIMIT')

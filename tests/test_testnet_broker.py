@@ -133,6 +133,22 @@ class UnifiedTestnetBrokerTests(unittest.TestCase):
         self.assertAlmostEqual(position.entry_price, 105.0)
         self.assertAlmostEqual(position.stop_price, 99.75)
         self.assertAlmostEqual(position.take_profit, 115.5)
+        self.assertAlmostEqual(position.atr, 2.1)
+
+    def test_rebased_quote_does_not_expand_the_original_candle_admission_range(self):
+        for quote, reference in ((103.,112.), (97.,94.)):
+            with self.subTest(quote=quote, reference=reference), \
+                 patch('trader.exchange.BinanceClient') as client, \
+                 patch('trader.testnet_broker.signed_request') as signed, \
+                 patch.object(self.broker.native,'ensure_all'):
+                signal=self.signal.at_entry_price(quote)
+                self.assertTrue(signal.stop_price < reference < signal.take_profit)
+                client.return_value.testnet_symbol_info.return_value=self.info
+                client.return_value.testnet_reference_price.return_value=reference
+                with self.assertRaisesRegex(TestnetExecutionError,'outside signal protection range'):
+                    self.broker.buy(signal,.1,'original range still applies')
+                signed.assert_not_called()
+                self.assertIsNone(self.db.position('BTCUSDT'))
 
     def test_uncertain_post_is_never_retried_while_exchange_order_is_open(self):
         posts = 0
@@ -145,6 +161,8 @@ class UnifiedTestnetBrokerTests(unittest.TestCase):
                 posts += 1
                 raise TestnetExecutionError("uncertain")
             pending = json.loads(self.db.setting(self.broker.PENDING_KEY))
+            self.assertEqual(set(pending['signal']),set(self.signal.to_dict()))
+            self.assertEqual(pending['entry_observation'],{'price':100.,'stop_price':95.,'take_profit':110.})
             return {
                 "symbol": "BTCUSDT",
                 "clientOrderId": pending["client_order_id"],

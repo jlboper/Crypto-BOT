@@ -1,3 +1,7 @@
+# Candidate — 0.10.30 execution plans and strategy evidence
+
+Prepared from main a61c71c703ed59f8b0a70d9cfa8026623ebae666 after the owner's strategy optimization request. Correct new-entry geometry and preserve original Spot admission bounds; block invalidated Futures setups before and after AI review. Research now uses Futures 1h independently, archives its prior 4h cohort and exposes actual configured signal references without inventing execution returns. The observed weak results and exploratory RSI/extension comparisons do not qualify a new strategy. Validation, protected publication, signed installation and fresh HTTPS health remain separate checks. No operating histories, credentials, positions or risk budgets are edited during development.
+
 # Candidate — 0.10.29 Futures clock pause recovery
 
 Prepared from current main 1a7d9e3ed7878068bbd798bf5b0c39614413bd4d after the 15 October audit. Futures latched `Futures Demo server time response too slow` at 04:22 UTC; subsequent protection succeeded but this exact reason could not auto-resume. The installed supervisor safely resumed it at 15:05 UTC after full reconciliation; the next cycle evaluated all 15 contracts. Spot independently remained operational with 60 below-threshold signals and no pending journal. Add only the exact slow/unavailable Demo clock reasons to the existing audited recovery gate. Preserve clock validation, manual pauses, pending writes, risk and strategy. PR validation, main publication, signature and installed verification are separate checks.

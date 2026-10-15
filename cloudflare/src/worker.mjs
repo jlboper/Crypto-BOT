@@ -162,7 +162,7 @@ function validateSnapshot(snapshot) {
         const x=f.cycle_diagnostic;
         const states=['WAITING_CANDLE','NO_OPPORTUNITIES','FILTERED','LIMITED','OPENED','ATTENTION','RISK_HALT','ACTIVE'];
         const statusCodes=['NO_NEW_CANDLE','FLAT','OPEN','OPENED','CLOSED','POSITION_LIMIT','KILLED','PENDING_RECONCILIATION','RISK_HALT','OFF','ASSET_UNAVAILABLE',
-          'BUDGET_LIMIT','MARGIN_LIMIT','TRIAL_MARGIN_RISK_LIMIT','AI_BUDGET','AI_REJECTED','BLOCKED','NO_DATA','ERROR'];
+          'BUDGET_LIMIT','MARGIN_LIMIT','TRIAL_MARGIN_RISK_LIMIT','AI_BUDGET','AI_REJECTED','PRICE_OUTSIDE_RANGE','BLOCKED','NO_DATA','ERROR'];
         const validIssues=x.issues===undefined||(Array.isArray(x.issues)&&x.issues.length<=15
           &&x.issues.every(row=>object(row)
             &&Object.keys(row).every(k=>['symbol','status','reason'].includes(k))

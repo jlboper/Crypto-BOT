@@ -86,7 +86,22 @@ test('v0.9 multi-asset portal snapshot renders without falling into disconnected
   assert.equal(el('futuresCycleState').textContent,'SIN OPORTUNIDADES');
   assert.match(el('futuresCycleSummary').textContent,/3 contratos evaluados en 1H.*score mínimo 70\/100/);
   assert.match(el('futuresCycleReasons').textContent,/3: sin señal LONG\/SHORT/);
+  responses['/api/research']={assets:[],operating_baselines:[{
+    market:'FUTURES',timeframe:'1h',evidence:'SIGNAL_PARITY_ONLY',
+    configuration:{minimum_score:70,limits:{forward_max_positions:10,forward_total_notional_usdt:300,forward_total_stop_loss_usdt:7.5}},
+    windows:{development_oos:{eligible_signals:42,evaluated_symbol_bars:1000}}}]};
+  await context.__refresh();
+  assert.equal(el('researchOperatingReference').hidden,false);
+  assert.match(el('researchOperatingBaselines').innerHTML,/FUTURES.*1H.*42 señales elegibles/s);
+  assert.match(el('researchOperatingBaselines').innerHTML,/hasta 10 posiciones/);
+  responses['/api/research']={assets:[]};
+  await context.__refresh();
+  assert.equal(el('researchOperatingReference').hidden,true);
   const futures=responses['/api/futures-forward'];
+  futures.cycle_diagnostic={state:'FILTERED',at:new Date().toISOString(),timeframe:'1h',minimum_score:70,
+    symbols:3,evaluated:1,signals:1,reviews:1,opened:0,statuses:{PRICE_OUTSIDE_RANGE:1},issues:[]};
+  await context.__refresh();
+  assert.match(el('futuresCycleReasons').textContent,/precio fuera del stop\/objetivo/);
   futures.cycle_diagnostic={state:'ATTENTION',at:new Date().toISOString(),timeframe:'1h',minimum_score:70,
     symbols:3,evaluated:1,signals:0,reviews:0,opened:0,statuses:{FLAT:1,ASSET_UNAVAILABLE:2},
     issues:[

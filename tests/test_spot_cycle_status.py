@@ -52,6 +52,22 @@ class SpotCycleStatusTests(unittest.TestCase):
         self.review.assert_not_called()
         self.assertFalse(self.engine.db.recent('trades'))
 
+    def test_fresh_entry_quote_preserves_the_candle_risk_plan_before_ai_and_sizing(self):
+        self.prices['TESTUSDT']=103.
+        self.review.return_value=AIReview('ALLOW',1,1,'unit')
+        with patch.object(self.engine.broker,'buy') as buy:
+            self.engine.cycle()
+        reviewed=self.review.call_args.args[0]
+        submitted=buy.call_args.args[0]
+        self.assertEqual(reviewed,submitted)
+        self.assertEqual(reviewed.price,103.)
+        self.assertAlmostEqual(reviewed.stop_price,97.85)
+        self.assertAlmostEqual(reviewed.take_profit,113.3)
+        self.assertAlmostEqual(reviewed.atr,2.06)
+        self.assertEqual(reviewed.observed_price,100.)
+        self.assertAlmostEqual((reviewed.take_profit-reviewed.price)/(reviewed.price-reviewed.stop_price),2.)
+        self.assertLessEqual(buy.call_args.args[1]*reviewed.price,150.)
+
     def test_ai_rejection_is_distinct_from_unavailable_ai(self):
         self.engine.cycle()
         report = self.report()

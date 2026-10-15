@@ -8,7 +8,6 @@ another write. There is deliberately no production host or LIVE mode here.
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from dataclasses import replace
 from decimal import Decimal, InvalidOperation
 import json
 import math
@@ -213,13 +212,11 @@ class BinanceTestnetBroker(PaperBroker):
         info = client.testnet_symbol_info(signal.symbol)
         base_asset = str(info.get("baseAsset", ""))
         reference = client.testnet_reference_price(signal.symbol)
-        if not signal.stop_price < reference < signal.take_profit:
+        observed_stop = signal.observed_stop_price if signal.observed_stop_price is not None else signal.stop_price
+        observed_take = signal.observed_take_profit if signal.observed_take_profit is not None else signal.take_profit
+        if not (observed_stop < reference < observed_take and signal.stop_price < reference < signal.take_profit):
             raise TestnetExecutionError("Spot Testnet price moved outside signal protection range")
-        stop_ratio = signal.stop_price / signal.price
-        take_ratio = signal.take_profit / signal.price
-        execution_signal = replace(signal, price=reference,
-                                   stop_price=reference * stop_ratio,
-                                   take_profit=reference * take_ratio)
+        execution_signal = signal.at_entry_price(reference)
         self._validate_buy(execution_signal, quantity)
         self.native.preflight_with_client(client, info, execution_signal.stop_price, execution_signal.take_profit)
         plan = plan_order(signal.symbol, "BUY", reference, info, quantity=quantity)
@@ -236,7 +233,14 @@ class BinanceTestnetBroker(PaperBroker):
             "planned_qty": plan.quantity,
             "base_asset": base_asset,
             "reason": reason,
-            "signal": execution_signal.to_dict(),
+            # Keep the durable fill signal readable by the previous release.
+            # Original admission evidence is additional journal metadata;
+            # recovery needs only the already rebased execution plan.
+            "signal": {key: value for key, value in execution_signal.to_dict().items()
+                       if key not in {'observed_price', 'observed_stop_price', 'observed_take_profit'}},
+            "entry_observation": {"price": execution_signal.observed_price,
+                                  "stop_price": execution_signal.observed_stop_price,
+                                  "take_profit": execution_signal.observed_take_profit},
             "created_at": datetime.now(UTC).isoformat(),
             "status": "UNCERTAIN",
         }
@@ -393,7 +397,7 @@ class BinanceTestnetBroker(PaperBroker):
                 stop_price=float(anchored_stop),
                 take_profit=float(anchored_take),
                 high_water=float(average),
-                atr=signal.atr,
+                atr=signal.atr * float(average / signal_entry),
                 entry_fee=float(fee_quote + fee_base * average),
                 opened_at=datetime.now(UTC).isoformat(),
             )
