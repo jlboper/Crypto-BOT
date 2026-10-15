@@ -212,6 +212,63 @@ class FuturesForwardTests(unittest.TestCase):
                 self.engine.protection_tick()
         self.assertEqual(self.engine._automatic_pause_reason(), 'automatic futures timestamp validation pause')
 
+    def test_clock_preflight_pause_recovers_only_after_full_position_audit(self):
+        local = {'symbol': 'SOLUSDT', 'direction': 'LONG', 'leverage': 1,
+                 'quantity': .1, 'entry_price': 100., 'stop_price': 95.,
+                 'take_profit': 110., 'liquidation_price': None, 'signal_score': 80,
+                 'opened_at': '2026-10-15T00:00:00+00:00'}
+        row = {'symbol': 'SOLUSDT', 'positionAmt': '.1', 'marginType': 'isolated',
+               'positionSide': 'BOTH', 'leverage': '1'}
+        for message in ('Futures Demo server time response too slow',
+                        'Futures Demo server time unavailable'):
+            with self.subTest(message=message):
+                self.engine.ledger.set_forward_position(local)
+                with patch.object(self.engine, '_recover_journal', return_value=None), \
+                     patch.object(self.engine, '_actual_rows', side_effect=FuturesTestnetExecutionError(message)):
+                    with self.assertRaisesRegex(FuturesTestnetExecutionError, message):
+                        self.engine.protection_tick()
+                self.assertEqual(self.engine._automatic_pause_reason(), message.lower())
+                with patch.object(self.engine, '_recover_journal', return_value={'resolved': False}), \
+                     patch.object(self.engine, '_actual_rows') as positions:
+                    self.assertFalse(self.engine._attempt_auto_recovery())
+                positions.assert_not_called()
+                with patch.object(self.engine, '_recover_journal', return_value=None), \
+                     patch.object(self.engine, '_actual_rows', return_value=[{**row, 'positionAmt': '.2'}]), \
+                     patch.object(self.engine.native, 'ensure') as protect:
+                    self.assertFalse(self.engine._attempt_auto_recovery())
+                protect.assert_not_called()
+                with patch.object(self.engine, '_recover_journal', return_value=None), \
+                     patch.object(self.engine, '_actual_rows', return_value=[row]), \
+                     patch.object(self.engine, '_validated_rows') as validate, \
+                     patch.object(self.engine.native, 'ensure', side_effect=FuturesTestnetExecutionError('protection unconfirmed')), \
+                     patch.object(self.engine, '_record_account') as account:
+                    self.assertFalse(self.engine._attempt_auto_recovery())
+                validate.assert_called_once(); account.assert_not_called()
+                self.assertTrue(self.engine.killed())
+                with patch.object(self.engine, '_recover_journal', return_value=None), \
+                     patch.object(self.engine, '_actual_rows', return_value=[row]), \
+                     patch.object(self.engine, '_validated_rows') as validate, \
+                     patch.object(self.engine.native, 'ensure') as protect, \
+                     patch.object(self.engine, '_preflight_flat_symbols', return_value={'BTCUSDT': {'status': 'READY'}}) as preflight, \
+                     patch.object(self.engine, '_record_account') as account:
+                    self.assertTrue(self.engine._attempt_auto_recovery())
+                validate.assert_called_once(); protect.assert_called_once_with(local)
+                preflight.assert_called_once(); account.assert_called_once()
+                self.assertFalse(self.engine.killed())
+                self.assertEqual(self.engine.ledger.forward_position('SOLUSDT'), local)
+
+    def test_clock_pause_stays_blocked_when_flat_symbol_or_account_audit_fails(self):
+        for stage in ('symbols', 'account'):
+            with self.subTest(stage=stage):
+                self.engine._halt('Futures Demo server time response too slow')
+                health = {'BTCUSDT': {'status': 'BLOCKED' if stage == 'symbols' else 'READY'}}
+                with patch.object(self.engine, '_recover_journal', return_value=None), \
+                     patch.object(self.engine, '_preflight_flat_symbols', return_value=health), \
+                     patch.object(self.engine, '_record_account', side_effect=FuturesTestnetExecutionError('account unavailable')) as account:
+                    self.assertFalse(self.engine._attempt_auto_recovery())
+                self.assertTrue(self.engine.killed())
+                self.assertEqual(account.call_count, 0 if stage == 'symbols' else 1)
+
     def test_flat_reduce_only_journal_clears_without_querying_old_order(self):
         pending = {
             "symbol": "SOLUSDT", "side": "SELL", "quantity": "0.1",

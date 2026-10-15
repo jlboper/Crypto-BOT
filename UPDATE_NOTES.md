@@ -1,3 +1,10 @@
+# 0.10.29 — Recuperación de pausas por reloj Futures Demo
+
+- Una respuesta del reloj Demo de más de dos segundos dejó Futures pausado aunque después se confirmaran las protecciones. Los motivos exactos de reloj lento/no disponible ahora admiten la auditoría automática completa existente.
+- Antes de reanudar se concilian journals, identidad/cantidad, modo/leverage, protecciones nativas, contratos sin exposición y cuenta. Una escritura pendiente, identidad incorrecta, protección sin confirmar, cuenta no disponible o pausa manual conserva el bloqueo.
+- Se mantiene el rechazo de muestras de tiempo inválidas/lentas, el reloj monotónico anclado únicamente a Demo y la prohibición de reintentar escrituras firmadas. No cambian señales, umbrales, límites ni órdenes para producir actividad.
+- Regresiones reproducen el error desde protección con posiciones abiertas y verifican todos los bloqueos de recuperación. Spot sigue evaluando 60 activos en 4h; su ausencia actual de entradas corresponde a señales bajo score 70.
+
 # 0.10.28 — Protección Spot y continuidad remota
 
 - GNS se compró y su OCO fue rechazado por PERCENT_PRICE_BY_SIDE. Ahora stop y objetivo redondeados se validan contra la referencia de Binance Testnet y las bandas SELL antes de comprar. Una referencia nula exige la ventana VWAP exacta. Los niveles no se recortan ni amplían para hacer pasar una orden.

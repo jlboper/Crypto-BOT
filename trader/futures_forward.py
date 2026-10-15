@@ -177,6 +177,11 @@ class FuturesForwardEngine:
         automatic_timestamp = {
             "automatic futures timestamp validation pause",
             "futures demo http 400 · binance -1021: timestamp for this request is outside of the recvwindow.",
+            # Local clock preflight fails before a signed request is sent. A
+            # later complete exchange audit may release these transient pauses
+            # without accepting a stale/slow sample or retrying a signed write.
+            "futures demo server time response too slow",
+            "futures demo server time unavailable",
         }
         # A failed signed READ does not prove position drift. Re-audit every
         # tracked position, native order and flat symbol before releasing it.
