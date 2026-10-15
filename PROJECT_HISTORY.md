@@ -248,3 +248,7 @@ Separately the Futures remote view reached 80,545 characters and caused the enti
 Futures protection latched a pause after an uncertain signed READ at 10:48 UTC. Its owned native orders later confirmed successfully, but that exact automatic reason was not recoverable. Re-audit journals, positions, native orders, flat configuration and account before automatic release; manual pauses and uncertain writes must remain blocked. No strategy promotion or risk expansion is authorized by this repair.
 
 
+
+## 2026-10-15 — Clock validation pauses require audited recovery
+
+A slow Demo time response correctly blocked the signed request before submission, but its exact diagnostic was absent from the automatic recovery reasons. Protection continued and native orders confirmed while new entries stayed paused for over ten hours. Do not relax the two-second clock-sample check or retry signed writes to cure this operational latch. Slow/unavailable Demo clock pauses may use the same complete reconciliation gate as timestamp rejection; any pending write, identity/configuration/protection/account failure or manual pause still blocks release. The owner-authorized supervisor recovered the current installation without a second engine. Spot's lack of current entries was independently traced to all 60 scores below 70, not a technical halt. Capacity and a request for movement do not justify forced trades or lowering risk gates.
