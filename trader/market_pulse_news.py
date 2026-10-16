@@ -13,7 +13,7 @@ from xml.etree import ElementTree
 
 
 OFFICIAL_HOSTS = {"blog.ethereum.org": "Ethereum Foundation", "bitcoincore.org": "Bitcoin Core"}
-PUBLIC_FEEDS = ("https://blog.ethereum.org/feed.xml", "https://bitcoincore.org/en/rss.xml")
+PUBLIC_FEEDS = ("https://blog.ethereum.org/en/feed.xml", "https://bitcoincore.org/en/rss.xml")
 MAX_FEED_BYTES = 1_048_576
 
 

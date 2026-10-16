@@ -1,3 +1,14 @@
+# Candidate — 0.10.32 canonical Ethereum RSS
+
+Prepared from verified main `ef4378fd7ff139b892ffa3bde79c4faa08884e6b`.
+Its 0.10.31 signed package was verified and installed with all 160 file hashes
+matching, fresh HTTPS sync and existing Spot/Futures positions protected ARMED.
+The first live news poll rejected the old Ethereum RSS URL's HTTP 301. Use its
+official direct `/en/feed.xml` destination while preserving redirect rejection.
+This adjustment changes no trading, risk, credentials or financial persistence.
+PR/main validation, signed publication and installed source health remain separate
+checks; record actual evidence in the final delivery.
+
 # Candidate — 0.10.31 three-engine portal and Market Pulse Shadow
 
 Prepared from verified main `26d1b33fdb54fb86a05c8c8310c80763110ca02b` (0.10.30).

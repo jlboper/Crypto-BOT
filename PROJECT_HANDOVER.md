@@ -31,7 +31,10 @@ Never combine its hypothetical capital/results with Spot Testnet or Futures Demo
 The shared-account coordinator is preparation only; existing Spot does not use
 its reservation protocol. Therefore sharing Testnet capital remains blocked.
 The optional remote projection and controls must evolve with the Worker validator.
-Release/publication/installation of 0.10.31 require independent verification.
+Release 0.10.31 was observed signed and installed with 160/160 hashes on 2026-10-16.
+Version 0.10.32 corrects the Ethereum RSS URL to its official direct `/en/feed.xml`
+destination; redirected feeds remain rejected. Always verify the current release,
+installation and source freshness independently.
 
 Crypto-BOT is a safety-first crypto trading research and execution project. Its purpose is to test systematic strategies with explicit risk controls and strong recoverability before any consideration of production capital.
 

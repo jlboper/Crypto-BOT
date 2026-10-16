@@ -1,3 +1,14 @@
+# 0.10.32 — Feed oficial directo de Ethereum
+
+- La primera observación instalada de 0.10.31 detectó HTTP 301 en el feed de
+  Ethereum Foundation. Se utiliza su destino oficial `/en/feed.xml` directamente;
+  se mantiene el rechazo de redirecciones, timeout, límites y validación de origen.
+- No cambia trading, riesgo, credenciales, bases financieras ni modos. Market Pulse
+  continúa exclusivamente SHADOW dentro del mismo proceso supervisado.
+- La 0.10.31 se publicó, verificó con Ed25519 e instaló con 160/160 hashes iguales;
+  Spot y Futures conservaron posiciones y protecciones ARMED. La publicación e
+  instalación de este ajuste requieren verificación independiente posterior.
+
 # 0.10.31 — Tres motores y AI Market Pulse Shadow
 
 - Portal compartido con tres tarjetas consistentes, siete secciones, panel Pulse
