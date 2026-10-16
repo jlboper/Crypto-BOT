@@ -403,8 +403,10 @@ class PulseLedgerTests(unittest.TestCase):
         self.assertNotIn("secret", json.dumps(self.service._health))
 
     def test_one_observer_lease_and_idempotent_start_stop(self):
+        observing = threading.Event()
         class Stream:
             def receive(self):
+                observing.set()
                 time.sleep(0.005)
                 return None
             def close(self): pass
@@ -414,6 +416,9 @@ class PulseLedgerTests(unittest.TestCase):
         self.assertTrue(self.service.start())
         self.addCleanup(self.service.stop)
         self.assertTrue(self.service.start())
+        # receive() runs only after _run has committed its persistent lease;
+        # Thread.start() alone does not guarantee that asynchronous milestone.
+        self.assertTrue(observing.wait(5), "Observer did not reach its owned market stream")
         other = MarketPulseService(self.folder, clock=lambda: NOW, stream_factory=factory)
         self.assertFalse(other.start())
         # Persistent lease also prevents an independent service identifier.

@@ -1,4 +1,4 @@
-# AI Market Pulse — 0.10.32
+# AI Market Pulse — 0.10.33
 
 ## Scope and safety
 
