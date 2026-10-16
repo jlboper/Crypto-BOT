@@ -1,3 +1,13 @@
+# Candidate — 0.10.33 deterministic observer exclusion test
+
+Prepared from verified main `6c3cd3091e9c6f98159526df57a901f2b6098f8c`.
+One Linux safety run asserted the private persistent lease before the observer
+thread reached it; the main publication's independent Linux/Windows validations
+passed on the same source. Synchronize the synthetic stream before that assertion
+instead of relying on scheduler order. Production ownership/lease logic is unchanged.
+Versioned test files are bundled, so increment the stable release. Verify CI,
+publication/signature, installed inventory and current runtime sources separately.
+
 # Candidate — 0.10.32 canonical Ethereum RSS
 
 Prepared from verified main `ef4378fd7ff139b892ffa3bde79c4faa08884e6b`.

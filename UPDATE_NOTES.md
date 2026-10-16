@@ -1,3 +1,12 @@
+# 0.10.33 — Prueba de exclusión determinista
+
+- La prueba de exclusión de observadores espera una señal del stream sintético,
+  posterior a la adquisición del lease, antes de intentar reclamarlo con un segundo
+  servicio. Elimina una carrera de planificación de hilos observada en CI Linux.
+- No cambia código de producción, trading, riesgo, finanzas ni recuperación.
+  Conserva la URL RSS oficial directa corregida en 0.10.32 y la interfaz de tres
+  motores. La firma e instalación se verifican separadamente después de CI.
+
 # 0.10.32 — Feed oficial directo de Ethereum
 
 - La primera observación instalada de 0.10.31 detectó HTTP 301 en el feed de

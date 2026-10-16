@@ -1,5 +1,11 @@
 # Work Context — Crypto AI Trader
 
+## Ajuste 0.10.33
+
+Sin cambios de producción: la prueba de exclusión espera la adquisición efectiva
+del lease antes de comprobar el segundo servicio. Evita una carrera sintética
+observada en CI Linux. Conserva 0.10.32 y requiere validar publicación e instalación.
+
 ## Ajuste 0.10.32
 
 La 0.10.31 (`ef4378fd7ff139b892ffa3bde79c4faa08884e6b`) se observó publicada,
