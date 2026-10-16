@@ -1,5 +1,13 @@
 # Work Context — Crypto AI Trader
 
+## Ajuste 0.10.32
+
+La 0.10.31 (`ef4378fd7ff139b892ffa3bde79c4faa08884e6b`) se observó publicada,
+firmada e instalada el 16 de octubre: 160/160 hashes, motor activo y sincronización
+HTTPS reciente. El RSS Ethereum devolvió 301; 0.10.32 usa `/en/feed.xml` sin
+permitir redirecciones. Bitcoin Core y Binance funcionaron. Verificar por separado
+publicación, firma, instalación y fuentes actuales de este ajuste.
+
 ## Evolución 0.10.31 (verificar publicación e instalación por separado)
 
 Tres identidades en el portal: Spot Testnet y Futures Demo conservan estrategias,

@@ -1,4 +1,4 @@
-# AI Market Pulse — 0.10.31
+# AI Market Pulse — 0.10.32
 
 ## Scope and safety
 
@@ -111,7 +111,7 @@ That is separate from the engine's automatic signed rollout.
 - [Binance market-data-only hosts](https://developers.binance.com/en/docs/products/spot/faqs/market_data_only)
   and [WebSocket streams](https://developers.binance.com/docs/binance-spot-api-docs/web-socket-streams):
   anonymous public market data, no new subscription; exchange limits apply.
-- [Ethereum Foundation](https://blog.ethereum.org/feed.xml) and
+- [Ethereum Foundation](https://blog.ethereum.org/en/feed.xml) and
   [Bitcoin Core](https://bitcoincore.org/en/rss.xml): public RSS, no new subscription.
 - [OpenAI structured output](https://developers.openai.com/api/docs/guides/structured-outputs?api-mode=responses)
   and [GPT-6 Luna pricing](https://developers.openai.com/api/docs/models/gpt-6-luna):
