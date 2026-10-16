@@ -1,5 +1,15 @@
 # Work Context — Crypto AI Trader
 
+## Ampliación 0.10.34 y siguiente etapa solicitada
+
+El propietario autorizó diez mayores activos negociables sin stablecoins/duplicados,
+cinco fuentes compatibles y plegar secciones largas. 0.10.34 prepara esta ampliación
+de Market Pulse SHADOW, preservando riesgo, tres slots hipotéticos y datos previos.
+Universo fechado y metodología en `MARKET_PULSE.md`; publicación/instalación se
+verifican separadamente. Después solicita cuatro bots y Portfolio Guardian:
+terminar esta ampliación primero; iniciar Observer sin veto ni ejecución Quant.
+Ver `FOUR_ENGINE_EXPANSION.md`. No mezclar arbitraje con balances Testnet/Demo.
+
 ## Ajuste 0.10.33
 
 Sin cambios de producción: la prueba de exclusión espera la adquisición efectiva

@@ -40,7 +40,9 @@ PULSE_HEALTH_FIELDS = frozenset(('latency_ms', 'reconnects', 'errors', 'last_err
     'rest_calls', 'news_calls', 'ai_reviews', 'ai_errors', 'buffer_seconds', 'uptime_seconds',
     'ai_daily_cap', 'ai_used_today', 'ai_min_interval_seconds', 'ai_max_output_tokens', 'ai_max_input_bytes'))
 PULSE_EVIDENCE_FIELDS = frozenset(('market', 'event_id', 'rule_version', 'published_at', 'received_at',
-    'decision_at', 'btc_change_1m_pct', 'btc_change_5m_pct', 'estimated_cost_bps', 'confirmations'))
+    'decision_at', 'btc_change_1m_pct', 'btc_change_5m_pct', 'estimated_cost_bps', 'confirmations',
+    'selection_rank', 'selection_pool', 'selection_rule'))
+PULSE_NEWS_PROVIDER_FIELDS = frozenset(('id', 'name', 'url', 'kind', 'state', 'last_update', 'last_error'))
 
 
 def _pulse_public_value(value, depth=0):
@@ -130,11 +132,11 @@ def market_pulse_projection(config):
             and raw['performance']['initial_capital'] > 0
             and raw.get('health', {}).get('last_error') != 'SHADOW_LEDGER_UNAVAILABLE')
         result.update(enabled=enabled, controls_available=bool(enabled and initialized), execution_enabled=False)
-        for key, fields, count in (('market', PULSE_MARKET_FIELDS, 12),
+        for key, fields, count in (('market', PULSE_MARKET_FIELDS, 10),
                 ('events', PULSE_EVENT_FIELDS, 12), ('opportunities', PULSE_DECISION_FIELDS - {'evidence'}, 12),
-                ('decisions', PULSE_DECISION_FIELDS, 16), ('positions', PULSE_POSITION_FIELDS, 12)):
+                ('decisions', PULSE_DECISION_FIELDS, 16), ('positions', PULSE_POSITION_FIELDS, 3)):
             rows = raw.get(key, [])
-            if not isinstance(rows, list) or (key == 'positions' and len(rows) > count):
+            if not isinstance(rows, list) or (key in {'market', 'positions'} and len(rows) > count):
                 raise ValueError('Invalid Market Pulse rows')
             result[key] = []
             for row in rows[:count]:
@@ -156,9 +158,41 @@ def market_pulse_projection(config):
                 raise ValueError('Invalid Market Pulse section')
             result[key] = {field: _pulse_public_value(value[field]) for field in fields if field in value}
             if key == 'performance' and isinstance(value.get('benchmark_buy_hold'), dict):
+                if len(value['benchmark_buy_hold']) > 10:
+                    raise ValueError('Market Pulse benchmark universe exceeds budget')
                 result[key]['benchmark_buy_hold'] = {symbol: _pulse_public_value(item) for symbol, item in
                     value['benchmark_buy_hold'].items() if re.fullmatch(r'[A-Z0-9]{2,24}USDT', symbol)
                     and type(item) in (int, float)}
+        if 'news_providers' in raw:
+            providers = raw['news_providers']
+            if not isinstance(providers, list) or len(providers) > 5:
+                raise ValueError('Invalid Market Pulse providers')
+            result['news_providers'] = []
+            for provider in providers:
+                projected = pick(provider, PULSE_NEWS_PROVIDER_FIELDS - {'url'})
+                if (set(projected) != PULSE_NEWS_PROVIDER_FIELDS - {'url'}
+                        or not re.fullmatch(r'[a-z][a-z0-9_-]{0,63}', str(projected.get('id', '')))
+                        or not isinstance(projected.get('name'), str)
+                        or projected.get('kind') not in {'official', 'editorial', 'regulatory'}
+                        or projected.get('state') not in {'READY', 'ERROR', 'STANDBY', 'DISABLED'}):
+                    raise ValueError('Invalid Market Pulse provider metadata')
+                updated = projected.get('last_update')
+                error = projected.get('last_error')
+                if (updated is not None and (not isinstance(updated, str) or _timestamp(updated) is None)
+                        or error is not None and (not isinstance(error, str)
+                            or not re.fullmatch(r'[A-Z0-9_:.-]{1,100}', error))):
+                    raise ValueError('Invalid Market Pulse provider health')
+                projected['url'] = _pulse_source_url(provider.get('url'))
+                result['news_providers'].append(projected)
+            if len({provider['id'] for provider in result['news_providers']}) != len(result['news_providers']):
+                raise ValueError('Duplicate Market Pulse provider identity')
+        if 'universe' in raw:
+            result['universe'] = pick(raw['universe'], ('selection', 'selected_at', 'source'))
+            if not all(isinstance(value, str) for value in result['universe'].values()):
+                raise ValueError('Invalid Market Pulse universe metadata')
+            source = raw['universe'].get('source')
+            if isinstance(source, str) and source.startswith('https://'):
+                result['universe']['source'] = _pulse_source_url(source) or '[URL omitida]'
         return bounded_market_pulse_projection(result)
     except Exception:
         unavailable['state'] = 'DEGRADED'

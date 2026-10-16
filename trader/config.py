@@ -145,7 +145,7 @@ class ResearchSettings:
 class MarketPulseSettings:
     enabled: bool = True
     mode: str = "SHADOW"
-    symbols: tuple[str, ...] = ("BTCUSDT", "ETHUSDT", "SOLUSDT")
+    symbols: tuple[str, ...] = ("BTCUSDT", "ETHUSDT", "BNBUSDT", "XRPUSDT", "SOLUSDT", "TRXUSDT", "ZECUSDT", "HYPEUSDT", "DOGEUSDT", "LINKUSDT")
     windows_seconds: tuple[int, ...] = (60, 300)
     ai_enabled: bool = True
     ai_max_reviews_per_day: int = 6
@@ -191,8 +191,8 @@ def load_config(path: str | Path | None = None) -> AppConfig:
         raise ValueError("Invalid Market Pulse configuration")
     if pulse.get("mode", "SHADOW") != "SHADOW":
         raise ValueError("Market Pulse execution is locked to SHADOW; promotion requires a separate release and owner authorization")
-    pulse_symbols = pulse.get("symbols", ["BTCUSDT", "ETHUSDT", "SOLUSDT"])
-    if not isinstance(pulse_symbols, list) or not pulse_symbols or any(type(s) is not str or s not in {"BTCUSDT", "ETHUSDT", "SOLUSDT"} for s in pulse_symbols) or len(set(pulse_symbols)) != len(pulse_symbols):
+    pulse_symbols = pulse.get("symbols", list(MarketPulseSettings().symbols))
+    if not isinstance(pulse_symbols, list) or not 1 <= len(pulse_symbols) <= 10 or any(type(s) is not str or s not in MarketPulseSettings().symbols for s in pulse_symbols) or len(set(pulse_symbols)) != len(pulse_symbols):
         raise ValueError("Unsupported Market Pulse universe")
     pulse_windows = pulse.get("windows_seconds", [60, 300])
     if not isinstance(pulse_windows, list) or pulse_windows != [60, 300]:

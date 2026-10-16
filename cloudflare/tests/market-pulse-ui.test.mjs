@@ -3,24 +3,25 @@ import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import {readFileSync} from 'node:fs';
 
-function portal(){
-  const elements=new Map(),calls=[];
+function portal({hash='',shellHidden=false}={}){
+  const elements=new Map(),calls=[],listeners=new Map(),shell={hidden:shellHidden};
   const get=id=>{
     if(!elements.has(id))elements.set(id,{id,textContent:'',innerHTML:'',className:'',dataset:{},disabled:false,
       listeners:{},classList:{add(){},remove(){},toggle(){}},
-      addEventListener(name,callback){this.listeners[name]=callback;}});
+      addEventListener(name,callback){this.listeners[name]=callback;},
+      scrollIntoView(){this.scrolled=(this.scrolled||0)+1;}});
     return elements.get(id);
   };
-  const document={getElementById:get,querySelector:()=>null,querySelectorAll:()=>[]};
-  const window={addEventListener(){},paperControlsAvailable:()=>true,portalButtonBusy:()=>false,
+  const document={getElementById:get,querySelector:selector=>selector==='.shell'?shell:null,querySelectorAll:()=>[]};
+  const window={addEventListener(name,callback){listeners.set(name,callback);},paperControlsAvailable:()=>true,portalButtonBusy:()=>false,
     portalApi:async(path,options)=>{calls.push({path,options});return {status:'pending'};}};
   const context=vm.createContext({window,document,URL,URLSearchParams,Date,
-    location:{search:'',pathname:'/',hash:''},sessionStorage:{getItem:()=>null},history:{replaceState(){}},
+    location:{search:'',pathname:'/',hash},sessionStorage:{getItem:()=>null},history:{replaceState(){}},
     setInterval:()=>0,setTimeout,clearTimeout,console,navigator:{}});
   vm.runInContext(readFileSync(new URL('../../web/app.js',import.meta.url),'utf8'),context);
   // Control tests inspect only the new isolated UI controller, without API reads from older engines.
-  vm.runInContext('refresh=async()=>{};',context);
-  return {ui:window.PulsePortal,get,calls,window};
+  vm.runInContext('refresh=async()=>globalThis.__testRefresh?.();',context);
+  return {ui:window.PulsePortal,get,calls,window,shell,listeners,setRefresh:callback=>{context.__testRefresh=callback;}};
 }
 
 function snapshot(overrides={}){
@@ -33,6 +34,24 @@ function snapshot(overrides={}){
       win_rate_pct:null,profit_factor:null,exposure:0,observation_days:0,costs:0,data_quality:'WARMING_UP'},
     health:{},research:{state:'FORWARD_ONLY',hypothesis_version:'pulse-v1',limitations:[]},...overrides};
 }
+
+test('deep navigation opens collapsed ancestors and rejects unknown targets',()=>{
+  const {ui,get}=portal();
+  const outer={tagName:'DETAILS',open:false,parentElement:null};
+  const target=get('pulse-news');target.tagName='DETAILS';target.open=false;target.parentElement=outer;
+  assert.equal(ui.revealSection('pulse-news',false),true);
+  assert.equal(target.open,true);assert.equal(outer.open,true);
+  assert.equal(ui.revealSection('untrusted-target',false),false);
+});
+
+test('provider status distinguishes available feeds and fallback standby',()=>{
+  const {ui,get}=portal();
+  ui.render(snapshot({sources:{binance_ws:{state:'CONNECTED'},binance_rest:{state:'STANDBY'},news:{state:'READY'}},
+    news_providers:[{id:'sec',name:'SEC',kind:'regulatory',url:'https://www.sec.gov/news/pressreleases.rss',state:'READY',last_update:null,last_error:null}]}),{},{});
+  assert.match(get('summaryPulseSources').textContent,/2\/2 fuentes activas.*respaldo disponible/);
+  assert.match(get('pulseProviderSummary').textContent,/1\/1 fuentes disponibles/);
+  assert.match(get('pulseNewsProviders').innerHTML,/REGULATORIA/);
+});
 
 test('legacy or absent Pulse snapshots show unavailable evidence instead of fabricated zeros',()=>{
   const {ui,get}=portal();
@@ -104,6 +123,48 @@ test('an old remote projection cannot make an old FRESH engine snapshot look cur
   ui.render(snapshot({at:new Date(Date.now()-180000).toISOString()}));
   assert.match(get('pulseFreshness').textContent,/PROYECCIÓN ANTIGUA/);
   assert.match(get('platformAlerts').textContent,/operación actual sin verificar/);
+});
+
+test('stale Pulse projections suppress current valuations and qualify provider status as last-known',()=>{
+  const {ui,get}=portal(),p=snapshot({remote_sync_stale:true,
+    news_providers:[{id:'sec',name:'SEC',kind:'regulatory',state:'READY',url:'https://www.sec.gov/news/pressreleases.rss',last_update:new Date().toISOString()}],
+    positions:[{symbol:'BTCUSDT',quantity:1,entry_price:100,mark_price:140,stop:90,target:150,unrealized_pnl:39.8}]});
+  Object.assign(p.performance,{cash:800,equity:1039.8,net_pnl:39.8,return_pct:3.98,exposure:140,closed_trades:4,costs:2,benchmark_buy_hold:{BTCUSDT:4}});
+  ui.render(p);
+  assert.equal(get('summaryPulseReturn').textContent,'—');
+  for(const label of ['Efectivo hipotético','Equity hipotético','P&amp;L neto simulado','Retorno simulado','Exposición hipotética'])assert.ok(get('pulsePerformance').innerHTML.includes(`${label}</dt><dd>—`));
+  assert.match(get('pulsePerformance').innerHTML,/Cierres hipotéticos<\/dt><dd>4/);
+  assert.match(get('pulseComparison').innerHTML,/Retorno simulado<\/dt><dd>—/);
+  assert.match(get('pulsePositions').innerHTML,/Entrada \/ mark<\/dt><dd>100 \/ —/);
+  assert.match(get('pulsePositions').innerHTML,/P&amp;L abierto hipotético<\/dt><dd>—/);
+  assert.match(get('pulseBenchmark').textContent,/benchmarks actuales no disponibles/);
+  assert.equal(get('pulseFinanceQuality').textContent,'VALORACIÓN ANTIGUA');
+  assert.match(get('pulseProviderSummary').textContent,/Último estado: 1\/1 listas · antiguo/);
+  assert.match(get('pulseNewsProviders').innerHTML,/Último estado: DISPONIBLE · ANTIGUO/);
+  assert.match(get('summaryPulseSources').textContent,/Último estado:/);
+  assert.equal(p.performance.equity,1039.8,'Rendering must not rewrite persisted producer data');
+  p.remote_sync_stale=false;p.freshness={state:'STALE',age_seconds:31};
+  ui.render(p);assert.equal(get('summaryPulseReturn').textContent,'—');
+  p.freshness={state:'FRESH',age_seconds:0};ui.render(p);
+  assert.equal(get('summaryPulseReturn').textContent,'+3.98%');
+  assert.match(get('pulseProviderSummary').textContent,/1\/1 fuentes disponibles/);
+});
+
+test('authenticated portal-ready waits for refresh then reopens and scrolls the deep-linked fold',async()=>{
+  const {ui,get,shell,listeners,setRefresh}=portal({hash:'#pulse-news',shellHidden:true});
+  const target=get('pulse-news'),outer={tagName:'DETAILS',open:false,parentElement:null};
+  target.tagName='DETAILS';target.open=false;target.parentElement=outer;
+  ui.init();
+  assert.equal(target.open,true);assert.equal(target.scrolled,undefined,'Hidden login state must not scroll the page');
+  target.open=false;outer.open=false;
+  let finishRefresh;
+  setRefresh(()=>new Promise(resolve=>{finishRefresh=()=>{shell.hidden=false;resolve();};}));
+  const pending=listeners.get('portal-ready')();
+  assert.equal(target.open,false,'Deep link must wait for authenticated refresh');
+  finishRefresh();await pending;
+  assert.equal(target.open,true);assert.equal(outer.open,true);assert.equal(target.scrolled,1);
+  shell.hidden=true;setRefresh(async()=>{});target.open=false;
+  await listeners.get('portal-ready')();assert.equal(target.open,false,'Failed authentication must not reveal hidden content');
 });
 
 test('independent pause remains pending until observed state confirms it and cannot send a second action',async()=>{

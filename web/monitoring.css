@@ -74,3 +74,19 @@
 .futures-asset-card dl{margin:0}.futures-asset-card dl div{display:flex;justify-content:space-between;gap:10px;padding:4px 0}
 .futures-asset-card dt{color:#8fa0ba}.futures-asset-card dd{margin:0;font-weight:700;text-align:right}
 @media(max-width:900px){.futures-asset-grid{grid-template-columns:1fr}}
+
+/* Long sections remain accessible without making the overview endless. */
+.portal-fold{min-width:0}
+.portal-fold>summary{display:flex;align-items:center;justify-content:space-between;gap:12px;cursor:pointer;list-style:none;color:#e8f0fb;font-weight:650;min-height:44px}
+.portal-fold>summary::-webkit-details-marker{display:none}
+.portal-fold>summary::after{content:'›';font-size:1.6rem;line-height:1;flex-shrink:0;color:#8fa0ba;transition:transform .15s}
+.portal-fold[open]>summary::after{transform:rotate(90deg)}
+.portal-fold>summary:focus-visible{outline:2px solid #2de2a6;outline-offset:5px;border-radius:6px}
+.portal-fold>summary>.panel-title{flex:1;min-width:0;margin:0}
+.portal-fold>summary h2,.portal-fold>summary h3{margin:0}
+.portal-fold>.fold-body{padding-top:14px;min-width:0}
+.engine-chart-fold{border-top:1px solid rgba(125,154,190,.14);margin-top:12px;padding-top:8px}
+.pulse-provider-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;margin-bottom:14px}
+.pulse-provider-grid[hidden]{display:none}
+@media(max-width:600px){.portal-fold>summary>.panel-title{align-items:flex-start;flex-wrap:wrap;gap:8px}.portal-fold>summary h2,.portal-fold>summary h3{font-size:1rem}.pulse-provider-grid{grid-template-columns:1fr}}
+@media(prefers-reduced-motion:reduce){.portal-fold>summary::after{transition:none}}

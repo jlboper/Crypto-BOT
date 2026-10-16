@@ -25,6 +25,7 @@ from typing import Callable
 
 from .market_pulse_news import clean_text, iso, normalize_event, timestamp, validate_review
 from .market_pulse_transport import BinancePublicStream, PublicRateLimitError, rest_recovery
+from .market_pulse_universe import DEFAULT_SYMBOLS, UNIVERSE_METADATA
 
 
 RULE_VERSION = "pulse-v1"
@@ -33,7 +34,8 @@ DB_NAME = "market-pulse.db"
 _OWNERS: dict[str, object] = {}
 _OWNERS_LOCK = threading.Lock()
 _EVIDENCE_KEYS = ("market", "event_id", "rule_version", "published_at", "received_at", "decision_at",
-                  "btc_change_1m_pct", "btc_change_5m_pct", "estimated_cost_bps", "confirmations")
+                  "btc_change_1m_pct", "btc_change_5m_pct", "estimated_cost_bps", "confirmations",
+                  "selection_rank", "selection_pool", "selection_rule")
 _EVENT_KEYS = ("id", "published_at", "received_at", "symbol", "source", "url", "title", "impact",
                "credibility", "kind", "decision", "reason", "market_reaction_pct")
 LIMITATIONS = ["Initial score weights and thresholds are unvalidated hypotheses.",
@@ -47,7 +49,7 @@ LIMITATIONS = ["Initial score weights and thresholds are unvalidated hypotheses.
 class PulseConfig:
     enabled: bool = True
     mode: str = "SHADOW"
-    symbols: tuple[str, ...] = ("BTCUSDT", "ETHUSDT", "SOLUSDT")
+    symbols: tuple[str, ...] = DEFAULT_SYMBOLS
     windows_seconds: tuple[int, int] = (60, 300)
     initial_capital: float = 1000.0
     risk_per_trade: float = 0.0025
@@ -58,14 +60,14 @@ class PulseConfig:
     slippage_bps: float = 10.0
     evaluation_interval: float = 5.0
     stale_seconds: float = 15.0
-    news_interval: float = 300.0
+    news_interval: float = 60.0
 
     def __post_init__(self) -> None:
         if self.mode != "SHADOW":
             raise ValueError("Market Pulse execution is locked to SHADOW; promotion requires separate authorization")
-        if (not self.symbols or len(set(self.symbols)) != len(self.symbols) or len(self.symbols) > 3
-                or any(symbol not in {"BTCUSDT", "ETHUSDT", "SOLUSDT"} for symbol in self.symbols)):
-            raise ValueError("Market Pulse initial universe must be BTC/ETH/SOL")
+        if (not self.symbols or len(set(self.symbols)) != len(self.symbols) or len(self.symbols) > 10
+                or any(symbol not in DEFAULT_SYMBOLS for symbol in self.symbols)):
+            raise ValueError("Market Pulse requires the reviewed bounded universe")
         if len(self.windows_seconds) != 2 or not 15 <= self.windows_seconds[0] < self.windows_seconds[1] <= 600:
             raise ValueError("Market Pulse windows out of bounded range")
         numeric = (self.initial_capital, self.risk_per_trade, self.max_exposure_fraction,
@@ -296,6 +298,8 @@ class MarketPulseService:
         self._positions: dict[str, dict] = {}
         self._started = self.clock()
         self._last_tick = self._last_rest = self._last_journal = 0.0
+        self._rest_index = 0
+        self._lease_valid_until = 0.0
         self._owner = uuid.uuid4().hex
         self._health = {"latency_ms": None, "reconnects": 0, "errors": 0, "last_error": None,
                         "ws_messages": 0, "rest_calls": 0, "news_calls": 0, "ai_reviews": 0,
@@ -332,8 +336,20 @@ class MarketPulseService:
             saved = _meta(db, "hypotheses")
             current = _json(asdict(self.config))
             if saved and saved != current:
-                # Preserve the cohort, prohibit a quiet reinterpretation of prior financial evidence.
-                raise ValueError("Shadow hypotheses changed; a separately reviewed cohort is required")
+                prior, following = json.loads(saved), json.loads(current)
+                previous_symbols = prior.pop("symbols", [])
+                next_symbols = following.pop("symbols", [])
+                previous_poll, next_poll = prior.pop("news_interval", 300), following.pop("news_interval", 60)
+                # Only the reviewed additive observation/polling expansion is compatible.
+                # Financial hypotheses and held assets must remain identical/present.
+                if (prior != following or not set(previous_symbols).issubset(next_symbols)
+                        or tuple(next_symbols) != DEFAULT_SYMBOLS
+                        or previous_poll not in (60, 300) or next_poll != 60):
+                    raise ValueError("Shadow hypotheses changed; a separately reviewed cohort is required")
+                history = json.loads(_meta(db, "hypothesis_history", "[]"))
+                history.append({"at": iso(self.clock()), "previous": json.loads(saved),
+                                "next": json.loads(current), "reason": "Reviewed prospective universe expansion; prior evidence retained"})
+                _set(db, "hypothesis_history", _json(history))
             _set(db, "hypotheses", current)
             self._positions = {row["symbol"]: json.loads(row["data"]) for row in db.execute("SELECT symbol,data FROM pulse_positions")}
 
@@ -385,6 +401,7 @@ class MarketPulseService:
             db.execute("BEGIN IMMEDIATE")
             owner, until = _meta(db, "lease_owner"), float(_meta(db, "lease_until", "0"))
             if owner and owner != self._owner and until > now:
+                self._lease_valid_until = 0.0
                 return False
             if owner != self._owner:
                 # A waiting successor must read the ledger as it exists at
@@ -395,6 +412,7 @@ class MarketPulseService:
                     window.gap_at = now
             _set(db, "lease_owner", self._owner)
             _set(db, "lease_until", now + 20)
+        self._lease_valid_until = now + 20
         return True
 
     def _run(self) -> None:
@@ -421,6 +439,8 @@ class MarketPulseService:
                     try:
                         message = self._stream.receive()
                         if message is not None:
+                            if self.clock() >= self._lease_valid_until and not self._lease(self.clock()):
+                                raise RuntimeError("Observer lease expired during public read")
                             self.ingest_message(message, received_at=self.clock())
                         last = timestamp(self._sources["binance_ws"]["last_update"])
                         if self.clock() - (last or connected_at) > self.config.stale_seconds * 2:
@@ -444,6 +464,10 @@ class MarketPulseService:
                         self.recover_market(now)
                     self._stop.wait(0.25)
                 if self.clock() - self._last_tick >= self.config.evaluation_interval:
+                    if not self._lease(self.clock()):
+                        lease_at = 0
+                        continue
+                    lease_at = self.clock() + 5
                     self.evaluate(self.clock(), project=False)
         except Exception:
             # A third-observer failure never escapes into the operating engine.
@@ -493,12 +517,24 @@ class MarketPulseService:
         now = self.clock() if now is None else now
         self._last_rest = now
         self._sources["binance_rest"]["state"] = "RECOVERY"
-        for symbol, window in self.windows.items():
+        # One rotating asset per pass bounds public REST waits to one pair of
+        # three-second requests, independent of the observation-universe size.
+        symbols = tuple(self.windows)
+        symbol = symbols[self._rest_index % len(symbols)]
+        self._rest_index = (self._rest_index + 1) % len(symbols)
+        for symbol in (symbol,):
+            window = self.windows[symbol]
             if self._stop.is_set():
                 break
             try:
                 self._health["rest_calls"] += 2
                 trades, depth = self.rest_fetcher(symbol, window.last_id)
+                if self._stop.is_set():
+                    return
+                if not self._lease(self.clock()):
+                    self._sources["binance_rest"]["state"] = "ERROR"
+                    self._error("PULSE_LEASE_LOST_DURING_RECOVERY")
+                    return
                 with self._lock:
                     for trade in trades[:1000]:
                         trade = dict(trade, s=symbol, e="aggTrade")
@@ -533,7 +569,10 @@ class MarketPulseService:
                     continue
                 inserted += 1
                 _set(db, "events_analyzed", int(_meta(db, "events_analyzed", "0")) + 1)
-                market = self.windows[event["symbol"]].metrics(now)
+                window = self.windows.get(event["symbol"])
+                if window is None:  # Macro context is retained, never an asset order signal.
+                    continue
+                market = window.metrics(now)
                 # Promise/ambiguity prefilter precedes AI. Never review every tick/headline.
                 if (self.reviewer and event.get("_admissible") is True and market["fresh"]
                         and (abs(market.get("change_1m_pct") or 0) >= 0.1 or (market.get("relative_volume") or 0) >= 1.5)):
@@ -543,11 +582,25 @@ class MarketPulseService:
     def _queue_review(self, event: dict, market: dict) -> None:
         if event["id"] in self._queued_reviews:
             return
+        priority = (score_opportunity(market, self.windows["BTCUSDT"].metrics(self.clock())
+                    if "BTCUSDT" in self.windows else None, event)["score"],
+                    event.get("credibility", 0), timestamp(event.get("published_at")) or 0)
+        item = {"event": dict(event), "metrics": dict(market), "priority": priority}
         try:
-            self._review_queue.put_nowait({"event": dict(event), "metrics": dict(market)})
+            self._review_queue.put_nowait(item)
             self._queued_reviews.add(event["id"])
         except queue.Full:
-            self._error("EVENT_REVIEW_QUEUE_FULL")
+            # Replace only a lower-priority pending event; active reviews are separate.
+            with self._review_queue.mutex:
+                pending = self._review_queue.queue
+                if not pending:
+                    return
+                lowest = min(pending, key=lambda value: value.get("priority", (0, 0, 0)))
+                if priority > lowest.get("priority", (0, 0, 0)):
+                    pending.remove(lowest)
+                    self._queued_reviews.discard(lowest["event"]["id"])
+                    pending.append(item)
+                    self._queued_reviews.add(event["id"])
 
     def _auxiliary(self) -> None:
         next_news = 0.0
@@ -568,11 +621,22 @@ class MarketPulseService:
                     self._sources["news"]["state"] = "ERROR"
                     self._error("NEWS_PROVIDER_UNAVAILABLE")
             try:
+                with self._review_queue.mutex:
+                    pending = self._review_queue.queue
+                    if pending:
+                        best = max(pending, key=lambda value: value.get("priority", (0, 0, 0)))
+                        pending.remove(best)
+                        pending.appendleft(best)
                 item = self._review_queue.get(timeout=0.5)
             except queue.Empty:
                 continue
             if self.reviewer:
                 try:
+                    if ((timestamp(item["event"].get("published_at")) or 0) < self.clock() - 1800
+                            or item["event"].get("_admissible") is not True):
+                        self._review_queue.task_done()
+                        self._queued_reviews.discard(item["event"]["id"])
+                        continue
                     # Dedicated event worker: review cannot delay market stops.
                     review = self.reviewer(item)
                     if review is not None:  # Independent budget/rate gate may decline a call.
@@ -700,11 +764,12 @@ class MarketPulseService:
                 peak = max(equity, float(_meta(db, "peak_equity")))
                 _set(db, "peak_equity", peak)
                 _set(db, "drawdown_pct", max(float(_meta(db, "drawdown_pct", "0")), (1 - equity / peak) * 100))
-                for market in markets:
+                costs = 2 * (self.config.fee_bps + self.config.slippage_bps)
+                candidates = [(market, self._latest_event(db, market["symbol"], now)) for market in markets]
+                ranked = [(market, event, score_opportunity(market, btc, event, cost_bps=costs)) for market, event in candidates]
+                ranked.sort(key=lambda item: (-item[2]["score"], -item[2]["confidence"], -(item[0].get("depth_quote") or 0), item[0]["symbol"]))
+                for rank, (market, event, result) in enumerate(ranked, 1):
                     symbol = market["symbol"]
-                    event = self._latest_event(db, symbol, now)
-                    costs = 2 * (self.config.fee_bps + self.config.slippage_bps)
-                    result = score_opportunity(market, btc, event, cost_bps=costs)
                     if symbol in self._positions:
                         result.update(action="HOLD", reason="Existing hypothetical position remains under protective monitoring")
                     elif result["action"] == "BUY" and paused:
@@ -721,6 +786,7 @@ class MarketPulseService:
                                 "btc_change_5m_pct": btc.get("change_5m_pct") if btc else None,
                                 "estimated_cost_bps": costs + (market["spread_bps"] or 0), "confirmations": result.pop("confirmations"),
                                 "_event": event, "_btc": btc, "_cost_bps": costs}
+                    evidence.update(selection_rank=rank, selection_pool=len(ranked), selection_rule="QUANTITATIVE_SCORE_THEN_CONFIDENCE_LIQUIDITY")
                     decision = dict(result, id=identity, at=iso(now), symbol=symbol, evidence=evidence)
                     if db.execute("SELECT 1 FROM pulse_decisions WHERE id=?", (identity,)).fetchone():
                         continue
@@ -787,6 +853,8 @@ class MarketPulseService:
                 _set(db, "market", _json(markets))
                 _set(db, "health", _json(self._health))
                 _set(db, "sources", _json(self._sources))
+                if callable(getattr(self.news_fetcher, "health", None)):
+                    _set(db, "news_providers", _json(self.news_fetcher.health()))
             return self.snapshot(now=now) if project else None
 
     def snapshot(self, *, now: float | None = None) -> dict:
@@ -834,7 +902,9 @@ def market_pulse_snapshot(data_dir: Path | str, *, now: float | None = None,
             age = max(0, now - updated) if updated else None
             stale = age is None or age > 30
             result.update(updated_at=iso(updated), freshness={"state": "UNAVAILABLE" if age is None else "STALE" if stale else "FRESH", "age_seconds": age})
-            result["market"] = json.loads(_meta(db, "market", "[]"))[:3]
+            result["market"] = json.loads(_meta(db, "market", "[]"))[:10]
+            result["news_providers"] = json.loads(_meta(db, "news_providers", "[]"))[:5]
+            result["universe"] = dict(UNIVERSE_METADATA)
             for market in result["market"]:
                 market["fresh"] = bool(market["fresh"] and not stale and (timestamp(market["at"]) or 0) >= now - 30)
             result["sources"] = json.loads(_meta(db, "sources", _json(result["sources"])))
@@ -850,7 +920,8 @@ def market_pulse_snapshot(data_dir: Path | str, *, now: float | None = None,
             result["stats"].update(events_analyzed=event_count, relevant_news=sum(e["credibility"] >= 0.8 and e["decision"] != "REJECT" for e in event_rows))
             for row in db.execute("SELECT data FROM pulse_decisions ORDER BY at DESC,rowid DESC LIMIT 12"):
                 decision = json.loads(row[0])
-                decision["evidence"] = {key: decision["evidence"].get(key) for key in _EVIDENCE_KEYS}
+                decision["evidence"] = {key: decision["evidence"][key] for key in _EVIDENCE_KEYS
+                                        if key in decision["evidence"]}
                 result["decisions"].append(decision)
             for row in db.execute("SELECT data FROM pulse_decisions WHERE score>=40 ORDER BY at DESC,rowid DESC LIMIT 10"):
                 decision = json.loads(row[0])

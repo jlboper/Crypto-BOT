@@ -21,6 +21,13 @@ Then inspect current `main`, recent commits, open PRs/issues and CI. Documentati
 
 ### Third engine introduced by 0.10.31
 
+Version 0.10.34 expands the reviewed Shadow observation universe to ten eligible
+nonstable Binance Spot USDT assets with a frozen dated cap selection, five primary
+RSS providers and deterministic candidate priority. Old journal/wallet survives an
+audited additive hypothesis transition; risk/cost changes remain rejected. Native
+folds compact long portal sections. The owner next requested Guardian Observer
+and Quant Arbitrage; see `FOUR_ENGINE_EXPANSION.md`, with no veto/promotion implied.
+
 AI Market Pulse observes public BTC/ETH/SOL trades, depth and bounded official
 events inside the existing supervised process, after signed activation. It owns
 `data/market-pulse.db` and an independent pause marker; `market-pulse-ai.db`

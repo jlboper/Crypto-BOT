@@ -157,13 +157,27 @@ class PulseEventTests(unittest.TestCase):
         self.assertTrue(official["_admissible"])
         self.assertEqual(score_opportunity(market(), market(), official)["action"], "REJECT")
 
+    def test_kraken_reports_are_never_own_announcements(self):
+        for title in ("Kraken reports Bitcoin ETF approval", "Kraken discusses Bitcoin critical vulnerability",
+                      "Kraken launches Bitcoin product and reports ETF approval"):
+            event = normalize_event({"title": title, "url": "https://blog.kraken.com/news/report", "published_at": NOW - 10}, NOW, ("BTCUSDT",))[0]
+            self.assertEqual(event["kind"], "report")
+            self.assertFalse(event["_admissible"])
+            self.assertLess(event["credibility"], 0.8)
+            self.assertEqual(score_opportunity(market(), market(), event), score_opportunity(market(), market(), None))
+        own = normalize_event({"title": "Kraken launches Bitcoin custody service", "url": "https://blog.kraken.com/news/own", "published_at": NOW - 10}, NOW, ("BTCUSDT",))[0]
+        self.assertTrue(own["_admissible"])
+        promotion = normalize_event({"title": "Kraken launches Bitcoin rewards campaign", "url": "https://blog.kraken.com/news/promo", "published_at": NOW - 10}, NOW, ("BTCUSDT",))[0]
+        self.assertFalse(promotion["_admissible"])
+        self.assertEqual(promotion["impact"], "uncertain")
+
 
 class PulseLedgerTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.folder = Path(self.temp.name)
-        self.service = MarketPulseService(self.folder, clock=lambda: NOW)
+        self.service = MarketPulseService(self.folder, config=PulseConfig(symbols=("BTCUSDT", "ETHUSDT", "SOLUSDT")), clock=lambda: NOW)
         self.service._initialize()
 
     def ready(self):
@@ -368,6 +382,87 @@ class PulseLedgerTests(unittest.TestCase):
         self.assertEqual(self.service.snapshot()["performance"]["cash"], 1000)
         self.assertEqual(self.service._positions, {})
 
+    def test_rest_recovery_is_one_asset_per_pass_and_rotates_after_failure(self):
+        current = [NOW]
+        expanded = MarketPulseService(self.folder / "expanded", clock=lambda: current[0])
+        expanded._initialize()
+        expanded.rest_fetcher = Mock(return_value=([], depth()))
+        symbols = tuple(expanded.windows)
+        for index in range(len(symbols)):
+            current[0] = NOW + index * 30
+            expanded.recover_market()
+            self.assertEqual(expanded.rest_fetcher.call_count, index + 1)
+        self.assertEqual([call.args[0] for call in expanded.rest_fetcher.call_args_list], list(symbols))
+        expanded.rest_fetcher = Mock(side_effect=[TimeoutError(), ([], depth())])
+        expanded.recover_market()
+        current[0] += 30
+        expanded.recover_market()
+        self.assertEqual([call.args[0] for call in expanded.rest_fetcher.call_args_list], list(symbols[:2]))
+
+    def test_rest_success_revalidates_lease_before_accepting_fetched_data(self):
+        current = [NOW]
+        self.service.clock = lambda: current[0]
+        self.assertTrue(self.service._lease(NOW))
+        successor = MarketPulseService(self.folder, config=self.service.config, clock=lambda: current[0])
+        successor._initialize()
+        def delayed_fetch(symbol, last_id):
+            current[0] += 25
+            self.assertTrue(successor._lease(current[0]))
+            return [trade(1, current[0])], depth()
+        self.service.rest_fetcher = delayed_fetch
+        self.service.recover_market()
+        self.assertFalse(self.service.windows["BTCUSDT"].buckets)
+        self.assertIsNone(self.service.windows["BTCUSDT"].book_at)
+        self.assertEqual(self.service._health["last_error"], "PULSE_LEASE_LOST_DURING_RECOVERY")
+        self.assertFalse(self.service._lease(current[0]))
+
+    def test_rest_timeout_with_takeover_cannot_evaluate_old_observer(self):
+        current = [NOW]
+        self.service.clock = lambda: current[0]
+        successor = MarketPulseService(self.folder, config=self.service.config, clock=lambda: current[0])
+        successor._initialize()
+        def delayed_failure(symbol, last_id):
+            current[0] += 25
+            self.assertTrue(successor._lease(current[0]))
+            self.service._stop.set()
+            raise TimeoutError()
+        self.service.rest_fetcher = delayed_failure
+        self.service.stream_factory = Mock(side_effect=ConnectionError())
+        self.service.evaluate = Mock()
+        self.service._run()
+        self.service.evaluate.assert_not_called()
+        with closing(sqlite3.connect(self.service.path)) as db:
+            self.assertEqual(db.execute("SELECT value FROM pulse_meta WHERE key='lease_owner'").fetchone()[0], successor._owner)
+
+    def test_rest_success_renews_current_owner_after_blocking_read(self):
+        current = [NOW]
+        self.service.clock = lambda: current[0]
+        self.assertTrue(self.service._lease(NOW))
+        def delayed_fetch(symbol, last_id):
+            current[0] += 6
+            return [trade(1, current[0])], depth()
+        self.service.rest_fetcher = delayed_fetch
+        self.service.recover_market()
+        self.assertEqual(self.service.windows["BTCUSDT"].last_id, 1)
+        self.assertEqual(self.service._lease_valid_until, NOW + 26)
+
+    def test_legacy_and_protective_decisions_omit_optional_rank_fields(self):
+        self.ready()
+        self.service.evaluate(NOW)
+        with closing(sqlite3.connect(self.service.path)) as db, db:
+            for identity, payload in db.execute("SELECT id,data FROM pulse_decisions").fetchall():
+                decision = json.loads(payload)
+                for key in ("selection_rank", "selection_pool", "selection_rule"):
+                    decision["evidence"].pop(key, None)
+                db.execute("UPDATE pulse_decisions SET data=? WHERE id=?", (json.dumps(decision), identity))
+        position = self.service._positions["BTCUSDT"]
+        self.service._protective_check("BTCUSDT", position["stop"] - 1, NOW + 1)
+        decisions = self.service.snapshot(now=NOW + 1)["decisions"]
+        self.assertTrue(any(d["action"] == "SELL" for d in decisions))
+        for decision in decisions:
+            for key in ("selection_rank", "selection_pool", "selection_rule"):
+                self.assertNotIn(key, decision["evidence"])
+
     def test_empty_or_corrupt_partial_ledger_is_safe_degraded(self):
         with closing(sqlite3.connect(self.service.path)) as db, db:
             db.execute("UPDATE pulse_meta SET value='NaN' WHERE key='cash'")
@@ -387,7 +482,7 @@ class PulseLedgerTests(unittest.TestCase):
             return {"action": "BUY"}
         self.service.reviewer = reviewer
         self.service.news_fetcher = Mock(side_effect=RuntimeError("secret should not appear"))
-        self.service._review_queue.put({"event": {"id": "synthetic"}, "metrics": {}})
+        self.service._review_queue.put({"event": {"id": "synthetic", "_admissible": True, "published_at": iso(NOW)}, "metrics": {}})
         worker = threading.Thread(target=self.service._auxiliary)
         worker.start()
         self.assertTrue(entered.wait(1))

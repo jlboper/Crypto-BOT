@@ -88,7 +88,7 @@ kill_switch_path = "data/FUTURES_KILL_SWITCH"
 [market_pulse]
 enabled = true
 mode = "SHADOW"
-symbols = ["BTCUSDT", "ETHUSDT", "SOLUSDT"]
+symbols = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "XRPUSDT", "SOLUSDT", "TRXUSDT", "ZECUSDT", "HYPEUSDT", "DOGEUSDT", "LINKUSDT"]
 windows_seconds = [60, 300]
 ai_enabled = true
 ai_max_reviews_per_day = 6

@@ -56,9 +56,12 @@ function validateMarketPulse(p) {
       ||['fresh','complete'].includes(k)&&typeof v==='boolean'
       ||!['symbol','at','fresh','complete'].includes(k)&&finite(v));
   const evidence=value=>keys(value,['market','event_id','rule_version','published_at','received_at','decision_at',
-    'btc_change_1m_pct','btc_change_5m_pct','estimated_cost_bps','confirmations'])
+    'btc_change_1m_pct','btc_change_5m_pct','estimated_cost_bps','confirmations','selection_rank','selection_pool','selection_rule'])
+    &&(value.selection_rank===undefined||value.selection_pool===undefined||value.selection_rank<=value.selection_pool)
     &&Object.entries(value).every(([k,v])=>k==='market'?market(v):k==='event_id'?v===null||identifier(v)
       :k==='rule_version'?text(v):['published_at','received_at','decision_at'].includes(k)?stamp(v)
+      :['selection_rank','selection_pool'].includes(k)?Number.isInteger(v)&&v>=1&&v<=10
+      :k==='selection_rule'?v==='QUANTITATIVE_SCORE_THEN_CONFIDENCE_LIQUIDITY'
       :k==='confirmations'?strings(v)||Number.isSafeInteger(v)&&v>=0:finite(v));
   const decisionFields=['id','at','symbol','score','confidence','action','favorable','risks','reason','evidence'];
   const decision=value=>keys(value,decisionFields)&&symbol(value.symbol)&&action(value.action)
@@ -75,7 +78,7 @@ function validateMarketPulse(p) {
       &&!/(?:sk-|gh[pousr]_|github_pat_|api[_-]?key|token|secret|password)/i.test(u.pathname);}catch{return false;}
   };
   const event=value=>keys(value,['id','published_at','received_at','symbol','source','url','title','impact',
-    'credibility','kind','decision','reason','market_reaction_pct'])&&symbol(value.symbol)
+    'credibility','kind','decision','reason','market_reaction_pct'])&&(symbol(value.symbol)||value.symbol==='MARKET')
     &&Object.entries(value).every(([k,v])=>k==='symbol'||k==='id'&&identifier(v)
       ||['published_at','received_at'].includes(k)&&stamp(v)||k==='url'&&safeUrl(v)
       ||['source','title','reason'].includes(k)&&text(v)||k==='kind'&&['official','report','rumor'].includes(v)
@@ -90,7 +93,8 @@ function validateMarketPulse(p) {
     'win_rate_pct','profit_factor','exposure','observation_days','costs','environment','data_quality',
     'benchmark_cash_return_pct','benchmark_buy_hold'];
   assert(keys(p,['schema','engine','mode','state','at','updated_at','freshness','enabled','controls_available',
-    'execution_enabled','sources','stats','market','events','opportunities','decisions','positions','performance','health','research'])
+    'execution_enabled','sources','stats','market','events','opportunities','decisions','positions','performance','health','research',
+    'news_providers','universe'])
     &&p.schema===1&&p.engine==='AI_MARKET_PULSE'&&p.mode==='SHADOW'&&p.execution_enabled===false
     &&['SHADOW','PAUSED','WARMING_UP','DEGRADED','NOT_STARTED'].includes(p.state)
     &&typeof p.enabled==='boolean'&&typeof p.controls_available==='boolean'&&(!p.controls_available||p.enabled)
@@ -102,13 +106,28 @@ function validateMarketPulse(p) {
       binance_rest:['STANDBY','RECOVERY','ERROR'],news:['DISABLED','READY','ERROR']}[k]).includes(v.state)),error);
   assert(keys(p.stats,['events_analyzed','relevant_news','opportunities','accepted','rejected','decisions'])
     &&Object.values(p.stats).every(v=>Number.isSafeInteger(v)&&v>=0),error);
-  for(const [key,maximum,validate] of [['market',12,market],['events',12,event],['opportunities',12,decision],
-    ['decisions',16,decision],['positions',12,position]]){
+  for(const [key,maximum,validate] of [['market',10,market],['events',12,event],['opportunities',12,decision],
+    ['decisions',16,decision],['positions',3,position]]){
     assert(Array.isArray(p[key])&&p[key].length<=maximum&&p[key].every(validate),error);
   }
   assert(keys(p.performance,performanceKeys)&&Object.entries(p.performance).every(([k,v])=>
     k==='environment'?v==='SHADOW':k==='data_quality'?['COMPLETE','PARTIAL','UNAVAILABLE'].includes(v)
-    :k==='benchmark_buy_hold'?v===null||keys(v,Object.keys(v).filter(symbol))&&Object.values(v).every(finite):finite(v)),error);
+    :k==='benchmark_buy_hold'?v===null||object(v)&&Object.keys(v).length<=10
+      &&keys(v,Object.keys(v).filter(symbol))&&Object.values(v).every(finite):finite(v)),error);
+  if(p.news_providers!==undefined){
+    assert(Array.isArray(p.news_providers)&&p.news_providers.length<=5
+      &&new Set(p.news_providers.map(v=>v?.id)).size===p.news_providers.length
+      &&p.news_providers.every(v=>keys(v,['id','name','url','kind','state','last_update','last_error'])
+        &&typeof v.id==='string'&&/^[a-z][a-z0-9_-]{0,63}$/.test(v.id)&&text(v.name)
+        &&safeUrl(v.url)&&['official','editorial','regulatory'].includes(v.kind)
+        &&['READY','ERROR','STANDBY','DISABLED'].includes(v.state)&&stamp(v.last_update)
+        &&(v.last_error===null||typeof v.last_error==='string'&&/^[A-Z0-9_:.-]{1,100}$/.test(v.last_error))),error);
+  }
+  if(p.universe!==undefined){
+    assert(keys(p.universe,['selection','selected_at','source'])
+      &&Object.values(p.universe).every(text)
+      &&(!/^https?:/i.test(p.universe.source)||safeUrl(p.universe.source)),error);
+  }
   assert(keys(p.health,['latency_ms','reconnects','errors','last_error','ws_messages','rest_calls','news_calls',
     'ai_reviews','ai_errors','buffer_seconds','uptime_seconds','ai_daily_cap','ai_used_today',
     'ai_min_interval_seconds','ai_max_output_tokens','ai_max_input_bytes'])&&Object.entries(p.health).every(([k,v])=>

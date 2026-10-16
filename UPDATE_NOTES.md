@@ -1,3 +1,23 @@
+# 0.10.34 — Diez activos, cinco fuentes y portal plegable
+
+- Market Pulse observa BTC, ETH, BNB, XRP, SOL, TRX, ZEC, HYPE, DOGE y LINK.
+  Selección fechada de capitalización CoinGecko cruzada con pares Spot USDT activos
+  en Binance; sin stablecoins, duplicados ni activos sin par compatible. No es un
+  ranking que se actualice silenciosamente. Spot y Futures conservan sus universos.
+- Cinco RSS públicos: Ethereum Foundation, Bitcoin Core, Kraken, Federal Reserve
+  y SEC; una petición por minuto en total, estados individuales y fallos aislados.
+  Rumores, noticias antiguas/futuras, predicciones y promociones no confirman entradas.
+  Contexto monetario se registra como MARKET, nunca como orden sobre un activo.
+- Ordena candidatos por score, confianza y liquidez antes de asignar los tres slots
+  hipotéticos existentes. La cola IA prioriza eventos prometedores, conserva el
+  límite propio de seis intentos/día y nunca participa en cierres protectores.
+- La expansión aditiva preserva ledger, posiciones y journal, registrando la
+  transición de hipótesis; cambiar costos/riesgo sigue rechazado. SHADOW exclusivo.
+- Secciones extensas plegables con teclado, navegación que abre la sección destino,
+  preferencia local acotada y redibujo de gráficos al abrir. Resumen/estados/controles
+  siguen visibles. Contrato remoto compatible hasta diez activos y cinco proveedores
+  dentro de 20 KB, sin aumentar posiciones, exposición ni consumo de IA.
+
 # 0.10.33 — Prueba de exclusión determinista
 
 - La prueba de exclusión de observadores espera una señal del stream sintético,

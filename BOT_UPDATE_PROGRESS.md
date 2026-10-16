@@ -1,3 +1,15 @@
+# Candidate — 0.10.34 ten-asset/five-source Pulse and compact portal
+
+Prepared from main `815ba27bbe52d2ec3a3f5790caedfc7fe8901a04` (0.10.33),
+previously signed and installed. Dated CoinGecko/Binance public probes establish
+ten eligible nonstable Spot USDT symbols. Five direct RSS endpoints were verified;
+commercial sources with incompatible automated/AI terms are excluded. Add bounded
+provider health, deterministic candidate/review priority and additive cohort audit.
+Long shared-portal sections become collapsible. Preserve all operating risk,
+positions, ledgers, credentials, signed update/recovery and strict Shadow mode.
+CI, signed publication, installed inventory and fresh source/sync health require
+independent final verification. Four-engine/Guardian work follows on updated main.
+
 # Candidate — 0.10.33 deterministic observer exclusion test
 
 Prepared from verified main `6c3cd3091e9c6f98159526df57a901f2b6098f8c`.
