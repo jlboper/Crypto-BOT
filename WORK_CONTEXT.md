@@ -83,3 +83,11 @@ Desde 0.8.5, un agente actualizado reporta su versión instalada al portal. Si e
 La tarea programada de Windows usa un watchdog persistente independiente del motor. Si el agente HTTPS termina inesperadamente, el watchdog lo relanza con backoff y la tarea conserva una política secundaria amplia de reinicio. Después de que una release firmada queda comprometida y el nuevo motor supera activación/health-check, el motor lanza en segundo plano `agent_self_heal.ps1`: valida el journal firmado, actualiza la definición de la tarea, refresca únicamente módulos del agente independiente, reinicia ese agente y busca una sincronización HTTPS nueva. Un fallo de esta reparación degrada solo visibilidad remota; nunca detiene el motor ni revierte datos financieros.
 
 El rollout compara siempre la versión instalada contra la última release firmada. Por ello una instalación atrasada puede saltar directamente a la versión más reciente sin encadenar releases intermedias.
+# Continuación 0.10.35 — Guardian Observer
+
+0.10.34 main06de9109a0ae49ffbdb5f94bc6310a9239f421fc publicado, firmado e instalado
+162/162; Pulse diez activos/cinco fuentes, journal conservado, Futures seis posiciones
+con protección ARMED y exposición no ampliada. Guardian observa cuatro ledgers con
+contrato opcional y `/api/platform`; no veta ni reserva capital. Quant NOT_STARTED,
+sin métricas inventadas. Las etapas UI cuatro motores/Windows y Quant Shadow son
+PRs separados. No introducir nuevas órdenes Testnet ni LIVE. Ver FOUR_ENGINE_EXPANSION.md.

@@ -11,7 +11,11 @@ from trader.portal_snapshot import dashboard_snapshot, bounded_futures_projectio
 
 
 def compatible_remote_projection(payload):
-    """Preserve the deployed portal schema; new finance stays local until release."""
+    """Preserve legacy finance and already-built optional Observer evidence.
+
+    Guardian was calculated before Futures marks are omitted here. Its independent
+    bounded scope values must not be recomputed from the reduced legacy shape.
+    """
     payload.get('paper_scorecard', {}).pop('financial', None)
     futures = payload.get('futures_forward', {})
     futures.get('scorecard', {}).pop('financial', None)

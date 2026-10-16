@@ -305,3 +305,12 @@ been observed on the operating PC.
 
 Do not describe a new version as installed until all three gates are recorded as
 completed. No Android app or push-notification delivery is implemented here.
+# 0.10.35 — Prepared, not yet deployment evidence
+
+Guardian Observer/four-engine contracts prepared from verified installed0.10.34
+main06de9109a0ae49ffbdb5f94bc6310a9239f421fc. PR111mainpublication run38942598655
+succeeded on Linux/Windows and publisher; Ed25519 verified,162/162 installed
+hashes matched. Device syncs17:52/17:54UTC were fresh and distinct.
+Next release must pass its own tests/PR/main publication and installed audit.
+Observer cannot control trading; Quant remains NOT_STARTED. Four-card web/Windows
+and Quant simulation are later separate stages.

@@ -48,8 +48,31 @@ class DashboardServer:
         self._lab_stop = threading.Event()
         self._research_lock = threading.Lock()
         self._research_state = {"running": False, "started_at": None, "error": None, "process_id": None}
+        self._platform_lock = threading.Lock()
+        self._platform_cache = None
+        self._platform_cached_at = 0.0
         if config.dashboard.host not in {"127.0.0.1", "localhost", "::1"} and not self.token:
             raise ValueError("DASHBOARD_TOKEN is required when dashboard is exposed beyond localhost")
+
+    def _platform_snapshot(self):
+        """Optional read-only diagnostics, outside all entry/protection cycles."""
+        from .portfolio_guardian import engine_catalog, guardian_unavailable, quant_not_started
+        from .portal_snapshot import dashboard_snapshot
+        with self._platform_lock:
+            current = time.monotonic()
+            if self._platform_cache is not None and current - self._platform_cached_at < 10:
+                return self._platform_cache
+            try:
+                payload = dashboard_snapshot(self.config)
+                result = {key: payload[key] for key in ('engine_catalog', 'portfolio_guardian', 'quant')}
+            except Exception:
+                # A broken optional projection neither touches state nor controls
+                # Spot, Futures, Pulse, reconciliation or protective orders.
+                result = {'engine_catalog': engine_catalog({'status': {'mode': self.config.bot.mode.upper()}}),
+                          'portfolio_guardian': guardian_unavailable(), 'quant': quant_not_started()}
+            self._platform_cache = result
+            self._platform_cached_at = time.monotonic()
+            return result
 
     def _handler(self):
         outer = self
@@ -270,6 +293,9 @@ class DashboardServer:
                     self._json({"error": "not found"}, HTTPStatus.NOT_FOUND)
 
             def _api(self, path: str) -> None:
+                if path == '/api/platform':
+                    self._json(outer._platform_snapshot())
+                    return
                 if path == '/api/operations/last':
                     record = PROJECT_ROOT / 'data/operation-last.json'
                     try:

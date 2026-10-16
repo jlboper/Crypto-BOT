@@ -34,6 +34,83 @@ const owner='A'.repeat(43), device='B'.repeat(43);
 const proof=(password,salt)=>pbkdf2Sync(password,salt,600000,32,'sha256').toString('hex');
 const snapshot=()=>({mode:'PAPER',equity:1000,cash:900,exposure:100,positions:[{symbol:'BTCUSDT',quantity:1,entry_price:100,stop_price:95,take_profit:110}],killed:false,last_cycle_at:new Date().toISOString(),ai_model:'gpt-5.6-luna',installed_version:'0.8.5',update_state:'signed_rollout'});
 
+function guardianDashboard(...options){
+  return JSON.parse(execFileSync(process.env.PYTHON||'python',[
+    fileURLToPath(new URL('../../tests/emit_guardian_fixture.py',import.meta.url)),...options],{encoding:'utf8'}));
+}
+
+test('real Python ledgers preserve scoped Guardian marks through legacy remote export and authentication',async t=>{
+  const f=await fixture(t),dashboard=guardianDashboard();
+  assert.equal(dashboard.portfolio_guardian.scopes[1].gross_usdt,102);
+  assert.equal(dashboard.portfolio_guardian.scopes[1].net_usdt,-102);
+  assert.equal(dashboard.futures_forward.positions[0].mark_price,undefined);
+  assert.equal(dashboard.quant.state,'NOT_STARTED');
+  assert.ok(Object.values(dashboard.quant.performance).every(v=>v===null));
+  assert.equal((await f.sync({snapshot:{...snapshot(),dashboard},acks:[]})).status,200);
+  assert.equal((await f.request('/v1/status',undefined,{Cookie:''})).status,401);
+  await f.login();
+  assert.deepEqual((await f.request('/v1/status')).body.snapshot.dashboard.portfolio_guardian,dashboard.portfolio_guardian);
+  const legacy=structuredClone(dashboard);
+  delete legacy.portfolio_guardian;delete legacy.quant;delete legacy.engine_catalog;
+  assert.equal((await f.sync({snapshot:{...snapshot(),dashboard:legacy},acks:[]})).status,200);
+});
+
+test('real Guardian failure fallback remains bounded and preserves all three existing engine views',async t=>{
+  const f=await fixture(t),dashboard=guardianDashboard('--degraded');
+  assert.equal(dashboard.portfolio_guardian.state,'DEGRADED');
+  assert.equal(dashboard.portfolio_guardian.scopes.length,4);
+  assert.ok(dashboard.portfolio_guardian.scopes.every(s=>s.gross_usdt===null));
+  assert.equal(dashboard.positions.length,1);assert.equal(dashboard.futures_forward.positions.length,1);
+  assert.equal(dashboard.market_pulse.state,'NOT_STARTED');
+  assert.equal((await f.sync({snapshot:{...snapshot(),dashboard},acks:[]})).status,200);
+});
+
+test('Guardian contract rejects control, financial aggregation, reservation, arbitrary fields and unbounded rows',async t=>{
+  const f=await fixture(t),dashboard=guardianDashboard();
+  const mutations=[
+    g=>g.mode='CONTROL',g=>g.can_veto=true,g=>g.execution_enabled=true,g=>g.controls_enabled=true,
+    g=>g.equity_usdt=2000,g=>g.reservations.reserved_usdt=0,g=>g.reservations.state='READY',
+    g=>g.risk_quality.correlation=.9,g=>g.at='yesterday',g=>g.scopes.pop(),
+    g=>g.scopes[1].id='SPOT',g=>g.scopes[1].environment='LIVE',
+    g=>g.scopes[0].gross_usdt=-1,g=>g.scopes[0].capital.api_key='private',
+    g=>g.scopes[0].assets[0].instructions='BUY NOW',g=>g.scopes[0].assets[0].direction='EXECUTE',
+    g=>g.scopes[0].assets[0].concentration_pct=101,
+    g=>{g.scopes[0].assets=Array.from({length:41},(_,i)=>({...g.scopes[0].assets[0],symbol:`COIN${i}USDT`}));g.scopes[0].position_count=41;},
+    g=>g.alerts=Array(21).fill(g.alerts[0]),g=>g.overlaps=Array(11).fill(g.overlaps[0]),
+    g=>g.limitations.pop(),g=>g.limitations[0]='guaranteed hedge',g=>g.truncation.assets_omitted=-1,
+    g=>g.scopes[3].capital.equity_usdt=1000];
+  for(const mutate of mutations){
+    const invalid=structuredClone(dashboard);mutate(invalid.portfolio_guardian);
+    const response=await f.sync({snapshot:{...snapshot(),dashboard:invalid},acks:[]});
+    assert.equal(response.status,400,mutate.toString());
+    assert.equal(response.body.error,'Invalid Portfolio Guardian status');
+  }
+  assert.equal((await f.sync({snapshot:{...snapshot(),dashboard},acks:[]})).status,200);
+});
+
+test('Quant identity accepts only an uninitialized Shadow scaffold with no capital, controls or promotion',async t=>{
+  const f=await fixture(t),dashboard=guardianDashboard();
+  for(const mutate of [q=>q.state='SHADOW',q=>q.initialized=true,q=>q.mode='TESTNET',q=>q.enabled=true,
+    q=>q.controls_available=true,q=>q.execution_enabled=true,q=>q.promotion_allowed=true,
+    q=>q.performance.equity=1000,q=>q.performance.closed_trades=0,q=>q.positions.push({symbol:'BTCUSDT'}),
+    q=>q.strategies[0].state='RUNNING',q=>q.api_key='private']){
+    const invalid=structuredClone(dashboard);mutate(invalid.quant);
+    const response=await f.sync({snapshot:{...snapshot(),dashboard:invalid},acks:[]});
+    assert.equal(response.status,400,mutate.toString());
+    assert.equal(response.body.error,'Invalid Quant Arbitrage status');
+  }
+});
+
+test('four-engine catalog fixes identities and environments without claiming a running fourth bot',async t=>{
+  const f=await fixture(t),dashboard=guardianDashboard();
+  for(const mutate of [c=>c.pop(),c=>c[3].state='RUNNING',c=>c[3].environment='LIVE',
+    c=>c[1].id='SPOT',c=>c[0].environment='SPOT_TESTNET',c=>c[0].api_key='private']){
+    const invalid=structuredClone(dashboard);mutate(invalid.engine_catalog);
+    const response=await f.sync({snapshot:{...snapshot(),dashboard:invalid},acks:[]});
+    assert.equal(response.status,400,mutate.toString());assert.equal(response.body.error,'Invalid engine catalog');
+  }
+});
+
 test('legacy Futures history above 80k keeps device sync and remains bounded',async t=>{
   const f=await fixture(t);
   const s={...snapshot(),dashboard:{status:{mode:'PAPER'},positions:[],equity:[],trades:[],reviews:[],events:[],research:{assets:[]},

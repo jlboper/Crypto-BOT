@@ -453,6 +453,42 @@ def spot_observation_health(config):
         connection.close()
 
 
+def platform_projection(payload):
+    """Optional read-only identities and diagnostics, isolated from engine views.
+
+    Use the rich local snapshot: the legacy remote exporter omits individual
+    Futures marks. No engine, exchange, coordinator or reservation is constructed.
+    """
+    try:
+        from .portfolio_guardian import (build_guardian, engine_catalog,
+                                         guardian_unavailable, quant_not_started)
+        now = datetime.now(UTC)
+        catalog = engine_catalog(payload)
+        quant = quant_not_started(now)
+        try:
+            guardian = build_guardian(payload, now=now)
+            if (not isinstance(guardian, dict) or guardian.get('engine') != 'PORTFOLIO_GUARDIAN'
+                    or guardian.get('mode') != 'OBSERVER'
+                    or any(guardian.get(key) is not False for key in
+                           ('controls_enabled', 'can_veto', 'execution_enabled'))
+                    or not isinstance(guardian.get('scopes'), list) or len(guardian['scopes']) != 4):
+                raise ValueError('Invalid observational Guardian result')
+            if len(json.dumps(guardian, allow_nan=False, ensure_ascii=True,
+                              separators=(',', ':')).encode()) >= 15_000:
+                raise ValueError('Guardian exceeds observation budget')
+        except Exception:
+            guardian = guardian_unavailable(now)
+        result = {'engine_catalog': catalog, 'portfolio_guardian': guardian, 'quant': quant}
+        if len(json.dumps({**payload, **result}, allow_nan=False).encode()) > 480_000:
+            # Existing financial/protection evidence has priority at the shared
+            # dashboard budget; optional expansion cannot invalidate that view.
+            return {}
+        return result
+    except Exception:
+        # A broken optional module must not hide existing ledgers/protections.
+        return {}
+
+
 def dashboard_snapshot(config, report_path=None):
     connection = sqlite3.connect(config.bot.database_path.resolve().as_uri()+'?mode=ro', uri=True, timeout=3)
     connection.row_factory = sqlite3.Row
@@ -553,6 +589,7 @@ def dashboard_snapshot(config, report_path=None):
             report = json.loads(path.read_text(encoding='utf-8'))
             if report.get('mode') == 'RESEARCH_ONLY' and isinstance(report.get('assets'), list):
                 payload['research'] = project_report(report)
+        payload.update(platform_projection(payload))
         if len(json.dumps(payload,allow_nan=False).encode()) > 480_000:
             raise ValueError('Dashboard projection exceeds size budget')
         return payload

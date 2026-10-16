@@ -132,3 +132,11 @@ See `PORTABILITY.md` and the bootstrap scripts. A new host should be reproducibl
 - host-specific supervisor setup.
 
 The current machine must never be the only place where knowledge required to operate or recover the project exists.
+# 0.10.35 prepared — Guardian Observer
+
+Main0.10.34 (06de9109a0ae49ffbdb5f94bc6310a9239f421fc) was published/signed and
+installed162/162 with native Futures protections and fresh authenticated device
+sync. Next PR adds pure read-only Guardian diagnostics and optional four-engine
+contracts. Quant remains NOT_STARTED; four-card UI and Quant Shadow follow in
+separate PRs. Do not call Observer from financial cycles or treat it as allocation
+enforcement. Verify prepared/merged/published/installed independently.

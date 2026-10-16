@@ -25,3 +25,34 @@ separate and supervised; no duplicate engine, data reset or risk increase.
 Each stage requires Python/Node/Windows/Linux checks, normal PR/main publication,
 Ed25519 signature, installed inventory and current operating-health evidence.
 Document implemented/tested/pending states separately. LIVE remains absent.
+
+## Stage 1 — 0.10.35 implementation
+
+Pure bounded Observer consumes the existing credential-free dashboard evidence;
+it has no broker, database, filesystem or network dependencies. Four separate
+scopes retain environment identity, gross/net notional, priced/unpriced inventory,
+nominal distance to stop, capital freshness, descriptive concentration, native
+protection status and overlap alerts. Leverage does not multiply notional.
+Futures cost-inclusive existing budget stays distinct from nominal stop distance.
+Unknown or stale observations remain null; no aggregate real-wallet total exists.
+
+The optional remote contract includes `portfolio_guardian`, `engine_catalog` and
+`quant`. Quant is strictly NOT_STARTED; no wallet, worker or orders are created.
+Authenticated local/remote `GET /api/platform` returns these identities and
+diagnostics. Local projection caches for ten seconds to bound refresh cost.
+Optional failures degrade diagnostics while preserving the existing heartbeat,
+signed updater and financial engines. Guardian is never called by trading cycles.
+
+Reservations/admission, correlation, daily/weekly losses, drawdown and liquidation
+modeling are explicitly unavailable at this stage. Observer does not implement
+shared-capital enforcement or allocation journals; those require a separately
+validated Control phase. It cannot veto, reserve capital or increase permissions.
+The four-card web/Windows view, Quant Shadow and statistical evaluation remain
+separate subsequent PRs. No automatic strategy promotion or Testnet activation.
+
+Observed Pulse freshness fix in the same continuity stage: provider timestamps
+can lead Windows within the already accepted five seconds. Receipt must precede
+decision and expire independently; the selected price must also be recent.
+Future buckets are excluded and the existing 80% time coverage gate remains.
+Sparse trading can therefore keep an asset incomplete; no forced entry or
+fabricated statistical confidence fills that gap.
