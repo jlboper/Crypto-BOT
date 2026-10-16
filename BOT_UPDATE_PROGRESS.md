@@ -1,3 +1,15 @@
+# Candidate — 0.10.31 three-engine portal and Market Pulse Shadow
+
+Prepared from verified main `26d1b33fdb54fb86a05c8c8310c80763110ca02b` (0.10.30).
+Baseline read-only audit matched installed signed code hashes and committed journal;
+Spot PYTH and Futures BNB/XRP positions reported ARMED native protection and fresh
+HTTPS sync. Implement phases A/B and initial C, with D preparation only. Pulse
+cannot submit orders or share exchange funds. Owner approved existing-key reuse
+with separate bounded AI consumption. `MARKET_PULSE.md` records architecture,
+sources, hypotheses, limitations and remaining authorization/evidence gates.
+PR CI, main publication/signature, installation and fresh remote projection require
+separate verification; source changes alone prove none of those states.
+
 # Candidate — 0.10.30 execution plans and strategy evidence
 
 Prepared from main a61c71c703ed59f8b0a70d9cfa8026623ebae666 after the owner's strategy optimization request. Correct new-entry geometry and preserve original Spot admission bounds; block invalidated Futures setups before and after AI review. Research now uses Futures 1h independently, archives its prior 4h cohort and exposes actual configured signal references without inventing execution returns. The observed weak results and exploratory RSI/extension comparisons do not qualify a new strategy. Validation, protected publication, signed installation and fresh HTTPS health remain separate checks. No operating histories, credentials, positions or risk budgets are edited during development.

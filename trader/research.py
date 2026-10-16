@@ -956,6 +956,8 @@ def _execute_research(
     report['forward_observation'] = forward_observation(report, market_data, futures_data, marks, funding, models, config)
     progress(config.research.report_path, 'Referencia de se\u00f1ales operativas Spot y Futures')
     report['operating_baselines'] = operating_baselines(market_data, futures_data, config, train, test)
+    from .market_pulse_research import pulse_research_evidence
+    report['market_pulse_observation'] = pulse_research_evidence(config.bot.database_path.parent)
     progress(config.research.report_path, 'Guardando historial y curvas de cartera')
     report['generated_at'] = datetime.now(UTC).isoformat()
     archive_report(report, config.research.report_path)

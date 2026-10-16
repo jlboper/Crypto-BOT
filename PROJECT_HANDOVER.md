@@ -19,6 +19,20 @@ Then inspect current `main`, recent commits, open PRs/issues and CI. Documentati
 
 ## Mission
 
+### Third engine introduced by 0.10.31
+
+AI Market Pulse observes public BTC/ETH/SOL trades, depth and bounded official
+events inside the existing supervised process, after signed activation. It owns
+`data/market-pulse.db` and an independent pause marker; `market-pulse-ai.db`
+persists its separately capped model attempts. It is strictly SHADOW with no
+broker or execution/promotion toggle. See `MARKET_PULSE.md` for hypotheses,
+financial limitations, provider costs, research and promotion requirements.
+Never combine its hypothetical capital/results with Spot Testnet or Futures Demo.
+The shared-account coordinator is preparation only; existing Spot does not use
+its reservation protocol. Therefore sharing Testnet capital remains blocked.
+The optional remote projection and controls must evolve with the Worker validator.
+Release/publication/installation of 0.10.31 require independent verification.
+
 Crypto-BOT is a safety-first crypto trading research and execution project. Its purpose is to test systematic strategies with explicit risk controls and strong recoverability before any consideration of production capital.
 
 The current architecture intentionally separates:

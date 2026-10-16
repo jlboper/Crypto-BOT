@@ -104,6 +104,29 @@ class RemoteConnectionTests(unittest.TestCase):
         self.assertEqual(self.agent.last_error, 'DASHBOARD_UNAVAILABLE:RuntimeError')
         self.assertNotIn('private credential', self.agent.last_error)
 
+    def test_pulse_rejection_keeps_spot_futures_and_signed_update_delivery(self):
+        Database(self.config.bot.database_path)
+        self.agent.dashboard_provider = lambda: {'status': {'mode': 'PAPER'},
+            'futures_forward': {'killed': False}, 'market_pulse': {'mode': 'SHADOW'}}
+        self.agent.update_provider = lambda: {'version': '0.10.31', 'enabled': True}
+        requests = []
+        def send(request, timeout):
+            body = json.loads(request.data)
+            requests.append(json.loads(json.dumps(body)))
+            if len(requests) == 1:
+                raise urllib.error.HTTPError(request.full_url, 400, 'Bad Request', {},
+                    io.BytesIO(b'{"error":"Invalid Market Pulse status"}'))
+            return io.BytesIO(b'{"commands":[],"jobs":[]}')
+        with patch.object(self.agent.opener, 'open', side_effect=send):
+            self.agent.sync()
+        self.assertEqual(len(requests), 2)
+        self.assertIn('market_pulse', requests[0]['snapshot']['dashboard'])
+        final = requests[1]['snapshot']
+        self.assertNotIn('market_pulse', final['dashboard'])
+        self.assertIn('futures_forward', final['dashboard'])
+        self.assertEqual(final['bot_update']['version'], '0.10.31')
+        self.assertEqual(self.agent.last_error, 'DASHBOARD_REJECTED:Invalid Market Pulse status')
+
     def test_futures_history_rejection_keeps_authenticated_update_delivery(self):
         Database(self.config.bot.database_path)
         self.agent.dashboard_provider=lambda:{'status':{'mode':'TESTNET'}}

@@ -83,3 +83,14 @@ forward_stop_atr_multiple = 2.0
 forward_minimum_stop_pct = 0.025
 forward_reward_to_risk = 2.0
 kill_switch_path = "data/FUTURES_KILL_SWITCH"
+
+# Isolated public-market observation; execution remains locked to SHADOW.
+[market_pulse]
+enabled = true
+mode = "SHADOW"
+symbols = ["BTCUSDT", "ETHUSDT", "SOLUSDT"]
+windows_seconds = [60, 300]
+ai_enabled = true
+ai_max_reviews_per_day = 6
+ai_min_interval_seconds = 300
+kill_switch_path = "data/MARKET_PULSE_KILL_SWITCH"

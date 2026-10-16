@@ -9,6 +9,26 @@ from trader.remote_paper_controls import RemotePaperControls
 
 
 class RemotePaperControlTests(unittest.TestCase):
+    def test_market_pulse_pause_is_persisted_and_never_replayed(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            script = root / 'bot/scripts/execute_paper_control.py'
+            script.parent.mkdir(parents=True)
+            script.write_text('# signed installed code')
+            agent = RemotePaperControls(root / 'supervisor', root / 'bot')
+            item = {'id': 23, 'action': 'market_pulse_pause', 'expires': time.time() + 200, 'payload': {}}
+            with patch('trader.remote_paper_controls.subprocess.run') as run:
+                run.return_value.returncode = 0
+                run.return_value.stdout = json.dumps({'ok': True, 'market_pulse': {'state': 'PAUSED'}})
+                agent.apply(item)
+                agent.apply(item)
+                run.assert_called_once()
+                self.assertIn('execute_paper_control.py', run.call_args.args[0][3])
+                self.assertEqual(json.loads(run.call_args.kwargs['input']),
+                                 {'action': 'market_pulse_pause', 'payload': {}})
+            self.assertEqual(agent.results()[0]['status'], 'completed')
+            self.assertIn('SHADOW', agent.results()[0]['message'])
+
     def test_persist_before_execution_and_replay_does_not_repeat_close(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)

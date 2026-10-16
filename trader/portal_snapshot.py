@@ -2,9 +2,11 @@
 import json
 import re
 import sqlite3
+import math
 from dataclasses import asdict
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from urllib.parse import urlsplit, urlunsplit
 from .research_runtime import studied_symbols
 from .domain import Position
 from .monitoring import activity_status, position_metrics, usable_price, spot_cycle_status
@@ -20,6 +22,149 @@ def public_text(value):
     value = re.sub(r'(?i)(?:sk-|gh[pousr]_|github_pat_)[A-Za-z0-9_-]+', '[credencial omitida]', value)
     value = re.sub(r'(?i)(?:bearer|api[_ -]?key|token|secret|password)\s*[:= ]\s*\S+', '[credencial omitida]', value)
     return value[:1000]
+
+
+PULSE_MARKET_FIELDS = frozenset(('symbol', 'price', 'change_1m_pct', 'change_5m_pct',
+    'relative_volume', 'anomaly_z', 'momentum', 'acceleration', 'volatility_pct',
+    'spread_bps', 'depth_quote', 'imbalance', 'liquidity_change_pct', 'fresh', 'complete', 'at'))
+PULSE_EVENT_FIELDS = frozenset(('id', 'published_at', 'received_at', 'symbol', 'source', 'url',
+    'title', 'impact', 'credibility', 'kind', 'decision', 'reason', 'market_reaction_pct'))
+PULSE_DECISION_FIELDS = frozenset(('id', 'at', 'symbol', 'score', 'confidence', 'action',
+    'favorable', 'risks', 'reason', 'evidence'))
+PULSE_POSITION_FIELDS = frozenset(('symbol', 'quantity', 'entry_price', 'mark_price',
+    'stop', 'target', 'opened_at', 'unrealized_pnl', 'environment'))
+PULSE_PERFORMANCE_FIELDS = frozenset(('initial_capital', 'cash', 'equity', 'net_pnl', 'return_pct',
+    'drawdown_pct', 'closed_trades', 'win_rate_pct', 'profit_factor', 'exposure', 'observation_days',
+    'costs', 'environment', 'data_quality', 'benchmark_cash_return_pct', 'benchmark_buy_hold'))
+PULSE_HEALTH_FIELDS = frozenset(('latency_ms', 'reconnects', 'errors', 'last_error', 'ws_messages',
+    'rest_calls', 'news_calls', 'ai_reviews', 'ai_errors', 'buffer_seconds', 'uptime_seconds',
+    'ai_daily_cap', 'ai_used_today', 'ai_min_interval_seconds', 'ai_max_output_tokens', 'ai_max_input_bytes'))
+PULSE_EVIDENCE_FIELDS = frozenset(('market', 'event_id', 'rule_version', 'published_at', 'received_at',
+    'decision_at', 'btc_change_1m_pct', 'btc_change_5m_pct', 'estimated_cost_bps', 'confirmations'))
+
+
+def _pulse_public_value(value, depth=0):
+    """Sanitize selected structured data; provider strings never become instructions."""
+    if depth > 5:
+        raise ValueError('Market Pulse projection depth exceeded')
+    if value is None or isinstance(value, bool):
+        return value
+    if type(value) in (int, float):
+        if not math.isfinite(value):
+            raise ValueError('Non-finite Market Pulse value')
+        return value
+    if isinstance(value, str):
+        return public_text(value)[:280]
+    if isinstance(value, list):
+        return [_pulse_public_value(item, depth + 1) for item in value[:16]]
+    if isinstance(value, dict):
+        return {str(key): _pulse_public_value(item, depth + 1) for key, item in value.items()}
+    raise ValueError('Invalid Market Pulse value')
+
+
+def _pulse_source_url(value):
+    """Keep an attributable HTTPS link, dropping query/fragment/userinfo entirely."""
+    try:
+        url = urlsplit(value if isinstance(value, str) else '')
+        if (url.scheme != 'https' or not url.hostname or url.username or url.password or
+                url.port not in (None, 443) or len(url.hostname) > 160):
+            return None
+        host = url.hostname.encode('idna').decode('ascii')
+        if (not re.fullmatch(r'[a-z0-9.-]+', host) or '.' not in host or host.endswith(('.local', '.localhost'))
+                or re.search(r'(?i)(?:sk-|gh[pousr]_|github_pat_|api[_-]?key|token|secret|password)', url.path)):
+            return None
+        return urlunsplit(('https', host, url.path[:300], '', ''))
+    except (ValueError, UnicodeError):
+        return None
+
+
+def bounded_market_pulse_projection(pulse, maximum=20000):
+    """Thin optional remote history only; preserve positions and aggregate totals."""
+    def size():
+        return len(json.dumps(pulse, ensure_ascii=True, allow_nan=False, separators=(',', ':')))
+    while size() >= maximum:
+        candidates = [key for key in ('events', 'opportunities', 'decisions')
+                      if isinstance(pulse.get(key), list) and pulse[key]]
+        if not candidates:
+            raise ValueError('Market Pulse safety evidence exceeds remote budget')
+        key = max(candidates, key=lambda name: len(json.dumps(pulse[name], ensure_ascii=True)))
+        pulse[key] = pulse[key][:len(pulse[key]) // 2]
+    return pulse
+
+
+def market_pulse_projection(config):
+    """Read only the observer ledger. Pulse faults cannot invalidate other engines."""
+    settings = getattr(config, 'market_pulse', None)
+    enabled = bool(settings and settings.enabled and settings.mode == 'SHADOW')
+    unavailable = {'schema': 1, 'engine': 'AI_MARKET_PULSE', 'mode': 'SHADOW',
+        'state': 'NOT_STARTED', 'at': datetime.now(UTC).isoformat(), 'updated_at': None,
+        'freshness': {'state': 'UNAVAILABLE', 'age_seconds': None}, 'enabled': enabled,
+        'controls_available': False, 'execution_enabled': False, 'sources': {}, 'stats': {},
+        'market': [], 'events': [], 'opportunities': [], 'decisions': [], 'positions': [],
+        'performance': {}, 'health': {}, 'research': {'state': 'FORWARD_ONLY',
+        'hypothesis_version': 'pulse-v1', 'promotion_allowed': False,
+        'limitations': ['No historical event replay with complete evidence is available yet.']}}
+    if not settings:
+        return unavailable
+    try:
+        from .market_pulse import market_pulse_snapshot
+        raw = market_pulse_snapshot(config.bot.database_path.parent,
+            kill_switch_path=settings.kill_switch_path)
+        if not isinstance(raw, dict) or raw.get('mode') != 'SHADOW' or raw.get('execution_enabled') is not False:
+            raise ValueError('Unsafe Market Pulse projection')
+        result = {key: _pulse_public_value(raw[key]) for key in
+            ('schema', 'engine', 'mode', 'state', 'at', 'updated_at') if key in raw}
+        def pick(value, fields):
+            if not isinstance(value, dict):
+                raise ValueError('Invalid Market Pulse object')
+            return {key: _pulse_public_value(value[key]) for key in fields if key in value}
+        result['freshness'] = pick(raw.get('freshness', {}), ('state', 'age_seconds'))
+        result['sources'] = {key: pick(raw['sources'][key], ('state', 'last_update')) for key in
+            ('binance_ws', 'binance_rest', 'news') if key in raw.get('sources', {})}
+        result['stats'] = pick(raw.get('stats', {}), ('events_analyzed', 'relevant_news',
+            'opportunities', 'accepted', 'rejected', 'decisions'))
+        result['research'] = pick(raw.get('research', {}), ('state', 'hypothesis_version',
+            'promotion_allowed', 'limitations'))
+        initialized = (raw.get('updated_at') is not None and raw.get('state') != 'NOT_STARTED'
+            and type(raw.get('performance', {}).get('initial_capital')) in (int, float)
+            and raw['performance']['initial_capital'] > 0
+            and raw.get('health', {}).get('last_error') != 'SHADOW_LEDGER_UNAVAILABLE')
+        result.update(enabled=enabled, controls_available=bool(enabled and initialized), execution_enabled=False)
+        for key, fields, count in (('market', PULSE_MARKET_FIELDS, 12),
+                ('events', PULSE_EVENT_FIELDS, 12), ('opportunities', PULSE_DECISION_FIELDS - {'evidence'}, 12),
+                ('decisions', PULSE_DECISION_FIELDS, 16), ('positions', PULSE_POSITION_FIELDS, 12)):
+            rows = raw.get(key, [])
+            if not isinstance(rows, list) or (key == 'positions' and len(rows) > count):
+                raise ValueError('Invalid Market Pulse rows')
+            result[key] = []
+            for row in rows[:count]:
+                if not isinstance(row, dict):
+                    raise ValueError('Invalid Market Pulse row')
+                projected = {field: _pulse_public_value(row[field]) for field in fields
+                             if field in row and field not in {'url', 'evidence'}}
+                if key == 'events':
+                    projected['url'] = _pulse_source_url(row.get('url'))
+                if key == 'decisions' and isinstance(row.get('evidence'), dict):
+                    evidence = pick(row['evidence'], PULSE_EVIDENCE_FIELDS - {'market'})
+                    if isinstance(row['evidence'].get('market'), dict):
+                        evidence['market'] = pick(row['evidence']['market'], PULSE_MARKET_FIELDS)
+                    projected['evidence'] = evidence
+                result[key].append(projected)
+        for key, fields in (('performance', PULSE_PERFORMANCE_FIELDS), ('health', PULSE_HEALTH_FIELDS)):
+            value = raw.get(key, {})
+            if not isinstance(value, dict):
+                raise ValueError('Invalid Market Pulse section')
+            result[key] = {field: _pulse_public_value(value[field]) for field in fields if field in value}
+            if key == 'performance' and isinstance(value.get('benchmark_buy_hold'), dict):
+                result[key]['benchmark_buy_hold'] = {symbol: _pulse_public_value(item) for symbol, item in
+                    value['benchmark_buy_hold'].items() if re.fullmatch(r'[A-Z0-9]{2,24}USDT', symbol)
+                    and type(item) in (int, float)}
+        return bounded_market_pulse_projection(result)
+    except Exception:
+        unavailable['state'] = 'DEGRADED'
+        unavailable['controls_available'] = False
+        unavailable['health'] = {'last_error': 'PULSE_PROJECTION_UNAVAILABLE'}
+        return unavailable
 
 
 def bounded_futures_projection(futures, maximum=72000):
@@ -315,6 +460,7 @@ def dashboard_snapshot(config, report_path=None):
             'research':{'mode':'RESEARCH_ONLY','status':'NOT_RUN','assets':[]},
             'research_state':{'running':False,'error':None},
             'updates':{'status':'not_configured','message':'Falta configurar el canal firmado y la recuperación supervisada.'},
+            'market_pulse': market_pulse_projection(config),
             'futures_forward': {
                 'enabled': bool(config.bot.mode == 'testnet' and config.futures_testnet.forward_enabled),
                 'killed': config.futures_testnet.kill_switch_path.exists(),
