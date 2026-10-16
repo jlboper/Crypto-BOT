@@ -507,6 +507,7 @@ function renderObservationHealth(spotHealth, futuresHealth, futures, status={}) 
 }
 
 function renderResearch(report, state) {
+  PulsePortal.renderResearch(report?.market_pulse_observation);
   lastResearchReport=report;
   const badge=document.getElementById('researchState');
   const button=document.getElementById('researchButton');
@@ -763,10 +764,158 @@ function renderFuturesCycle(futures,status){
     +(issueText.length?' · Detalle: '+issueText.join(' · '):'');
 }
 
+/* Shared three-engine view. External event text is always escaped, never executable. */
+const PulsePortal = (() => {
+  let pendingControl=null;
+  const set=(id,value)=>{const node=document.getElementById(id);if(node)node.textContent=value;};
+  const html=(id,value)=>{const node=document.getElementById(id);if(node)node.innerHTML=value;};
+  const finite=value=>typeof value==='number'&&Number.isFinite(value);
+  const n=(value,digits=2)=>finite(value)?value.toLocaleString('en-US',{maximumFractionDigits:digits}):'—';
+  const cash=value=>finite(value)?`${n(value)} USDT`:'—';
+  const percent=value=>finite(value)?`${value>0?'+':''}${n(value)}%`:'—';
+  const time=value=>value&&Number.isFinite(Date.parse(value))?new Date(value).toLocaleString('es-MX',{dateStyle:'short',timeStyle:'medium'}):'—';
+  const rows=(value,limit=12)=>Array.isArray(value)?value.filter(row=>row&&typeof row==='object').slice(0,limit):[];
+  const label=value=>({SHADOW:'SHADOW',PAUSED:'PAUSADO',WARMING_UP:'ACUMULANDO MUESTRAS',DEGRADED:'DATOS PARCIALES',NOT_STARTED:'SIN INICIAR',FRESH:'RECIENTE',STALE:'ANTIGUO',UNAVAILABLE:'SIN DATOS',FORWARD_ONLY:'SOLO EVIDENCIA PROSPECTIVA',positive:'POSITIVO',negative:'NEGATIVO',neutral:'NEUTRAL',uncertain:'INCIERTO',official:'ANUNCIO OFICIAL',confirmed:'REPORTE CONFIRMADO',rumor:'RUMOR',speculative:'ESPECULATIVO'})[value]||String(value||'SIN DATOS');
+  const state=(id,text,warning=false)=>{const node=document.getElementById(id);if(node){node.textContent=text;node.className='state '+(warning?'warning':'neutral');}};
+  const empty=message=>`<p class="empty">${esc(message)}</p>`;
+  const metrics=values=>values.map(([key,value])=>`<div><dt>${esc(key)}</dt><dd>${esc(value)}</dd></div>`).join('');
+  const safeUrl=value=>{try{const url=new URL(value);return url.protocol==='https:'&&!url.username&&!url.password?url.href:null;}catch{return null;}};
+  const ordered=value=>rows(value).sort((a,b)=>(Date.parse(b.received_at||b.at)||0)-(Date.parse(a.received_at||a.at)||0));
+  function opportunity(row,decision=false){
+    const favorable=Array.isArray(row.favorable)?row.favorable.slice(0,8):[];
+    const risks=Array.isArray(row.risks)?row.risks.slice(0,8):[];
+    // Frozen quantitative context is displayed as data, including strings that resemble instructions.
+    const evidence=decision&&row.evidence&&typeof row.evidence==='object'?JSON.stringify(row.evidence,null,2).slice(0,16000):null;
+    return `<article class="pulse-item"><div class="pulse-item-head"><strong>${esc(row.symbol||'Activo pendiente')} · ${esc(row.action||'SIN DECISIÓN')}</strong><time>${esc(time(row.at))}</time></div><p class="pulse-evidence">Score ${esc(n(row.score,1))}/100 · confianza ${esc(finite(row.confidence)?percent(row.confidence*100):'—')}</p><p>${esc(row.reason||'Sin justificación registrada')}</p>${favorable.length?`<p><strong>Evidencia favorable:</strong> ${favorable.map(esc).join(' · ')}</p>`:''}${risks.length?`<p><strong>Factores de riesgo:</strong> ${risks.map(esc).join(' · ')}</p>`:''}${decision?`<details><summary>Información disponible al decidir</summary><p>Decisión: ${esc(time(row.at))} · ID ${esc(row.id||'—')}. Snapshot de evidencia conservado; no se añade información posterior.</p>${evidence?`<pre>${esc(evidence)}</pre>`:'<p>Evidencia detallada no disponible en esta proyección. No se reconstruye con datos posteriores.</p>'}</details>`:''}</article>`;
+  }
+  function render(pulse,status={},futures={},positions=[]){
+    const p=pulse&&pulse.schema===1?pulse:{};
+    const available=p.schema===1, perf=p.performance||{},health=p.health||{},stats=p.stats||{};
+    const snapshotAge=(Date.now()-Date.parse(p.at))/1000;
+    const projectionStale=p.remote_sync_stale===true||(Number.isFinite(snapshotAge)&&snapshotAge>120);
+    const dataAge=finite(p.freshness?.age_seconds)?p.freshness.age_seconds+Math.max(Number.isFinite(snapshotAge)?snapshotAge:0,0):null;
+    const stale=p.freshness?.state==='STALE'||projectionStale||(dataAge!==null&&dataAge>30);
+    const freshness=available?(projectionStale?'PROYECCIÓN ANTIGUA':stale?'ANTIGUO':label(p.freshness?.state)):'SIN DATOS';
+    const pulseState=available?label(p.state):'SIN DATOS';
+    if(pendingControl&&((pendingControl.action==='pause'&&p.state==='PAUSED')||(pendingControl.action==='resume'&&available&&p.state!=='PAUSED'))){
+      set('pulseControlMessage','Windows confirmó el estado '+pulseState.toLowerCase()+'.');pendingControl=null;
+    }
+    if(pendingControl&&Date.now()-pendingControl.at>90000){set('pulseControlMessage','La solicitud sigue sin confirmación de estado. Consulta Actividad antes de repetirla.');pendingControl=null;}
+    state('pulseState',pulseState,stale||p.state==='DEGRADED');
+    state('summaryPulseState',pulseState,stale||p.state==='DEGRADED');
+    set('pulseFreshness',freshness+(finite(dataAge)?` · ${n(dataAge,0)} s`:''));
+    set('pulseHealthState',freshness);
+    set('pulseStatusNote',available?`${pulseState} · ${freshness.toLowerCase()} · última evaluación ${time(p.updated_at)}. ${projectionStale?'La proyección no es reciente; no demuestra que el motor se haya detenido. ':''}Ledger SHADOW independiente, sin órdenes al exchange. La falta de oportunidades puede ser una observación normal.`:'Market Pulse todavía no ha sincronizado un estado compatible. Spot y Futures conservan su operación; no se infiere un fallo por ausencia de datos.');
+    const sourceRows=Object.entries(p.sources||{}).slice(0,5);
+    set('summaryPulseSources',available?`${sourceRows.filter(([,s])=>['CONNECTED','FRESH','OK','ACTIVE'].includes(s?.state)).length}/${sourceRows.length} fuentes activas · ${freshness.toLowerCase()}`:'Sin estado de fuentes');
+    set('summaryPulseEvents',`${n(stats.events_analyzed,0)} / ${n(stats.relevant_news,0)}`);
+    set('summaryPulseOpportunities',`${n(stats.opportunities,0)} · ${n(stats.accepted,0)} / ${n(stats.rejected,0)}`);
+    set('summaryPulsePositions',`${available&&Array.isArray(p.positions)?p.positions.length:'—'} / ${n(perf.closed_trades,0)}`);
+    set('summaryPulseReturn',percent(perf.return_pct));
+    set('summaryPulseEvaluation',`${time(ordered(p.events)[0]?.received_at)} / ${time(p.updated_at)}`);
+    for(const [id,paused] of [['pauseMarketPulse',false],['resumeMarketPulse',true]]){
+      const button=document.getElementById(id);
+      if(button&&!window.portalButtonBusy?.(id))button.disabled=!!pendingControl||projectionStale||!available||p.enabled!==true||p.controls_available!==true||!paperControlsAvailable()||(p.state==='PAUSED')!==paused;
+    }
+    html('pulseMarket',rows(p.market,15).map(m=>`<article class="pulse-market-card"><div class="pulse-item-head"><h4>${esc(m.symbol)}</h4><span class="badge">${m.fresh===true&&!projectionStale&&Number.isFinite(Date.parse(m.at))&&(Date.now()-Date.parse(m.at))/1000<=15?(m.complete===true?'RECIENTE':'MUESTRA PARCIAL'):'ANTIGUO / SIN DATOS'}</span></div><dl>${metrics([
+      ['Precio',n(m.price,6)],['Cambio 1 min / 5 min',`${percent(m.change_1m_pct)} / ${percent(m.change_5m_pct)}`],['Volumen relativo / anomalía z',`${n(m.relative_volume)}× / ${n(m.anomaly_z)}`],['Momentum / aceleración',`${n(m.momentum,4)} / ${n(m.acceleration,4)}`],['Volatilidad realizada',percent(m.volatility_pct)],['Spread / profundidad',`${n(m.spread_bps)} bps / ${cash(m.depth_quote)}`],['Desequilibrio / cambio de liquidez',`${n(m.imbalance,3)} / ${percent(m.liquidity_change_pct)}`],['Observado',time(m.at)]])}</dl></article>`).join('')||empty('Esperando suficientes observaciones de mercado; las ventanas necesitan calentamiento.'));
+    html('pulseNews',ordered(p.events).map(event=>{
+      const url=safeUrl(event.url);
+      return `<article class="pulse-item"><div class="pulse-item-head"><strong>${esc(event.symbol||'Mercado')} · ${esc(label(event.impact))}</strong><span class="badge">${esc(label(event.kind))}</span></div><h4>${esc(event.title||'Evento sin título')}</h4><p>${url?`<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(event.source||new URL(url).hostname)} ↗</a>`:esc(event.source||'Fuente pendiente de verificación')} · credibilidad ${esc(finite(event.credibility)?percent(event.credibility*100):'—')}</p><dl class="pulse-times">${metrics([['Publicado',time(event.published_at)],['Recibido',time(event.received_at)],['Reacción observada',percent(event.market_reaction_pct)]])}</dl><p><strong>${esc(event.decision||'DECISIÓN PENDIENTE')}</strong> · ${esc(event.reason||'Pendiente de confirmación independiente')}</p></article>`;
+    }).join('')||empty('Aún no hay noticias verificables registradas. La ausencia de noticias no es un error del motor.'));
+    html('pulseOpportunities',ordered(p.opportunities).map(row=>opportunity(row)).join('')||empty('Aún no hay oportunidades registradas. Esperar es una decisión válida.'));
+    html('pulseDecisions',ordered(p.decisions).map(row=>opportunity(row,true)).join('')||empty('Aún no hay decisiones registradas.'));
+    set('pulseFinanceQuality',available?label(perf.data_quality):'SIN DATOS');
+    const financial=[['Capital hipotético inicial',cash(perf.initial_capital)],['Efectivo hipotético',cash(perf.cash)],['Equity hipotético',cash(perf.equity)],['P&L neto simulado',cash(perf.net_pnl)],['Retorno simulado',percent(perf.return_pct)],['Drawdown',percent(perf.drawdown_pct)],['Cierres hipotéticos',n(perf.closed_trades,0)],['Win rate',percent(perf.win_rate_pct)],['Profit factor',n(perf.profit_factor)],['Exposición hipotética',cash(perf.exposure)],['Días observados',n(perf.observation_days)],['Costos simulados acumulados',cash(perf.costs)]];
+    html('pulsePerformance',metrics(financial));
+    html('pulseComparison',metrics([financial[4],financial[3],financial[5],financial[6],financial[7],financial[8],financial[9],financial[10],['Calidad / completitud',available?label(perf.data_quality):'Sin datos'],['Entorno / método','SHADOW · ejecución conservadora simulada']]));
+    const benchmark=perf.benchmark_buy_hold;
+    const benchmarks=benchmark&&typeof benchmark==='object'?Object.entries(benchmark).filter(([symbol,value])=>/^[A-Z0-9]{2,24}USDT$/.test(symbol)&&finite(value)).slice(0,3):[];
+    set('pulseBenchmark',benchmarks.length?`Buy-and-hold con costos hipotéticos: ${benchmarks.map(([symbol,value])=>`${symbol} ${percent(value)}`).join(' · ')}. Efectivo: ${percent(perf.benchmark_cash_return_pct)}. Referencia descriptiva: esta proyección no contiene fechas ni muestras emparejadas que certifiquen un período comparable. Shadow, Spot Testnet y Futures Demo no son una sola cartera. Costos de API de IA excluidos del P&L de trading.`:`Efectivo: ${percent(perf.benchmark_cash_return_pct)}. Buy-and-hold: sin suficientes muestras emparejadas. Shadow, Spot Testnet y Futures Demo no son comparables como una sola cartera. Costos de API de IA excluidos del P&L de trading.`);
+    html('pulsePositions',rows(p.positions).map(position=>`<article class="pulse-item"><div class="pulse-item-head"><strong>${esc(position.symbol)} · SHADOW</strong><time>${esc(time(position.opened_at))}</time></div><dl>${metrics([['Cantidad',n(position.quantity,8)],['Entrada / mark',`${n(position.entry_price,6)} / ${n(position.mark_price,6)}`],['Stop / objetivo',`${n(position.stop,6)} / ${n(position.target,6)}`],['P&L abierto hipotético',cash(position.unrealized_pnl)]])}</dl></article>`).join('')||empty(available?'Sin posiciones hipotéticas abiertas.':'Ledger Shadow no disponible.'));
+    html('pulseSources',sourceRows.map(([key,source])=>`<article class="pulse-source"><strong>${esc(({binance_ws:'Binance WebSocket',binance_rest:'Binance REST',news:'Noticias verificables'})[key]||key)}</strong><span>${esc(label(source?.state))}</span><small>${esc(time(source?.last_update))}</small></article>`).join('')||empty('Sin estado de fuentes.'));
+    html('pulseHealth',metrics([['Latencia de datos',finite(health.latency_ms)?`${n(health.latency_ms,0)} ms`:'—'],['Reconexiones',n(health.reconnects,0)],['Errores acumulados',n(health.errors,0)],['Mensajes WebSocket',n(health.ws_messages,0)],['Llamadas REST / noticias',`${n(health.rest_calls,0)} / ${n(health.news_calls,0)}`],['Revisiones / errores IA',`${n(health.ai_reviews,0)} / ${n(health.ai_errors,0)}`],['Cuota diaria IA · usadas / máximo',`${n(health.ai_used_today,0)} / ${n(health.ai_daily_cap,0)}`],['Intervalo mínimo IA',finite(health.ai_min_interval_seconds)?`${n(health.ai_min_interval_seconds,0)} s`:'—'],['Límites IA · salida / entrada',`${n(health.ai_max_output_tokens,0)} tokens / ${n(health.ai_max_input_bytes,0)} bytes`],['Buffer / uptime',`${n(health.buffer_seconds,0)} s / ${n(health.uptime_seconds,0)} s`],['Última evaluación',time(p.updated_at)]]));
+    set('pulseLastError',health.last_error?`Último diagnóstico: ${health.last_error}`:'Sin diagnóstico de error reportado. Los fallos de sincronización remota se evalúan por separado del motor.');
+    set('pulseResearch',`${label(p.research?.state)} · hipótesis ${p.research?.hypothesis_version||'pendiente'}. ${(Array.isArray(p.research?.limitations)?p.research.limitations:[]).join(' ')} Las señales se conservan con su evidencia temporal. La promoción y ejecución Testnet requieren autorización expresa; ninguna métrica las activa.`);
+    renderSummary(status,futures,positions,p,projectionStale);
+  }
+  function renderSummary(status,futures,positions,p,projectionStale){
+    const activity=status.activity||{},fPositions=rows(futures.positions,15),score=futures.scorecard||{};
+    const spotState=status.killed?'PAUSADO':activityLabel(activity.state);
+    state('summarySpotState',spotState,status.killed||activity.state==='delayed'||activity.state==='offline');
+    set('summarySpotEnvironment',status.mode?`${String(status.mode).toUpperCase()} · cuenta Spot independiente`:'Entorno pendiente');
+    for(const [key,value] of [['Capital',cash(status.equity)],['Exposure',cash(status.exposure)],['Positions',n(status.positions,0)],['Return',percent(status.return_pct)],['Evaluation',time(activity.last_cycle_at)]])set('summarySpot'+key,value);
+    const native=status.native_protection?.positions;
+    set('summarySpotProtection',native?(positions.length?`${positions.filter(pos=>native[pos.symbol]?.status==='ARMED').length}/${positions.length} OCO confirmados${status.killed?' · entradas pausadas':''}`:'Sin exposición · verificación al abrir'):'Confirmación nativa pendiente');
+    const fEnabled=futures.enabled===true;
+    const fState=futures.enabled==null?'SIN ESTADO':!fEnabled?'NO OPERATIVO':futures.killed?'PAUSADO':futures.cycle_diagnostic&&!futuresCycleFresh(futures,status)?'SIN ANÁLISIS RECIENTE':futures.cycle_diagnostic?.state==='ATTENTION'?'DATOS PARCIALES':fPositions.length?'CON POSICIONES':'ESPERANDO SEÑAL';
+    state('summaryFuturesState',fState,futures.killed||fState==='SIN ANÁLISIS RECIENTE'||fState==='DATOS PARCIALES');
+    const last=rows(futures.equity,120).at(-1),budget=futures.portfolio_budget||{};
+    set('summaryFuturesCapital',last?cash(futuresEquityValue(last)):'—');
+    set('summaryFuturesExposure',`${cash(budget.notional_usdt)} / ${cash(budget.stop_loss_usdt)}`);
+    const leverages=[...new Set(fPositions.map(pos=>finite(pos.leverage)?pos.leverage+'x':'—'))];
+    set('summaryFuturesPositions',Array.isArray(futures.positions)?`${fPositions.filter(pos=>pos.direction==='LONG').length} / ${fPositions.filter(pos=>pos.direction==='SHORT').length}${leverages.length?' · '+leverages.join(', '):''}`:'—');
+    set('summaryFuturesReturn',percent(score.account_return_pct));set('summaryFuturesEvaluation',time(futures.cycle_diagnostic?.at));
+    const fNative=futures.native_protection?.positions;
+    set('summaryFuturesProtection',`${fNative?(fPositions.length?fPositions.filter(pos=>fNative[pos.symbol]?.status==='ARMED').length+'/'+fPositions.length+' stops confirmados':'Sin exposición · verificación al abrir'):'Confirmación nativa pendiente'} · ${n(score.consecutive_errors,0)} errores activos`);
+    const alerts=[];
+    if(['offline','delayed'].includes(activity.state))alerts.push('Spot: '+spotState.toLowerCase());
+    if(['SIN ANÁLISIS RECIENTE','DATOS PARCIALES'].includes(fState))alerts.push('Futures: '+fState.toLowerCase());
+    if(p.freshness?.state==='STALE'||p.state==='DEGRADED')alerts.push('Market Pulse: '+label(p.state).toLowerCase()+' · '+label(p.freshness?.state).toLowerCase());
+    if(projectionStale)alerts.push('Market Pulse: proyección antigua; operación actual sin verificar');
+    if(p.schema!==1)alerts.push('Market Pulse: todavía sin estado compatible');
+    set('platformAlerts',alerts.length?alerts.join(' · '):'Sin alertas operativas reportadas en esta lectura. La ausencia de operaciones puede ser normal.');
+    set('spotComparisonExposure',cash(status.exposure));set('spotComparisonQuality',status.observation_health?.state||'Sin cobertura reportada');
+    set('futuresComparisonExposure',cash(budget.notional_usdt));set('futuresComparisonQuality',futures.observation_health?.state||'Sin cobertura reportada');
+  }
+  function renderResearch(observation){
+    const block=document.getElementById('researchMarketPulse');if(!block)return;
+    const valid=observation&&observation.engine==='AI_MARKET_PULSE'&&observation.mode==='SHADOW';
+    block.hidden=!valid;
+    if(!valid){for(const id of ['researchPulseObservation','researchPulseReplay','researchPulseLimitations'])set(id,'');return;}
+    set('researchPulseState','EVIDENCIA PROSPECTIVA');
+    set('researchPulseObservation',`${n(observation.decisions,0)} decisiones · ${n(observation.events,0)} eventos · ${n(observation.closed_trades,0)} cierres hipotéticos · ${n(observation.observation_days,2)} días. Hipótesis ${observation.hypothesis_version||'pendiente'} · capturado ${time(observation.captured_at)}.`);
+    const replay=observation.replay;
+    set('researchPulseReplay',replay?`Replay de evidencia congelada: ${n(replay.checked,0)} decisiones comprobadas · ${n(replay.mismatches,0)} divergencias · ${n(replay.invalid_timestamps,0)} timestamps inválidos. Reproducir un score no valida rentabilidad fuera de muestra.`:'Replay de evidencia congelada: sin auditoría disponible en este informe.');
+    set('researchPulseLimitations',`Backtest histórico válido: no acreditado. Validación fuera de muestra: pendiente. Promoción automática bloqueada. ${(Array.isArray(observation.limitations)?observation.limitations.filter(item=>typeof item==='string').slice(0,6):[]).join(' ')}`);
+  }
+  function disconnected(){
+    for(const name of ['Spot','Futures','Pulse'])state('summary'+name+'State','LECTURA NO DISPONIBLE',true);
+    set('platformAlerts','El portal no pudo actualizar esta lectura. Los valores anteriores son históricos; esto no demuestra que los motores se hayan detenido.');
+    for(const id of ['pauseMarketPulse','resumeMarketPulse']){const button=document.getElementById(id);if(button)button.disabled=true;}
+  }
+  function init(){
+    for(const link of document.querySelectorAll('.platform-nav a,.platform-detail,.pulse-subnav a'))link.addEventListener('click',event=>{
+      const id=link.getAttribute('href')?.slice(1),target=id&&document.getElementById(id);if(!target)return;
+      event.preventDefault();target.hidden=false;
+      for(let node=target;node;node=node.parentElement)if(node.tagName==='DETAILS')node.open=true;
+      if(id==='activity-section'){const diagnostics=document.getElementById('diagnosticsPanel');if(diagnostics)diagnostics.open=true;}
+      target.scrollIntoView({behavior:motionReduced()?'auto':'smooth',block:'start'});
+      for(const item of document.querySelectorAll('.platform-nav a'))item.removeAttribute('aria-current');
+      document.querySelector(`.platform-nav a[href="#${id}"]`)?.setAttribute('aria-current','location');
+    });
+    for(const [id,action] of [['pauseMarketPulse','pause'],['resumeMarketPulse','resume']]){
+      const button=document.getElementById(id);if(!button)continue;
+      button.addEventListener('click',async()=>{
+        if(button.disabled||button.dataset.pending==='true')return;
+        pendingControl={action,at:Date.now()};button.dataset.pending='true';button.disabled=true;
+        const sibling=document.getElementById(action==='pause'?'resumeMarketPulse':'pauseMarketPulse');if(sibling)sibling.disabled=true;
+        set('pulseControlMessage','Enviando solicitud al supervisor…');
+        try{const result=await api('/api/market-pulse/'+action,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+          set('pulseControlMessage',result.status==='pending'?'Solicitud recibida; pendiente de confirmación de Windows. El estado se mostrará cuando el motor sincronice.':'Solicitud procesada por Windows. Consultando el estado del motor…');await refresh();
+        }catch(error){pendingControl=null;set('pulseControlMessage','No se confirmó el cambio: '+error.message);await refresh();}
+        finally{delete button.dataset.pending;}
+      });
+    }
+  }
+  return {render,renderResearch,disconnected,init,safeUrl};
+})();
+window.PulsePortal=PulsePortal;
+
 async function refresh() {
   try {
-    const [status,positions,trades,reviews,equity,events,research,researchState,paperReport,futuresForward] = await Promise.all([
-      api('/api/status'),api('/api/positions'),api('/api/trades'),api('/api/ai-reviews'),api('/api/equity'),api('/api/events'),api('/api/research'),api('/api/research/status'),api('/api/paper-scorecard'),api('/api/futures-forward')
+    const [status,positions,trades,reviews,equity,events,research,researchState,paperReport,futuresForward,marketPulse] = await Promise.all([
+      api('/api/status'),api('/api/positions'),api('/api/trades'),api('/api/ai-reviews'),api('/api/equity'),api('/api/events'),api('/api/research'),api('/api/research/status'),api('/api/paper-scorecard'),api('/api/futures-forward'),api('/api/market-pulse').catch(()=>null)
     ]);
     currentExecutionMode=String(status.mode||'paper').toLowerCase();
     const modeUpper=currentExecutionMode.toUpperCase();
@@ -926,7 +1075,7 @@ async function refresh() {
 
     const state=document.getElementById('killState'), button=document.getElementById('killButton');
     state.textContent=status.killed?'PAUSADO':'PROTECCIONES ACTIVAS'; state.className=status.killed?'state killed':'state';
-    button.textContent=status.killed?'Reanudar nuevas entradas':'Pausar nuevas entradas'; button.dataset.killed=String(status.killed);
+    button.textContent=status.killed?'Reanudar entradas Spot':'Pausar entradas Spot'; button.dataset.killed=String(status.killed);
 
     const activity=status.activity || {state:'starting',age_seconds:null};
     renderSpotCycle(status);
@@ -959,7 +1108,9 @@ async function refresh() {
     renderObservationHealth(status?.observation_health,futuresForward?.observation_health,futuresForward,status);
     renderFuturesChart(futuresForward?.equity||[]);
     document.getElementById('updated').textContent=`Último ciclo ${ageLabel(activity.age_seconds)} · ${shortTime(activity.last_cycle_at)}`;
+    PulsePortal.render(marketPulse,status,futuresForward,positions);
   } catch(error) {
+    PulsePortal.disconnected();
     const botState=document.getElementById('botState');
     botState.textContent='PORTAL SIN CONEXIÓN'; botState.classList.add('offline');
     document.getElementById('operationSummary').textContent='No se pudo consultar el motor. Comprueba la conexión con Windows antes de operar.';
@@ -1023,7 +1174,7 @@ document.getElementById('researchDetail').addEventListener('click',event=>{
 window.addEventListener('resize',()=>Promise.all([api('/api/equity'),api('/api/futures-forward')]).then(([spot,futures])=>{renderChart(spot);renderFuturesChart(futures?.equity||[]);}).catch(()=>{}));
 window.addEventListener('portal-ready',refresh);
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('/service-worker.js').catch(()=>{});
-window.addEventListener('DOMContentLoaded',()=>{installPortalMotion();refresh();});
+window.addEventListener('DOMContentLoaded',()=>{installPortalMotion();PulsePortal.init();refresh();});
 setInterval(()=>{if(!document.hidden&&!document.querySelector('.shell').hidden)refresh();},30000);
 
 document.getElementById('researchCurveChoice').addEventListener('change',renderResearchCurve);

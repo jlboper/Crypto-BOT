@@ -142,6 +142,18 @@ class ResearchSettings:
 
 
 @dataclass(frozen=True)
+class MarketPulseSettings:
+    enabled: bool = True
+    mode: str = "SHADOW"
+    symbols: tuple[str, ...] = ("BTCUSDT", "ETHUSDT", "SOLUSDT")
+    windows_seconds: tuple[int, ...] = (60, 300)
+    ai_enabled: bool = True
+    ai_max_reviews_per_day: int = 6
+    ai_min_interval_seconds: int = 300
+    kill_switch_path: Path | None = None
+
+
+@dataclass(frozen=True)
 class AppConfig:
     bot: BotSettings
     paper: PaperSettings
@@ -152,6 +164,7 @@ class AppConfig:
     research: ResearchSettings
     futures_testnet: FuturesTestnetSettings
     source_path: Path | None = None
+    market_pulse: MarketPulseSettings = MarketPulseSettings()
 
 
 def _project_path(raw: str) -> Path:
@@ -173,6 +186,21 @@ def load_config(path: str | Path | None = None) -> AppConfig:
     dashboard = raw["dashboard"]
     research = raw.get("research", {})
     futures_testnet = raw.get("futures_testnet", {})
+    pulse = raw.get("market_pulse", {})
+    if not isinstance(pulse, dict) or any(type(pulse.get(k, True)) is not bool for k in ("enabled", "ai_enabled")):
+        raise ValueError("Invalid Market Pulse configuration")
+    if pulse.get("mode", "SHADOW") != "SHADOW":
+        raise ValueError("Market Pulse execution is locked to SHADOW; promotion requires a separate release and owner authorization")
+    pulse_symbols = pulse.get("symbols", ["BTCUSDT", "ETHUSDT", "SOLUSDT"])
+    if not isinstance(pulse_symbols, list) or not pulse_symbols or any(type(s) is not str or s not in {"BTCUSDT", "ETHUSDT", "SOLUSDT"} for s in pulse_symbols) or len(set(pulse_symbols)) != len(pulse_symbols):
+        raise ValueError("Unsupported Market Pulse universe")
+    pulse_windows = pulse.get("windows_seconds", [60, 300])
+    if not isinstance(pulse_windows, list) or pulse_windows != [60, 300]:
+        raise ValueError("Market Pulse currently requires 1m and 5m evidence")
+    for key, default, lower, upper in (("ai_max_reviews_per_day", 6, 0, 6), ("ai_min_interval_seconds", 300, 300, 86400)):
+        value = pulse.get(key, default)
+        if type(value) is not int or not lower <= value <= upper:
+            raise ValueError("Invalid Market Pulse AI budget")
 
     mode = os.getenv("EXECUTION_MODE", str(bot.get("mode", "paper"))).lower()
     if mode not in {"paper", "testnet"}:
@@ -266,6 +294,13 @@ def load_config(path: str | Path | None = None) -> AppConfig:
     if type(research.get("automatic", True)) is not bool:
         raise ValueError("Research automatic must be a boolean")
     return AppConfig(
+        market_pulse=MarketPulseSettings(
+            enabled=pulse.get("enabled", True), mode="SHADOW", symbols=tuple(pulse_symbols),
+            windows_seconds=tuple(pulse_windows), ai_enabled=pulse.get("ai_enabled", True),
+            ai_max_reviews_per_day=pulse.get("ai_max_reviews_per_day", 6),
+            ai_min_interval_seconds=pulse.get("ai_min_interval_seconds", 300),
+            kill_switch_path=_project_path(str(pulse.get("kill_switch_path", "data/MARKET_PULSE_KILL_SWITCH"))),
+        ),
         source_path=config_path.resolve(),
         bot=BotSettings(
             mode=mode,

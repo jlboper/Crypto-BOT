@@ -103,6 +103,7 @@ try {
     Assert-True (-not (Test-AgentRepairHeartbeat $heartbeat 'Ready' 100)) 'Stopped task must not count'
     $heartbeat.error_type = 'SUPERVISOR_UNAVAILABLE:ModuleNotFoundError'
     Assert-True (-not (Test-AgentRepairHeartbeat $heartbeat 'Running' 100)) 'Partial supervisor failure must not claim successful repair'
+    & (Join-Path $PSScriptRoot 'windows_manager_view.ps1')
     Write-Output 'Windows lifecycle checks passed: duplicate/quiet/clean/crash manager, repair exclusion, truthful notices.'
 } finally {
     if ($null -ne $instance) { Exit-ManagerInstance $instance }

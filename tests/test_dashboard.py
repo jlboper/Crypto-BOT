@@ -21,6 +21,44 @@ from trader.update_supervisor import ProcessRuntime
 
 
 class DashboardTests(unittest.TestCase):
+    def test_pulse_status_and_controls_keep_existing_auth_origin_and_payload_checks(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            base = load_config()
+            config = replace(base, bot=replace(base.bot, database_path=root / 'spot.db'),
+                market_pulse=replace(base.market_pulse, kill_switch_path=root / 'pulse-kill'))
+            dashboard = DashboardServer(config, Database(config.bot.database_path))
+            dashboard.token = 'local-owner-token'
+            server = ThreadingHTTPServer(('127.0.0.1', 0), dashboard._handler())
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            try:
+                address = f'http://127.0.0.1:{server.server_port}'
+                with self.assertRaises(urllib.error.HTTPError) as missing:
+                    urllib.request.urlopen(address + '/api/market-pulse')
+                self.assertEqual(missing.exception.code, 401)
+                headers = {'X-Dashboard-Token': dashboard.token, 'Content-Type': 'application/json'}
+                with urllib.request.urlopen(urllib.request.Request(address + '/api/market-pulse', headers=headers)) as response:
+                    self.assertEqual(json.load(response)['mode'], 'SHADOW')
+                    self.assertEqual(response.headers['Cache-Control'], 'no-store')
+                def request(value, origin=address):
+                    return urllib.request.urlopen(urllib.request.Request(address + '/api/market-pulse/pause',
+                        data=json.dumps(value).encode(), headers={**headers, 'Origin': origin}, method='POST'))
+                with self.assertRaises(urllib.error.HTTPError) as cross:
+                    request({}, 'https://evil.example')
+                self.assertEqual(cross.exception.code, 403)
+                with patch('trader.dashboard.subprocess.Popen') as run:
+                    with self.assertRaises(urllib.error.HTTPError) as unsafe:
+                        request({'mode': 'testnet'})
+                    self.assertEqual(unsafe.exception.code, 409)
+                    run.assert_not_called()
+                    with request({}) as response:
+                        self.assertEqual(response.status, 202)
+                    sent = run.return_value.stdin.write.call_args.args[0]
+                    self.assertEqual(json.loads(sent), {'action': 'market_pulse_pause', 'payload': {}})
+            finally:
+                server.shutdown(); server.server_close(); thread.join(timeout=2)
+
     def test_local_status_exposes_recovery_and_new_errors_without_erasing_history(self):
         from trader.futures_testnet_ledger import FuturesTestnetLedger
         with tempfile.TemporaryDirectory() as folder:

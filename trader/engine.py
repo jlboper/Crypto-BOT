@@ -501,6 +501,52 @@ class TradingEngine:
         }
 
     def run_forever(self, should_stop=lambda: False) -> None:
+        # CLI calls this only after the signed candidate activation barrier.
+        # Market Pulse observes in this owned process; it never owns an order client.
+        pulse = None
+        if not should_stop() and self.config.market_pulse.enabled:
+            try:
+                pulse = self._create_market_pulse()
+                pulse.start()
+            except Exception as exc:
+                self.db.event("WARN", "Market Pulse unavailable: " + type(exc).__name__)
+                if pulse is not None:
+                    try:
+                        pulse.stop()
+                    except Exception as cleanup_error:
+                        self.db.event("WARN", "Market Pulse startup cleanup: " + type(cleanup_error).__name__)
+                pulse = None
+        try:
+            self._run_supervised_loop(should_stop)
+        finally:
+            if pulse is not None:
+                try:
+                    pulse.stop()
+                except Exception as exc:
+                    self.db.event("WARN", "Market Pulse shutdown: " + type(exc).__name__)
+
+    def _create_market_pulse(self):
+        from .market_pulse import MarketPulseService, PulseConfig
+        from .market_pulse_ai import PulseAIReviewer
+        from .market_pulse_news import PublicNewsFeeds
+        settings = self.config.market_pulse
+        data_dir = self.config.bot.database_path.parent
+        reviewer = PulseAIReviewer(data_dir, model=self.config.ai.model,
+            enabled=settings.ai_enabled,
+            max_reviews_per_day=settings.ai_max_reviews_per_day,
+            min_interval_seconds=settings.ai_min_interval_seconds)
+        return MarketPulseService(data_dir, config=PulseConfig(
+            enabled=settings.enabled, mode=settings.mode, symbols=settings.symbols,
+            windows_seconds=settings.windows_seconds,
+            risk_per_trade=min(0.0025, self.config.risk.risk_per_trade_pct),
+            max_exposure_fraction=min(0.15, self.config.risk.max_total_exposure_pct),
+            max_position_fraction=min(0.05, self.config.risk.max_position_pct),
+            max_positions=min(3, self.config.risk.max_positions),
+            fee_bps=self.config.paper.fee_rate*10000,
+            slippage_bps=self.config.paper.slippage_rate*10000),
+            reviewer=reviewer, news_fetcher=PublicNewsFeeds(), kill_switch_path=settings.kill_switch_path)
+
+    def _run_supervised_loop(self, should_stop) -> None:
         self.db.event("INFO", f"Trading engine started in {self.config.bot.mode.upper()} mode")
         while not should_stop():
             started = time.monotonic()

@@ -438,45 +438,177 @@ function New-AppButton {
     return $button
 }
 
-function New-KpiCard {
+function Get-ManagerValue($Value, [string]$Path) {
+    foreach ($part in $Path.Split('.')) {
+        if ($null -eq $Value) { return $null }
+        if ($Value -is [System.Collections.IDictionary]) { $Value = $Value[$part] }
+        else {
+            $property = $Value.PSObject.Properties[$part]
+            if ($null -eq $property) { return $null }
+            $Value = $property.Value
+        }
+    }
+    return $Value
+}
+
+function Format-ManagerNumber($Value, [string]$Suffix = '') {
+    if ($null -eq $Value -or $Value -is [bool]) { return '—' }
+    $number = 0.0
+    if (-not [double]::TryParse([string]$Value, [Globalization.NumberStyles]::Float,
+        [Globalization.CultureInfo]::InvariantCulture, [ref]$number) -or
+        [double]::IsNaN($number) -or [double]::IsInfinity($number)) { return '—' }
+    return $number.ToString('N2', [Globalization.CultureInfo]::GetCultureInfo('es-MX')) + $Suffix
+}
+
+function Get-ManagerAge($Value, [DateTimeOffset]$Now) {
+    if ($null -eq $Value) { return $null }
+    $stamp = [DateTimeOffset]::MinValue
+    if ($Value -is [DateTimeOffset] -or $Value -is [DateTime]) { $stamp = [DateTimeOffset]$Value }
+    elseif (-not [DateTimeOffset]::TryParse([string]$Value, [Globalization.CultureInfo]::InvariantCulture,
+        [Globalization.DateTimeStyles]::AssumeUniversal, [ref]$stamp)) { return $null }
+    $age = ($Now - $stamp).TotalSeconds
+    if ($age -lt -5) { return $null }
+    return [math]::Max(0, $age)
+}
+
+function Format-ManagerTime($Value) {
+    $stamp = [DateTimeOffset]::MinValue
+    if ($null -eq $Value) { return 'Sin evaluación registrada' }
+    if ($Value -is [DateTimeOffset] -or $Value -is [DateTime]) { $stamp = [DateTimeOffset]$Value }
+    elseif (-not [DateTimeOffset]::TryParse([string]$Value, [Globalization.CultureInfo]::InvariantCulture,
+        [Globalization.DateTimeStyles]::AssumeUniversal, [ref]$stamp)) { return 'Sin evaluación registrada' }
+    return $stamp.ToLocalTime().ToString('dd/MM HH:mm:ss')
+}
+
+function Get-ManagerArmedCount($Native) {
+    $armed = 0
+    if ($null -ne $Native) {
+        foreach ($item in $Native.PSObject.Properties) { if ($item.Value.status -eq 'ARMED') { $armed++ } }
+    }
+    return $armed
+}
+
+function Get-ManagerProtection($Native, $Positions, [string]$Name) {
+    if ($null -eq $Native -or $null -eq $Positions) { return 'Confirmación nativa pendiente' }
+    if ($Positions -eq 0) { return 'Sin exposición · verificar al abrir' }
+    $armed = Get-ManagerArmedCount $Native
+    return "$armed/$Positions $Name confirmados"
+}
+
+function Get-ManagerEngineViews($Spot, $Futures, $Pulse, [DateTimeOffset]$Now = [DateTimeOffset]::UtcNow) {
+    $spotCount = Get-ManagerValue $Spot 'positions'
+    $spotState = switch ([string](Get-ManagerValue $Spot 'activity.state')) {
+        'operational' { 'OPERATIVO' } 'delayed' { 'RETRASADO' } 'offline' { 'SIN CICLO RECIENTE' } default { 'SIN DATOS' }
+    }
+    if ((Get-ManagerValue $Spot 'killed') -eq $true) { $spotState = 'ENTRADAS PAUSADAS' }
+    $spotNative = Get-ManagerValue $Spot 'native_protection.positions'
+    if ($spotState -eq 'OPERATIVO' -and $null -ne $spotCount -and [int]$spotCount -gt 0 -and (Get-ManagerArmedCount $spotNative) -lt [int]$spotCount) {
+        $spotState = 'PROTECCIÓN PENDIENTE'
+    }
+    $spotMode = [string](Get-ManagerValue $Spot 'mode')
+    $spotPositions = if ($null -eq $spotCount) { 'Posiciones: —' } else { "Posiciones: $spotCount" }
+    $spotView = [PSCustomObject]@{
+        State=$spotState; Environment= $(if ($spotMode) { 'Spot ' + $spotMode.ToUpperInvariant() } else { 'Entorno sin confirmar' })
+        Capital=('Equity: ' + (Format-ManagerNumber (Get-ManagerValue $Spot 'equity') ' USDT'))
+        Return=('Retorno: ' + (Format-ManagerNumber (Get-ManagerValue $Spot 'return_pct') '%'))
+        Positions=($spotPositions + "`r`nExposición: " + (Format-ManagerNumber (Get-ManagerValue $Spot 'exposure') ' USDT'))
+        Protection=(Get-ManagerProtection $spotNative $spotCount 'OCO')
+        Latest=(Format-ManagerTime (Get-ManagerValue $Spot 'activity.last_cycle_at'))
+        Tone=$(if ($spotState -eq 'OPERATIVO') { 'Green' } elseif ($null -eq $Spot) { 'Muted' } else { 'Amber' })
+    }
+    $fPositions = @(Get-ManagerValue $Futures 'positions' | Where-Object { $null -ne $_ })
+    $fState = 'SIN DATOS'; $fTone = 'Muted'
+    if ((Get-ManagerValue $Futures 'enabled') -eq $false) { $fState = 'NO HABILITADO' }
+    elseif ((Get-ManagerValue $Futures 'enabled') -eq $true) {
+        $fState = 'ESPERANDO SEÑAL'; $fTone = 'Green'
+        $fAge = Get-ManagerAge (Get-ManagerValue $Futures 'cycle_diagnostic.at') $Now
+        $cycle = Get-ManagerValue $Spot 'cycle_seconds'
+        $maxAge = if ($null -ne $cycle -and [double]$cycle -gt 0) { [math]::Max([double]$cycle * 1.5, [double]$cycle + 120) } else { 1350 }
+        if ($fPositions.Count -gt 0) { $fState = 'CON POSICIONES' }
+        if ($null -eq $fAge -or $fAge -gt $maxAge) { $fState = 'SIN ANÁLISIS RECIENTE'; $fTone = 'Amber' }
+        elseif ((Get-ManagerValue $Futures 'cycle_diagnostic.state') -eq 'ATTENTION') { $fState = 'DATOS PARCIALES'; $fTone = 'Amber' }
+        if ((Get-ManagerValue $Futures 'killed') -eq $true) { $fState = 'ENTRADAS PAUSADAS'; $fTone = 'Amber' }
+    }
+    $fEquity = @(Get-ManagerValue $Futures 'equity' | Where-Object { $null -ne $_ })
+    $wallet = $null
+    if ($fEquity.Count -gt 0) {
+        $wallet = Get-ManagerValue $fEquity[-1] 'wallet_balance'
+        $unrealized = Get-ManagerValue $fEquity[-1] 'unrealized_pnl'
+        if ($null -ne $wallet -and $null -ne $unrealized) { $wallet = [double]$wallet + [double]$unrealized } else { $wallet = $null }
+    }
+    $longs = @($fPositions | Where-Object { $_.direction -eq 'LONG' }).Count
+    $shorts = @($fPositions | Where-Object { $_.direction -eq 'SHORT' }).Count
+    $fNative = Get-ManagerValue $Futures 'native_protection.positions'
+    if ($fState -in @('CON POSICIONES','ESPERANDO SEÑAL') -and $fPositions.Count -gt 0 -and (Get-ManagerArmedCount $fNative) -lt $fPositions.Count) {
+        $fState = 'PROTECCIÓN PENDIENTE'; $fTone = 'Amber'
+    }
+    $fView = [PSCustomObject]@{
+        State=$fState; Environment='Futures DEMO · cuenta separada'; Capital=('Equity: ' + (Format-ManagerNumber $wallet ' USDT'))
+        Return=('Retorno: ' + (Format-ManagerNumber (Get-ManagerValue $Futures 'scorecard.account_return_pct') '%'))
+        Positions=$(if ($null -eq $Futures -or $null -eq $Futures.PSObject.Properties['positions']) { 'LONG / SHORT: —' } else { "LONG $longs · SHORT $shorts" })
+        Protection=(Get-ManagerProtection $fNative $fPositions.Count 'stops')
+        Latest=(Format-ManagerTime (Get-ManagerValue $Futures 'cycle_diagnostic.at')); Tone=$fTone
+    }
+    $pulseState = switch ([string](Get-ManagerValue $Pulse 'state')) {
+        'SHADOW' { 'SHADOW ACTIVO' } 'PAUSED' { 'ENTRADAS PAUSADAS' } 'WARMING_UP' { 'ACUMULANDO MUESTRAS' }
+        'DEGRADED' { 'DATOS PARCIALES' } 'NOT_STARTED' { 'SIN INICIAR' } default { 'SIN DATOS' }
+    }
+    $pulseAge = Get-ManagerAge (Get-ManagerValue $Pulse 'updated_at') $Now
+    $pulseOld = $null -ne $Pulse -and ($null -eq $pulseAge -or $pulseAge -gt 30 -or (Get-ManagerValue $Pulse 'freshness.state') -eq 'STALE')
+    if ($pulseOld -and $pulseState -ne 'SIN INICIAR') { $pulseState += ' · ANTIGUO' }
+    $pulsePositions = @(Get-ManagerValue $Pulse 'positions' | Where-Object { $null -ne $_ })
+    $pCount = if ($null -eq $Pulse -or $null -eq $Pulse.PSObject.Properties['positions']) { '—' } else { [string]$pulsePositions.Count }
+    $pEvents = Get-ManagerValue $Pulse 'stats.events_analyzed'
+    $pOpp = Get-ManagerValue $Pulse 'stats.opportunities'
+    $pView = [PSCustomObject]@{
+        State=$pulseState; Environment='SHADOW · capital hipotético'
+        Capital=$(if ($pulseOld) { 'Equity: —' } else { 'Equity: ' + (Format-ManagerNumber (Get-ManagerValue $Pulse 'performance.equity') ' USDT') })
+        Return=$(if ($pulseOld) { 'Neto simulado: — · antiguo' } else { 'Neto simulado: ' + (Format-ManagerNumber (Get-ManagerValue $Pulse 'performance.net_pnl') ' USDT') })
+        Positions=("Posiciones hipotéticas: $pCount`r`nEventos: $(if ($null -eq $pEvents) {'—'} else {$pEvents}) · oportunidades: $(if ($null -eq $pOpp) {'—'} else {$pOpp})")
+        Protection=('Sin órdenes al exchange' + "`r`nWS: " + $(if ($null -eq (Get-ManagerValue $Pulse 'sources.binance_ws.state')) {'sin datos'} else {[string](Get-ManagerValue $Pulse 'sources.binance_ws.state')}))
+        Latest=(Format-ManagerTime (Get-ManagerValue $Pulse 'updated_at'))
+        Tone=$(if ($pulseState -eq 'SHADOW ACTIVO' -and -not $pulseOld) {'Green'} elseif ($null -eq $Pulse -or $pulseState -eq 'SIN INICIAR') {'Muted'} else {'Amber'})
+    }
+    return [PSCustomObject]@{ Spot=$spotView; Futures=$fView; Pulse=$pView }
+}
+
+function New-EngineCard {
     param([string]$Title, [int]$X, [int]$Y)
     $panel = New-Object System.Windows.Forms.Panel
     $panel.Location = New-Object System.Drawing.Point($X, $Y)
-    $panel.Size = New-Object System.Drawing.Size(166, 106)
+    $panel.Size = New-Object System.Drawing.Size(222, 234)
     $panel.BackColor = [System.Drawing.Color]::FromArgb(16, 27, 45)
+    $card = @{ Panel=$panel }
+    foreach ($field in @(@('Title',12,22,10,'Bold'), @('State',39,19,8,'Bold'), @('Environment',61,20,8,'Regular'),
+        @('Capital',85,23,11,'Bold'), @('Return',111,19,8,'Regular'), @('Positions',137,31,8,'Regular'),
+        @('Protection',173,31,8,'Regular'), @('Latest',211,19,8,'Regular'))) {
+        $label = New-Object System.Windows.Forms.Label
+        $label.Text = if ($field[0] -eq 'Title') { $Title } else { '—' }
+        $label.Location = New-Object System.Drawing.Point(12, ([int]$field[1]))
+        $label.Size = New-Object System.Drawing.Size(198, ([int]$field[2]))
+        $label.Font = New-Object System.Drawing.Font('Segoe UI', ([single]$field[3]), ([System.Drawing.FontStyle]$field[4]))
+        $label.ForeColor = [System.Drawing.Color]::FromArgb(157, 181, 202)
+        if ($field[0] -in @('Title','Capital')) { $label.ForeColor = [System.Drawing.Color]::FromArgb(236,242,255) }
+        $panel.Controls.Add($label); $card[$field[0]]=$label
+    }
+    return [PSCustomObject]$card
+}
 
-    $titleLabel = New-Object System.Windows.Forms.Label
-    $titleLabel.Text = $Title.ToUpperInvariant()
-    $titleLabel.Location = New-Object System.Drawing.Point(14, 12)
-    $titleLabel.Size = New-Object System.Drawing.Size(138, 18)
-    $titleLabel.Font = New-Object System.Drawing.Font("Segoe UI Semibold", 8)
-    $titleLabel.ForeColor = [System.Drawing.Color]::FromArgb(124, 151, 188)
-    $panel.Controls.Add($titleLabel)
-
-    $valueLabel = New-Object System.Windows.Forms.Label
-    $valueLabel.Text = "—"
-    $valueLabel.Location = New-Object System.Drawing.Point(13, 36)
-    $valueLabel.Size = New-Object System.Drawing.Size(143, 31)
-    $valueLabel.Font = New-Object System.Drawing.Font("Segoe UI", 16, [System.Drawing.FontStyle]::Bold)
-    $valueLabel.ForeColor = [System.Drawing.Color]::FromArgb(240, 246, 255)
-    $panel.Controls.Add($valueLabel)
-
-    $noteLabel = New-Object System.Windows.Forms.Label
-    $noteLabel.Text = "Comprobando"
-    $noteLabel.Location = New-Object System.Drawing.Point(14, 76)
-    $noteLabel.Size = New-Object System.Drawing.Size(138, 18)
-    $noteLabel.Font = New-Object System.Drawing.Font("Segoe UI", 8)
-    $noteLabel.ForeColor = [System.Drawing.Color]::FromArgb(116, 139, 171)
-    $panel.Controls.Add($noteLabel)
-
-    return [PSCustomObject]@{ Panel = $panel; Value = $valueLabel; Note = $noteLabel }
+function Set-EngineCard($Card, $View) {
+    foreach ($field in @('State','Environment','Capital','Return','Positions','Protection','Latest')) { $Card.$field.Text = [string]$View.$field }
+    $Card.State.ForeColor = switch ($View.Tone) {
+        'Green' { [System.Drawing.Color]::FromArgb(45,226,166) }
+        'Amber' { [System.Drawing.Color]::FromArgb(255,204,102) }
+        default { [System.Drawing.Color]::FromArgb(143,160,186) }
+    }
 }
 
 $form = New-Object System.Windows.Forms.Form
 $form.Text = "Crypto AI Trader"
-$form.Size = New-Object System.Drawing.Size(760, 680)
-$form.MinimumSize = New-Object System.Drawing.Size(760, 680)
-$form.MaximumSize = New-Object System.Drawing.Size(760, 680)
+$form.Size = New-Object System.Drawing.Size(760, 770)
+$form.MinimumSize = New-Object System.Drawing.Size(760, 720)
+$form.MaximumSize = New-Object System.Drawing.Size(760, 770)
+$form.AutoScroll = $true
 $form.StartPosition = [System.Windows.Forms.FormStartPosition]::CenterScreen
 $form.BackColor = [System.Drawing.Color]::FromArgb(8, 13, 24)
 $form.ForeColor = [System.Drawing.Color]::FromArgb(236, 242, 255)
@@ -514,14 +646,24 @@ $title.ForeColor = [System.Drawing.Color]::FromArgb(236, 242, 255)
 $form.Controls.Add($title)
 
 $subtitle = New-Object System.Windows.Forms.Label
-$subtitle.Text = "Spot Testnet + Futures Demo · centro de control"
+$subtitle.Text = "Spot · Futures · AI Market Pulse | tres motores supervisados"
 $subtitle.Location = New-Object System.Drawing.Point(103, 59)
 $subtitle.Size = New-Object System.Drawing.Size(460, 22)
 $subtitle.ForeColor = [System.Drawing.Color]::FromArgb(132, 153, 184)
 $form.Controls.Add($subtitle)
 
+$pulseOpenLink = New-Object System.Windows.Forms.LinkLabel
+$pulseOpenLink.Text = 'Inteligencia y controles Market Pulse →'
+$pulseOpenLink.Location = New-Object System.Drawing.Point(103, 83)
+$pulseOpenLink.Size = New-Object System.Drawing.Size(370, 17)
+$pulseOpenLink.Font = New-Object System.Drawing.Font('Segoe UI', 8)
+$pulseOpenLink.LinkColor = [System.Drawing.Color]::FromArgb(77,239,187)
+$pulseOpenLink.ActiveLinkColor = [System.Drawing.Color]::FromArgb(157,250,220)
+$pulseOpenLink.Add_LinkClicked({ Start-Process ($DashboardUrl + '/#market-pulse') })
+$form.Controls.Add($pulseOpenLink)
+
 $modeBadge = New-Object System.Windows.Forms.Label
-$modeBadge.Text = "..."
+$modeBadge.Text = "3 BOTS"
 $modeBadge.Location = New-Object System.Drawing.Point(625, 30)
 $modeBadge.Size = New-Object System.Drawing.Size(91, 32)
 $modeBadge.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
@@ -554,7 +696,7 @@ $statusPanel.Controls.Add($statusLabel)
 $statusDescription = New-Object System.Windows.Forms.Label
 $statusDescription.Text = "Validando el motor y el portal..."
 $statusDescription.Location = New-Object System.Drawing.Point(53, 50)
-$statusDescription.Size = New-Object System.Drawing.Size(390, 22)
+$statusDescription.Size = New-Object System.Drawing.Size(390, 34)
 $statusDescription.ForeColor = [System.Drawing.Color]::FromArgb(157, 181, 202)
 $statusPanel.Controls.Add($statusDescription)
 
@@ -567,31 +709,30 @@ $lastCycleLabel.Font = New-Object System.Drawing.Font("Segoe UI", 9)
 $lastCycleLabel.ForeColor = [System.Drawing.Color]::FromArgb(139, 169, 190)
 $statusPanel.Controls.Add($lastCycleLabel)
 
-$equityCard = New-KpiCard "Spot Equity" 28 210
-$returnCard = New-KpiCard "Spot Return" 202 210
-$cashCard = New-KpiCard "Futures Wallet" 376 210
-$exposureCard = New-KpiCard "Futures P&L" 550 210
-foreach ($card in @($equityCard, $returnCard, $cashCard, $exposureCard)) {
+$spotCard = New-EngineCard "SPOT BOT" 28 210
+$futuresCard = New-EngineCard "FUTURES BOT" 260 210
+$pulseCard = New-EngineCard "AI MARKET PULSE" 492 210
+foreach ($card in @($spotCard, $futuresCard, $pulseCard)) {
     $form.Controls.Add($card.Panel)
 }
 
 $actionsLabel = New-Object System.Windows.Forms.Label
 $actionsLabel.Text = "ACCIONES RÁPIDAS"
-$actionsLabel.Location = New-Object System.Drawing.Point(29, 335)
+$actionsLabel.Location = New-Object System.Drawing.Point(29, 459)
 $actionsLabel.Size = New-Object System.Drawing.Size(250, 22)
 $actionsLabel.Font = New-Object System.Drawing.Font("Segoe UI Semibold", 9)
 $actionsLabel.ForeColor = [System.Drawing.Color]::FromArgb(113, 139, 176)
 $form.Controls.Add($actionsLabel)
 
-$openLocalButton = New-AppButton "⌂   Abrir portal local" 28 365
+$openLocalButton = New-AppButton "⌂   Portal local · tres bots" 28 487
 $openLocalButton.Add_Click({ Start-Process $DashboardUrl })
 $form.Controls.Add($openLocalButton)
 
-$openRemoteButton = New-AppButton "↗   Abrir portal remoto" 386 365
+$openRemoteButton = New-AppButton "↗   Portal remoto / móvil" 386 487
 $openRemoteButton.Add_Click({ Start-Process -FilePath $RemotePortalUrl })
 $form.Controls.Add($openRemoteButton)
 
-$restartButton = New-AppButton "↻   Reiniciar motor" 28 421
+$restartButton = New-AppButton "↻   Reiniciar motor supervisado" 28 543
 $restartButton.Add_Click({
     $answer = [System.Windows.Forms.MessageBox]::Show(
         "¿Quieres reiniciar el motor ahora? El portal dejará de responder durante unos segundos.",
@@ -609,7 +750,7 @@ $restartButton.Add_Click({
 })
 $form.Controls.Add($restartButton)
 
-$killButton = New-AppButton "⚠   Activar kill switch" 386 421 330 "Danger"
+$killButton = New-AppButton "⚠   Pausar entradas Spot" 386 543 330 "Danger"
 $killButton.Add_Click({
     if (Test-Path $KillSwitchPath) {
         $answer = [System.Windows.Forms.MessageBox]::Show(
@@ -638,11 +779,11 @@ $killButton.Add_Click({
 })
 $form.Controls.Add($killButton)
 
-$updateButton = New-AppButton "↻   Actualizar bot desde esta PC" 28 477 330 "Accent"
+$updateButton = New-AppButton "↻   Actualización firmada local" 28 599 330 "Accent"
 $updateButton.Add_Click({ Show-LocalUpdateCenter })
 $form.Controls.Add($updateButton)
 
-$startupButton = New-AppButton "⚙   Activar inicio automático" 386 477
+$startupButton = New-AppButton "⚙   Activar inicio automático" 386 599
 $startupButton.Add_Click({
     if (Test-CanonicalStartup) {
         $answer = [System.Windows.Forms.MessageBox]::Show(
@@ -669,13 +810,13 @@ $startupButton.Add_Click({
 $form.Controls.Add($startupButton)
 
 $footerPanel = New-Object System.Windows.Forms.Panel
-$footerPanel.Location = New-Object System.Drawing.Point(28, 546)
+$footerPanel.Location = New-Object System.Drawing.Point(28, 662)
 $footerPanel.Size = New-Object System.Drawing.Size(688, 66)
 $footerPanel.BackColor = [System.Drawing.Color]::FromArgb(11, 20, 34)
 $form.Controls.Add($footerPanel)
 
 $protectionLabel = New-Object System.Windows.Forms.Label
-$protectionLabel.Text = "✓  Dos motores de prueba  ·  Fondos ficticios  ·  LIVE bloqueado"
+$protectionLabel.Text = "Tres motores · ledgers separados · Market Pulse SHADOW"
 $protectionLabel.Location = New-Object System.Drawing.Point(16, 12)
 $protectionLabel.Size = New-Object System.Drawing.Size(470, 22)
 $protectionLabel.ForeColor = [System.Drawing.Color]::FromArgb(92, 215, 171)
@@ -698,135 +839,94 @@ $versionLabel.Font = New-Object System.Drawing.Font("Segoe UI Semibold", 8)
 $versionLabel.ForeColor = [System.Drawing.Color]::FromArgb(113, 139, 176)
 $footerPanel.Controls.Add($versionLabel)
 
-function Update-ManagerStatus {
-    $processCount = (Get-TradingProcesses).Count
+# Read-only HTTP polling uses .NET tasks, not a second PowerShell or trading process.
+Add-Type -AssemblyName System.Net.Http
+$script:ManagerHttp = New-Object System.Net.Http.HttpClient
+$script:ManagerHttp.Timeout = [TimeSpan]::FromSeconds(3)
+$script:ManagerHttp.MaxResponseContentBufferSize = 262144
+$script:ManagerRequests = $null
+
+function Get-ManagerRemoteView($Remote, [DateTimeOffset]$Now = [DateTimeOffset]::UtcNow) {
+    $last = Get-ManagerValue $Remote 'last_success'
+    $fresh = $null -ne $last -and [double]$last -ge ($Now.ToUnixTimeSeconds() - 90) -and [double]$last -le ($Now.ToUnixTimeSeconds() + 5)
+    if ($fresh -and (Get-ManagerValue $Remote 'sync_ok') -eq $true -and -not (Get-ManagerValue $Remote 'error_type')) { return 'HTTPS remoto reciente' }
+    if ($null -eq $Remote) { return 'HTTPS remoto sin evidencia disponible' }
+    return 'HTTPS remoto pendiente / antiguo; motores independientes'
+}
+
+function Read-ManagerRemoteConnection {
     try {
-        $status = Invoke-RestMethod -Uri ($DashboardUrl + "/api/status") -TimeoutSec 3
-        $activeMode = ([string]$status.mode).ToUpperInvariant()
-        if ($activeMode -eq 'TESTNET') { $modeBadge.Text = "SPOT" }
-        elseif ($activeMode -eq 'PAPER') { $modeBadge.Text = "BACKUP" }
-        $futures = $null
-        try { $futures = Invoke-RestMethod -Uri ($DashboardUrl + "/api/futures-forward") -TimeoutSec 3 } catch { }
-        $state = [string]$status.activity.state
-        if ($state -eq "operational") {
-            $statusLabel.Text = "Motor operativo"
-            $statusLabel.ForeColor = [System.Drawing.Color]::FromArgb(45, 226, 166)
-            $statusDot.ForeColor = [System.Drawing.Color]::FromArgb(45, 226, 166)
-            $statusPanel.BackColor = [System.Drawing.Color]::FromArgb(14, 38, 42)
-            $futuresText = if ($futures -and $futures.enabled) {
-                if ($futures.killed) { "Futures Demo pausado" }
-                elseif ($futures.position) { "Futures Demo con posición abierta" }
-                else { "Futures Demo activo, esperando señal" }
-            } elseif ($activeMode -ne 'TESTNET') { "Futures Demo inactivo · motor en $activeMode" }
-              else { "Futures Demo inactivo · forward deshabilitado" }
-            $statusDescription.Text = "Spot responde · $futuresText."
-            $notifyIcon.Icon = $script:OperationalIcon
-            $trayStatusItem.Text = "● Motor operativo"
-            $trayStatusItem.ForeColor = [System.Drawing.Color]::FromArgb(45, 226, 166)
-        }
-        elseif ($state -eq "delayed") {
-            $statusLabel.Text = "Motor retrasado"
-            $statusLabel.ForeColor = [System.Drawing.Color]::FromArgb(255, 204, 102)
-            $statusDot.ForeColor = [System.Drawing.Color]::FromArgb(255, 204, 102)
-            $statusPanel.BackColor = [System.Drawing.Color]::FromArgb(44, 37, 24)
-            $statusDescription.Text = "El último ciclo está tardando más de lo esperado."
-            $notifyIcon.Icon = $script:WarningIcon
-            $trayStatusItem.Text = "● Motor retrasado"
-            $trayStatusItem.ForeColor = [System.Drawing.Color]::FromArgb(255, 204, 102)
-        }
-        else {
-            $statusLabel.Text = "Motor sin actividad"
-            $statusLabel.ForeColor = [System.Drawing.Color]::FromArgb(255, 93, 115)
-            $statusDot.ForeColor = [System.Drawing.Color]::FromArgb(255, 93, 115)
-            $statusPanel.BackColor = [System.Drawing.Color]::FromArgb(48, 25, 34)
-            $statusDescription.Text = "No se registra un ciclo reciente. Revisa el motor."
-            $notifyIcon.Icon = $script:OfflineIcon
-            $trayStatusItem.Text = "● Motor sin actividad"
-            $trayStatusItem.ForeColor = [System.Drawing.Color]::FromArgb(255, 93, 115)
-        }
-        $lastCycle = "sin ciclos"
-        if ($status.activity.last_cycle_at) {
-            $lastCycle = ([datetime]$status.activity.last_cycle_at).ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss")
-        }
-        $equity = [math]::Round([double]$status.equity, 2)
-        $returnPct = [math]::Round([double]$status.return_pct, 2)
-        $cash = [math]::Round([double]$status.cash, 2)
-        $exposure = [math]::Round([double]$status.exposure, 2)
-        $futuresWallet = if ($futures -and $futures.equity -and $futures.equity.Count -gt 0) { [math]::Round([double]$futures.equity[-1].wallet_balance, 2) } else { 0 }
-        $futuresPnl = if ($futures) { [math]::Round([double]$futures.gross_pnl, 2) } else { 0 }
-        $equityCard.Value.Text = $equity.ToString("N2")
-        $equityCard.Note.Text = "USDT de capital total"
-        $returnPrefix = if ($returnPct -ge 0) { "+" } else { "" }
-        $returnCard.Value.Text = $returnPrefix + $returnPct.ToString("N2") + "%"
-        $returnCard.Value.ForeColor = if ($returnPct -ge 0) { [System.Drawing.Color]::FromArgb(45, 226, 166) } else { [System.Drawing.Color]::FromArgb(255, 120, 140) }
-        $returnCard.Note.Text = "Desde el inicio"
-        $cashCard.Value.Text = if ($futuresWallet -gt 0) { $futuresWallet.ToString("N2") } else { "—" }
-        $cashCard.Note.Text = if ($futures -and $futures.enabled) { "USDT Demo" } else { "Futures inactivo" }
-        $exposureCard.Value.Text = if ($futures) { $futuresPnl.ToString("N2") } else { "—" }
-        $exposureCard.Note.Text = if ($futures) { "$($futures.closed_trades) cierres" } else { "Sin datos" }
-        $exposureCard.Value.ForeColor = if ($futuresPnl -ge 0) { [System.Drawing.Color]::FromArgb(45, 226, 166) } else { [System.Drawing.Color]::FromArgb(255, 120, 140) }
-        $lastCycleLabel.Text = "ÚLTIMO CICLO`r`n$lastCycle"
-        $notifyIcon.Text = "Crypto AI Trader - $equity USDT"
+        $task = Get-ScheduledTask -TaskName 'Crypto Paper Portal Agent' -ErrorAction Stop
+        $agentRoot = [string]$task.Actions[0].WorkingDirectory
+        if (-not $agentRoot) { return (Get-ManagerRemoteView $null) }
+        $remotePath = Join-Path $agentRoot 'data\remote-status.json'
+        if (-not (Test-Path -LiteralPath $remotePath)) { return (Get-ManagerRemoteView $null) }
+        $remote = Get-Content -LiteralPath $remotePath -Raw | ConvertFrom-Json
+        return (Get-ManagerRemoteView $remote)
+    } catch { return (Get-ManagerRemoteView $null) }
+}
+
+function Update-ManagerStatus {
+    if ($null -ne $script:ManagerRequests) { return }
+    $script:ManagerRequests = @{}
+    foreach ($route in @(@('Spot','/api/status'), @('Futures','/api/futures-forward'), @('Pulse','/api/market-pulse'))) {
+        $script:ManagerRequests[$route[0]] = $script:ManagerHttp.GetAsync($DashboardUrl + $route[1])
     }
-    catch {
-        if ($processCount -gt 0) {
-            $statusLabel.Text = "Motor iniciando"
-            $statusLabel.ForeColor = [System.Drawing.Color]::FromArgb(255, 204, 102)
-            $statusDot.ForeColor = [System.Drawing.Color]::FromArgb(255, 204, 102)
-            $statusPanel.BackColor = [System.Drawing.Color]::FromArgb(44, 37, 24)
-            $statusDescription.Text = "El proceso está activo, pero el portal todavía no responde."
-            $notifyIcon.Text = "Crypto AI Trader - iniciando"
-            $notifyIcon.Icon = $script:WarningIcon
-            $trayStatusItem.Text = "● Motor iniciando"
-            $trayStatusItem.ForeColor = [System.Drawing.Color]::FromArgb(255, 204, 102)
-        }
-        else {
-            $statusLabel.Text = "Motor detenido"
-            $statusLabel.ForeColor = [System.Drawing.Color]::FromArgb(255, 93, 115)
-            $statusDot.ForeColor = [System.Drawing.Color]::FromArgb(255, 93, 115)
-            $statusPanel.BackColor = [System.Drawing.Color]::FromArgb(48, 25, 34)
-            $statusDescription.Text = "No se encontró el proceso automático. Usa Reiniciar motor."
-            $notifyIcon.Text = "Crypto AI Trader - detenido"
-            $notifyIcon.Icon = $script:OfflineIcon
-            $trayStatusItem.Text = "● Motor detenido"
-            $trayStatusItem.ForeColor = [System.Drawing.Color]::FromArgb(255, 93, 115)
-        }
-        $lastCycleLabel.Text = "ÚLTIMO CICLO`r`nSin conexión"
-        foreach ($card in @($equityCard, $returnCard, $cashCard, $exposureCard)) {
-            $card.Value.Text = "—"
-            $card.Note.Text = "Datos no disponibles"
-        }
+}
+
+function Receive-ManagerStatus {
+    if ($null -eq $script:ManagerRequests) { return }
+    foreach ($request in $script:ManagerRequests.Values) { if (-not $request.IsCompleted) { return } }
+    $snapshots = @{ Spot=$null; Futures=$null; Pulse=$null }
+    foreach ($name in @('Spot','Futures','Pulse')) {
+        $response = $null
+        try {
+            $response = $script:ManagerRequests[$name].GetAwaiter().GetResult()
+            if ($response.IsSuccessStatusCode) {
+                $payload = $response.Content.ReadAsStringAsync().GetAwaiter().GetResult()
+                if ($payload.Length -le 262144) { $snapshots[$name] = $payload | ConvertFrom-Json }
+            }
+        } catch { } finally { if ($null -ne $response) { $response.Dispose() } }
     }
+    $script:ManagerRequests = $null
+    $views = Get-ManagerEngineViews $snapshots.Spot $snapshots.Futures $snapshots.Pulse
+    Set-EngineCard $spotCard $views.Spot
+    Set-EngineCard $futuresCard $views.Futures
+    Set-EngineCard $pulseCard $views.Pulse
+    $remoteText = Read-ManagerRemoteConnection
+    $connected = $null -ne $snapshots.Spot
+    $statusLabel.Text = if ($connected) { 'Lectura local disponible' } else { 'Lectura local no disponible' }
+    $statusDescription.Text = if ($connected) { "$remoteText. Entornos separados." } else { 'Sin respuesta local; esto no confirma que el motor esté detenido.' }
+    $color = if ($connected -and $views.Spot.Tone -eq 'Green' -and $views.Futures.Tone -ne 'Amber' -and $views.Pulse.Tone -ne 'Amber') {
+        [System.Drawing.Color]::FromArgb(45,226,166)
+    } else { [System.Drawing.Color]::FromArgb(255,204,102) }
+    $statusLabel.ForeColor = $color; $statusDot.ForeColor = $color
+    $statusPanel.BackColor = if ($connected) { [System.Drawing.Color]::FromArgb(14,38,42) } else { [System.Drawing.Color]::FromArgb(44,37,24) }
+    $lastCycleLabel.Text = "LECTURA DEL PANEL`r`n$([DateTime]::Now.ToString('dd/MM HH:mm:ss'))"
+    if ($connected -and $views.Spot.Tone -eq 'Green') { $notifyIcon.Icon = $script:OperationalIcon }
+    else { $notifyIcon.Icon = $script:WarningIcon }
+    $trayStatusItem.Text = "Spot: $($views.Spot.State) | Futures: $($views.Futures.State)"
+    $trayPulseStatusItem.Text = "Market Pulse: $($views.Pulse.State)"
+    $trayStatusItem.ForeColor = $color
+    $tip = "Crypto AI Trader | 3 bots | Pulse $($views.Pulse.State)"
+    $notifyIcon.Text = $tip.Substring(0, [math]::Min(63, $tip.Length))
     if (Test-Path $KillSwitchPath) {
-        $killButton.Text = "▶   Reanudar nuevas entradas"
-        $killButton.BackColor = [System.Drawing.Color]::FromArgb(14, 52, 48)
-        $killButton.ForeColor = [System.Drawing.Color]::FromArgb(77, 239, 187)
-        $killButton.FlatAppearance.BorderColor = [System.Drawing.Color]::FromArgb(37, 112, 94)
-        $protectionLabel.Text = "⚠  Kill switch activo  ·  No se abrirán nuevas posiciones"
-        $protectionLabel.ForeColor = [System.Drawing.Color]::FromArgb(255, 204, 102)
+        $killButton.Text = '▶   Reanudar entradas Spot'
+        $killButton.BackColor = [System.Drawing.Color]::FromArgb(14,52,48)
+        $killButton.ForeColor = [System.Drawing.Color]::FromArgb(77,239,187)
+        $protectionLabel.Text = 'Spot: entradas pausadas · protecciones según tarjeta · Pulse SHADOW'
+        $protectionLabel.ForeColor = [System.Drawing.Color]::FromArgb(255,204,102)
+    } else {
+        $killButton.Text = '⚠   Pausar entradas Spot'
+        $killButton.BackColor = [System.Drawing.Color]::FromArgb(55,24,35)
+        $killButton.ForeColor = [System.Drawing.Color]::FromArgb(255,147,164)
+        $protectionLabel.Text = 'Tres ledgers separados · Pulse SHADOW · LIVE bloqueado'
+        $protectionLabel.ForeColor = [System.Drawing.Color]::FromArgb(92,215,171)
     }
-    else {
-        $killButton.Text = "⚠   Activar kill switch"
-        $killButton.BackColor = [System.Drawing.Color]::FromArgb(55, 24, 35)
-        $killButton.ForeColor = [System.Drawing.Color]::FromArgb(255, 147, 164)
-        $killButton.FlatAppearance.BorderColor = [System.Drawing.Color]::FromArgb(120, 48, 66)
-        $protectionLabel.Text = if ($activeMode -eq 'TESTNET') {
-            "✓  Spot Testnet + Futures Demo  ·  Fondos ficticios  ·  LIVE bloqueado"
-        } else {
-            "✓  Respaldo técnico PAPER  ·  LIVE bloqueado"
-        }
-        $protectionLabel.ForeColor = [System.Drawing.Color]::FromArgb(92, 215, 171)
-    }
-    if (Test-CanonicalStartup) {
-        $startupButton.Text = "✓   Inicio automático activado"
-    }
-    elseif ((Get-ProjectStartupShortcuts).Count -gt 0) {
-        $startupButton.Text = "⚙   Actualizar inicio automático"
-    }
-    else {
-        $startupButton.Text = "⚙   Activar inicio automático"
-    }
-    $versionLabel.Text = "VERSIÓN " + (Get-InstalledVersion)
+    if (Test-CanonicalStartup) { $startupButton.Text = '✓   Inicio automático activado' }
+    elseif ((Get-ProjectStartupShortcuts).Count -gt 0) { $startupButton.Text = '⚙   Actualizar inicio automático' }
+    else { $startupButton.Text = '⚙   Activar inicio automático' }
+    $versionLabel.Text = 'VERSIÓN ' + (Get-InstalledVersion)
 }
 
 $notifyIcon = New-Object System.Windows.Forms.NotifyIcon
@@ -842,6 +942,8 @@ $notifyMenu.ShowImageMargin = $true
 $trayStatusItem = $notifyMenu.Items.Add("● Comprobando estado")
 $trayStatusItem.Enabled = $false
 $trayStatusItem.ForeColor = [System.Drawing.Color]::FromArgb(255, 204, 102)
+$trayPulseStatusItem = $notifyMenu.Items.Add('Market Pulse: comprobando Shadow')
+$trayPulseStatusItem.Enabled = $false
 $notifyMenu.Items.Add("-") | Out-Null
 $showManagerItem = $notifyMenu.Items.Add("Abrir centro de control")
 $script:MenuBitmap = $script:OperationalIcon.ToBitmap()
@@ -851,6 +953,8 @@ $showManagerItem.Add_Click({
 })
 $openPortalItem = $notifyMenu.Items.Add("Abrir portal remoto")
 $openPortalItem.Add_Click({ Start-Process -FilePath $RemotePortalUrl })
+$openPulseItem = $notifyMenu.Items.Add('AI Market Pulse · Shadow')
+$openPulseItem.Add_Click({ Start-Process ($RemotePortalUrl + '#market-pulse') })
 $checkUpdatesItem = $notifyMenu.Items.Add("Centro de actualizaciones")
 $checkUpdatesItem.Add_Click({ Show-LocalUpdateCenter })
 $repairAgentItem = $notifyMenu.Items.Add("Reparar conexión del portal")
@@ -878,6 +982,9 @@ $timer.Add_Tick({
 $activationTimer = New-Object System.Windows.Forms.Timer
 $activationTimer.Interval = 300
 $activationTimer.Add_Tick({ if ($managerInstance.Show.WaitOne(0)) { Show-ManagerWindow } })
+$statusPollTimer = New-Object System.Windows.Forms.Timer
+$statusPollTimer.Interval = 250
+$statusPollTimer.Add_Tick({ Receive-ManagerStatus })
 $form.Add_Shown({
     if (-not (Test-Path $StartupOptOutPath) -and -not (Test-CanonicalStartup)) {
         Enable-AutomaticStartup
@@ -888,6 +995,7 @@ $form.Add_Shown({
     Update-ManagerStatus
     $timer.Start()
     $activationTimer.Start()
+    $statusPollTimer.Start()
     Invoke-AutomaticAgentRefresh
     Invoke-PortalAgentWatchdog
     if ($Minimized) { Hide-ManagerWindow }
@@ -917,6 +1025,9 @@ $form.Add_FormClosed({
     $timer.Stop()
     $activationTimer.Stop()
     $activationTimer.Dispose()
+    $statusPollTimer.Stop()
+    $statusPollTimer.Dispose()
+    $script:ManagerHttp.Dispose()
     $notifyIcon.Visible = $false
     $notifyIcon.Dispose()
     $script:LogoBitmap.Dispose()

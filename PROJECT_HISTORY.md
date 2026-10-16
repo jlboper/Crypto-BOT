@@ -1,5 +1,26 @@
 # Project History and Decision Log
 
+## 2026-10-15 — Three engines, event-driven Shadow observation
+
+The owner requested a third event/news/market-anomaly engine and a unified
+three-bot portal. Version 0.10.31 starts AI Market Pulse only in Shadow inside
+the existing supervised process after the signed activation barrier. Independent
+ledger, hypothesis cohort and pause preserve Spot/Futures capital and protections.
+Public market-data-only endpoints cannot submit account orders. Initial score
+weights are explicit unvalidated hypotheses, and frozen-evidence replay is not
+claimed as independent OOS evidence. Missing historical news/ticks require
+prospective accumulation, not hindsight reconstruction.
+
+The owner explicitly authorized reuse of the current OpenAI key with a Pulse-only
+durable cap of six attempts/day. Interpretation is bounded and never on the
+protective path. No additional paid service or external credential is introduced.
+Official RSS is a limited starting source, not comprehensive social/news coverage.
+Sharing Spot Testnet funds requires a later reviewed common reservation protocol,
+fresh account/filter checks and separate promotion approval; it is blocked now.
+The preparatory coordinator is synthetic-tested, not silently connected to Spot.
+Local/remote UI and the optional bounded Worker contract change together, preserving
+older snapshots and authentication. No LIVE implementation is added.
+
 This file preserves project-level intent so future maintainers and AI models can understand not only what changed, but why.
 
 ## 2026-09 — Foundation

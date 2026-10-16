@@ -1,5 +1,13 @@
 # Work Context — Crypto AI Trader
 
+## Evolución 0.10.31 (verificar publicación e instalación por separado)
+
+Tres identidades en el portal: Spot Testnet y Futures Demo conservan estrategias,
+presupuestos, posiciones y protección; AI Market Pulse agrega observación SHADOW
+de BTC/ETH/SOL dentro del proceso existente, con ledger, pausa y cuota IA propios.
+No admite órdenes, PAPER/Testnet/LIVE ni promoción desde configuración o botones.
+Ver `MARKET_PULSE.md`. Los antecedentes de dos motores que siguen son históricos.
+
 ## Estado actual
 
 La rama estable trabaja con un único proceso supervisado y dos motores de prueba en paralelo:

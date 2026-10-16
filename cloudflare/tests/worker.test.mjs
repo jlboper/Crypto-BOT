@@ -117,6 +117,104 @@ async function fixture(t){
   return {env,request,login,sync};
 }
 
+const pulseSample=()=>({schema:1,engine:'AI_MARKET_PULSE',mode:'SHADOW',state:'SHADOW',
+  at:new Date().toISOString(),updated_at:new Date().toISOString(),freshness:{state:'FRESH',age_seconds:1},
+  enabled:true,controls_available:true,execution_enabled:false,
+  sources:{binance_ws:{state:'CONNECTED',last_update:new Date().toISOString()},
+    binance_rest:{state:'STANDBY',last_update:null},news:{state:'DISABLED',last_update:null}},
+  stats:{events_analyzed:1,relevant_news:1,opportunities:1,accepted:0,rejected:1,decisions:1},
+  market:[{symbol:'BTCUSDT',price:100,change_1m_pct:1,change_5m_pct:2,relative_volume:2,anomaly_z:2,
+    momentum:1,acceleration:.1,volatility_pct:.5,spread_bps:1,depth_quote:10000,imbalance:.1,
+    liquidity_change_pct:0,fresh:true,complete:true,at:new Date().toISOString()}],
+  events:[{id:'event-1',published_at:new Date().toISOString(),received_at:new Date().toISOString(),
+    symbol:'BTCUSDT',source:'Official feed',url:'https://example.com/news/1',title:'Synthetic report',
+    impact:'uncertain',credibility:.8,kind:'report',decision:'REJECT',reason:'No independent confirmation',
+    market_reaction_pct:1}],
+  opportunities:[],decisions:[{id:'decision-1',at:new Date().toISOString(),symbol:'BTCUSDT',score:50,
+    confidence:.5,action:'REJECT',favorable:['Volume'],risks:['Insufficient confirmation'],reason:'Synthetic',
+    evidence:{event_id:'event-1',rule_version:'pulse-v1',estimated_cost_bps:25,confirmations:[]}}],
+  positions:[],performance:{environment:'SHADOW',data_quality:'PARTIAL',closed_trades:0,return_pct:0,
+    benchmark_buy_hold:{BTCUSDT:1}},health:{last_error:null,ws_messages:1,ai_reviews:0},
+  research:{state:'FORWARD_ONLY',hypothesis_version:'pulse-v1',promotion_allowed:false,
+    limitations:['Forward evidence only']}});
+const pulseSnapshot=pulse=>({...snapshot(),paper_controls:true,operations_controls:true,dashboard:{
+  status:{mode:'PAPER'},positions:[],equity:[],trades:[],reviews:[],events:[],research:{assets:[]},market_pulse:pulse}});
+
+test('Market Pulse Python producer is compatible, read-only, and legacy snapshots remain accepted',async t=>{
+  const f=await fixture(t);
+  const pulse=JSON.parse(execFileSync(process.env.PYTHON||'python',[
+    fileURLToPath(new URL('../../tests/emit_market_pulse_fixture.py',import.meta.url))],{encoding:'utf8'}));
+  assert.equal(pulse.mode,'SHADOW');
+  assert.equal(pulse.execution_enabled,false);
+  assert.equal(pulse.controls_available,false);
+  assert.ok(Buffer.byteLength(JSON.stringify(pulse))<20000);
+  const projected=await f.sync({snapshot:pulseSnapshot(pulse),acks:[]});
+  assert.equal(projected.status,200,JSON.stringify(projected.body));
+  assert.equal((await f.sync({snapshot:snapshot(),acks:[]})).status,200);
+  const initialized=JSON.parse(execFileSync(process.env.PYTHON||'python',[
+    fileURLToPath(new URL('../../tests/emit_market_pulse_fixture.py',import.meta.url)),'--initialized'],{encoding:'utf8'}));
+  assert.equal(initialized.controls_available,true);
+  assert.equal(initialized.health.ai_daily_cap,6);
+  const ready=await f.sync({snapshot:pulseSnapshot(initialized),acks:[]});
+  assert.equal(ready.status,200,JSON.stringify(ready.body));
+});
+
+test('Market Pulse contract rejects unsafe modes, nested secrets, URLs, metrics and oversized histories',async t=>{
+  const f=await fixture(t);
+  const base=pulseSample();
+  const valid=await f.sync({snapshot:pulseSnapshot(base),acks:[]});
+  assert.equal(valid.status,200,JSON.stringify(valid.body));
+  const changes=[p=>{p.mode='TESTNET';},p=>{p.execution_enabled=true;},p=>{p.research.promotion_allowed=true;},
+    p=>{p.health.api_key='private';},p=>{p.decisions[0].evidence.secret='private';},
+    p=>{p.events[0].url='https://user:private@example.com/news';},
+    p=>{p.events[0].url='https://example.com/news?api_key=private';},
+    p=>{p.events[0].url='javascript:alert(1)';},p=>{p.events[0].credibility=2;},
+    p=>{p.market[0].price='NaN';},p=>{p.sources.binance_ws.state='SECRET';},
+    p=>{p.decisions=Array.from({length:17},()=>p.decisions[0]);},
+    p=>{p.performance.benchmark_buy_hold={secret:10};}];
+  for(const change of changes){
+    const pulse=structuredClone(base);change(pulse);
+    const response=await f.sync({snapshot:pulseSnapshot(pulse),acks:[]});
+    assert.equal(response.status,400,JSON.stringify(pulse));
+    assert.equal(response.body.error,'Invalid Market Pulse status');
+  }
+  await f.login();
+  const stored=(await f.request('/v1/status')).body.snapshot.dashboard.market_pulse;
+  assert.deepEqual(stored,base);
+});
+
+test('Market Pulse independent shadow controls require auth, CSRF, fresh capability and exact idempotence',async t=>{
+  const f=await fixture(t);
+  const command={action:'market_pulse_pause',payload:{},request_id:'market-pulse-pause-0001'};
+  assert.equal((await f.request('/v1/paper-controls',command)).status,401);
+  await f.login();
+  assert.equal((await f.request('/v1/paper-controls',command)).status,409);
+  const initialized=JSON.parse(execFileSync(process.env.PYTHON||'python',[
+    fileURLToPath(new URL('../../tests/emit_market_pulse_fixture.py',import.meta.url)),'--initialized'],{encoding:'utf8'}));
+  const synced=await f.sync({snapshot:pulseSnapshot(initialized),acks:[]});
+  assert.equal(synced.status,200,JSON.stringify(synced.body));
+  assert.equal((await f.request('/v1/paper-controls',command,{'X-CSRF-Token':'wrong'})).status,403);
+  assert.equal((await f.request('/v1/paper-controls',{...command,payload:{mode:'testnet'}})).status,400);
+  const created=await f.request('/v1/paper-controls',command);
+  assert.equal(created.status,202);
+  assert.equal(created.body.action,'market_pulse_pause');
+  assert.equal((await f.request('/v1/paper-controls',command)).body.id,created.body.id);
+  assert.equal((await f.request('/v1/paper-controls',{...command,action:'market_pulse_resume'})).status,409);
+  const delivered=(await f.sync()).body.paper_controls;
+  assert.equal(delivered[0].action,'market_pulse_pause');
+  assert.deepEqual(delivered[0].payload,{});
+  await f.sync({snapshot:pulseSnapshot(pulseSample()),acks:[],control_results:[{
+    id:created.body.id,status:'completed',message:'AI Market Pulse SHADOW paused'}]});
+  const disabled=pulseSample();disabled.controls_available=false;
+  await f.sync({snapshot:pulseSnapshot(disabled),acks:[]});
+  assert.equal((await f.request('/v1/paper-controls',{action:'market_pulse_resume',payload:{},
+    request_id:'market-pulse-resume-0002'})).status,409);
+  await f.sync({snapshot:pulseSnapshot(pulseSample()),acks:[]});
+  f.env.DB.sqlite.prepare('UPDATE snapshots SET received_at=? WHERE id=1').run(Math.floor(Date.now()/1000)-121);
+  assert.equal((await f.request('/v1/paper-controls',{action:'market_pulse_resume',payload:{},
+    request_id:'market-pulse-resume-0003'})).status,409);
+});
+
 
 test('legacy cache-busting root URL redirects cleanly without opening query parameters',async t=>{
   const f=await fixture(t);

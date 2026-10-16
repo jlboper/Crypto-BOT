@@ -1,3 +1,28 @@
+# 0.10.31 — Tres motores y AI Market Pulse Shadow
+
+- Portal compartido con tres tarjetas consistentes, siete secciones, panel Pulse
+  de inteligencia/eventos/oportunidades/evidencia financiera/salud y navegación móvil.
+- App Windows renovada con un resumen de los tres motores, entornos y frescura,
+  posiciones/protecciones, rendimiento separado y accesos al panel Market Pulse.
+  Las consultas locales se realizan en segundo plano; se preservan propiedad del
+  indicador, watchdog, controles existentes y flujo firmado de actualización.
+- Observador continuo Binance público BTC/ETH/SOL dentro del proceso supervisado,
+  después de activación firmada. Ventanas 1/5m, indicadores reproducibles, gates de
+  frescura/liquidez/costos, backoff, recuperación REST y ledger Shadow independiente.
+- Feed oficial RSS limitado; clasificación determinista y revisión IA estructurada
+  tras prefiltrado, cuota persistente seis/día, 300s entre intentos, sin reintentos.
+  El propietario autorizó reutilizar la clave existente. No se crean suscripciones.
+- Posiciones hipotéticas con stops/costos, riesgo estimado <=0.25% subordinado a
+  límites existentes, protección independiente de IA y pausa, journal/replay de
+  evidencia contemporánea. Ponderaciones son hipótesis; no hay backtest válido ni
+  ventaja estadística demostrada ni promoción automática.
+- Contrato remoto opcional acotado a 20KB con compatibilidad anterior; controles
+  pausa/reanudación conservan autenticación y trabajos supervisados. Falla de Pulse
+  no invalida Spot/Futures. Preparación de reservas compartidas sin conectar Spot.
+- Se conservan riesgos Spot/Futures, datos, credenciales, firma, antirretroceso y
+  rollback. La versión no admite ejecución Pulse PAPER/Testnet/LIVE. Pruebas y
+  estados publicado/firmado/instalado se verifican por separado en la entrega.
+
 # 0.10.30 — Planes de entrada consistentes y evaluación de las reglas actuales
 
 - Spot conserva los porcentajes de stop/objetivo y la relación recompensa/riesgo al pasar del cierre al precio actual. Mantiene los límites originales de admisión hasta el preflight Testnet y escala el ATR inicial al fill; las posiciones existentes y sus protecciones no se reescriben. El journal conserva un signal compatible con la versión anterior y separa la observación original.

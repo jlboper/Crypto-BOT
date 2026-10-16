@@ -3,10 +3,13 @@
 __pycache__/
 *.py[cod]
 .pytest_cache/
+TEST_RESULTS.json
 .venv/
 data/*.db
 data/*.db-*
 data/KILL_SWITCH
+data/MARKET_PULSE_KILL_SWITCH
+data/MARKET_PULSE_PAUSED
 logs/
 backup/
 cloudflare/.secrets/

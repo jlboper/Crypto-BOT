@@ -27,11 +27,15 @@ with single_instance(root/'data/engine.lock'):
         connection.close()
         if behavior == 'exit':
             raise SystemExit(17)
-    control.ready(version, dashboard_ready=True)
     if token and behavior == 'wrong-token':
-        record = json.loads(control.status.read_text())
-        record['token'] = '0'*64
-        control.status.write_text(json.dumps(record))
+        # Publish only the invalid identity. Publishing a valid ready record
+        # and corrupting it afterward exposed a race with the supervisor's
+        # first readiness read and tested a different failure stage.
+        control.token = '0'*64
+        control.ready(version, dashboard_ready=True)
+        control.token = token
+    else:
+        control.ready(version, dashboard_ready=True)
     control.await_activation(timeout=10)
     if token:
         journal = json.loads((root/'data/updates/journal.json').read_text())

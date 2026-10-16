@@ -19,7 +19,7 @@ function setPortalBusy(id,busy,label){
   }
 }
 window.portalButtonBusy=id=>portalBusyButtons.has(id);
-const portalRoute = {'/api/status':'status','/api/positions':'positions','/api/trades':'trades','/api/ai-reviews':'reviews','/api/equity':'equity','/api/events':'events','/api/research':'research','/api/research/status':'research_state','/api/updates':'updates','/api/paper-scorecard':'paper_scorecard','/api/futures-forward':'futures_forward'};
+const portalRoute = {'/api/status':'status','/api/positions':'positions','/api/trades':'trades','/api/ai-reviews':'reviews','/api/equity':'equity','/api/events':'events','/api/research':'research','/api/research/status':'research_state','/api/updates':'updates','/api/paper-scorecard':'paper_scorecard','/api/futures-forward':'futures_forward','/api/market-pulse':'market_pulse'};
 async function portalPasswordProof(password,parameters){
   if(parameters.scheme==='initial-key')return password;
   if(parameters.scheme!=='pbkdf2-sha256'||parameters.iterations!==600000||!/^[A-Za-z0-9_-]{43}$/.test(parameters.salt||''))throw new Error('Parámetros de acceso inválidos');
@@ -49,7 +49,7 @@ async function portalRequest(path,body){
   if(!response.ok){if(response.status===401)portalLocked();throw new Error(data.error||'Error de conexión');}
   return data;
 }
-const activityActions={research:'Evaluar estrategias',update_check:'Buscar actualización',update_install:'Actualizar bot',update_restore:'Restaurar bot',kill:'Pausar bot',resume:'Reanudar bot',risk_profile:'Perfil de riesgo',paper_close:'Cerrar posición',ai_model:'Cambiar modelo IA',restart_engine:'Reiniciar motor',execution_mode:'Cambiar entorno',testnet_smoke:'Prueba Spot Testnet',futures_testnet_check:'Verificar Futures',futures_testnet_smoke:'Prueba Futures',futures_testnet_reconcile:'Reconciliar Futures',futures_forward_pause:'Pausar Futures automático',futures_forward_resume:'Reanudar Futures automático',testnet_buy:'Comprar Testnet',testnet_close:'Cerrar Testnet',testnet_reconcile:'Conciliar Testnet',testnet_audit:'Comprobar Testnet en Binance'};
+const activityActions={research:'Evaluar estrategias',update_check:'Buscar actualización',update_install:'Actualizar bot',update_restore:'Restaurar bot',kill:'Pausar bot',resume:'Reanudar bot',risk_profile:'Perfil de riesgo',paper_close:'Cerrar posición',ai_model:'Cambiar modelo IA',restart_engine:'Reiniciar motor',execution_mode:'Cambiar entorno',testnet_smoke:'Prueba Spot Testnet',futures_testnet_check:'Verificar Futures',futures_testnet_smoke:'Prueba Futures',futures_testnet_reconcile:'Reconciliar Futures',futures_forward_pause:'Pausar Futures automático',futures_forward_resume:'Reanudar Futures automático',market_pulse_pause:'Pausar Market Pulse Shadow',market_pulse_resume:'Reanudar Market Pulse Shadow',testnet_buy:'Comprar Testnet',testnet_close:'Cerrar Testnet',testnet_reconcile:'Conciliar Testnet',testnet_audit:'Comprobar Testnet en Binance'};
 const activityStatuses={pending:'Pendiente',applied:'Confirmado por Windows',expired:'Vencido',superseded:'Sustituido',running:'En curso',completed:'Completado',failed:'Falló'};
 function renderActivity(list,items){
   for(const item of items){
@@ -133,6 +133,14 @@ window.portalApi=async(path,options={})=>{
     return response.json();
   }
   if(options.method==='POST'){
+    if(path==='/api/market-pulse/pause'||path==='/api/market-pulse/resume'){
+      const state=await portalState(true),pulse=state.snapshot?.dashboard?.market_pulse;
+      if(state.stale||state.snapshot?.paper_controls!==true||pulse?.enabled!==true||pulse?.controls_available!==true)throw new Error('Market Pulse: controles pendientes de conexión y capacidad de Windows');
+      let payload;try{payload=JSON.parse(options.body);}catch{throw new Error('Solicitud Market Pulse inválida');}
+      if(!objectLike(payload)||Object.keys(payload).length)throw new Error('Market Pulse solo permite una pausa o reanudación Shadow sin parámetros');
+      const result=await portalRequest('/v1/paper-controls',{action:path.endsWith('/pause')?'market_pulse_pause':'market_pulse_resume',payload:{},request_id:crypto.randomUUID()});
+      portalCacheAt=0;return result;
+    }
     if(['/api/paper/risk-profile','/api/paper/close-position','/api/operations/model','/api/operations/restart','/api/operations/execution-mode','/api/operations/testnet-smoke','/api/operations/futures-check','/api/operations/futures-smoke','/api/operations/futures-reconcile','/api/operations/futures-forward-pause','/api/operations/futures-forward-resume'].includes(path)){
       const state=await portalState(true);
       if(state.stale||state.snapshot?.paper_controls!==true)throw new Error('Controles del motor pendientes de conexión de Windows');
@@ -172,6 +180,7 @@ window.portalApi=async(path,options={})=>{
   if(!data)throw new Error('Esperando la primera sincronización del panel completo');
   if(!portalRoute[path])throw new Error('Ruta no disponible');
   const result=structuredClone(data[portalRoute[path]]??{});
+  if(path==='/api/market-pulse'&&objectLike(result))result.remote_sync_stale=state.stale===true;
   if(path==='/api/status'&&objectLike(result)){
     const version=state.snapshot?.installed_version;
     if(typeof version==='string'&&/^\d+\.\d+\.\d+$/.test(version))result.installed_version=version;

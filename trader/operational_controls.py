@@ -52,7 +52,7 @@ def _execution_file(source: Path, mode: str) -> None:
 
 def execute(source: Path, action: str, payload: dict) -> dict:
     source = source.resolve(strict=True)
-    if not isinstance(payload, dict) or action not in {'ai_model', 'restart_engine', 'execution_mode', 'testnet_smoke', 'futures_testnet_check', 'futures_testnet_smoke', 'futures_testnet_reconcile', 'futures_forward_pause', 'futures_forward_resume'}:
+    if not isinstance(payload, dict) or action not in {'ai_model', 'restart_engine', 'execution_mode', 'testnet_smoke', 'futures_testnet_check', 'futures_testnet_smoke', 'futures_testnet_reconcile', 'futures_forward_pause', 'futures_forward_resume', 'market_pulse_pause', 'market_pulse_resume'}:
         raise ValueError('Unknown operational control')
     if action == 'ai_model':
         if set(payload) != {'model'} or payload['model'] not in MODELS:
@@ -60,7 +60,7 @@ def execute(source: Path, action: str, payload: dict) -> dict:
     elif action == 'execution_mode':
         if set(payload) != {'mode'} or payload['mode'] not in EXECUTION_MODES:
             raise ValueError('Unknown execution mode')
-    elif action in {'restart_engine', 'testnet_smoke', 'futures_testnet_check', 'futures_testnet_reconcile', 'futures_forward_pause', 'futures_forward_resume'} and payload:
+    elif action in {'restart_engine', 'testnet_smoke', 'futures_testnet_check', 'futures_testnet_reconcile', 'futures_forward_pause', 'futures_forward_resume', 'market_pulse_pause', 'market_pulse_resume'} and payload:
         raise ValueError('Operational action does not accept parameters')
     elif action == 'futures_testnet_smoke':
         if set(payload) != {'direction','leverage'} or payload['direction'] not in {'LONG','SHORT'} or payload['leverage'] not in {1,2,3}:
@@ -69,6 +69,19 @@ def execute(source: Path, action: str, payload: dict) -> dict:
     config = load_config(source / 'config.toml')
     if config.bot.mode not in EXECUTION_MODES:
         raise ValueError('Supported trading motor required')
+    if action in {'market_pulse_pause', 'market_pulse_resume'}:
+        # This branch runs in installed bot code, never in the independent agent.
+        # A Pulse pause leaves Spot/Futures reconciliation and protection running.
+        if not config.market_pulse.enabled or config.market_pulse.mode != 'SHADOW':
+            raise ValueError('Market Pulse SHADOW observer required')
+        from .market_pulse import market_pulse_control
+        with single_instance(source / 'data/update-supervisor.lock'):
+            if RuntimeControl(config.bot.database_path.parent).maintenance.exists():
+                raise ValueError('Maintenance already in progress')
+            result = market_pulse_control(config.bot.database_path.parent,
+                'pause' if action == 'market_pulse_pause' else 'resume',
+                kill_switch_path=config.market_pulse.kill_switch_path)
+        return {'ok': True, 'market_pulse': result, 'mode': config.bot.mode}
     if action == 'futures_testnet_check':
         if config.bot.mode != 'testnet':
             raise ValueError('Futures Testnet requires Spot TESTNET motor mode')

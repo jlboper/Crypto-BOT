@@ -41,6 +41,37 @@ function state(overrides={}){
   return {csrf:'csrf-token',stale:false,commands:[],jobs:[],snapshot:{dashboard:{}},...overrides};
 }
 
+test('remote Market Pulse reads its optional bounded dashboard projection',async()=>{
+  const instance=bridge('paper.example.workers.dev',[{status:200,body:state({snapshot:{dashboard:{market_pulse:{schema:1,mode:'SHADOW',state:'WARMING_UP'}}}})}]);
+  const result=await instance.api('/api/market-pulse');
+  assert.equal(result.state,'WARMING_UP');
+  assert.equal(result.mode,'SHADOW');
+});
+
+test('remote Market Pulse independent pause uses authenticated allowlisted controls without mode parameters',async()=>{
+  const ready=state({snapshot:{paper_controls:true,dashboard:{market_pulse:{enabled:true,controls_available:true}}}});
+  const instance=bridge('paper.example.workers.dev',[{status:200,body:ready},{status:202,body:{status:'pending'}}]);
+  const result=await instance.api('/api/market-pulse/pause',{method:'POST',body:'{}'});
+  assert.equal(result.status,'pending');
+  assert.equal(instance.calls[1].path,'/v1/paper-controls');
+  const body=JSON.parse(instance.calls[1].options.body);
+  assert.equal(body.action,'market_pulse_pause');assert.deepEqual(body.payload,{});
+  assert.equal(instance.calls[1].options.headers['X-CSRF-Token'],'csrf-token');
+});
+
+test('Market Pulse rejects stale capability and attempts to send risk or execution settings',async()=>{
+  for(const overrides of [{stale:true},{snapshot:{paper_controls:true,dashboard:{market_pulse:{enabled:true,controls_available:false}}}}]){
+    const ready=state({snapshot:{paper_controls:true,dashboard:{market_pulse:{enabled:true,controls_available:true}}},...overrides});
+    const instance=bridge('paper.example.workers.dev',[{status:200,body:ready}]);
+    await assert.rejects(()=>instance.api('/api/market-pulse/resume',{method:'POST',body:'{}'}),/capacidad de Windows/);
+    assert.equal(instance.calls.length,1);
+  }
+  const ready=state({snapshot:{paper_controls:true,dashboard:{market_pulse:{enabled:true,controls_available:true}}}});
+  const instance=bridge('paper.example.workers.dev',[{status:200,body:ready}]);
+  await assert.rejects(()=>instance.api('/api/market-pulse/resume',{method:'POST',body:'{"mode":"testnet"}'}),/sin parámetros/);
+  assert.equal(instance.calls.length,1);
+});
+
 test('pending update verification never returns to idle or offers a second install',async()=>{
   const candidate={version:'0.10.16',enabled:true,expires:Date.now()/1000+3600};
   const instance=bridge('paper.example.workers.dev',[{status:200,body:state({
