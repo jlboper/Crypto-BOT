@@ -4,17 +4,41 @@ from __future__ import annotations
 import hashlib
 import html
 import re
+import socket
+import threading
+import time
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
 from urllib.parse import urlsplit, urlunsplit
 from urllib.request import Request, build_opener, ProxyHandler, HTTPRedirectHandler
-from urllib.error import HTTPError
+from urllib.error import HTTPError, URLError
 from xml.etree import ElementTree
 
 
 OFFICIAL_HOSTS = {"blog.ethereum.org": "Ethereum Foundation", "bitcoincore.org": "Bitcoin Core"}
-PUBLIC_FEEDS = ("https://blog.ethereum.org/en/feed.xml", "https://bitcoincore.org/en/rss.xml")
 MAX_FEED_BYTES = 1_048_576
+
+
+@dataclass(frozen=True)
+class NewsProvider:
+    id: str
+    name: str
+    url: str
+    kind: str
+    hosts: tuple[str, ...]
+
+
+# Anonymous canonical feeds verified before inclusion. Commercial news services
+# that prohibit automated/AI use are deliberately absent.
+NEWS_PROVIDERS = (
+    NewsProvider("ethereum", "Ethereum Foundation", "https://blog.ethereum.org/en/feed.xml", "official", ("blog.ethereum.org",)),
+    NewsProvider("bitcoin", "Bitcoin Core", "https://bitcoincore.org/en/rss.xml", "official", ("bitcoincore.org",)),
+    NewsProvider("kraken", "Kraken", "https://blog.kraken.com/feed", "official", ("blog.kraken.com",)),
+    NewsProvider("federal_reserve", "Federal Reserve", "https://www.federalreserve.gov/feeds/press_monetary.xml", "regulatory", ("www.federalreserve.gov", "federalreserve.gov")),
+    NewsProvider("sec", "SEC", "https://www.sec.gov/news/pressreleases.rss", "regulatory", ("www.sec.gov", "sec.gov")),
+)
+PUBLIC_FEEDS = tuple(provider.url for provider in NEWS_PROVIDERS)
 
 
 class _NoRedirect(HTTPRedirectHandler):
@@ -24,7 +48,10 @@ class _NoRedirect(HTTPRedirectHandler):
 
 urlopen = build_opener(ProxyHandler({}), _NoRedirect()).open
 ASSET_WORDS = {"BTCUSDT": r"\b(?:bitcoin|btc)\b", "ETHUSDT": r"\b(?:ethereum|ether|eth)\b",
-               "SOLUSDT": r"\b(?:solana|sol)\b"}
+               "SOLUSDT": r"\b(?:solana|sol)\b", "BNBUSDT": r"\b(?:binance coin|bnb)\b",
+               "XRPUSDT": r"\b(?:ripple|xrp)\b", "TRXUSDT": r"\b(?:tron|trx)\b",
+               "ZECUSDT": r"\b(?:zcash|zec)\b", "HYPEUSDT": r"\b(?:hyperliquid|hype)\b",
+               "DOGEUSDT": r"\b(?:dogecoin|doge)\b", "LINKUSDT": r"\b(?:chainlink|link)\b"}
 IMPACTS = {"positive", "negative", "neutral", "uncertain"}
 
 
@@ -86,12 +113,27 @@ def normalize_event(raw: dict, received_at: float, symbols: tuple[str, ...]) -> 
     host = urlsplit(url).hostname
     content = title.lower()
     rumor = bool(re.search(r"\b(?:rumou?r|unconfirmed|reportedly|speculat|may|might)\w*\b", content))
-    official = host in OFFICIAL_HOSTS
+    provider = next((p for p in NEWS_PROVIDERS if host in p.hosts), None)
+    official = bool(provider and provider.kind in {"official", "regulatory"})
+    # A company blog is primary evidence for its own announcements, not for
+    # third-party claims it reports or repeats.
+    if provider and provider.id == "kraken":
+        own_announcement = bool(re.search(
+            r"\bkraken\s+(?:launch(?:es|ed)?|introduc(?:es|ed)|release(?:s|d)?|list(?:s|ed)?|add(?:s|ed)?|enable(?:s|d)?|support(?:s|ed)?)\b"
+            r"|\b(?:now|is|are)\s+(?:available|supported|listed)\s+(?:on|at)\s+kraken\b", content))
+        third_party_report = bool(re.search(
+            r"\b(?:reports?|says?|discuss(?:es|ed)?|according to|comments? on|reacts? to|repeats?)\b", content))
+        official = own_announcement and not third_party_report
     kind = "rumor" if rumor else "official" if official else "report"
-    credibility = 0.35 if rumor else 0.90 if official else 0.55
+    credibility = 0.35 if rumor else 0.90 if official else 0.65 if provider else 0.55
     positive = bool(re.search(r"\b(?:approved|approval|launch|upgrade|adoption|released)\b", content))
-    negative = bool(re.search(r"\b(?:hack|exploit|outage|breach|crash|ban|lawsuit|vulnerability)\b", content))
+    negative = bool(re.search(r"\b(?:hack|exploit|outage|breach|crash|ban|lawsuit|vulnerability|fraud|charges)\b", content))
     impact = "uncertain" if rumor or (positive and negative) else "negative" if negative else "positive" if positive else "neutral"
+    promotional = bool(provider and provider.id == "kraken" and re.search(
+        r"\b(?:predict\w*|forecast\w*|outlook|opinion|price target|sponsor\w*|promotion\w*|giveaway|reward\w*|earn|discount|campaign|moon)\b", content))
+    macro = bool(provider and provider.id == "federal_reserve")
+    if promotional or macro:
+        impact = "uncertain"
     reason = "Rumor requires independent verification" if rumor else "Official publisher; impact still requires market confirmation" if official else "Unverified report; excluded from confirmation"
     if published > received_at + 5:
         reason = "Future publication timestamp rejected"
@@ -99,18 +141,31 @@ def normalize_event(raw: dict, received_at: float, symbols: tuple[str, ...]) -> 
         reason = "Publication older than 30-minute event window"
     # Receipt-time eligibility is immutable. Later wall-clock passage or an AI
     # interpretation must never rehabilitate rejected provenance/timestamps.
-    admissible = (published <= received_at + 5 and received_at - published <= 1800
-                  and credibility >= 0.8 and kind != "rumor")
+    timely = published <= received_at + 5 and received_at - published <= 1800
+    admissible = timely and credibility >= 0.8 and kind != "rumor" and not promotional and not macro
+    if promotional:
+        reason = "Publisher opinion/promotion is not directional confirmation"
+    elif macro:
+        reason = "Official macro context; no asset-specific directional inference"
     rows = []
     # Provider-injected asset symbols are ignored; infer affected assets from text.
-    for symbol in symbols:
-        if re.search(ASSET_WORDS.get(symbol, r"(?!)"), content):
+    affected = ("MARKET",) if macro else symbols
+    for symbol in affected:
+        pattern = ASSET_WORDS.get(symbol, r"\b" + re.escape(symbol.removesuffix("USDT").lower()) + r"\b")
+        if symbol in {"LINKUSDT", "HYPEUSDT"}:
+            name = "chainlink" if symbol == "LINKUSDT" else "hyperliquid"
+            ticker = symbol.removesuffix("USDT")
+            if name not in content and not re.search(r"(?<!\w)\$?" + ticker + r"(?!\w)", title):
+                continue
+        if macro or re.search(pattern, content):
             fingerprint = hashlib.sha256((symbol + "|" + re.sub(r"\W+", " ", content).strip()).encode()).hexdigest()
             rows.append({"id": fingerprint, "published_at": iso(published), "received_at": iso(received_at),
-                         "symbol": symbol, "source": OFFICIAL_HOSTS.get(host, host or "Unknown")[:80],
+                         "symbol": symbol, "source": provider.name if provider else (host or "Unknown")[:80],
                          "url": url, "title": title, "impact": impact, "credibility": credibility,
-                         "kind": kind, "decision": "WAIT FOR CONFIRMATION" if admissible else "REJECT",
-                         "reason": reason, "market_reaction_pct": None, "_admissible": admissible})
+                         "kind": kind, "decision": "HOLD" if macro and timely else "WAIT FOR CONFIRMATION" if admissible else "REJECT",
+                         "reason": reason, "market_reaction_pct": None, "_admissible": admissible,
+                         "_provider_id": provider.id if provider else None,
+                         "_scope": "MARKET_CONTEXT" if macro else "ASSET"})
     return rows
 
 
@@ -128,7 +183,8 @@ def validate_review(value: object) -> dict:
 
 def parse_feed(payload: bytes, source_url: str) -> list[dict]:
     source = urlsplit(source_url)
-    if source.hostname not in OFFICIAL_HOSTS or len(payload) > MAX_FEED_BYTES:
+    provider = next((p for p in NEWS_PROVIDERS if p.url == source_url), None)
+    if provider is None or len(payload) > MAX_FEED_BYTES:
         raise ValueError("Feed source or size rejected")
     if b"<!DOCTYPE" in payload.upper() or b"<!ENTITY" in payload.upper():
         raise ValueError("External XML entities rejected")
@@ -144,11 +200,13 @@ def parse_feed(payload: bytes, source_url: str) -> list[dict]:
             url = link.get("href") if link is not None else None
         url = safe_url(url)
         # A feed cannot upgrade a third party's report to official news.
-        if urlsplit(url).hostname != source.hostname:
+        if urlsplit(url).hostname not in provider.hosts:
             continue
         published = (item.findtext("pubDate") or item.findtext("a:published", namespaces=ns)
                      or item.findtext("a:updated", namespaces=ns))
-        rows.append({"title": title or "", "url": url, "published_at": published})
+        summary = item.findtext("description") or item.findtext("a:summary", namespaces=ns) or ""
+        rows.append({"title": title or "", "url": url, "published_at": published,
+                     "summary": clean_text(summary, 1000)})
     return rows
 
 
@@ -158,15 +216,42 @@ class PublicNewsFeeds:
     Connectivity/usage terms remain provider-specific. No paid subscription,
     token, social scraper, arbitrary URL or external credential is introduced.
     """
-    def __init__(self) -> None:
+    def __init__(self, *, clock=time.monotonic, wall_clock=time.time) -> None:
         self.index = 0
+        self.clock, self.wall_clock = clock, wall_clock
+        self._next_poll = 0.0
+        self._lock = threading.Lock()
+        self._health = {p.id: {"id": p.id, "name": p.name, "url": p.url, "kind": p.kind,
+                              "state": "STANDBY", "last_update": None, "last_error": None}
+                        for p in NEWS_PROVIDERS}
+
+    def health(self) -> list[dict]:
+        with self._lock:
+            return [dict(self._health[p.id]) for p in NEWS_PROVIDERS][:5]
 
     def __call__(self) -> list[dict]:
-        url = PUBLIC_FEEDS[self.index % len(PUBLIC_FEEDS)]
-        self.index += 1
+        with self._lock:
+            now = self.clock()
+            if now < self._next_poll:
+                return []
+            provider = NEWS_PROVIDERS[self.index % len(NEWS_PROVIDERS)]
+            self.index += 1
+            self._next_poll = now + 60
+        url = provider.url
         request = Request(url, headers={"User-Agent": "CryptoAITrader-MarketPulse/1.0"})
-        with urlopen(request, timeout=5) as response:
-            if urlsplit(response.url).hostname != urlsplit(url).hostname:
-                raise ValueError("Feed redirect rejected")
-            payload = response.read(MAX_FEED_BYTES + 1)
-        return parse_feed(payload, url)
+        try:
+            with urlopen(request, timeout=5) as response:
+                if response.url != url:
+                    raise ValueError("Feed redirect rejected")
+                payload = response.read(MAX_FEED_BYTES + 1)
+            rows = parse_feed(payload, url)
+            with self._lock:
+                self._health[provider.id].update(state="READY", last_update=iso(self.wall_clock()), last_error=None)
+            return rows
+        except Exception as exc:
+            code = ("NEWS_HTTP_ERROR" if isinstance(exc, HTTPError) else "NEWS_TIMEOUT"
+                    if isinstance(exc, (TimeoutError, socket.timeout)) or isinstance(exc, URLError) and isinstance(exc.reason, TimeoutError)
+                    else "NEWS_NETWORK_ERROR" if isinstance(exc, (URLError, OSError)) else "NEWS_INVALID_FEED")
+            with self._lock:
+                self._health[provider.id].update(state="ERROR", last_error=code)
+            raise

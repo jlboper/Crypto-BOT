@@ -13,6 +13,7 @@ const esc = value => String(value ?? '').replace(/[&<>'"]/g, char => ({'&':'&amp
 let lastResearchReport = null;
 let lastPositions = [];
 let currentExecutionMode = 'paper';
+let lastPortalChartData = null;
 const paperControlsAvailable = () => typeof window.paperControlsAvailable === 'function' ? window.paperControlsAvailable() : true;
 const motionReduced = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
 function retriggerMotion(node, className) {
@@ -767,6 +768,10 @@ function renderFuturesCycle(futures,status){
 /* Shared three-engine view. External event text is always escaped, never executable. */
 const PulsePortal = (() => {
   let pendingControl=null;
+  const foldIds=new Set(['spot-analysis','futures-analysis','pulse-live','pulse-news','pulse-scanner','pulse-decisions','pulse-finance','pulse-health','observation-details','comparison-details','spot-limits','futures-limits','spot-positions','futures-positions','spot-finance','futures-finance','diagnosticsPanel','research-lab']);
+  const navIds=new Set(['platform-overview','spot-bot','futures-bot','market-pulse','activity-section','modelSettingsPanel',...foldIds]);
+  const foldStorageKey='crypto-ai-trader.ui.folds.v1';
+  let redrawQueued=false;
   const set=(id,value)=>{const node=document.getElementById(id);if(node)node.textContent=value;};
   const html=(id,value)=>{const node=document.getElementById(id);if(node)node.innerHTML=value;};
   const finite=value=>typeof value==='number'&&Number.isFinite(value);
@@ -795,6 +800,7 @@ const PulsePortal = (() => {
     const projectionStale=p.remote_sync_stale===true||(Number.isFinite(snapshotAge)&&snapshotAge>120);
     const dataAge=finite(p.freshness?.age_seconds)?p.freshness.age_seconds+Math.max(Number.isFinite(snapshotAge)?snapshotAge:0,0):null;
     const stale=p.freshness?.state==='STALE'||projectionStale||(dataAge!==null&&dataAge>30);
+    const valuation=stale?{...perf,cash:null,equity:null,net_pnl:null,return_pct:null,exposure:null}:perf;
     const freshness=available?(projectionStale?'PROYECCIÓN ANTIGUA':stale?'ANTIGUO':label(p.freshness?.state)):'SIN DATOS';
     const pulseState=available?label(p.state):'SIN DATOS';
     if(pendingControl&&((pendingControl.action==='pause'&&p.state==='PAUSED')||(pendingControl.action==='resume'&&available&&p.state!=='PAUSED'))){
@@ -807,11 +813,14 @@ const PulsePortal = (() => {
     set('pulseHealthState',freshness);
     set('pulseStatusNote',available?`${pulseState} · ${freshness.toLowerCase()} · última evaluación ${time(p.updated_at)}. ${projectionStale?'La proyección no es reciente; no demuestra que el motor se haya detenido. ':''}Ledger SHADOW independiente, sin órdenes al exchange. La falta de oportunidades puede ser una observación normal.`:'Market Pulse todavía no ha sincronizado un estado compatible. Spot y Futures conservan su operación; no se infiere un fallo por ausencia de datos.');
     const sourceRows=Object.entries(p.sources||{}).slice(0,5);
-    set('summaryPulseSources',available?`${sourceRows.filter(([,s])=>['CONNECTED','FRESH','OK','ACTIVE'].includes(s?.state)).length}/${sourceRows.length} fuentes activas · ${freshness.toLowerCase()}`:'Sin estado de fuentes');
+    const activeSources=sourceRows.filter(([,s])=>!['STANDBY','DISABLED'].includes(s?.state));
+    const sourceReady=s=>['CONNECTED','FRESH','OK','ACTIVE','READY'].includes(s?.state);
+    const standby=sourceRows.filter(([,s])=>s?.state==='STANDBY').length;
+    set('summaryPulseSources',available?`${stale?'Último estado: ':''}${activeSources.filter(([,s])=>sourceReady(s)).length}/${activeSources.length} fuentes activas${standby?' · respaldo disponible':''} · ${freshness.toLowerCase()}`:'Sin estado de fuentes');
     set('summaryPulseEvents',`${n(stats.events_analyzed,0)} / ${n(stats.relevant_news,0)}`);
     set('summaryPulseOpportunities',`${n(stats.opportunities,0)} · ${n(stats.accepted,0)} / ${n(stats.rejected,0)}`);
     set('summaryPulsePositions',`${available&&Array.isArray(p.positions)?p.positions.length:'—'} / ${n(perf.closed_trades,0)}`);
-    set('summaryPulseReturn',percent(perf.return_pct));
+    set('summaryPulseReturn',percent(valuation.return_pct));
     set('summaryPulseEvaluation',`${time(ordered(p.events)[0]?.received_at)} / ${time(p.updated_at)}`);
     for(const [id,paused] of [['pauseMarketPulse',false],['resumeMarketPulse',true]]){
       const button=document.getElementById(id);
@@ -823,17 +832,27 @@ const PulsePortal = (() => {
       const url=safeUrl(event.url);
       return `<article class="pulse-item"><div class="pulse-item-head"><strong>${esc(event.symbol||'Mercado')} · ${esc(label(event.impact))}</strong><span class="badge">${esc(label(event.kind))}</span></div><h4>${esc(event.title||'Evento sin título')}</h4><p>${url?`<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(event.source||new URL(url).hostname)} ↗</a>`:esc(event.source||'Fuente pendiente de verificación')} · credibilidad ${esc(finite(event.credibility)?percent(event.credibility*100):'—')}</p><dl class="pulse-times">${metrics([['Publicado',time(event.published_at)],['Recibido',time(event.received_at)],['Reacción observada',percent(event.market_reaction_pct)]])}</dl><p><strong>${esc(event.decision||'DECISIÓN PENDIENTE')}</strong> · ${esc(event.reason||'Pendiente de confirmación independiente')}</p></article>`;
     }).join('')||empty('Aún no hay noticias verificables registradas. La ausencia de noticias no es un error del motor.'));
+    const providers=rows(p.news_providers,5),providerGrid=document.getElementById('pulseNewsProviders');
+    if(providerGrid)providerGrid.hidden=!providers.length;
+    const providerStates={READY:'DISPONIBLE',ERROR:'REVISAR FUENTE',STANDBY:'EN ESPERA',DISABLED:'DESHABILITADA'};
+    set('pulseProviderSummary',providers.length?(stale?`Último estado: ${providers.filter(sourceReady).length}/${providers.length} listas · antiguo`:`${providers.filter(sourceReady).length}/${providers.length} fuentes disponibles${providers.some(provider=>provider.state==='ERROR')?' · revisión pendiente':''}`):'Publicación → recepción → decisión');
+    html('pulseNewsProviders',providers.map(provider=>{
+      const url=safeUrl(provider.url);
+      return `<article class="pulse-source"><strong>${url?`<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(provider.name||provider.id)} ↗</a>`:esc(provider.name||provider.id||'Fuente sin identificar')}</strong><span>${stale?'Último estado: ':''}${esc(providerStates[provider.state]||'SIN ESTADO')}${stale?' · ANTIGUO':''} · ${esc(({official:'OFICIAL',regulatory:'REGULATORIA',editorial:'EDITORIAL'})[provider.kind]||provider.kind||'procedencia pendiente')}</span><small>Última recepción: ${esc(time(provider.last_update))}</small>${provider.last_error?`<small>Diagnóstico: ${esc(provider.last_error)}</small>`:''}</article>`;
+    }).join(''));
+    const universeNode=document.getElementById('pulseUniverse');
+    if(universeNode){universeNode.hidden=!p.universe;universeNode.textContent=p.universe?`Selección fijada ${time(p.universe.selected_at)} · ${p.universe.source||'fuente sin registrar'} · ${p.universe.selection||'metodología pendiente'}. La fecha identifica la selección; no implica un ranking actualizado continuamente.`:'';}
     html('pulseOpportunities',ordered(p.opportunities).map(row=>opportunity(row)).join('')||empty('Aún no hay oportunidades registradas. Esperar es una decisión válida.'));
     html('pulseDecisions',ordered(p.decisions).map(row=>opportunity(row,true)).join('')||empty('Aún no hay decisiones registradas.'));
-    set('pulseFinanceQuality',available?label(perf.data_quality):'SIN DATOS');
-    const financial=[['Capital hipotético inicial',cash(perf.initial_capital)],['Efectivo hipotético',cash(perf.cash)],['Equity hipotético',cash(perf.equity)],['P&L neto simulado',cash(perf.net_pnl)],['Retorno simulado',percent(perf.return_pct)],['Drawdown',percent(perf.drawdown_pct)],['Cierres hipotéticos',n(perf.closed_trades,0)],['Win rate',percent(perf.win_rate_pct)],['Profit factor',n(perf.profit_factor)],['Exposición hipotética',cash(perf.exposure)],['Días observados',n(perf.observation_days)],['Costos simulados acumulados',cash(perf.costs)]];
+    set('pulseFinanceQuality',available?(stale?'VALORACIÓN ANTIGUA':label(perf.data_quality)):'SIN DATOS');
+    const financial=[['Capital hipotético inicial',cash(perf.initial_capital)],['Efectivo hipotético',cash(valuation.cash)],['Equity hipotético',cash(valuation.equity)],['P&L neto simulado',cash(valuation.net_pnl)],['Retorno simulado',percent(valuation.return_pct)],['Drawdown',percent(perf.drawdown_pct)],['Cierres hipotéticos',n(perf.closed_trades,0)],['Win rate',percent(perf.win_rate_pct)],['Profit factor',n(perf.profit_factor)],['Exposición hipotética',cash(valuation.exposure)],['Días observados',n(perf.observation_days)],['Costos simulados acumulados',cash(perf.costs)]];
     html('pulsePerformance',metrics(financial));
-    html('pulseComparison',metrics([financial[4],financial[3],financial[5],financial[6],financial[7],financial[8],financial[9],financial[10],['Calidad / completitud',available?label(perf.data_quality):'Sin datos'],['Entorno / método','SHADOW · ejecución conservadora simulada']]));
-    const benchmark=perf.benchmark_buy_hold;
-    const benchmarks=benchmark&&typeof benchmark==='object'?Object.entries(benchmark).filter(([symbol,value])=>/^[A-Z0-9]{2,24}USDT$/.test(symbol)&&finite(value)).slice(0,3):[];
-    set('pulseBenchmark',benchmarks.length?`Buy-and-hold con costos hipotéticos: ${benchmarks.map(([symbol,value])=>`${symbol} ${percent(value)}`).join(' · ')}. Efectivo: ${percent(perf.benchmark_cash_return_pct)}. Referencia descriptiva: esta proyección no contiene fechas ni muestras emparejadas que certifiquen un período comparable. Shadow, Spot Testnet y Futures Demo no son una sola cartera. Costos de API de IA excluidos del P&L de trading.`:`Efectivo: ${percent(perf.benchmark_cash_return_pct)}. Buy-and-hold: sin suficientes muestras emparejadas. Shadow, Spot Testnet y Futures Demo no son comparables como una sola cartera. Costos de API de IA excluidos del P&L de trading.`);
-    html('pulsePositions',rows(p.positions).map(position=>`<article class="pulse-item"><div class="pulse-item-head"><strong>${esc(position.symbol)} · SHADOW</strong><time>${esc(time(position.opened_at))}</time></div><dl>${metrics([['Cantidad',n(position.quantity,8)],['Entrada / mark',`${n(position.entry_price,6)} / ${n(position.mark_price,6)}`],['Stop / objetivo',`${n(position.stop,6)} / ${n(position.target,6)}`],['P&L abierto hipotético',cash(position.unrealized_pnl)]])}</dl></article>`).join('')||empty(available?'Sin posiciones hipotéticas abiertas.':'Ledger Shadow no disponible.'));
-    html('pulseSources',sourceRows.map(([key,source])=>`<article class="pulse-source"><strong>${esc(({binance_ws:'Binance WebSocket',binance_rest:'Binance REST',news:'Noticias verificables'})[key]||key)}</strong><span>${esc(label(source?.state))}</span><small>${esc(time(source?.last_update))}</small></article>`).join('')||empty('Sin estado de fuentes.'));
+    html('pulseComparison',metrics([financial[4],financial[3],financial[5],financial[6],financial[7],financial[8],financial[9],financial[10],['Calidad / completitud',available?(stale?'Valoración antigua':label(perf.data_quality)):'Sin datos'],['Entorno / método','SHADOW · ejecución conservadora simulada']]));
+    const benchmark=stale?null:perf.benchmark_buy_hold;
+    const benchmarks=benchmark&&typeof benchmark==='object'?Object.entries(benchmark).filter(([symbol,value])=>/^[A-Z0-9]{2,24}USDT$/.test(symbol)&&finite(value)).slice(0,10):[];
+    set('pulseBenchmark',stale?'Valoración y benchmarks actuales no disponibles: la proyección es antigua. Los conteos y costos conservados corresponden al último registro, no certifican el estado actual.':benchmarks.length?`Buy-and-hold con costos hipotéticos: ${benchmarks.map(([symbol,value])=>`${symbol} ${percent(value)}`).join(' · ')}. Efectivo: ${percent(perf.benchmark_cash_return_pct)}. Referencia descriptiva: esta proyección no contiene fechas ni muestras emparejadas que certifiquen un período comparable. Shadow, Spot Testnet y Futures Demo no son una sola cartera. Costos de API de IA excluidos del P&L de trading.`:`Efectivo: ${percent(perf.benchmark_cash_return_pct)}. Buy-and-hold: sin suficientes muestras emparejadas. Shadow, Spot Testnet y Futures Demo no son comparables como una sola cartera. Costos de API de IA excluidos del P&L de trading.`);
+    html('pulsePositions',rows(p.positions).map(position=>`<article class="pulse-item"><div class="pulse-item-head"><strong>${esc(position.symbol)} · SHADOW${stale?' · ÚLTIMO REGISTRO':''}</strong><time>${esc(time(position.opened_at))}</time></div><dl>${metrics([['Cantidad',n(position.quantity,8)],['Entrada / mark',`${n(position.entry_price,6)} / ${n(stale?null:position.mark_price,6)}`],['Stop / objetivo',`${n(position.stop,6)} / ${n(position.target,6)}`],['P&L abierto hipotético',cash(stale?null:position.unrealized_pnl)]])}</dl></article>`).join('')||empty(available?'Sin posiciones hipotéticas abiertas.':'Ledger Shadow no disponible.'));
+    html('pulseSources',sourceRows.map(([key,source])=>`<article class="pulse-source"><strong>${esc(({binance_ws:'Binance WebSocket',binance_rest:'Binance REST',news:'Noticias verificables'})[key]||key)}</strong><span>${stale?'Último estado: ':''}${esc(source?.state==='STANDBY'?'RESPALDO EN ESPERA':source?.state==='READY'?'DISPONIBLE':label(source?.state))}${stale?' · ANTIGUO':''}</span><small>${esc(time(source?.last_update))}</small></article>`).join('')||empty('Sin estado de fuentes.'));
     html('pulseHealth',metrics([['Latencia de datos',finite(health.latency_ms)?`${n(health.latency_ms,0)} ms`:'—'],['Reconexiones',n(health.reconnects,0)],['Errores acumulados',n(health.errors,0)],['Mensajes WebSocket',n(health.ws_messages,0)],['Llamadas REST / noticias',`${n(health.rest_calls,0)} / ${n(health.news_calls,0)}`],['Revisiones / errores IA',`${n(health.ai_reviews,0)} / ${n(health.ai_errors,0)}`],['Cuota diaria IA · usadas / máximo',`${n(health.ai_used_today,0)} / ${n(health.ai_daily_cap,0)}`],['Intervalo mínimo IA',finite(health.ai_min_interval_seconds)?`${n(health.ai_min_interval_seconds,0)} s`:'—'],['Límites IA · salida / entrada',`${n(health.ai_max_output_tokens,0)} tokens / ${n(health.ai_max_input_bytes,0)} bytes`],['Buffer / uptime',`${n(health.buffer_seconds,0)} s / ${n(health.uptime_seconds,0)} s`],['Última evaluación',time(p.updated_at)]]));
     set('pulseLastError',health.last_error?`Último diagnóstico: ${health.last_error}`:'Sin diagnóstico de error reportado. Los fallos de sincronización remota se evalúan por separado del motor.');
     set('pulseResearch',`${label(p.research?.state)} · hipótesis ${p.research?.hypothesis_version||'pendiente'}. ${(Array.isArray(p.research?.limitations)?p.research.limitations:[]).join(' ')} Las señales se conservan con su evidencia temporal. La promoción y ejecución Testnet requieren autorización expresa; ninguna métrica las activa.`);
@@ -884,16 +903,52 @@ const PulsePortal = (() => {
     set('platformAlerts','El portal no pudo actualizar esta lectura. Los valores anteriores son históricos; esto no demuestra que los motores se hayan detenido.');
     for(const id of ['pauseMarketPulse','resumeMarketPulse']){const button=document.getElementById(id);if(button)button.disabled=true;}
   }
-  function init(){
-    for(const link of document.querySelectorAll('.platform-nav a,.platform-detail,.pulse-subnav a'))link.addEventListener('click',event=>{
-      const id=link.getAttribute('href')?.slice(1),target=id&&document.getElementById(id);if(!target)return;
-      event.preventDefault();target.hidden=false;
-      for(let node=target;node;node=node.parentElement)if(node.tagName==='DETAILS')node.open=true;
-      if(id==='activity-section'){const diagnostics=document.getElementById('diagnosticsPanel');if(diagnostics)diagnostics.open=true;}
-      target.scrollIntoView({behavior:motionReduced()?'auto':'smooth',block:'start'});
-      for(const item of document.querySelectorAll('.platform-nav a'))item.removeAttribute('aria-current');
-      document.querySelector(`.platform-nav a[href="#${id}"]`)?.setAttribute('aria-current','location');
+  function redrawVisibleCharts(){
+    if(redrawQueued||!lastPortalChartData)return;
+    redrawQueued=true;
+    const schedule=window.requestAnimationFrame||((callback)=>setTimeout(callback,0));
+    schedule(()=>{
+      redrawQueued=false;
+      const spot=document.getElementById('equityChart'),futures=document.getElementById('futuresEquityChart'),research=document.getElementById('researchCurve');
+      if(spot?.clientWidth>0)renderChart(lastPortalChartData.spot);
+      if(futures?.clientWidth>0)renderFuturesChart(lastPortalChartData.futures);
+      if(research?.clientWidth>0&&lastResearchReport)renderResearchCurve();
     });
+  }
+  function restoreFolds(){
+    const folds=[...document.querySelectorAll('details[data-remember-fold]')].filter(node=>foldIds.has(node.id));
+    let saved={};
+    try{const raw=window.localStorage?.getItem(foldStorageKey);if(typeof raw==='string'&&raw.length<=4096){const parsed=JSON.parse(raw);if(parsed&&typeof parsed==='object'&&!Array.isArray(parsed))saved=parsed;}}catch{}
+    const persist=()=>{const values={};for(const node of folds)values[node.id]=node.open===true;try{window.localStorage?.setItem(foldStorageKey,JSON.stringify(values));}catch{}};
+    for(const node of folds){
+      if(typeof saved[node.id]==='boolean')node.open=saved[node.id];
+      node.addEventListener('toggle',()=>{persist();if(node.open)redrawVisibleCharts();});
+    }
+  }
+  function revealSection(id,scroll=true){
+    if(!navIds.has(id))return false;
+    const target=document.getElementById(id);if(!target)return false;
+    target.hidden=false;
+    for(let node=target;node;node=node.parentElement)if(node.tagName==='DETAILS')node.open=true;
+    if(target.dataset?.navFold&&foldIds.has(target.dataset.navFold)){const fold=document.getElementById(target.dataset.navFold);if(fold)fold.open=true;}
+    if(id==='activity-section'){const diagnostics=document.getElementById('diagnosticsPanel');if(diagnostics)diagnostics.open=true;}
+    if(scroll)target.scrollIntoView({behavior:motionReduced()?'auto':'smooth',block:'start'});
+    for(const item of document.querySelectorAll('.platform-nav a')){if(item.getAttribute('href')==='#'+id)item.setAttribute('aria-current','location');else item.removeAttribute('aria-current');}
+    redrawVisibleCharts();return true;
+  }
+  function revealHash(){try{const shell=document.querySelector('.shell');revealSection(decodeURIComponent(location.hash.slice(1)),shell?.hidden!==true);}catch{}}
+  async function onPortalReady(){
+    await refresh();
+    const shell=document.querySelector('.shell');
+    if(shell&&!shell.hidden)revealHash();
+  }
+  function init(){
+    restoreFolds();
+    for(const link of document.querySelectorAll('.platform-nav a,.platform-detail,.pulse-subnav a'))link.addEventListener('click',event=>{
+      const id=link.getAttribute('href')?.slice(1);if(!navIds.has(id))return;
+      event.preventDefault();if(revealSection(id))history.replaceState({},'',`${location.pathname}${location.search||''}#${id}`);
+    });
+    window.addEventListener('hashchange',revealHash);revealHash();
     for(const [id,action] of [['pauseMarketPulse','pause'],['resumeMarketPulse','resume']]){
       const button=document.getElementById(id);if(!button)continue;
       button.addEventListener('click',async()=>{
@@ -908,7 +963,7 @@ const PulsePortal = (() => {
       });
     }
   }
-  return {render,renderResearch,disconnected,init,safeUrl};
+  return {render,renderResearch,disconnected,init,safeUrl,revealSection,restoreFolds,onPortalReady};
 })();
 window.PulsePortal=PulsePortal;
 
@@ -1100,6 +1155,7 @@ async function refresh() {
     document.getElementById('reviews').innerHTML=reviews.length?reviews.slice(0,8).map(r=>`<div class="feed-item"><strong class="${esc(r.verdict.toLowerCase())}">${esc(r.verdict)}</strong><div><strong>${esc(r.symbol)} · ${(r.confidence*100).toFixed(0)}%</strong><p>${esc(r.reason)}</p></div><time>${shortTime(r.created_at)}</time></div>`).join(''):feedEmpty('Aún no hay revisiones');
     const important=events.filter(e=>['WARN','ERROR','CRITICAL'].includes(e.level)).slice(0,10);
     document.getElementById('events').innerHTML=important.length?important.map(e=>`<div class="feed-item"><strong class="event-${esc(e.level.toLowerCase())}">${esc(e.level)}</strong><div><p>${esc(e.message)}</p></div><time>${shortTime(e.created_at)}</time></div>`).join(''):feedEmpty('Sin errores ni advertencias recientes');
+    lastPortalChartData={spot:equity,futures:futuresForward?.equity||[]};
     renderChart(equity);
     renderResearch(research,researchState);
     renderPaperEvidence(paperReport,equity,trades);
@@ -1172,7 +1228,7 @@ document.getElementById('researchDetail').addEventListener('click',event=>{
   if (event.target.closest('.detail-close')) document.getElementById('researchDetail').hidden=true;
 });
 window.addEventListener('resize',()=>Promise.all([api('/api/equity'),api('/api/futures-forward')]).then(([spot,futures])=>{renderChart(spot);renderFuturesChart(futures?.equity||[]);}).catch(()=>{}));
-window.addEventListener('portal-ready',refresh);
+window.addEventListener('portal-ready',PulsePortal.onPortalReady);
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('/service-worker.js').catch(()=>{});
 window.addEventListener('DOMContentLoaded',()=>{installPortalMotion();PulsePortal.init();refresh();});
 setInterval(()=>{if(!document.hidden&&!document.querySelector('.shell').hidden)refresh();},30000);

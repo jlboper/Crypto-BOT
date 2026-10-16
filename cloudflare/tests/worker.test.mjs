@@ -162,6 +162,8 @@ test('Market Pulse Python producer is compatible, read-only, and legacy snapshot
 test('Market Pulse contract rejects unsafe modes, nested secrets, URLs, metrics and oversized histories',async t=>{
   const f=await fixture(t);
   const base=pulseSample();
+  Object.assign(base.decisions[0].evidence,{selection_rank:1,selection_pool:10,
+    selection_rule:'QUANTITATIVE_SCORE_THEN_CONFIDENCE_LIQUIDITY'});
   const valid=await f.sync({snapshot:pulseSnapshot(base),acks:[]});
   assert.equal(valid.status,200,JSON.stringify(valid.body));
   const changes=[p=>{p.mode='TESTNET';},p=>{p.execution_enabled=true;},p=>{p.research.promotion_allowed=true;},
@@ -171,7 +173,10 @@ test('Market Pulse contract rejects unsafe modes, nested secrets, URLs, metrics 
     p=>{p.events[0].url='javascript:alert(1)';},p=>{p.events[0].credibility=2;},
     p=>{p.market[0].price='NaN';},p=>{p.sources.binance_ws.state='SECRET';},
     p=>{p.decisions=Array.from({length:17},()=>p.decisions[0]);},
-    p=>{p.performance.benchmark_buy_hold={secret:10};}];
+    p=>{p.performance.benchmark_buy_hold={secret:10};},
+    p=>{p.decisions[0].evidence.selection_rank=0;},p=>{p.decisions[0].evidence.selection_pool=11;},
+    p=>{p.decisions[0].evidence.selection_rule='AI_EXECUTE';},
+    p=>{p.decisions[0].evidence.selection_rank=2;p.decisions[0].evidence.selection_pool=1;}];
   for(const change of changes){
     const pulse=structuredClone(base);change(pulse);
     const response=await f.sync({snapshot:pulseSnapshot(pulse),acks:[]});
@@ -181,6 +186,80 @@ test('Market Pulse contract rejects unsafe modes, nested secrets, URLs, metrics 
   await f.login();
   const stored=(await f.request('/v1/status')).body.snapshot.dashboard.market_pulse;
   assert.deepEqual(stored,base);
+});
+
+test('ten-asset Python projection preserves all markets and three positions inside the existing 20KB budget',async t=>{
+  const f=await fixture(t);
+  const pulse=JSON.parse(execFileSync(process.env.PYTHON||'python',[
+    fileURLToPath(new URL('../../tests/emit_market_pulse_fixture.py',import.meta.url)),'--ten-assets'],{encoding:'utf8'}));
+  assert.equal(pulse.market.length,10);
+  assert.equal(new Set(pulse.market.map(row=>row.symbol)).size,10);
+  assert.equal(Object.keys(pulse.performance.benchmark_buy_hold).length,10);
+  assert.equal(pulse.positions.length,3);
+  assert.equal(pulse.news_providers.length,5);
+  assert.equal(pulse.universe.selection,'OWNER_APPROVED_LIQUID_TOP10');
+  assert.ok(Buffer.byteLength(JSON.stringify(pulse))<20000);
+  assert.ok(pulse.decisions.length<16||pulse.events.length<12||pulse.opportunities.length<12);
+  const accepted=await f.sync({snapshot:pulseSnapshot(pulse),acks:[]});
+  assert.equal(accepted.status,200,JSON.stringify(accepted.body));
+  const legacy=structuredClone(pulse);
+  legacy.market=legacy.market.slice(0,3);
+  delete legacy.news_providers;
+  delete legacy.universe;
+  const compatible=await f.sync({snapshot:pulseSnapshot(legacy),acks:[]});
+  assert.equal(compatible.status,200,JSON.stringify(compatible.body));
+});
+
+test('actual legacy journal and protective SELL stay compatible with optional ranking evidence',async t=>{
+  const f=await fixture(t);
+  const pulse=JSON.parse(execFileSync(process.env.PYTHON||'python',[
+    fileURLToPath(new URL('../../tests/emit_market_pulse_fixture.py',import.meta.url)),'--legacy-sell'],{encoding:'utf8'}));
+  assert.equal(pulse.state,'PAUSED');
+  assert.equal(pulse.performance.closed_trades,1);
+  assert.equal(pulse.positions.length,2);
+  const sales=pulse.decisions.filter(row=>row.action==='SELL');
+  const legacy=pulse.decisions.filter(row=>row.action==='BUY');
+  assert.equal(sales.length,1);
+  assert.equal(legacy.length,3);
+  for(const row of [...legacy,...sales]){
+    for(const key of ['selection_rank','selection_pool','selection_rule'])assert.equal(key in row.evidence,false);
+  }
+  const accepted=await f.sync({snapshot:pulseSnapshot(pulse),acks:[]});
+  assert.equal(accepted.status,200,JSON.stringify(accepted.body));
+});
+
+test('optional news-provider and universe metadata reject malformed data without replacing the last valid snapshot',async t=>{
+  const f=await fixture(t);
+  const base=pulseSample();
+  const provider={id:'official-source',name:'Official source',url:'https://example.com/feed',
+    kind:'official',state:'READY',last_update:new Date().toISOString(),last_error:null};
+  base.news_providers=[provider];
+  base.universe={selection:'OWNER_APPROVED_LIQUID_TOP10',selected_at:new Date().toISOString(),source:'Binance public data'};
+  base.events[0].symbol='MARKET';
+  const valid=await f.sync({snapshot:pulseSnapshot(base),acks:[]});
+  assert.equal(valid.status,200,JSON.stringify(valid.body));
+  const changes=[p=>{p.news_providers[0].api_key='private';},p=>{p.news_providers[0].kind='EXECUTE';},
+    p=>{p.news_providers[0].state='EXECUTE';},p=>{p.news_providers[0].id='owner secret';},
+    p=>{p.news_providers[0].url='https://user:private@example.com/feed';},
+    p=>{p.news_providers[0].url='https://example.com/feed?api_key=private';},
+    p=>{p.news_providers[0].last_update='invalid';},p=>{p.news_providers[0].last_error='api_key=private';},
+    p=>{p.news_providers=Array.from({length:6},(_,i)=>({...provider,id:`provider-${i}`}));},
+    p=>{p.news_providers=[provider,provider];},p=>{p.universe.secret='private';},
+    p=>{p.universe.selection={instructions:'buy'};},p=>{p.universe.source='x'.repeat(281);},
+    p=>{p.universe.source='https://user:private@example.com/';},
+    p=>{p.market[0].symbol='MARKET';},p=>{p.decisions[0].symbol='MARKET';},
+    p=>{p.market=Array.from({length:11},()=>p.market[0]);},
+    p=>{p.performance.benchmark_buy_hold=Object.fromEntries(Array.from({length:11},(_,i)=>[`COIN${i}USDT`,0]));},
+    p=>{p.positions=Array.from({length:4},(_,i)=>({symbol:`COIN${i}USDT`,quantity:1,entry_price:100,
+      mark_price:101,stop:99,target:102,opened_at:new Date().toISOString(),unrealized_pnl:1,environment:'SHADOW'}));}];
+  for(const change of changes){
+    const pulse=structuredClone(base);change(pulse);
+    const response=await f.sync({snapshot:pulseSnapshot(pulse),acks:[]});
+    assert.equal(response.status,400,JSON.stringify(pulse));
+    assert.equal(response.body.error,'Invalid Market Pulse status');
+  }
+  await f.login();
+  assert.deepEqual((await f.request('/v1/status')).body.snapshot.dashboard.market_pulse,base);
 });
 
 test('Market Pulse independent shadow controls require auth, CSRF, fresh capability and exact idempotence',async t=>{

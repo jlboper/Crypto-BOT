@@ -1,5 +1,21 @@
 # Project History and Decision Log
 
+## 2026-10-16 — Dated ten-asset observation and broader primary sources
+
+The owner chose ten largest eligible Binance Spot USDT assets by market cap,
+excluding stablecoins and duplicate exposures. Freeze the verified selection with
+its date; do not silently claim an always-current ranking or retrospectively
+reinterpret the earlier three-asset cohort. Additive expansion retains financial
+state and records prior/current hypotheses; financial changes remain rejected.
+Five permitted public primary/regulatory RSS sources replace the narrow two-feed
+coverage. Company commentary is not primary evidence for third-party predictions.
+AI remains a separately capped interpreter; deterministic opportunity ordering
+does not claim statistically optimal weights or guaranteed profitability.
+The owner subsequently requested Quant Arbitrage and Portfolio Guardian. Complete
+this pending expansion first, then implement observational coordination with no
+veto on existing trading and no new account execution. Preserve one supervised
+process and separate fictitious/Testnet/Demo scopes. See `FOUR_ENGINE_EXPANSION.md`.
+
 ## 2026-10-15 — Three engines, event-driven Shadow observation
 
 The owner requested a third event/news/market-anomaly engine and a unified
