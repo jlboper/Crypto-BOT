@@ -1,6 +1,16 @@
 # Work Context — Crypto AI Trader
 
-## Continuación actual — 0.10.37 en preparación
+## Continuación actual — 0.10.38 en preparación
+
+0.10.37 main `3b02326c435acf3c9c666940a90923908e9bab64` verificada firmada e
+instalada con 176/176 hashes. Después de instalar se observaron referencias
+Quant antiguas intermitentes por la diferencia entre inicio/completado del tick
+y la caché estricta de 60 s. La candidata 0.10.38 espera 60 s desde el completado;
+no aumenta llamadas ni relaja frescura, riesgos o ejecución SHADOW. Preservar
+todos los ledgers, journals, pausas y protecciones. Suite completa, CI y estado
+publicado/firmado/instalado de 0.10.38 requieren verificaciones propias.
+
+## Implementación 0.10.37 — registro de preparación
 
 Predecesora verificada: 0.10.36, main
 `1bb77fad1a490472907ce29591e0b1075d3e7ba3`, PR #113, firmada e instalada 167/167.

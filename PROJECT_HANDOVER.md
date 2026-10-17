@@ -19,7 +19,18 @@ Then inspect current `main`, recent commits, open PRs/issues and CI. Documentati
 
 ## Mission
 
-### Current continuation — 0.10.37 candidate, four engines
+### Current continuation — 0.10.38 cadence candidate
+
+Version 0.10.37 main `3b02326c435acf3c9c666940a90923908e9bab64` was observed
+signed and installed with 176/176 hashes. Post-install observation found Quant's
+start-anchored scheduler could hit its strict 60-second reference cache slightly
+early and reuse aging data. Version 0.10.38 schedules 60 seconds after completion;
+it does not weaken the 90-second freshness gate or increase the API budget.
+Slow/failed sources still degrade explicitly. Preserve all ledgers/journals and
+existing protections; this changes no strategy, risk or execution authority.
+Full checks, CI, publication/signature and installation of 0.10.38 remain pending.
+
+### 0.10.37 implementation — preparation record, four engines
 
 Verified predecessor: 0.10.36 main `1bb77fad1a490472907ce29591e0b1075d3e7ba3`,
 PR #113, signed and installed 167/167 hashes. Version 0.10.37 is preparation only

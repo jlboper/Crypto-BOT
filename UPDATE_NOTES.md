@@ -1,4 +1,18 @@
-# 0.10.37 — Quant Shadow funcional y evidencia de dos piernas (en preparación)
+# 0.10.38 — Cadencia de referencias Quant (en preparación)
+
+- La 0.10.37, main `3b02326c435acf3c9c666940a90923908e9bab64`, se verificó
+  firmada e instalada con 176/176 hashes. La observación posterior detectó
+  referencias antiguas intermitentes: programar desde el inicio del tick podía
+  volver a consultar unos milisegundos antes de vencer la caché estricta de 60 s.
+- Quant programa el siguiente tick 60 s después de completar el actual. Evita
+  reutilizar accidentalmente esa respuesta antigua sin relajar la frescura de
+  90 s, aumentar llamadas/API ni cambiar hipótesis, costes, riesgo o ejecución.
+  Un proveedor lento o caído sigue produciendo datos parciales/antiguos explícitos.
+- Se conservan el ledger/journal Quant, sus pausas y protecciones hipotéticas,
+  Spot/Futures/Pulse, Guardian Observer y el flujo firmado de actualización.
+  Suite completa, CI, publicación/firma e instalación de 0.10.38 aún pendientes.
+
+# 0.10.37 — Quant Shadow funcional y evidencia de dos piernas (registro de preparación)
 
 - Servicio Quant opcional dentro del proceso supervisado, ledger virtual SQLite,
   journal, fuentes contemporáneas, recuperación/idempotencia y pausa propia.
