@@ -94,3 +94,7 @@ ai_enabled = true
 ai_max_reviews_per_day = 6
 ai_min_interval_seconds = 300
 kill_switch_path = "data/MARKET_PULSE_KILL_SWITCH"
+[quant_arbitrage]
+enabled = true
+mode = "SHADOW"
+kill_switch_path = "data/QUANT_ARBITRAGE_KILL"

@@ -570,16 +570,51 @@ function Get-ManagerEngineViews($Spot, $Futures, $Pulse, [DateTimeOffset]$Now = 
         Latest=(Format-ManagerTime (Get-ManagerValue $Pulse 'updated_at'))
         Tone=$(if ($pulseState -eq 'SHADOW ACTIVO' -and -not $pulseOld) {'Green'} elseif ($null -eq $Pulse -or $pulseState -eq 'SIN INICIAR') {'Muted'} else {'Amber'})
     }
-    # Quant is a contract scaffold in this phase, never an initialized virtual wallet.
-    $quantValid = (Get-ManagerValue $Quant 'schema') -eq 1 -and (Get-ManagerValue $Quant 'engine') -eq 'QUANT_ARBITRAGE' -and
-        (Get-ManagerValue $Quant 'mode') -eq 'SHADOW' -and (Get-ManagerValue $Quant 'state') -eq 'NOT_STARTED' -and
-        (Get-ManagerValue $Quant 'initialized') -eq $false -and (Get-ManagerValue $Quant 'enabled') -eq $false -and
-        (Get-ManagerValue $Quant 'execution_enabled') -eq $false -and (Get-ManagerValue $Quant 'controls_available') -eq $false -and
+    $quantIdentity = (Get-ManagerValue $Quant 'schema') -eq 1 -and (Get-ManagerValue $Quant 'engine') -eq 'QUANT_ARBITRAGE' -and
+        (Get-ManagerValue $Quant 'mode') -eq 'SHADOW' -and (Get-ManagerValue $Quant 'execution_enabled') -eq $false -and
         (Get-ManagerValue $Quant 'promotion_allowed') -eq $false
+    $quantState = [string](Get-ManagerValue $Quant 'state')
+    $quantScaffold = $quantIdentity -and (Get-ManagerValue $Quant 'initialized') -eq $false -and
+        (Get-ManagerValue $Quant 'enabled') -eq $false -and (Get-ManagerValue $Quant 'controls_available') -eq $false -and
+        $quantState -in @('NOT_STARTED','DEGRADED')
+    $quantInitialized = $quantIdentity -and (Get-ManagerValue $Quant 'initialized') -eq $true -and
+        (Get-ManagerValue $Quant 'enabled') -is [bool] -and (Get-ManagerValue $Quant 'controls_available') -is [bool] -and
+        $quantState -in @('SHADOW','PAUSED','DEGRADED')
     $qView = [PSCustomObject]@{
-        State=$(if ($quantValid) { 'SIN INICIAR' } else { 'SIN DATOS' }); Environment='SHADOW · investigación pendiente'
+        State=$(if ($quantScaffold) { if ($quantState -eq 'NOT_STARTED') { 'SIN INICIAR' } else { 'LEDGER NO DISPONIBLE' } } else { 'SIN DATOS' }); Environment='SHADOW · investigación pendiente'
         Capital='Capital: —'; Return='Neto simulado: —'; Positions="Funding Carry / StatArb`r`nSin ledger inicializado"
         Protection="Ejecución bloqueada`r`nPromoción bloqueada"; Latest='Sin evaluación registrada'; Tone='Muted'
+    }
+    if ($quantScaffold -and $quantState -eq 'DEGRADED') { $qView.Tone = 'Amber' }
+    if ($quantInitialized) {
+        $qAge = Get-ManagerAge (Get-ManagerValue $Quant 'updated_at') $Now
+        $qSnapshotAge = Get-ManagerAge (Get-ManagerValue $Quant 'at') $Now
+        $reportedAge = Get-ManagerValue $Quant 'freshness.age_seconds'
+        $reportedAgeValid = $null -ne $reportedAge -and (Format-ManagerNumber $reportedAge) -ne '—' -and [double]$reportedAge -ge 0 -and [double]$reportedAge -le 90
+        $qOld = $null -eq $qAge -or $qAge -gt 90 -or $null -eq $qSnapshotAge -or $qSnapshotAge -gt 120 -or
+            -not $reportedAgeValid -or (Get-ManagerValue $Quant 'freshness.state') -ne 'FRESH' -or
+            (Get-ManagerValue $Quant 'remote_sync_stale') -eq $true
+        $qPairs = @(Get-ManagerValue $Quant 'positions' | Where-Object { $null -ne $_ } | Select-Object -First 2)
+        $qLegs = 0
+        foreach ($pair in $qPairs) { $qLegs += @(Get-ManagerValue $pair 'legs' | Where-Object { $null -ne $_ } | Select-Object -First 2).Count }
+        $qView.State = switch ($quantState) { 'SHADOW' { 'SHADOW ACTIVO' } 'PAUSED' { 'ENTRADAS PAUSADAS' } default { 'DATOS PARCIALES' } }
+        if ($qOld) { $qView.State = 'SHADOW · ANTIGUO' }
+        $qView.Environment = 'SHADOW · capital virtual separado'
+        $qView.Capital = 'Equity: ' + $(if ($qOld) { '—' } else { Format-ManagerNumber (Get-ManagerValue $Quant 'performance.equity') ' USDT' })
+        $qView.Return = 'Neto simulado: ' + $(if ($qOld) { '— · antiguo' } else { Format-ManagerNumber (Get-ManagerValue $Quant 'performance.net_pnl') ' USDT' })
+        $qInventoryKnown = if ($Quant -is [System.Collections.IDictionary]) { $Quant.Contains('positions') -and $Quant['positions'] -is [System.Array] } else { $null -ne $Quant.PSObject.Properties['positions'] -and $Quant.positions -is [System.Array] }
+        $qClosed = Get-ManagerValue $Quant 'performance.closed_trades'
+        $qClosedText = if ((Format-ManagerNumber $qClosed) -ne '—' -and [double]$qClosed -ge 0 -and [double]$qClosed % 1 -eq 0) { ([double]$qClosed).ToString('N0', [Globalization.CultureInfo]::GetCultureInfo('es-MX')) } else { '—' }
+        $qView.Positions = $(if ($qInventoryKnown) { "Pares: $($qPairs.Count) · piernas: $qLegs" } else { 'Pares: — · piernas: —' }) + "`r`nCierres: $qClosedText"
+        $qView.Protection = "Sin órdenes al exchange`r`nPiernas no atómicas"
+        $qView.Latest = Format-ManagerTime (Get-ManagerValue $Quant 'last_evaluation')
+        $qView.Tone = if ($qOld -or $quantState -ne 'SHADOW') { 'Amber' } else { 'Green' }
+        if (-not $qOld -and $quantState -eq 'SHADOW') {
+            $qRiskState = Get-ManagerValue $Quant 'risk_halt.state'
+            if ($qRiskState -eq 'HALTED') { $qView.State = 'LÍMITE DE PÉRDIDA'; $qView.Tone = 'Amber' }
+            elseif ($qRiskState -eq 'UNKNOWN') { $qView.State = 'VALORACIÓN PENDIENTE'; $qView.Tone = 'Amber' }
+        }
+        if ((Get-ManagerValue $Quant 'enabled') -eq $false -and -not $qOld) { $qView.State = 'NO HABILITADO'; $qView.Tone = 'Muted' }
     }
     return [PSCustomObject]@{ Spot=$spotView; Futures=$fView; Pulse=$pView; Quant=$qView }
 }
@@ -694,7 +729,7 @@ $pulseOpenLink.Add_LinkClicked({ Start-Process ($DashboardUrl + '/#portfolio-gua
 $form.Controls.Add($pulseOpenLink)
 
 $modeBadge = New-Object System.Windows.Forms.Label
-$modeBadge.Text = "3 BOTS"
+$modeBadge.Text = "4 BOTS"
 $modeBadge.Location = New-Object System.Drawing.Point(625, 30)
 $modeBadge.Size = New-Object System.Drawing.Size(91, 32)
 $modeBadge.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
@@ -848,7 +883,7 @@ $footerPanel.BackColor = [System.Drawing.Color]::FromArgb(11, 20, 34)
 $form.Controls.Add($footerPanel)
 
 $protectionLabel = New-Object System.Windows.Forms.Label
-$protectionLabel.Text = "Entornos separados · Pulse Shadow · Quant sin iniciar"
+$protectionLabel.Text = "Entornos separados · Pulse / Quant SHADOW"
 $protectionLabel.Location = New-Object System.Drawing.Point(16, 5)
 $protectionLabel.Size = New-Object System.Drawing.Size(490, 17)
 $protectionLabel.Font = New-Object System.Drawing.Font('Segoe UI', 8)
@@ -932,7 +967,7 @@ function Receive-ManagerStatus {
     $connected = $null -ne $snapshots.Spot
     $statusLabel.Text = if ($connected) { 'Lectura local disponible' } else { 'Lectura local no disponible' }
     $statusDescription.Text = if ($connected) { "$remoteText. Entornos separados." } else { 'Sin respuesta local; esto no confirma que el motor esté detenido.' }
-    $color = if ($connected -and $views.Spot.Tone -eq 'Green' -and $views.Futures.Tone -ne 'Amber' -and $views.Pulse.Tone -ne 'Amber') {
+    $color = if ($connected -and $views.Spot.Tone -eq 'Green' -and $views.Futures.Tone -ne 'Amber' -and $views.Pulse.Tone -ne 'Amber' -and $views.Quant.Tone -ne 'Amber') {
         [System.Drawing.Color]::FromArgb(45,226,166)
     } else { [System.Drawing.Color]::FromArgb(255,204,102) }
     $statusLabel.ForeColor = $color; $statusDot.ForeColor = $color
@@ -956,7 +991,7 @@ function Receive-ManagerStatus {
         $killButton.Text = '⚠   Pausar entradas Spot'
         $killButton.BackColor = [System.Drawing.Color]::FromArgb(55,24,35)
         $killButton.ForeColor = [System.Drawing.Color]::FromArgb(255,147,164)
-        $protectionLabel.Text = 'Ledgers separados · Pulse Shadow · Quant sin iniciar'
+        $protectionLabel.Text = 'Ledgers separados · Pulse / Quant SHADOW'
         $protectionLabel.ForeColor = [System.Drawing.Color]::FromArgb(92,215,171)
     }
     if (Test-CanonicalStartup) { $startupButton.Text = '✓   Inicio automático activado' }
@@ -993,7 +1028,7 @@ $openPortalItem = $notifyMenu.Items.Add("Abrir portal remoto")
 $openPortalItem.Add_Click({ Start-Process -FilePath $RemotePortalUrl })
 $openPulseItem = $notifyMenu.Items.Add('AI Market Pulse · Shadow')
 $openPulseItem.Add_Click({ Start-Process ($RemotePortalUrl + '#market-pulse') })
-$openQuantItem = $notifyMenu.Items.Add('Quant Arbitrage · sin iniciar')
+$openQuantItem = $notifyMenu.Items.Add('Quant Arbitrage · Shadow')
 $openQuantItem.Add_Click({ Start-Process ($RemotePortalUrl + '#quant-arbitrage') })
 $openGuardianItem = $notifyMenu.Items.Add('Portfolio Guardian · Observer')
 $openGuardianItem.Add_Click({ Start-Process ($RemotePortalUrl + '#portfolio-guardian') })

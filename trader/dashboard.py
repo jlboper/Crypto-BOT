@@ -57,7 +57,7 @@ class DashboardServer:
     def _platform_snapshot(self):
         """Optional read-only diagnostics, outside all entry/protection cycles."""
         from .portfolio_guardian import engine_catalog, guardian_unavailable, quant_not_started
-        from .portal_snapshot import dashboard_snapshot
+        from .portal_snapshot import dashboard_snapshot, quant_projection
         with self._platform_lock:
             current = time.monotonic()
             if self._platform_cache is not None and current - self._platform_cached_at < 10:
@@ -68,8 +68,17 @@ class DashboardServer:
             except Exception:
                 # A broken optional projection neither touches state nor controls
                 # Spot, Futures, Pulse, reconciliation or protective orders.
-                result = {'engine_catalog': engine_catalog({'status': {'mode': self.config.bot.mode.upper()}}),
-                          'portfolio_guardian': guardian_unavailable(), 'quant': quant_not_started()}
+                try:
+                    quant = quant_projection(self.config)
+                except Exception as error:
+                    # A failed broader dashboard is not evidence that Quant has
+                    # never started. Independently unavailable ledgers stay unknown.
+                    quant = quant_not_started()
+                    quant.update(state='DEGRADED', health={'last_error': 'SHADOW_LEDGER_UNAVAILABLE',
+                                                         'error_type': type(error).__name__[:80]})
+                result = {'engine_catalog': engine_catalog({'status': {'mode': self.config.bot.mode.upper()},
+                                                           'quant': quant}),
+                          'portfolio_guardian': guardian_unavailable(), 'quant': quant}
             self._platform_cache = result
             self._platform_cached_at = time.monotonic()
             return result
@@ -211,7 +220,7 @@ class DashboardServer:
                     except Exception:
                         self._json({"error": "No fue posible iniciar la actualización local"}, HTTPStatus.SERVICE_UNAVAILABLE)
                     return
-                if path in {"/api/operations/model", "/api/operations/restart", "/api/operations/execution-mode", "/api/operations/testnet-smoke", "/api/operations/futures-check", "/api/operations/futures-smoke", "/api/operations/futures-reconcile", "/api/operations/futures-forward-pause", "/api/operations/futures-forward-resume", "/api/market-pulse/pause", "/api/market-pulse/resume"}:
+                if path in {"/api/operations/model", "/api/operations/restart", "/api/operations/execution-mode", "/api/operations/testnet-smoke", "/api/operations/futures-check", "/api/operations/futures-smoke", "/api/operations/futures-reconcile", "/api/operations/futures-forward-pause", "/api/operations/futures-forward-resume", "/api/market-pulse/pause", "/api/market-pulse/resume", "/api/quant-arbitrage/pause", "/api/quant-arbitrage/resume"}:
                     try:
                         if self.headers.get('Content-Type', '').split(';', 1)[0].strip() != 'application/json':
                             raise ValueError('JSON required')
@@ -231,11 +240,13 @@ class DashboardServer:
                                   'futures_forward_resume' if path.endswith('/futures-forward-resume') else
                                   'market_pulse_pause' if path == '/api/market-pulse/pause' else
                                   'market_pulse_resume' if path == '/api/market-pulse/resume' else
+                                  'quant_arbitrage_pause' if path == '/api/quant-arbitrage/pause' else
+                                  'quant_arbitrage_resume' if path == '/api/quant-arbitrage/resume' else
                                   'restart_engine')
                         invalid = (
                             (action == 'ai_model' and (set(payload) != {'model'} or payload['model'] not in {'gpt-5.6-luna','gpt-6-luna'}))
                             or (action == 'execution_mode' and (set(payload) != {'mode'} or payload['mode'] not in {'paper','testnet'}))
-                            or (action in {'restart_engine','testnet_smoke','futures_testnet_check','futures_testnet_reconcile','futures_forward_pause','futures_forward_resume','market_pulse_pause','market_pulse_resume'} and bool(payload))
+                            or (action in {'restart_engine','testnet_smoke','futures_testnet_check','futures_testnet_reconcile','futures_forward_pause','futures_forward_resume','market_pulse_pause','market_pulse_resume','quant_arbitrage_pause','quant_arbitrage_resume'} and bool(payload))
                             or (action == 'futures_testnet_smoke' and (
                                 set(payload) != {'direction','leverage'}
                                 or payload.get('direction') not in {'LONG','SHORT'}

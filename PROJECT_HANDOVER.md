@@ -19,6 +19,25 @@ Then inspect current `main`, recent commits, open PRs/issues and CI. Documentati
 
 ## Mission
 
+### Current continuation — 0.10.37 candidate, four engines
+
+Verified predecessor: 0.10.36 main `1bb77fad1a490472907ce29591e0b1075d3e7ba3`,
+PR #113, signed and installed 167/167 hashes. Version 0.10.37 is preparation only
+until its own full suites, CI, main publication, signature and installed audit pass.
+See `FOUR_ENGINE_EXPANSION.md` for Quant's independent Shadow ledger/service,
+two-leg costs, funding provenance, entry-loss latches and strict execution block.
+Funding Carry may open hypothetical pairs; StatArb remains an exploratory screen
+with entries blocked pending independent calibration. Guardian remains Observer
+without veto/reservations. Public Futures prices are reference observations, never
+Demo fills. No trading-account client, paid provider or AI call is added by Quant.
+
+Keep `data/quant-shadow.db`, source evidence, journals, hypotheses and pause/kill
+state across updates/recovery. Unknown or late funding must not become income or
+a zero valuation. Global and per-engine data remain separate; no actual shared
+capital is allocated. Pause controls carry empty authenticated requests through
+the existing agent; remote Quant capability is distinct from Spot control rights.
+Never start another trading process to refresh the four-card Windows indicator.
+
 ### Third engine introduced by 0.10.31
 
 Version 0.10.34 expands the reviewed Shadow observation universe to ten eligible
@@ -50,6 +69,9 @@ The current architecture intentionally separates:
 - **Spot Testnet**: primary multi-asset test environment.
 - **Futures Demo**: separate LONG/SHORT forward test with its own ledger, journal, risk controls and kill switch. Version 0.10.27 observes fifteen USDT perpetuals, allows up to ten positions, and sizes against 300 USDT gross exposure and 7.5 USDT estimated loss-to-stop (including cost reserve). Confirmed entries alternate 1x/2x/3x without multiplying quantities; actual fills/gaps can exceed pre-submit estimates. Expanded open state prevents incompatible code restoration.
 - **PAPER**: regression, CI and technical fallback.
+- **Market Pulse / Quant SHADOW**: separate hypothetical ledgers; no exchange
+  execution. Quant's new candidate must be installed and verified before inferring
+  its current operation from a source-level implementation.
 - **LIVE**: intentionally not implemented. Never infer that observed profitability authorizes production trading.
 
 ## Architectural invariants

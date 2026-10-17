@@ -46,31 +46,185 @@ const observerNonnegative=value=>observerNumber(value)&&(value===null||value>=0)
 const observerPositive=value=>observerNumber(value)&&(value===null||value>0);
 const observerCount=value=>Number.isSafeInteger(value)&&value>=0&&value<=100000;
 const observerSymbol=value=>typeof value==='string'&&/^[A-Z0-9]{2,24}USDT$/.test(value);
-function validateEngineCatalog(catalog,mode){
+function validateEngineCatalog(catalog,mode,quant){
   const expected=[
     ['SPOT','Spot Bot',mode==='TESTNET'?'SPOT_TESTNET':mode==='PAPER'?'PAPER':'UNKNOWN','TREND','OBSERVED_EXTERNALLY'],
     ['FUTURES','Futures Bot','FUTURES_DEMO','LONG_SHORT','OBSERVED_EXTERNALLY'],
     ['AI_MARKET_PULSE','AI Market Pulse','SHADOW','EVENTS','OBSERVED_EXTERNALLY'],
-    ['QUANT_ARBITRAGE','Quant Arbitrage','SHADOW','CARRY_STATISTICAL_RESEARCH','NOT_STARTED']];
+    ['QUANT_ARBITRAGE','Quant Arbitrage','SHADOW','CARRY_STATISTICAL_RESEARCH',
+      quant?.initialized===true?'OBSERVED_EXTERNALLY':'NOT_STARTED']];
   assert(Array.isArray(catalog)&&catalog.length===4&&catalog.every((row,index)=>
     exactKeys(row,['id','name','environment','role','state'])&&
     ['id','name','environment','role','state'].every((key,column)=>row[key]===expected[index][column])),
     'Invalid engine catalog');
 }
 function validateQuantArbitrage(q){
-  assert(exactKeys(q,['schema','engine','mode','state','initialized','enabled','execution_enabled',
-    'controls_available','at','updated_at','freshness','positions','performance','strategies','promotion_allowed'])
-    &&q.schema===1&&q.engine==='QUANT_ARBITRAGE'&&q.mode==='SHADOW'&&q.state==='NOT_STARTED'
-    &&['initialized','enabled','execution_enabled','controls_available','promotion_allowed'].every(k=>q[k]===false)
-    &&q.at!==null&&observerStamp(q.at)&&q.updated_at===null
-    &&exactKeys(q.freshness,['state','age_seconds'])&&q.freshness.state==='UNAVAILABLE'&&q.freshness.age_seconds===null
-    &&Array.isArray(q.positions)&&q.positions.length===0
-    &&exactKeys(q.performance,['initial_capital','equity','net_pnl','closed_trades'])&&Object.values(q.performance).every(v=>v===null)
-    &&Array.isArray(q.strategies)&&q.strategies.length===2&&q.strategies.every((row,index)=>
-      exactKeys(row,['id','state'])&&row.id===['FUNDING_CARRY','STATISTICAL_ARBITRAGE'][index]&&row.state==='NOT_STARTED')
-    &&JSON.stringify(q).length<1600,'Invalid Quant Arbitrage status');
+  const error='Invalid Quant Arbitrage status';
+  const base=['schema','engine','mode','state','initialized','enabled','execution_enabled',
+    'controls_available','at','updated_at','freshness','positions','performance','strategies','promotion_allowed'];
+  const symbols=['BTCUSDT','ETHUSDT','SOLUSDT'],strategies=['FUNDING_CARRY','STATISTICAL_ARBITRAGE'];
+  const text=value=>typeof value==='string'&&value.length<=160;
+  const count=value=>Number.isSafeInteger(value)&&value>=0;
+  const id=value=>typeof value==='string'&&/^[a-f0-9]{32}$/.test(value);
+  const instrument=value=>typeof value==='string'&&/^(?:BTC|ETH|SOL)USDT(?:\/(?:BTC|ETH|SOL)USDT)?$/.test(value);
+  const keys=(value,allowed)=>object(value)&&Object.keys(value).every(key=>allowed.includes(key));
+  assert(object(q)&&q.schema===1&&q.engine==='QUANT_ARBITRAGE'&&q.mode==='SHADOW'
+    &&q.execution_enabled===false&&q.promotion_allowed===false&&q.at!==null&&observerStamp(q.at),error);
+  if(q.initialized===false){
+    const degraded=q.state==='DEGRADED';
+    assert(exactKeys(q,degraded?[...base,'health']:base)&&['NOT_STARTED','DEGRADED'].includes(q.state)
+      &&['enabled','controls_available'].every(k=>q[k]===false)&&q.updated_at===null
+      &&exactKeys(q.freshness,['state','age_seconds'])&&q.freshness.state==='UNAVAILABLE'&&q.freshness.age_seconds===null
+      &&Array.isArray(q.positions)&&q.positions.length===0
+      &&exactKeys(q.performance,['initial_capital','equity','net_pnl','closed_trades'])&&Object.values(q.performance).every(v=>v===null)
+      &&Array.isArray(q.strategies)&&q.strategies.length===2&&q.strategies.every((row,index)=>
+        exactKeys(row,['id','state'])&&row.id===strategies[index]&&row.state==='NOT_STARTED')
+      &&(!degraded||keys(q.health,['last_error','error_type'])&&Object.values(q.health).every(v=>v===null||text(v)))
+      &&JSON.stringify(q).length<1800,error);
+    return;
+  }
+  const metricFields=['observed_funding_rate','funding_interval_seconds','next_funding_at','spot_mid',
+    'futures_mid','mark_price','basis_rate','spot_spread_bps','futures_spread_bps','projected_funding_usdt',
+    'conditional_net_estimate_usdt','settled_funding_usdt','history_mean_funding_rate','history_min_funding_rate',
+    'history_funding_std','quantity_per_leg','spot_notional_usdt','futures_notional_usdt','gross_notional_usdt',
+    'conditional_funding_rate','projected_event_count','roundtrip_cost_usdt','basis_cost_reserve_usdt',
+    'adverse_one_event_funding_usdt','estimated_stress_loss_usdt','required_virtual_cash_usdt',
+    'virtual_collateral_usdt','leverage','hedge_ratio','hedge_drift_fraction','spread','train_spread_mean',
+    'train_spread_sigma','z_score','residual_adf_lag1_t','residual_adf_heuristic_threshold','ar1_phi',
+    'approximate_half_life_observations','holdout_mean_shift_sigma','holdout_sigma_ratio',
+    'train_return_correlation','holdout_return_correlation','recent_return_correlation','return_volatility_a',
+    'return_volatility_b','roundtrip_fee_slippage_rate','convergence_scenario_rate','net_convergence_scenario_rate'];
+  const metrics=value=>keys(value,metricFields)&&Object.values(value).every(observerNumber)
+    &&(!Object.hasOwn(value,'settled_funding_usdt')||value.settled_funding_usdt===null);
+  const performanceFields=['initial_capital','equity','cash','collateral_usdt','gross_exposure_usdt','net_pnl',
+    'return_pct','drawdown_pct','closed_trades','wins','win_rate','profit_factor','costs_usdt',
+    'stress_costs_usdt','simulated_funding_usdt','observation_days'];
+  const performance=p=>exactKeys(p,performanceFields)&&Object.values(p).every(observerNumber)
+    &&p.initial_capital>0&&p.initial_capital<=1000000&&count(p.closed_trades)
+    &&(p.wins===null||count(p.wins)&&p.wins<=p.closed_trades)
+    &&['collateral_usdt','gross_exposure_usdt','drawdown_pct','profit_factor','costs_usdt','stress_costs_usdt','observation_days'].every(k=>observerNonnegative(p[k]))
+    &&(p.win_rate===null||p.win_rate>=0&&p.win_rate<=100);
+  const legFields=['symbol','venue','direction','quantity','entry_price','entry_reference','entry_fee_usdt',
+    'entry_priced_at','entry_received_at','leverage','margin_model','mark_price','notional_usdt',
+    'unrealized_pnl_usdt','priced_at','received_at','state'];
+  const leg=l=>exactKeys(l,legFields)&&symbols.includes(l.symbol)
+    &&['SPOT_REFERENCE','FUTURES_REFERENCE'].includes(l.venue)&&['LONG','SHORT'].includes(l.direction)
+    &&['quantity','entry_price','entry_reference'].every(k=>typeof l[k]==='number'&&Number.isFinite(l[k])&&l[k]>0)
+    &&observerNonnegative(l.entry_fee_usdt)&&l.leverage===1&&l.margin_model==='FULL_NOTIONAL_VIRTUAL_COLLATERAL'
+    &&['entry_priced_at','entry_received_at'].every(k=>l[k]!==null&&observerStamp(l[k]))
+    &&observerPositive(l.mark_price)&&observerNonnegative(l.notional_usdt)&&observerNumber(l.unrealized_pnl_usdt)
+    &&observerStamp(l.priced_at)&&observerStamp(l.received_at)&&['FRESH','STALE'].includes(l.state)
+    &&(l.state!=='FRESH'||l.mark_price!==null&&l.notional_usdt!==null&&l.priced_at!==null&&l.received_at!==null)
+    &&(l.state!=='STALE'||['mark_price','notional_usdt','unrealized_pnl_usdt','priced_at','received_at'].every(k=>l[k]===null));
+  const positionFields=['id','strategy','instrument','opened_at','collateral_usdt','entry_fees_usdt',
+    'entry_slippage_usdt','funding_usdt','risk_budget_usdt','hedge_atomic','environment','state','mark_complete',
+    'gross_exposure_usdt','net_exposure_usdt','unrealized_pnl_usdt','net_pnl_usdt','estimated_exit_cost_usdt','legs'];
+  const position=p=>exactKeys(p,positionFields)&&id(p.id)&&strategies.includes(p.strategy)&&instrument(p.instrument)
+    &&p.opened_at!==null&&observerStamp(p.opened_at)&&p.hedge_atomic===false&&p.environment==='SHADOW'
+    &&['FRESH','UNPRICED'].includes(p.state)&&typeof p.mark_complete==='boolean'
+    &&['collateral_usdt','entry_fees_usdt','entry_slippage_usdt','risk_budget_usdt','gross_exposure_usdt','estimated_exit_cost_usdt'].every(k=>observerNonnegative(p[k]))
+    &&['funding_usdt','net_exposure_usdt','unrealized_pnl_usdt','net_pnl_usdt'].every(k=>observerNumber(p[k]))
+    &&Array.isArray(p.legs)&&p.legs.length===2&&p.legs.every(leg)
+    &&(p.state==='FRESH'?p.mark_complete===true&&p.legs.every(l=>l.state==='FRESH')
+      :p.mark_complete===false&&['gross_exposure_usdt','net_exposure_usdt','unrealized_pnl_usdt','net_pnl_usdt','estimated_exit_cost_usdt'].every(k=>p[k]===null))
+    &&(p.strategy!=='FUNDING_CARRY'||p.legs[0].venue==='SPOT_REFERENCE'&&p.legs[0].direction==='LONG'
+      &&p.legs[1].venue==='FUTURES_REFERENCE'&&p.legs[1].direction==='SHORT'
+      &&p.legs.every(l=>l.symbol===p.instrument)
+      &&Math.abs(p.legs[0].quantity-p.legs[1].quantity)<=Math.max(p.legs[0].quantity,p.legs[1].quantity)*1e-10);
+  const signal=s=>exactKeys(s,['instrument','action','reason','at','qualification','metrics'])&&instrument(s.instrument)
+    &&['WAIT','REJECT','OPEN_SHADOW','HOLD','CLOSE_SHADOW'].includes(s.action)&&text(s.reason)
+    &&s.at!==null&&observerStamp(s.at)&&(s.qualification===null||text(s.qualification))&&metrics(s.metrics);
+  const decision=d=>keys(d,['id','strategy','instrument','at','action','reason','environment','rule_version',
+      'qualification','available_at_decision','metrics'])
+    &&['id','strategy','instrument','at','action','reason','environment','rule_version','available_at_decision'].every(k=>Object.hasOwn(d,k))
+    &&id(d.id)&&strategies.includes(d.strategy)&&instrument(d.instrument)&&d.environment==='SHADOW'
+    &&d.rule_version==='quant-shadow-v1'&&d.at!==null&&observerStamp(d.at)
+    &&['WAIT','REJECT','OPEN_SHADOW','HOLD','CLOSE_SHADOW'].includes(d.action)&&text(d.reason)
+    &&(!Object.hasOwn(d,'qualification')||d.qualification===null||text(d.qualification))
+    &&(!Object.hasOwn(d,'metrics')||metrics(d.metrics))
+    &&exactKeys(d.available_at_decision,['observation_cutoff','aligned_observations','source_digest','hypotheses_digest'])
+    &&d.available_at_decision.observation_cutoff!==null&&observerStamp(d.available_at_decision.observation_cutoff)
+    &&Date.parse(d.available_at_decision.observation_cutoff)<=Date.parse(d.at)
+    &&count(d.available_at_decision.aligned_observations)&&id(d.available_at_decision.source_digest)&&id(d.available_at_decision.hypotheses_digest);
+  const market=m=>exactKeys(m,['symbol','state','spot_price','futures_price','basis_bps','observed_funding_rate',
+      'next_funding_at','funding_interval_seconds','at','received_at'])&&symbols.includes(m.symbol)
+    &&['FRESH','UNAVAILABLE'].includes(m.state)&&observerPositive(m.spot_price)&&observerPositive(m.futures_price)
+    &&observerNumber(m.basis_bps)&&observerNumber(m.observed_funding_rate)&&observerPositive(m.funding_interval_seconds)
+    &&['next_funding_at','at','received_at'].every(k=>observerStamp(m[k]));
+  const funding=f=>exactKeys(f,['id','position_id','symbol','funding_at','received_at','rate','mark_price',
+      'quantity','simulated_cashflow_usdt','environment','state'])&&id(f.id)&&id(f.position_id)&&symbols.includes(f.symbol)
+    &&f.funding_at!==null&&observerStamp(f.funding_at)&&f.received_at!==null&&observerStamp(f.received_at)
+    &&Date.parse(f.funding_at)<=Date.parse(f.received_at)&&typeof f.rate==='number'&&Number.isFinite(f.rate)
+    &&typeof f.mark_price==='number'&&f.mark_price>0&&Number.isFinite(f.mark_price)
+    &&typeof f.quantity==='number'&&f.quantity>0&&Number.isFinite(f.quantity)
+    &&typeof f.simulated_cashflow_usdt==='number'&&Number.isFinite(f.simulated_cashflow_usdt)
+    &&f.environment==='SHADOW'&&f.state==='SETTLED_SIMULATION';
+  const journal=j=>keys(j,['id','at','kind','position_id','decision_id','reason','simulated_loss_usdt',
+      'stress_costs_usdt','fees_usdt','slippage_usdt'])
+    &&['id','at','kind'].every(k=>Object.hasOwn(j,k))&&typeof j.id==='string'&&/^[A-Za-z0-9_:+.-]{1,80}$/.test(j.id)
+    &&j.at!==null&&observerStamp(j.at)&&['COHORT_STARTED','PAIR_OPENED_SIMULATION','PAIR_CLOSED_SIMULATION',
+      'FUNDING_SETTLED_SIMULATION','PAUSE_CHANGED','LEG_FAILURE_UNWIND_SIMULATION','EXIT_WAIT_FOR_FRESH_LEGS',
+      'RISK_BASELINE_OBSERVED','ENTRY_LOSS_HALT','MARGIN_STRESS_COST_SIMULATION'].includes(j.kind)
+    &&['position_id','decision_id'].every(k=>!Object.hasOwn(j,k)||j[k]===null||id(j[k]))
+    &&(!Object.hasOwn(j,'reason')||j.reason===null||text(j.reason))
+    &&['simulated_loss_usdt','stress_costs_usdt','fees_usdt','slippage_usdt'].every(k=>!Object.hasOwn(j,k)||observerNonnegative(j[k]));
+  const haltPeriod=(p,maximum)=>exactKeys(p,['period_start','baseline_at','baseline_equity','return_pct','limit_pct','halted','resets_at'])
+    &&p.period_start!==null&&observerStamp(p.period_start)&&observerStamp(p.baseline_at)
+    &&observerPositive(p.baseline_equity)&&observerNumber(p.return_pct)
+    &&typeof p.limit_pct==='number'&&Number.isFinite(p.limit_pct)&&p.limit_pct>0&&p.limit_pct<=maximum
+    &&typeof p.halted==='boolean'&&p.resets_at!==null&&observerStamp(p.resets_at)
+    &&Date.parse(p.period_start)<Date.parse(p.resets_at)
+    &&(p.baseline_at===null||Date.parse(p.baseline_at)>=Date.parse(p.period_start)&&Date.parse(p.baseline_at)<Date.parse(p.resets_at));
+  assert(exactKeys(q,[...base,'last_evaluation','paused','market','funding','decisions','journal','limits',
+      'sources','health','data_quality','benchmarks','limitations','risk_halt'])&&q.initialized===true
+    &&['SHADOW','PAUSED','DEGRADED'].includes(q.state)&&typeof q.enabled==='boolean'&&typeof q.controls_available==='boolean'
+    &&typeof q.paused==='boolean'&&(!q.controls_available||q.enabled)
+    &&observerStamp(q.updated_at)&&observerStamp(q.last_evaluation)
+    &&exactKeys(q.freshness,['state','age_seconds'])&&['FRESH','STALE','UNAVAILABLE'].includes(q.freshness.state)
+    &&observerNonnegative(q.freshness.age_seconds)&&performance(q.performance)
+    &&(q.freshness.state!=='FRESH'||q.updated_at!==null&&q.freshness.age_seconds!==null&&q.freshness.age_seconds<=90)
+    &&(q.freshness.state==='FRESH'||['equity','cash','collateral_usdt','gross_exposure_usdt','net_pnl','return_pct'].every(k=>q.performance[k]===null))
+    &&exactKeys(q.limits,['gross_usdt','risk_per_trade_fraction','max_positions','stale_seconds','evaluation_interval_seconds'])
+    &&observerNonnegative(q.limits.gross_usdt)&&typeof q.limits.risk_per_trade_fraction==='number'
+    &&q.limits.risk_per_trade_fraction>0&&q.limits.risk_per_trade_fraction<=.0025
+    &&Number.isSafeInteger(q.limits.max_positions)&&q.limits.max_positions>=1&&q.limits.max_positions<=2
+    &&q.limits.stale_seconds===90&&q.limits.evaluation_interval_seconds===60
+    &&exactKeys(q.risk_halt,['state','at','method','daily','weekly'])
+    &&['READY','HALTED','UNKNOWN'].includes(q.risk_halt.state)&&q.risk_halt.at!==null&&observerStamp(q.risk_halt.at)
+    &&q.risk_halt.method==='FIRST_VALID_LEDGER_EQUITY_WITHIN_UTC_PERIOD'
+    &&haltPeriod(q.risk_halt.daily,1)&&haltPeriod(q.risk_halt.weekly,2)
+    &&Array.isArray(q.positions)&&q.positions.length<=2&&q.positions.every(position)&&new Set(q.positions.map(p=>p.id)).size===q.positions.length
+    &&Array.isArray(q.market)&&q.market.length<=3&&q.market.every(market)&&new Set(q.market.map(m=>m.symbol)).size===q.market.length
+    &&Array.isArray(q.decisions)&&q.decisions.length<=12&&q.decisions.every(decision)
+    &&Array.isArray(q.journal)&&q.journal.length<=12&&q.journal.every(journal)
+    &&Array.isArray(q.funding)&&q.funding.length<=10&&q.funding.every(funding)&&new Set(q.funding.map(f=>f.id)).size===q.funding.length,error);
+  assert(Array.isArray(q.strategies)&&q.strategies.length===2&&q.strategies.every((s,i)=>
+      exactKeys(s,['id','state','performance','signals'])&&s.id===strategies[i]&&['OBSERVING','UNAVAILABLE'].includes(s.state)
+      &&exactKeys(s.performance,['closed_trades','net_pnl_usdt','simulated_funding_usdt','costs_usdt'])
+      &&count(s.performance.closed_trades)&&observerNumber(s.performance.net_pnl_usdt)
+      &&observerNumber(s.performance.simulated_funding_usdt)&&observerNonnegative(s.performance.costs_usdt)
+      &&Array.isArray(s.signals)&&s.signals.length<=6&&s.signals.every(signal))
+    &&Array.isArray(q.sources)&&q.sources.length<=12&&q.sources.every(s=>exactKeys(s,['id','state','error','at'])
+      &&typeof s.id==='string'&&/^[A-Z0-9_]{1,32}$/.test(s.id)&&['READY','ERROR','BACKOFF'].includes(s.state)
+      &&(s.error===null||text(s.error))&&observerStamp(s.at))
+    &&keys(q.health,['errors','last_error','last_error_at','last_success_at','calls','backoff_until','max_calls_per_minute'])
+    &&['errors','calls'].every(k=>!Object.hasOwn(q.health,k)||count(q.health[k]))
+    &&(!Object.hasOwn(q.health,'last_error')||q.health.last_error===null||text(q.health.last_error))
+    &&['last_error_at','last_success_at'].every(k=>!Object.hasOwn(q.health,k)||observerStamp(q.health[k]))
+    &&(!Object.hasOwn(q.health,'backoff_until')||observerNonnegative(q.health.backoff_until))
+    &&(!Object.hasOwn(q.health,'max_calls_per_minute')||q.health.max_calls_per_minute===15)
+    &&exactKeys(q.data_quality,['market','funding','execution','statistical_qualification'])
+    &&['COMPLETE','PARTIAL'].includes(q.data_quality.market)
+    &&['PENDING_AUTHORITATIVE_EVENTS','COMPLETE_OBSERVED_SCHEDULE'].includes(q.data_quality.funding)
+    &&q.data_quality.execution==='SIMULATED_NON_ATOMIC'&&q.data_quality.statistical_qualification==='EXPLORATORY_SCREEN_ONLY'
+    &&Array.isArray(q.benchmarks)&&q.benchmarks.length<=3&&q.benchmarks.every(b=>exactKeys(b,
+      ['symbol','started_at','buy_hold_return_pct','cash_return_pct','method'])&&symbols.includes(b.symbol)
+      &&observerStamp(b.started_at)&&observerNumber(b.buy_hold_return_pct)&&observerNumber(b.cash_return_pct)
+      &&b.method==='CONTEMPORANEOUS_SPOT_MID_GROSS_NO_COSTS_NOT_STRATEGY_NET_COMPARABLE')
+    &&Array.isArray(q.limitations)&&q.limitations.length<=12&&q.limitations.every(text)
+    &&encoder.encode(JSON.stringify(q)).length<20000,error);
 }
-function validatePortfolioGuardian(g){
+function validatePortfolioGuardian(g,quant){
   const error='Invalid Portfolio Guardian status';
   const native=['ARMED','PENDING','ERROR','UNAVAILABLE','RECONCILING','UNKNOWN','NOT_APPLICABLE'];
   const scopeFields=['id','engine','environment','inventory_scope','state','position_count','unpriced_positions',
@@ -102,7 +256,7 @@ function validatePortfolioGuardian(g){
     &&new Set(s.assets.map(a=>a.symbol)).size===s.assets.length&&observerCount(s.assets_omitted)
     &&(s.position_count===null?s.assets.length===0:s.assets.length+s.assets_omitted<=s.position_count)
     &&(s.unpriced_positions===null||s.position_count!==null&&s.unpriced_positions<=s.position_count)
-    &&(s.id!=='QUANT_ARBITRAGE'||s.state==='NOT_STARTED'&&s.position_count===null&&s.unpriced_positions===null
+    &&(s.id!=='QUANT_ARBITRAGE'||quant?.initialized===true||['NOT_STARTED','UNAVAILABLE'].includes(s.state)&&s.position_count===null&&s.unpriced_positions===null
       &&['gross_usdt','net_usdt','known_gross_usdt','known_net_usdt','nominal_stop_risk_usdt'].every(k=>s[k]===null)
       &&['equity_usdt','cash_usdt','available_usdt','at'].every(k=>s.capital[k]===null)&&s.capital.state==='UNKNOWN'
       &&Object.values(s.limits).every(v=>v===null)&&Object.values(s.observed_budget).every(v=>v===null));
@@ -260,10 +414,11 @@ async function readBody(request, maximum = 65536) {
 }
 function validateSnapshot(snapshot) {
   assert(object(snapshot) && ['PAPER','TESTNET'].includes(snapshot.mode), 'Trading snapshot required');
-  const allowed = ['mode','equity','cash','exposure','positions','killed','last_cycle_at','ai_model','installed_version','update_state','dashboard','bot_update','bot_restore','paper_controls','operations_controls'];
+  const allowed = ['mode','equity','cash','exposure','positions','killed','last_cycle_at','ai_model','installed_version','update_state','dashboard','bot_update','bot_restore','paper_controls','operations_controls','quant_controls'];
   assert(Object.keys(snapshot).every(k => allowed.includes(k)), 'Unknown snapshot field');
   if(snapshot.paper_controls!==undefined)assert(snapshot.paper_controls===true,'Invalid PAPER capability');
   if(snapshot.operations_controls!==undefined)assert(snapshot.operations_controls===true,'Invalid controls capability');
+  if(snapshot.quant_controls!==undefined)assert(snapshot.quant_controls===true,'Invalid Quant capability');
   for (const key of ['equity', 'cash', 'exposure']) {
     assert(snapshot[key] === null || (typeof snapshot[key] === 'number' && Number.isFinite(snapshot[key]) && snapshot[key] >= 0), 'Invalid balance');
   }
@@ -325,9 +480,9 @@ function validateSnapshot(snapshot) {
     }
     assert(Object.keys(d).every(k=>['status','positions','equity','trades','reviews','events','risk','research','research_state','testnet','testnet_execution','updates','paper_scorecard','futures_forward','market_pulse','portfolio_guardian','quant','engine_catalog'].includes(k)), 'Unknown dashboard field');
     if(d.market_pulse!==undefined)validateMarketPulse(d.market_pulse);
-    if(d.portfolio_guardian!==undefined)validatePortfolioGuardian(d.portfolio_guardian);
     if(d.quant!==undefined)validateQuantArbitrage(d.quant);
-    if(d.engine_catalog!==undefined)validateEngineCatalog(d.engine_catalog,d.status.mode);
+    if(d.portfolio_guardian!==undefined)validatePortfolioGuardian(d.portfolio_guardian,d.quant);
+    if(d.engine_catalog!==undefined)validateEngineCatalog(d.engine_catalog,d.status.mode,d.quant);
     if(d.testnet_execution!==undefined){
       const x=d.testnet_execution;
       assert(object(x)&&x.mode==='SPOT_TESTNET'&&Array.isArray(x.orders)&&x.orders.length<=5&&
@@ -487,12 +642,14 @@ const futuresForwardPauseStored = "action='research' AND substr(COALESCE(release
 const futuresForwardResumeStored = "action='research' AND substr(COALESCE(release_id,''),1,length('futures_forward_resume:'))='futures_forward_resume:'";
 const marketPulsePauseStored = "action='research' AND substr(COALESCE(release_id,''),1,length('market_pulse_pause:'))='market_pulse_pause:'";
 const marketPulseResumeStored = "action='research' AND substr(COALESCE(release_id,''),1,length('market_pulse_resume:'))='market_pulse_resume:'";
+const quantPauseStored = "action='research' AND substr(COALESCE(release_id,''),1,length('quant_arbitrage_pause:'))='quant_arbitrage_pause:'";
+const quantResumeStored = "action='research' AND substr(COALESCE(release_id,''),1,length('quant_arbitrage_resume:'))='quant_arbitrage_resume:'";
 const testBuyStored = "action='research' AND substr(COALESCE(release_id,''),1,12)='testnet_buy:'";
 const testCloseStored = "action='research' AND substr(COALESCE(release_id,''),1,14)='testnet_close:'";
 const testReconcileStored = "action='research' AND substr(COALESCE(release_id,''),1,18)='testnet_reconcile:'";
 const testAuditStored = "action='research' AND substr(COALESCE(release_id,''),1,14)='testnet_audit:'";
-const paperStored = `(${closeStored} OR ${riskStored} OR ${modelStored} OR ${restartStored} OR ${executionModeStored} OR ${testnetSmokeStored} OR ${futuresCheckStored} OR ${futuresSmokeStored} OR ${futuresReconcileStored} OR ${futuresForwardPauseStored} OR ${futuresForwardResumeStored} OR ${marketPulsePauseStored} OR ${marketPulseResumeStored} OR ${testBuyStored} OR ${testCloseStored} OR ${testReconcileStored} OR ${testAuditStored})`;
-const jobAction = `CASE WHEN ${closeStored} THEN 'paper_close' WHEN ${riskStored} THEN 'risk_profile' WHEN ${modelStored} THEN 'ai_model' WHEN ${restartStored} THEN 'restart_engine' WHEN ${executionModeStored} THEN 'execution_mode' WHEN ${testnetSmokeStored} THEN 'testnet_smoke' WHEN ${futuresCheckStored} THEN 'futures_testnet_check' WHEN ${futuresSmokeStored} THEN 'futures_testnet_smoke' WHEN ${futuresReconcileStored} THEN 'futures_testnet_reconcile' WHEN ${futuresForwardPauseStored} THEN 'futures_forward_pause' WHEN ${futuresForwardResumeStored} THEN 'futures_forward_resume' WHEN ${marketPulsePauseStored} THEN 'market_pulse_pause' WHEN ${marketPulseResumeStored} THEN 'market_pulse_resume' WHEN ${testBuyStored} THEN 'testnet_buy' WHEN ${testCloseStored} THEN 'testnet_close' WHEN ${testReconcileStored} THEN 'testnet_reconcile' WHEN ${testAuditStored} THEN 'testnet_audit' WHEN ${restoreStored} THEN 'update_restore' ELSE action END`;
+const paperStored = `(${closeStored} OR ${riskStored} OR ${modelStored} OR ${restartStored} OR ${executionModeStored} OR ${testnetSmokeStored} OR ${futuresCheckStored} OR ${futuresSmokeStored} OR ${futuresReconcileStored} OR ${futuresForwardPauseStored} OR ${futuresForwardResumeStored} OR ${marketPulsePauseStored} OR ${marketPulseResumeStored} OR ${quantPauseStored} OR ${quantResumeStored} OR ${testBuyStored} OR ${testCloseStored} OR ${testReconcileStored} OR ${testAuditStored})`;
+const jobAction = `CASE WHEN ${closeStored} THEN 'paper_close' WHEN ${riskStored} THEN 'risk_profile' WHEN ${modelStored} THEN 'ai_model' WHEN ${restartStored} THEN 'restart_engine' WHEN ${executionModeStored} THEN 'execution_mode' WHEN ${testnetSmokeStored} THEN 'testnet_smoke' WHEN ${futuresCheckStored} THEN 'futures_testnet_check' WHEN ${futuresSmokeStored} THEN 'futures_testnet_smoke' WHEN ${futuresReconcileStored} THEN 'futures_testnet_reconcile' WHEN ${futuresForwardPauseStored} THEN 'futures_forward_pause' WHEN ${futuresForwardResumeStored} THEN 'futures_forward_resume' WHEN ${marketPulsePauseStored} THEN 'market_pulse_pause' WHEN ${marketPulseResumeStored} THEN 'market_pulse_resume' WHEN ${quantPauseStored} THEN 'quant_arbitrage_pause' WHEN ${quantResumeStored} THEN 'quant_arbitrage_resume' WHEN ${testBuyStored} THEN 'testnet_buy' WHEN ${testCloseStored} THEN 'testnet_close' WHEN ${testReconcileStored} THEN 'testnet_reconcile' WHEN ${testAuditStored} THEN 'testnet_audit' WHEN ${restoreStored} THEN 'update_restore' ELSE action END`;
 const jobRelease = `CASE WHEN ${restoreStored} THEN substr(release_id,9) ELSE release_id END`;
 function results(batch, index) { return batch[index]?.results || []; }
 function newerVersion(candidate,installed){
@@ -750,7 +907,7 @@ export async function handle(request, env, now = Math.floor(Date.now() / 1000)) 
   if(path==='/v1/paper-controls'&&method==='POST'){
     const body=await readBody(request,1024);
     assert(Object.keys(body).sort().join(',')==='action,payload,request_id'&&
-      ['risk_profile','paper_close','ai_model','restart_engine','execution_mode','testnet_smoke','futures_testnet_check','futures_testnet_smoke','futures_testnet_reconcile','futures_forward_pause','futures_forward_resume','market_pulse_pause','market_pulse_resume'].includes(body.action)&&
+      ['risk_profile','paper_close','ai_model','restart_engine','execution_mode','testnet_smoke','futures_testnet_check','futures_testnet_smoke','futures_testnet_reconcile','futures_forward_pause','futures_forward_resume','market_pulse_pause','market_pulse_resume','quant_arbitrage_pause','quant_arbitrage_resume'].includes(body.action)&&
       typeof body.request_id==='string'&&/^[A-Za-z0-9_-]{16,100}$/.test(body.request_id)&&object(body.payload),'Invalid PAPER request');
     if(body.action==='risk_profile'){
       assert(Object.keys(body.payload).join(',')==='profile'&&
@@ -760,7 +917,7 @@ export async function handle(request, env, now = Math.floor(Date.now() / 1000)) 
         ['gpt-5.6-luna','gpt-6-luna'].includes(body.payload.model),'Invalid model selection');
     }else if(body.action==='execution_mode'){
       assert(Object.keys(body.payload).join(',')==='mode'&&['paper','testnet'].includes(body.payload.mode),'Invalid execution mode');
-    }else if(['restart_engine','testnet_smoke','futures_testnet_check','futures_testnet_reconcile','futures_forward_pause','futures_forward_resume','market_pulse_pause','market_pulse_resume'].includes(body.action)){
+    }else if(['restart_engine','testnet_smoke','futures_testnet_check','futures_testnet_reconcile','futures_forward_pause','futures_forward_resume','market_pulse_pause','market_pulse_resume','quant_arbitrage_pause','quant_arbitrage_resume'].includes(body.action)){
       assert(Object.keys(body.payload).length===0,'Invalid operational request');
     }else if(body.action==='futures_testnet_smoke'){
       assert(Object.keys(body.payload).sort().join(',')==='direction,leverage'&&
@@ -787,11 +944,12 @@ export async function handle(request, env, now = Math.floor(Date.now() / 1000)) 
           (?!='testnet_smoke' OR json_extract(payload,'$.mode')='TESTNET') AND
           (? NOT IN ('futures_testnet_check','futures_testnet_smoke','futures_testnet_reconcile','futures_forward_pause','futures_forward_resume') OR json_extract(payload,'$.mode')='TESTNET') AND
           (? NOT IN ('market_pulse_pause','market_pulse_resume') OR (json_extract(payload,'$.dashboard.market_pulse.enabled')=1 AND json_extract(payload,'$.dashboard.market_pulse.controls_available')=1 AND json_extract(payload,'$.dashboard.market_pulse.mode')='SHADOW')) AND
+          (? NOT IN ('quant_arbitrage_pause','quant_arbitrage_resume') OR (json_extract(payload,'$.quant_controls')=1 AND json_extract(payload,'$.dashboard.quant.enabled')=1 AND json_extract(payload,'$.dashboard.quant.initialized')=1 AND json_extract(payload,'$.dashboard.quant.controls_available')=1 AND json_extract(payload,'$.dashboard.quant.mode')='SHADOW' AND json_extract(payload,'$.dashboard.quant.execution_enabled')=0)) AND
           (?!='paper_close' OR EXISTS(SELECT 1 FROM json_each(payload,'$.dashboard.positions')
            WHERE json_extract(value,'$.symbol')=? AND json_extract(value,'$.opened_at')=?)))
         AND NOT EXISTS(SELECT 1 FROM jobs WHERE status IN ('pending','running'))
         ON CONFLICT(request_id) DO NOTHING`,body.request_id,storedRelease,now,now+300,now-120,
-          body.action,body.action,body.action,body.action,body.action,body.action,body.payload.symbol??'',body.payload.opened_at??''),
+          body.action,body.action,body.action,body.action,body.action,body.action,body.action,body.payload.symbol??'',body.payload.opened_at??''),
       statement(db,`SELECT id,${jobAction} AS action,release_id,status FROM jobs WHERE request_id=?`,body.request_id),
     ]);
     const row=results(batch,2)[0];

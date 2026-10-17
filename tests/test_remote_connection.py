@@ -168,11 +168,82 @@ class RemoteConnectionTests(unittest.TestCase):
                     self.agent.sync()
                 self.assertEqual(len(requests), 2)
                 final = requests[-1]['snapshot']
-                self.assertNotIn(field, final['dashboard'])
+                for optional in ('portfolio_guardian', 'quant', 'engine_catalog'):
+                    self.assertNotIn(optional, final['dashboard'])
                 self.assertIn('futures_forward', final['dashboard'])
                 self.assertIn('market_pulse', final['dashboard'])
                 self.assertEqual(final['bot_update']['version'], '0.10.35')
                 self.assertEqual(self.agent.last_error, 'DASHBOARD_REJECTED:' + label)
+
+    def test_previous_worker_multiple_coupled_schema_rejections_need_only_one_retry(self):
+        Database(self.config.bot.database_path)
+        self.agent.dashboard_provider = lambda: {'status': {'mode': 'PAPER'},
+            'positions': [], 'futures_forward': {'killed': False}, 'market_pulse': {'mode': 'SHADOW'},
+            'portfolio_guardian': {'mode': 'OBSERVER', 'scopes': [{'id': 'QUANT_ARBITRAGE', 'state': 'FRESH'}]},
+            'quant': {'mode': 'SHADOW', 'state': 'SHADOW'},
+            'engine_catalog': [{'id': 'QUANT_ARBITRAGE', 'state': 'OBSERVED_EXTERNALLY'}]}
+        self.agent.update_provider = lambda: {'version': '0.10.37', 'enabled': True}
+        self.agent.jobs = Mock()
+        self.agent.jobs.results.return_value = [{'id': 7, 'status': 'completed'}]
+        requests = []
+        def send(request, timeout):
+            body = json.loads(request.data)
+            requests.append(body)
+            dashboard = body['snapshot']['dashboard']
+            # A real old receiver would reject each incompatible field in turn.
+            for field, label in (('portfolio_guardian', 'Invalid Portfolio Guardian status'),
+                                 ('quant', 'Invalid Quant Arbitrage status'),
+                                 ('engine_catalog', 'Invalid engine catalog')):
+                if field in dashboard:
+                    raise urllib.error.HTTPError(request.full_url, 400, 'Bad Request', {},
+                        io.BytesIO(json.dumps({'error': label}).encode()))
+            return io.BytesIO(b'{"commands":[],"jobs":[]}')
+        with patch.object(self.agent.opener, 'open', side_effect=send):
+            self.agent.sync()
+        self.assertEqual(len(requests), 2)
+        self.assertEqual(set(requests[-1]['snapshot']['dashboard']),
+                         {'status', 'positions', 'futures_forward', 'market_pulse'})
+        self.assertEqual(requests[-1]['snapshot']['bot_update']['version'], '0.10.37')
+        self.assertEqual(requests[-1]['job_results'], [{'id': 7, 'status': 'completed'}])
+
+    def test_previous_worker_unknown_quant_capability_drops_coupled_fields_once(self):
+        Database(self.config.bot.database_path)
+        self.agent.paper_controls = Mock(available=True, quant_available=True)
+        self.agent.paper_controls.results.return_value = []
+        self.agent.dashboard_provider = lambda: {'status': {'mode': 'PAPER'},
+            'futures_forward': {}, 'market_pulse': {}, 'quant': {'state': 'SHADOW'},
+            'portfolio_guardian': {}, 'engine_catalog': []}
+        requests = []
+        def send(request, timeout):
+            body = json.loads(request.data)
+            requests.append(body)
+            if 'quant_controls' in body['snapshot']:
+                raise urllib.error.HTTPError(request.full_url, 400, 'Bad Request', {},
+                    io.BytesIO(b'{"error":"Unknown snapshot field"}'))
+            self.assertEqual(set(body['snapshot']['dashboard']),
+                             {'status', 'futures_forward', 'market_pulse'})
+            return io.BytesIO(b'{"commands":[],"jobs":[]}')
+        with patch.object(self.agent.opener, 'open', side_effect=send):
+            self.agent.sync()
+        self.assertEqual(len(requests), 2)
+        self.assertIs(requests[0]['snapshot']['quant_controls'], True)
+        self.assertNotIn('quant_controls', requests[1]['snapshot'])
+        self.assertTrue(requests[1]['snapshot']['operations_controls'])
+        self.assertTrue(requests[1]['snapshot']['paper_controls'])
+
+    def test_quant_capability_requires_literal_implemented_property(self):
+        Database(self.config.bot.database_path)
+        for capability in (False, None, Mock(), True):
+            with self.subTest(capability=capability):
+                self.agent.paper_controls = Mock(available=True, quant_available=capability)
+                self.agent.paper_controls.results.return_value = []
+                calls = []
+                def send(request, timeout):
+                    calls.append(json.loads(request.data))
+                    return io.BytesIO(b'{"commands":[],"jobs":[]}')
+                with patch.object(self.agent.opener, 'open', side_effect=send):
+                    self.agent.sync()
+                self.assertEqual('quant_controls' in calls[0]['snapshot'], capability is True)
 
     def test_previous_worker_unknown_field_omits_only_new_observer_contracts(self):
         Database(self.config.bot.database_path)

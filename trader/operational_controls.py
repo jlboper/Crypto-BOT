@@ -52,7 +52,7 @@ def _execution_file(source: Path, mode: str) -> None:
 
 def execute(source: Path, action: str, payload: dict) -> dict:
     source = source.resolve(strict=True)
-    if not isinstance(payload, dict) or action not in {'ai_model', 'restart_engine', 'execution_mode', 'testnet_smoke', 'futures_testnet_check', 'futures_testnet_smoke', 'futures_testnet_reconcile', 'futures_forward_pause', 'futures_forward_resume', 'market_pulse_pause', 'market_pulse_resume'}:
+    if not isinstance(payload, dict) or action not in {'ai_model', 'restart_engine', 'execution_mode', 'testnet_smoke', 'futures_testnet_check', 'futures_testnet_smoke', 'futures_testnet_reconcile', 'futures_forward_pause', 'futures_forward_resume', 'market_pulse_pause', 'market_pulse_resume', 'quant_arbitrage_pause', 'quant_arbitrage_resume'}:
         raise ValueError('Unknown operational control')
     if action == 'ai_model':
         if set(payload) != {'model'} or payload['model'] not in MODELS:
@@ -60,7 +60,7 @@ def execute(source: Path, action: str, payload: dict) -> dict:
     elif action == 'execution_mode':
         if set(payload) != {'mode'} or payload['mode'] not in EXECUTION_MODES:
             raise ValueError('Unknown execution mode')
-    elif action in {'restart_engine', 'testnet_smoke', 'futures_testnet_check', 'futures_testnet_reconcile', 'futures_forward_pause', 'futures_forward_resume', 'market_pulse_pause', 'market_pulse_resume'} and payload:
+    elif action in {'restart_engine', 'testnet_smoke', 'futures_testnet_check', 'futures_testnet_reconcile', 'futures_forward_pause', 'futures_forward_resume', 'market_pulse_pause', 'market_pulse_resume', 'quant_arbitrage_pause', 'quant_arbitrage_resume'} and payload:
         raise ValueError('Operational action does not accept parameters')
     elif action == 'futures_testnet_smoke':
         if set(payload) != {'direction','leverage'} or payload['direction'] not in {'LONG','SHORT'} or payload['leverage'] not in {1,2,3}:
@@ -69,6 +69,19 @@ def execute(source: Path, action: str, payload: dict) -> dict:
     config = load_config(source / 'config.toml')
     if config.bot.mode not in EXECUTION_MODES:
         raise ValueError('Supported trading motor required')
+    if action in {'quant_arbitrage_pause', 'quant_arbitrage_resume'}:
+        if not config.quant_arbitrage.enabled or config.quant_arbitrage.mode != 'SHADOW':
+            raise ValueError('Quant SHADOW observer required')
+        from .quant_shadow import pause_quant
+        with single_instance(source / 'data/update-supervisor.lock'):
+            if RuntimeControl(config.bot.database_path.parent).maintenance.exists():
+                raise ValueError('Maintenance already in progress')
+            paused = action == 'quant_arbitrage_pause'
+            if not paused and config.quant_arbitrage.kill_switch_path and config.quant_arbitrage.kill_switch_path.exists():
+                raise ValueError('Local Quant kill switch requires local release')
+            if not pause_quant(config.bot.database_path.parent, paused):
+                raise ValueError('Quant ledger has not been initialized')
+        return {'ok': True, 'quant': {'mode': 'SHADOW', 'paused': paused}, 'mode': config.bot.mode}
     if action in {'market_pulse_pause', 'market_pulse_resume'}:
         # This branch runs in installed bot code, never in the independent agent.
         # A Pulse pause leaves Spot/Futures reconciliation and protection running.

@@ -1,3 +1,33 @@
+# 0.10.37 — Quant Shadow funcional y evidencia de dos piernas (en preparación)
+
+- Servicio Quant opcional dentro del proceso supervisado, ledger virtual SQLite,
+  journal, fuentes contemporáneas, recuperación/idempotencia y pausa propia.
+  Binance público BTC/ETH/SOL de referencia, sin claves, cuentas u órdenes.
+- Funding Carry puede simular Spot LONG/Futures SHORT tras filtros de costes,
+  liquidez, basis, timing, funding histórico, colateral y estrés. Dos piernas con
+  comisiones/deslizamiento y fallo/unwind conservador; no cobertura atómica.
+  Proyección condicional y asiento histórico `SETTLED_SIMULATION` son distintos;
+  falta de eventos vencidos verificables deja equity/P&L/estadísticas desconocidos.
+- Capital virtual inicial 1,000 USDT, hasta dos pares/cuatro piernas; riesgo
+  estimado 0.25% y exposición 15% subordinados a límites globales. Bloqueos propios
+  de nuevas entradas 1% diario/2% semanal, referencia primera equity válida del
+  período UTC. Pausas y bloqueos conservan salidas protectoras hipotéticas.
+- StatArb genera diagnósticos exploratorios y WAIT/REJECT; entradas bloqueadas
+  hasta calibración independiente. Replay de fuentes congeladas limita el corte
+  temporal, sin afirmar backtest válido, rentabilidad o evidencia OOS independiente.
+- Portal compartido y Windows muestran Quant inicializado, pares/piernas, costes,
+  funding, decisiones/journal y salud; valores actuales se ocultan con datos
+  antiguos. Controles autenticados vía agente exigen capacidad Quant específica.
+  Badge Windows corregido a cuatro bots. Guardian conserva Observer sin veto.
+- Estrés de colateral virtual a 1x y coste conservador adicional no modelan la
+  liquidación Binance ni garantizan fills intravela. No cambian riesgos Spot/Futures,
+  credenciales o historiales previos. No se habilita ejecución Testnet/Demo/LIVE.
+- Validación local completa: 611 pruebas Python offline y 138 Node aprobadas;
+  lifecycle/vistas PowerShell 5.1, build compartido y diff-check también pasan.
+  CI Linux-Windows, publicación/firma/instalación de esta versión siguen pendientes. La predecesora
+  0.10.36 main `1bb77fad1a490472907ce29591e0b1075d3e7ba3` se verificó firmada e
+  instalada 167/167; esa evidencia no sustituye la de 0.10.37.
+
 # 0.10.34 — Diez activos, cinco fuentes y portal plegable
 
 - Market Pulse observa BTC, ETH, BNB, XRP, SOL, TRX, ZEC, HYPE, DOGE y LINK.
