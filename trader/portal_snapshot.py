@@ -453,6 +453,186 @@ def spot_observation_health(config):
         connection.close()
 
 
+QUANT_SYMBOLS = ('BTCUSDT', 'ETHUSDT', 'SOLUSDT')
+QUANT_STRATEGIES = ('FUNDING_CARRY', 'STATISTICAL_ARBITRAGE')
+QUANT_METRIC_FIELDS = frozenset(('observed_funding_rate', 'funding_interval_seconds',
+    'next_funding_at', 'spot_mid', 'futures_mid', 'mark_price', 'basis_rate',
+    'spot_spread_bps', 'futures_spread_bps', 'projected_funding_usdt',
+    'conditional_net_estimate_usdt', 'settled_funding_usdt', 'history_mean_funding_rate',
+    'history_min_funding_rate', 'history_funding_std', 'quantity_per_leg',
+    'spot_notional_usdt', 'futures_notional_usdt', 'gross_notional_usdt',
+    'conditional_funding_rate', 'projected_event_count', 'roundtrip_cost_usdt',
+    'basis_cost_reserve_usdt', 'adverse_one_event_funding_usdt', 'estimated_stress_loss_usdt',
+    'required_virtual_cash_usdt', 'virtual_collateral_usdt', 'leverage', 'hedge_ratio',
+    'hedge_drift_fraction', 'spread', 'train_spread_mean', 'train_spread_sigma', 'z_score',
+    'residual_adf_lag1_t', 'residual_adf_heuristic_threshold', 'ar1_phi',
+    'approximate_half_life_observations', 'holdout_mean_shift_sigma', 'holdout_sigma_ratio',
+    'train_return_correlation', 'holdout_return_correlation', 'recent_return_correlation',
+    'return_volatility_a', 'return_volatility_b', 'roundtrip_fee_slippage_rate',
+    'convergence_scenario_rate', 'net_convergence_scenario_rate'))
+QUANT_PERFORMANCE_FIELDS = ('initial_capital', 'equity', 'cash', 'collateral_usdt',
+    'gross_exposure_usdt', 'net_pnl', 'return_pct', 'drawdown_pct', 'closed_trades',
+    'wins', 'win_rate', 'profit_factor', 'costs_usdt', 'stress_costs_usdt',
+    'simulated_funding_usdt', 'observation_days')
+QUANT_LEG_FIELDS = ('symbol', 'venue', 'direction', 'quantity', 'entry_price',
+    'entry_reference', 'entry_fee_usdt', 'entry_priced_at', 'entry_received_at',
+    'leverage', 'margin_model', 'mark_price', 'notional_usdt', 'unrealized_pnl_usdt',
+    'priced_at', 'received_at', 'state')
+QUANT_POSITION_FIELDS = ('id', 'strategy', 'instrument', 'opened_at', 'collateral_usdt',
+    'entry_fees_usdt', 'entry_slippage_usdt', 'funding_usdt', 'risk_budget_usdt',
+    'hedge_atomic', 'environment', 'state', 'mark_complete', 'gross_exposure_usdt',
+    'net_exposure_usdt', 'unrealized_pnl_usdt', 'net_pnl_usdt', 'estimated_exit_cost_usdt')
+QUANT_MARKET_FIELDS = ('symbol', 'state', 'spot_price', 'futures_price', 'basis_bps',
+    'observed_funding_rate', 'next_funding_at', 'funding_interval_seconds', 'at', 'received_at')
+QUANT_FUNDING_FIELDS = ('id', 'position_id', 'symbol', 'funding_at', 'received_at',
+    'rate', 'mark_price', 'quantity', 'simulated_cashflow_usdt', 'environment', 'state')
+QUANT_DECISION_FIELDS = ('id', 'strategy', 'instrument', 'at', 'action', 'reason',
+    'environment', 'rule_version', 'qualification')
+
+
+def bounded_quant_projection(quant, maximum=20000):
+    """Bound historical detail; every live paired position and leg is retained."""
+    def size():
+        return len(json.dumps(quant, ensure_ascii=True, allow_nan=False, separators=(',', ':')).encode())
+    while size() >= maximum:
+        candidates = [(quant, key) for key in ('decisions', 'funding', 'journal') if quant.get(key)]
+        candidates.extend((strategy, 'signals') for strategy in quant.get('strategies', []) if strategy.get('signals'))
+        if not candidates:
+            raise ValueError('Quant safety evidence exceeds remote budget')
+        parent, key = max(candidates, key=lambda pair: len(json.dumps(pair[0][pair[1]], ensure_ascii=True)))
+        parent[key].pop()
+    return quant
+
+
+def public_quant_projection(raw):
+    """Allowlist the independent SHADOW observer; external/model strings are data."""
+    from .portfolio_guardian import quant_not_started
+    if (not isinstance(raw, dict) or raw.get('schema') != 1
+            or raw.get('engine') != 'QUANT_ARBITRAGE' or raw.get('mode') != 'SHADOW'
+            or raw.get('execution_enabled') is not False or raw.get('promotion_allowed') is not False):
+        raise ValueError('Unsafe Quant projection')
+    def scalar(value):
+        if value is None or type(value) is bool:
+            return value
+        if type(value) in (int, float):
+            if not math.isfinite(value):
+                raise ValueError('Non-finite Quant value')
+            return value
+        if isinstance(value, str):
+            return public_text(value)[:160]
+        raise ValueError('Invalid Quant scalar')
+    def pick(value, fields):
+        if not isinstance(value, dict):
+            raise ValueError('Invalid Quant object')
+        return {key: scalar(value[key]) for key in fields if key in value}
+    def rows(value, count):
+        if not isinstance(value, list) or len(value) > count:
+            raise ValueError('Unbounded Quant rows')
+        if any(not isinstance(row, dict) for row in value):
+            raise ValueError('Invalid Quant rows')
+        return value
+    def metrics(value):
+        result = pick(value, QUANT_METRIC_FIELDS)
+        if any(value is not None and type(value) not in (int, float) for value in result.values()):
+            raise ValueError('Invalid Quant numeric model evidence')
+        return result
+    if raw.get('initialized') is not True:
+        if raw.get('initialized') is not False or raw.get('state') not in {'NOT_STARTED', 'DEGRADED'}:
+            raise ValueError('Invalid Quant initialization')
+        result = quant_not_started()
+        result['at'] = scalar(raw.get('at')) or result['at']
+        if raw.get('state') == 'DEGRADED':
+            result['state'] = 'DEGRADED'
+            result['health'] = pick(raw.get('health', {}), ('last_error', 'error_type'))
+        return result
+    if raw.get('state') not in {'SHADOW', 'PAUSED', 'DEGRADED'}:
+        raise ValueError('Invalid Quant state')
+    result = pick(raw, ('schema', 'engine', 'mode', 'state', 'initialized', 'enabled',
+        'execution_enabled', 'controls_available', 'promotion_allowed', 'at', 'updated_at',
+        'last_evaluation', 'paused'))
+    if any(type(result.get(key)) is not bool for key in ('initialized', 'enabled', 'controls_available', 'paused')):
+        raise ValueError('Invalid Quant capabilities')
+    result['freshness'] = pick(raw.get('freshness'), ('state', 'age_seconds'))
+    result['performance'] = pick(raw.get('performance'), QUANT_PERFORMANCE_FIELDS)
+    result['limits'] = pick(raw.get('limits'), ('gross_usdt', 'risk_per_trade_fraction',
+        'max_positions', 'stale_seconds', 'evaluation_interval_seconds'))
+    risk_halt = raw.get('risk_halt')
+    result['risk_halt'] = pick(risk_halt, ('state', 'at', 'method'))
+    for period in ('daily', 'weekly'):
+        result['risk_halt'][period] = pick(risk_halt.get(period), ('period_start',
+            'baseline_at', 'baseline_equity', 'return_pct', 'limit_pct', 'halted', 'resets_at'))
+    result['positions'] = []
+    for row in rows(raw.get('positions'), 2):
+        item = pick(row, QUANT_POSITION_FIELDS)
+        if row.get('hedge_atomic') is not False or row.get('environment') != 'SHADOW':
+            raise ValueError('Unsafe Quant position')
+        item['legs'] = [pick(leg, QUANT_LEG_FIELDS) for leg in rows(row.get('legs'), 2)]
+        if len(item['legs']) != 2:
+            raise ValueError('Incomplete Quant pair inventory')
+        result['positions'].append(item)
+    result['market'] = [pick(row, QUANT_MARKET_FIELDS) for row in rows(raw.get('market'), 3)]
+    result['funding'] = [pick(row, QUANT_FUNDING_FIELDS) for row in rows(raw.get('funding'), 10)]
+    result['decisions'] = []
+    for row in rows(raw.get('decisions'), 12):
+        item = pick(row, QUANT_DECISION_FIELDS)
+        item['available_at_decision'] = pick(row.get('available_at_decision'),
+            ('observation_cutoff', 'aligned_observations', 'source_digest', 'hypotheses_digest'))
+        if 'metrics' in row:
+            item['metrics'] = metrics(row['metrics'])
+        result['decisions'].append(item)
+    result['journal'] = [pick(row, ('id', 'at', 'kind', 'position_id', 'decision_id',
+        'reason', 'simulated_loss_usdt', 'stress_costs_usdt', 'fees_usdt', 'slippage_usdt'))
+        for row in rows(raw.get('journal', []), 12)]
+    result['strategies'] = []
+    for row in rows(raw.get('strategies'), 2):
+        item = pick(row, ('id', 'state'))
+        item['performance'] = pick(row.get('performance'), ('closed_trades', 'net_pnl_usdt',
+            'simulated_funding_usdt', 'costs_usdt'))
+        item['signals'] = []
+        for signal in rows(row.get('signals'), 6):
+            projected = pick(signal, ('instrument', 'action', 'reason', 'at', 'qualification'))
+            projected['metrics'] = metrics(signal.get('metrics', {}))
+            item['signals'].append(projected)
+        result['strategies'].append(item)
+    result['sources'] = []
+    for row in rows(raw.get('sources'), 12):
+        item = pick(row, ('id', 'state', 'error'))
+        stamp = row.get('at')
+        item['at'] = datetime.fromtimestamp(stamp, UTC).isoformat() if type(stamp) in (int, float) and math.isfinite(stamp) else scalar(stamp)
+        result['sources'].append(item)
+    result['health'] = pick(raw.get('health'), ('errors', 'last_error', 'last_error_at',
+        'last_success_at', 'calls', 'backoff_until', 'max_calls_per_minute'))
+    result['data_quality'] = pick(raw.get('data_quality'), ('market', 'funding', 'execution', 'statistical_qualification'))
+    result['benchmarks'] = [pick(row, ('symbol', 'started_at', 'buy_hold_return_pct',
+        'cash_return_pct', 'method')) for row in rows(raw.get('benchmarks'), 3)]
+    if not isinstance(raw.get('limitations'), list) or len(raw['limitations']) > 12:
+        raise ValueError('Invalid Quant limitations')
+    result['limitations'] = [scalar(value) for value in raw['limitations']]
+    return bounded_quant_projection(result)
+
+
+def quant_projection(config):
+    """Installed-code read-only import; independent-agent modules do not import Quant."""
+    from .portfolio_guardian import quant_not_started
+    settings = getattr(config, 'quant_arbitrage', getattr(config, 'quant', None))
+    if settings is None:
+        return quant_not_started()
+    try:
+        from .quant_shadow import quant_snapshot
+        raw = quant_snapshot(config.bot.database_path.parent)
+        if raw.get('initialized') is True:
+            raw['enabled'] = settings.enabled is True and settings.mode == 'SHADOW'
+            raw['controls_available'] = raw['enabled']
+            if not raw['enabled'] or settings.kill_switch_path and settings.kill_switch_path.exists():
+                raw.update(state='PAUSED', paused=True)
+        return public_quant_projection(raw)
+    except Exception as exc:
+        result = quant_not_started()
+        result.update(state='DEGRADED', health={'last_error': 'SHADOW_LEDGER_UNAVAILABLE',
+                                              'error_type': type(exc).__name__[:80]})
+        return result
+
+
 def platform_projection(payload):
     """Optional read-only identities and diagnostics, isolated from engine views.
 
@@ -463,10 +643,11 @@ def platform_projection(payload):
         from .portfolio_guardian import (build_guardian, engine_catalog,
                                          guardian_unavailable, quant_not_started)
         now = datetime.now(UTC)
-        catalog = engine_catalog(payload)
-        quant = quant_not_started(now)
+        quant = public_quant_projection(payload['quant']) if 'quant' in payload else quant_not_started(now)
+        evidence = {**payload, 'quant': quant}
+        catalog = engine_catalog(evidence)
         try:
-            guardian = build_guardian(payload, now=now)
+            guardian = build_guardian(evidence, now=now)
             if (not isinstance(guardian, dict) or guardian.get('engine') != 'PORTFOLIO_GUARDIAN'
                     or guardian.get('mode') != 'OBSERVER'
                     or any(guardian.get(key) is not False for key in
@@ -589,7 +770,7 @@ def dashboard_snapshot(config, report_path=None):
             report = json.loads(path.read_text(encoding='utf-8'))
             if report.get('mode') == 'RESEARCH_ONLY' and isinstance(report.get('assets'), list):
                 payload['research'] = project_report(report)
-        payload.update(platform_projection(payload))
+        payload.update(platform_projection({**payload, 'quant': quant_projection(config)}))
         if len(json.dumps(payload,allow_nan=False).encode()) > 480_000:
             raise ValueError('Dashboard projection exceeds size budget')
         return payload

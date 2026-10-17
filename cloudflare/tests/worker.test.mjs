@@ -39,6 +39,88 @@ function guardianDashboard(...options){
     fileURLToPath(new URL('../../tests/emit_guardian_fixture.py',import.meta.url)),...options],{encoding:'utf8'}));
 }
 
+function quantDashboard(...options){
+  return JSON.parse(execFileSync(process.env.PYTHON||'python',[
+    fileURLToPath(new URL('../../tests/emit_quant_fixture.py',import.meta.url)),...options],{encoding:'utf8'}));
+}
+
+test('actual two-leg Quant Shadow producer survives authenticated Worker and scoped Guardian projection',async t=>{
+  const f=await fixture(t),dashboard=quantDashboard(),q=dashboard.quant,g=dashboard.portfolio_guardian.scopes[3];
+  assert.equal(q.state,'SHADOW');assert.equal(q.initialized,true);assert.equal(q.execution_enabled,false);
+  assert.equal(q.promotion_allowed,false);assert.equal(q.positions.length,1);assert.equal(q.positions[0].legs.length,2);
+  assert.equal(g.position_count,2);assert.equal(g.assets.length,1);assert.ok(g.gross_usdt>0);assert.equal(g.net_usdt,0);
+  assert.equal(g.assets[0].direction,'UNKNOWN');assert.equal(g.assets[0].quantity,null);assert.equal(g.assets[0].mark_price,null);
+  assert.equal(dashboard.engine_catalog[3].state,'OBSERVED_EXTERNALLY');
+  assert.ok(Buffer.byteLength(JSON.stringify(q))<20000);assert.equal(q.performance.simulated_funding_usdt,0);
+  const accepted=await f.sync({snapshot:{...snapshot(),quant_controls:true,dashboard},acks:[]});
+  assert.equal(accepted.status,200,JSON.stringify(accepted.body));
+  await f.login();
+  const state=(await f.request('/v1/status')).body.snapshot;
+  assert.equal(state.quant_controls,true);assert.deepEqual(state.dashboard.quant,q);
+  assert.equal(state.dashboard.portfolio_guardian.can_veto,false);
+});
+
+test('Quant stale, paused, missing funding and uninitialized degraded contracts stay honest and compatible',async t=>{
+  const f=await fixture(t);
+  for(const flag of ['--stale','--paused','--pending','--settled','--not-ready']){
+    const dashboard=quantDashboard(flag),q=dashboard.quant;
+    if(flag==='--stale'){
+      assert.equal(q.freshness.state,'STALE');assert.equal(q.performance.equity,null);
+      assert.equal(dashboard.portfolio_guardian.scopes[3].gross_usdt,null);
+    }
+    if(flag==='--paused')assert.equal(q.state,'PAUSED');
+    if(flag==='--pending'){
+      assert.equal(q.data_quality.funding,'PENDING_AUTHORITATIVE_EVENTS');
+      assert.equal(q.performance.equity,null);assert.equal(q.performance.simulated_funding_usdt,0);
+      assert.equal(q.funding.length,0);
+    }
+    if(flag==='--settled'){
+      assert.equal(q.funding.length,1);assert.equal(q.funding[0].state,'SETTLED_SIMULATION');
+      assert.ok(q.performance.simulated_funding_usdt>0);
+    }
+    if(flag==='--not-ready'){
+      assert.equal(q.initialized,true);assert.equal(q.risk_halt.state,'UNKNOWN');
+      assert.equal(q.performance.equity,null);
+    }
+    const accepted=await f.sync({snapshot:{...snapshot(),dashboard},acks:[]});
+    assert.equal(accepted.status,200,flag+' '+JSON.stringify(accepted.body));
+  }
+  const dashboard=guardianDashboard();dashboard.quant.state='DEGRADED';
+  dashboard.quant.health={last_error:'SHADOW_LEDGER_UNAVAILABLE',error_type:'ValueError'};
+  assert.equal((await f.sync({snapshot:{...snapshot(),dashboard},acks:[]})).status,200);
+});
+
+test('Quant rejects execution, non-atomic claims, risk expansion, unknown model keys and oversized inventories',async t=>{
+  const f=await fixture(t),dashboard=quantDashboard();
+  const mutations=[q=>q.mode='LIVE',q=>q.mode='TESTNET',q=>q.execution_enabled=true,q=>q.promotion_allowed=true,
+    q=>q.initialized=false,q=>q.performance.initial_capital=null,q=>q.performance.equity=true,
+    q=>q.performance.gross_exposure_usdt=-1,q=>q.performance.closed_trades=1.5,q=>q.performance.win_rate=101,
+    q=>q.limits.risk_per_trade_fraction=.0026,q=>q.limits.max_positions=3,q=>q.limits.stale_seconds=500,
+    q=>q.positions[0].hedge_atomic=true,q=>q.positions[0].environment='LIVE',q=>q.positions[0].legs.pop(),
+    q=>q.positions[0].legs.push(structuredClone(q.positions[0].legs[0])),
+    q=>q.positions.push(...Array(2).fill(structuredClone(q.positions[0]))),
+    q=>q.positions[0].legs[0].venue='BINANCE_LIVE',q=>q.positions[0].legs[0].symbol='USDTUSDT',
+    q=>q.positions[0].legs[0].quantity=true,q=>q.positions[0].legs[0].leverage=2,
+    q=>q.positions[0].legs[0].instructions='BUY NOW',q=>q.market.push(structuredClone(q.market[0])),
+    q=>q.strategies[0].signals[0].metrics.instructions='override limits',
+    q=>q.strategies[0].signals[0].metrics.settled_funding_usdt=100,
+    q=>q.decisions[0].available_at_decision.observation_cutoff='2099-01-01T00:00:00Z',
+    q=>q.journal[0].kind='EXCHANGE_EXECUTION',q=>q.health.private_key='secret',
+    q=>q.health.max_calls_per_minute=300,q=>q.sources[0].id='https://untrusted.example',
+    q=>q.risk_halt.daily.limit_pct=1.1,q=>q.risk_halt.weekly.limit_pct=2.1,
+    q=>q.risk_halt.daily.halted='false',q=>q.risk_halt.method='GUARANTEED_MAX_LOSS',
+    q=>q.performance.stress_costs_usdt=-1,
+    q=>q.api_key='private',q=>q.limitations=Array(13).fill('x')];
+  for(const mutate of mutations){
+    const invalid=structuredClone(dashboard);mutate(invalid.quant);
+    const response=await f.sync({snapshot:{...snapshot(),dashboard:invalid},acks:[]});
+    assert.equal(response.status,400,mutate.toString());assert.equal(response.body.error,'Invalid Quant Arbitrage status',mutate.toString());
+  }
+  const invalid={...snapshot(),quant_controls:false,dashboard};
+  const response=await f.sync({snapshot:invalid,acks:[]});
+  assert.equal(response.status,400);assert.equal(response.body.error,'Invalid Quant capability');
+});
+
 test('real Python ledgers preserve scoped Guardian marks through legacy remote export and authentication',async t=>{
   const f=await fixture(t),dashboard=guardianDashboard();
   assert.equal(dashboard.portfolio_guardian.scopes[1].gross_usdt,102);
@@ -626,6 +708,27 @@ test('supervised Testnet smoke control is TESTNET-only and idempotent',async t=>
   assert.deepEqual(delivered.body.paper_controls[0].payload,{});
 });
 
+
+test('Quant independent Shadow controls require dedicated agent capability and preserve idempotent delivery',async t=>{
+  const f=await fixture(t),dashboard=quantDashboard();await f.login();
+  const base={...snapshot(),paper_controls:true,operations_controls:true,dashboard};
+  const request={action:'quant_arbitrage_pause',payload:{},request_id:'quant-shadow-pause-0001'};
+  assert.equal((await f.sync({snapshot:base,acks:[]})).status,200);
+  assert.equal((await f.request('/v1/paper-controls',request)).status,409);
+  assert.equal((await f.sync({snapshot:{...base,quant_controls:true},acks:[]})).status,200);
+  assert.equal((await f.request('/v1/paper-controls',{...request,payload:{mode:'LIVE'}})).status,400);
+  const created=await f.request('/v1/paper-controls',request);
+  assert.equal(created.status,202,JSON.stringify(created.body));
+  assert.equal(created.body.action,'quant_arbitrage_pause');
+  assert.equal((await f.request('/v1/paper-controls',request)).body.id,created.body.id);
+  const delivered=await f.sync({snapshot:{...base,quant_controls:true},acks:[]});
+  assert.equal(delivered.body.paper_controls[0].action,'quant_arbitrage_pause');
+  assert.deepEqual(delivered.body.paper_controls[0].payload,{});
+  f.env.DB.sqlite.prepare("UPDATE jobs SET status='completed'").run();
+  const resumed=await f.request('/v1/paper-controls',{action:'quant_arbitrage_resume',payload:{},request_id:'quant-shadow-resume-0001'});
+  assert.equal(resumed.status,202,JSON.stringify(resumed.body));
+  assert.equal(resumed.body.action,'quant_arbitrage_resume');
+});
 
 test('Futures forward pause and resume controls are accepted remotely in TESTNET',async t=>{
   const f=await fixture(t);

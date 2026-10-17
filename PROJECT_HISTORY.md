@@ -1,5 +1,28 @@
 # Project History and Decision Log
 
+## 2026-10-17 — Quant enters Shadow; statistical admission stays blocked
+
+After Guardian Observer and the four-card portal/Windows stages, the owner asked
+to continue with functional Quant research. The verified 0.10.36 predecessor is
+main `1bb77fad1a490472907ce29591e0b1075d3e7ba3`, PR #113, installed 167/167 hashes.
+The 0.10.37 candidate adds one supervised optional service and an independent
+virtual ledger. It never shares Spot Testnet/Futures Demo funds or submits orders.
+
+Funding Carry may simulate two legs only after deterministic cost, liquidity,
+timing, collateral and stress gates. Observed/projected funding is not settled
+income; missing authoritative due events keep valuation unknown. Per-leg failures,
+loss-latched entry pauses and virtual-margin stress have conservative accounting
+without claiming atomic hedging or actual exchange-liquidation fidelity.
+Quant's own 1% daily/2% weekly latches use first valid equity within a UTC period,
+not a fabricated midnight baseline. Protective hypothetical exits continue.
+
+Statistical pair screens are insufficient to establish cointegration or an edge.
+Independent calibration, historical/OOS research and longer forward evidence are
+required before even StatArb hypothetical admission is enabled. Frozen-evidence
+replay verifies reproducibility, not profitability. Guardian remains read-only;
+Control, shared reservations and new Testnet promotion require separate authority.
+Publication/signature/installation of 0.10.37 are not implied by this decision log.
+
 ## 2026-10-16 — Dated ten-asset observation and broader primary sources
 
 The owner chose ten largest eligible Binance Spot USDT assets by market cap,

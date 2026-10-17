@@ -121,11 +121,14 @@ def quant_not_started(now=None):
 def engine_catalog(dashboard=None):
     """Stable identities/capabilities; no claim of current engine liveness."""
     mode = _dict(_dict(dashboard).get("status")).get("mode")
+    quant = _dict(_dict(dashboard).get("quant"))
+    quant_observed = (quant.get("initialized") is True and quant.get("mode") == "SHADOW"
+                      and quant.get("execution_enabled") is False and quant.get("promotion_allowed") is False)
     return [
         {"id": "SPOT", "name": "Spot Bot", "environment": "SPOT_TESTNET" if mode == "TESTNET" else "PAPER" if mode == "PAPER" else "UNKNOWN", "role": "TREND", "state": "OBSERVED_EXTERNALLY"},
         {"id": "FUTURES", "name": "Futures Bot", "environment": "FUTURES_DEMO", "role": "LONG_SHORT", "state": "OBSERVED_EXTERNALLY"},
         {"id": "AI_MARKET_PULSE", "name": "AI Market Pulse", "environment": "SHADOW", "role": "EVENTS", "state": "OBSERVED_EXTERNALLY"},
-        {"id": "QUANT_ARBITRAGE", "name": "Quant Arbitrage", "environment": "SHADOW", "role": "CARRY_STATISTICAL_RESEARCH", "state": "NOT_STARTED"},
+        {"id": "QUANT_ARBITRAGE", "name": "Quant Arbitrage", "environment": "SHADOW", "role": "CARRY_STATISTICAL_RESEARCH", "state": "OBSERVED_EXTERNALLY" if quant_observed else "NOT_STARTED"},
     ]
 
 
@@ -153,8 +156,6 @@ def guardian_unavailable(now=None):
                                     ("AI_MARKET_PULSE", "SHADOW"), ("QUANT_ARBITRAGE", "SHADOW")):
         scope, _ = _scope(identifier, environment, None, now=instant)
         scope["capital"] = _capital(None, None, None, None, instant, 30, False)
-        if identifier == "QUANT_ARBITRAGE":
-            scope["state"] = "NOT_STARTED"
         result["scopes"].append(scope)
     result["alerts"] = [{"code": "GUARDIAN_UNAVAILABLE", "severity": "WARNING",
                          "scope": None, "symbol": None}]
@@ -391,12 +392,13 @@ def build_guardian(dashboard, now=None):
     _budget(p_scope, _dict(pulse.get("limits")).get("gross_usdt"),
             _dict(pulse.get("limits")).get("stop_risk_usdt"), {}, instant, 30)
 
-    q_scope, _ = _scope("QUANT_ARBITRAGE", "SHADOW", None, now=instant)
-    q_scope["state"] = "NOT_STARTED"
-    q_scope["capital"] = _capital(None, None, None, None, instant, 30, False)
+    quant = _dict(dashboard.get("quant"))
+    if not quant:
+        quant = quant_not_started(instant)
+    q_scope, q_alerts = _quant_scope(quant, instant)
     result["scopes"] = [spot, f_scope, p_scope, q_scope]
     alert_rows = []
-    for scope, alerts in ((spot, spot_alerts), (f_scope, f_alerts), (p_scope, p_alerts)):
+    for scope, alerts in ((spot, spot_alerts), (f_scope, f_alerts), (p_scope, p_alerts), (q_scope, q_alerts)):
         for code, severity, symbol in alerts:
             alert_rows.append({"code": code, "severity": severity, "scope": scope["id"], "symbol": symbol})
         for metric in ("gross", "stop_risk"):
@@ -428,5 +430,116 @@ def build_guardian(dashboard, now=None):
     unique.sort(key=lambda alert: (priority.get(alert["code"], 6), alert["scope"], alert["symbol"] or ""))
     result["alerts"] = unique[:MAX_ALERTS]
     result["truncation"]["alerts_omitted"] = max(0, len(unique) - MAX_ALERTS)
-    result["state"] = "OBSERVING" if all(scope["state"] == "FRESH" for scope in result["scopes"][:3]) else "PARTIAL"
+    observed = result["scopes"] if quant.get("initialized") is True else result["scopes"][:3]
+    result["state"] = "OBSERVING" if all(scope["state"] == "FRESH" for scope in observed) else "PARTIAL"
     return _bounded(result)
+
+
+QUANT_SYMBOLS = frozenset(("BTCUSDT", "ETHUSDT", "SOLUSDT"))
+QUANT_VENUES = frozenset(("SPOT_REFERENCE", "FUTURES_REFERENCE"))
+QUANT_MAX_AGE_SECONDS = 90
+
+
+def _quant_scope(quant, now):
+    """Observe one independent SHADOW wallet without netting away gross legs.
+
+    The public projection uses a strict field allowlist. This helper also
+    guards safety flags, bounds and individual prices so malformed inputs fail
+    unknown instead of becoming zero exposure. It never mutates its input.
+    """
+    quant = _dict(quant)
+    scope, _ = _scope("QUANT_ARBITRAGE", "SHADOW", None, now=now)
+    scope["capital"] = _capital(None, None, None, None, now, QUANT_MAX_AGE_SECONDS, False)
+    alerts = []
+    if quant.get("state") == "NOT_STARTED" and quant.get("initialized") is False:
+        scope["state"] = "NOT_STARTED"
+        return scope, alerts
+    performance = _dict(quant.get("performance"))
+    valid = (quant.get("schema") == 1 and quant.get("engine") == "QUANT_ARBITRAGE"
+             and quant.get("mode") == "SHADOW" and quant.get("initialized") is True
+             and quant.get("execution_enabled") is False
+             and quant.get("promotion_allowed") is False
+             and isinstance(quant.get("state"), str)
+             and quant.get("state") in {"SHADOW", "PAUSED", "DEGRADED"}
+             and _positive(performance.get("initial_capital")) is not None)
+    positions = quant.get("positions")
+    if not valid or not isinstance(positions, list) or len(positions) > 2:
+        return scope, [("SOURCE_STALE_OR_UNAVAILABLE", "WARNING", None)]
+    legs = []
+    for position in positions:
+        position_legs = _dict(position).get("legs")
+        if not isinstance(position_legs, list) or len(position_legs) != 2:
+            return scope, [("INVALID_POSITION", "WARNING", None)]
+        legs.extend(position_legs)
+    source_at = quant.get("updated_at")
+    source_fresh = (_dict(quant.get("freshness")).get("state") == "FRESH"
+                    and _fresh(source_at, now, QUANT_MAX_AGE_SECONDS))
+    scope["position_count"] = len(legs)
+    grouped = {}
+    unpriced = 0
+    gross, signed = [], []
+    for leg in legs:
+        leg = _dict(leg)
+        symbol = leg.get("symbol")
+        venue = leg.get("venue")
+        direction = leg.get("direction")
+        quantity = _positive(leg.get("quantity"))
+        mark = _positive(leg.get("mark_price"))
+        stamp = leg.get("priced_at")
+        valid_symbol = isinstance(symbol, str) and symbol in QUANT_SYMBOLS
+        valid_leg = (valid_symbol and isinstance(venue, str) and venue in QUANT_VENUES
+                     and isinstance(direction, str) and direction in {"LONG", "SHORT"}
+                     and quantity is not None)
+        current = (valid_leg and source_fresh and leg.get('state') == 'FRESH'
+                   and _fresh(stamp, now, QUANT_MAX_AGE_SECONDS)
+                   and _fresh(leg.get('received_at'), now, QUANT_MAX_AGE_SECONDS))
+        notional = _number(quantity * mark, minimum=0) if current and mark is not None else None
+        if notional is None:
+            unpriced += 1
+            alerts.append(("POSITION_VALUE_UNKNOWN" if valid_leg else "INVALID_POSITION",
+                           "WARNING", symbol if valid_symbol else None))
+        else:
+            gross.append(notional)
+            signed.append(notional * (-1 if direction == "SHORT" else 1))
+        if not valid_symbol:
+            continue
+        group = grouped.setdefault(symbol, [])
+        group.append((direction if isinstance(direction, str) else "UNKNOWN", notional, _time(stamp)))
+    scope["unpriced_positions"] = unpriced
+    known = bool(gross) or (not legs and source_fresh)
+    scope["known_gross_usdt"] = _safe_sum(gross) if known else None
+    scope["known_net_usdt"] = _safe_sum(signed) if known else None
+    complete = source_fresh and unpriced == 0
+    complete = complete and scope["known_gross_usdt"] is not None and scope["known_net_usdt"] is not None
+    if complete:
+        scope["gross_usdt"] = scope["known_gross_usdt"]
+        scope["net_usdt"] = scope["known_net_usdt"]
+        # Combined-strategy loss controls are not individual leg stops.
+        scope["nominal_stop_risk_usdt"] = 0.0 if not legs else None
+    for symbol, rows in sorted(grouped.items()):
+        group_fresh = all(value is not None for _, value, _ in rows)
+        directions = {direction for direction, _, _ in rows}
+        value = _safe_sum([notional for _, notional, _ in rows]) if group_fresh else None
+        net = _safe_sum([notional * (-1 if direction == "SHORT" else 1)
+                         for direction, notional, _ in rows]) if group_fresh else None
+        stamps = [stamp for _, _, stamp in rows if stamp is not None]
+        scope["assets"].append({
+            "symbol": symbol, "direction": next(iter(directions)) if len(directions) == 1 else "UNKNOWN",
+            # Grouped inventories can mix venues and directions. Do not invent
+            # an executable aggregate quantity, mark or native stop.
+            "quantity": None, "mark_price": None,
+            "notional_usdt": value, "signed_notional_usdt": net,
+            "stop_price": None, "nominal_stop_risk_usdt": None,
+            "priced_at": _iso(min(stamps)) if stamps else None,
+            "native_protection": "NOT_APPLICABLE",
+            "state": "FRESH" if group_fresh else "UNKNOWN",
+            "concentration_pct": value / scope["gross_usdt"] * 100
+                if complete and value is not None and scope["gross_usdt"] > 0 else None,
+        })
+    scope["state"] = "FRESH" if complete else "PARTIAL"
+    if not source_fresh:
+        alerts.append(("SOURCE_STALE_OR_UNAVAILABLE", "WARNING", None))
+    scope["capital"] = _capital(performance.get("equity"), performance.get("cash"), None,
+                                source_at, now, QUANT_MAX_AGE_SECONDS, complete)
+    _budget(scope, _dict(quant.get("limits")).get("gross_usdt"), None, {}, now, QUANT_MAX_AGE_SECONDS)
+    return scope, alerts

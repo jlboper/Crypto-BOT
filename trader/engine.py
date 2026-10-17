@@ -504,6 +504,7 @@ class TradingEngine:
         # CLI calls this only after the signed candidate activation barrier.
         # Market Pulse observes in this owned process; it never owns an order client.
         pulse = None
+        quant = None
         if not should_stop() and self.config.market_pulse.enabled:
             try:
                 pulse = self._create_market_pulse()
@@ -516,14 +517,45 @@ class TradingEngine:
                     except Exception as cleanup_error:
                         self.db.event("WARN", "Market Pulse startup cleanup: " + type(cleanup_error).__name__)
                 pulse = None
+        if not should_stop() and self.config.quant_arbitrage.enabled:
+            try:
+                quant = self._create_quant_shadow()
+                quant.start()
+            except Exception as exc:
+                self.db.event("WARN", "Quant Shadow unavailable: " + type(exc).__name__)
+                if quant is not None:
+                    try:
+                        quant.stop()
+                    except Exception as cleanup_error:
+                        self.db.event("WARN", "Quant startup cleanup: " + type(cleanup_error).__name__)
+                quant = None
         try:
             self._run_supervised_loop(should_stop)
         finally:
+            if quant is not None:
+                try:
+                    quant.stop()
+                except Exception as exc:
+                    self.db.event("WARN", "Quant shutdown: " + type(exc).__name__)
             if pulse is not None:
                 try:
                     pulse.stop()
                 except Exception as exc:
                     self.db.event("WARN", "Market Pulse shutdown: " + type(exc).__name__)
+
+    def _create_quant_shadow(self):
+        from .quant_shadow import QuantConfig, QuantShadowService
+        settings = self.config.quant_arbitrage
+        return QuantShadowService(self.config.bot.database_path.parent,
+            config=QuantConfig(enabled=settings.enabled, mode=settings.mode,
+                risk_per_trade=min(.0025, self.config.risk.risk_per_trade_pct),
+                daily_loss_limit=min(.01, self.config.risk.daily_loss_limit_pct),
+                weekly_loss_limit=min(.02, self.config.risk.weekly_loss_limit_pct),
+                max_exposure_fraction=min(.15, self.config.risk.max_total_exposure_pct),
+                max_positions=min(2, self.config.risk.max_positions),
+                fee_bps=max(10., self.config.paper.fee_rate*10000),
+                slippage_bps=max(10., self.config.paper.slippage_rate*10000)),
+            kill_switch_path=settings.kill_switch_path)
 
     def _create_market_pulse(self):
         from .market_pulse import MarketPulseService, PulseConfig

@@ -154,6 +154,17 @@ class MarketPulseSettings:
 
 
 @dataclass(frozen=True)
+class QuantArbitrageSettings:
+    enabled: bool = True
+    mode: str = "SHADOW"
+    kill_switch_path: Path | None = None
+
+    def __post_init__(self):
+        if type(self.enabled) is not bool or self.mode != "SHADOW":
+            raise ValueError("Quant Arbitrage execution is locked to SHADOW")
+
+
+@dataclass(frozen=True)
 class AppConfig:
     bot: BotSettings
     paper: PaperSettings
@@ -165,6 +176,7 @@ class AppConfig:
     futures_testnet: FuturesTestnetSettings
     source_path: Path | None = None
     market_pulse: MarketPulseSettings = MarketPulseSettings()
+    quant_arbitrage: QuantArbitrageSettings = QuantArbitrageSettings()
 
 
 def _project_path(raw: str) -> Path:
@@ -187,6 +199,10 @@ def load_config(path: str | Path | None = None) -> AppConfig:
     research = raw.get("research", {})
     futures_testnet = raw.get("futures_testnet", {})
     pulse = raw.get("market_pulse", {})
+    quant = raw.get("quant_arbitrage", {})
+    if (not isinstance(quant, dict) or set(quant) - {'enabled', 'mode', 'kill_switch_path'}
+            or type(quant.get('enabled', True)) is not bool or quant.get('mode', 'SHADOW') != 'SHADOW'):
+        raise ValueError("Quant Arbitrage supports only reviewed SHADOW settings; execution/promotion is unavailable")
     if not isinstance(pulse, dict) or any(type(pulse.get(k, True)) is not bool for k in ("enabled", "ai_enabled")):
         raise ValueError("Invalid Market Pulse configuration")
     if pulse.get("mode", "SHADOW") != "SHADOW":
@@ -294,6 +310,9 @@ def load_config(path: str | Path | None = None) -> AppConfig:
     if type(research.get("automatic", True)) is not bool:
         raise ValueError("Research automatic must be a boolean")
     return AppConfig(
+        quant_arbitrage=QuantArbitrageSettings(
+            enabled=quant.get('enabled', True), mode='SHADOW',
+            kill_switch_path=_project_path(str(quant.get('kill_switch_path', 'data/QUANT_ARBITRAGE_KILL')))),
         market_pulse=MarketPulseSettings(
             enabled=pulse.get("enabled", True), mode="SHADOW", symbols=tuple(pulse_symbols),
             windows_seconds=tuple(pulse_windows), ai_enabled=pulse.get("ai_enabled", True),

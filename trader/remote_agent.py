@@ -138,6 +138,8 @@ class RemoteAgent:
         if getattr(self, 'paper_controls', None) and self.paper_controls.available:
             payload['snapshot']['paper_controls'] = True
             payload['snapshot']['operations_controls'] = True
+            if getattr(self.paper_controls, 'quant_available', False) is True:
+                payload['snapshot']['quant_controls'] = True
             payload['control_results'] = self.paper_controls.results()
         def send(body):
             request = urllib.request.Request(self.origin + "/v1/device/sync",
@@ -150,14 +152,15 @@ class RemoteAgent:
             raw = send(payload)
         except urllib.error.HTTPError as error:
             reason = self._known_rejection(error)
-            if reason not in {'Oversized PAPER scorecard', 'Unknown dashboard field',
+            if reason not in {'Oversized PAPER scorecard', 'Unknown dashboard field', 'Unknown snapshot field',
                               'Dashboard rows exceeded', 'Invalid research report',
                               'Invalid dashboard', 'Invalid Testnet status', 'Invalid Futures forward status',
                               'Invalid Futures pause diagnostics', 'Invalid Spot cycle diagnostic',
                               'Invalid Futures cycle diagnostic', 'Invalid Futures latest signals',
                               'Invalid financial scorecard', 'Invalid Market Pulse status',
                               'Invalid Portfolio Guardian status', 'Invalid Quant Arbitrage status',
-                              'Invalid engine catalog'} or 'dashboard' not in payload['snapshot']:
+                              'Invalid engine catalog'} or ('dashboard' not in payload['snapshot']
+                                                           and reason != 'Unknown snapshot field'):
                 self.last_error = f'HTTPError:{error.code}' + (f':{reason}' if reason else '')
                 raise
             # Preserve a working heartbeat and update jobs when an optional
@@ -168,7 +171,22 @@ class RemoteAgent:
                 'Invalid Quant Arbitrage status': 'quant',
                 'Invalid engine catalog': 'engine_catalog'}.get(reason)
             new_fields = ('portfolio_guardian', 'quant', 'engine_catalog')
-            if isinstance(dashboard, dict) and optional_field in dashboard:
+            if reason == 'Unknown snapshot field' and 'quant_controls' in payload['snapshot']:
+                # Old Workers do not know this supervisor-specific capability.
+                # Drop it and all coupled platform projections in one retry.
+                payload['snapshot'].pop('quant_controls', None)
+                if isinstance(dashboard, dict):
+                    for field in new_fields:
+                        dashboard.pop(field, None)
+            elif (isinstance(dashboard, dict) and reason in {
+                    'Invalid Portfolio Guardian status', 'Invalid Quant Arbitrage status',
+                    'Invalid engine catalog'} and any(field in dashboard for field in new_fields)):
+                # These projections evolve together. An older Worker can reject
+                # all three; omit them as a group before the one bounded retry.
+                # Preserve finance/protection evidence for the existing engines.
+                for field in new_fields:
+                    dashboard.pop(field, None)
+            elif isinstance(dashboard, dict) and optional_field in dashboard:
                 # An optional observer schema fault must not hide existing
                 # ledgers or their protection evidence.
                 dashboard.pop(optional_field)
@@ -241,7 +259,7 @@ class RemoteAgent:
         """Read only server-owned fixed validation labels; never surface raw bodies."""
         if error.code not in {400, 413}:
             return None
-        allowed = {'Unknown dashboard field', 'Oversized PAPER scorecard',
+        allowed = {'Unknown dashboard field', 'Unknown snapshot field', 'Oversized PAPER scorecard',
                    'Dashboard rows exceeded', 'Invalid research report',
                    'Invalid dashboard', 'Invalid Testnet status',
                    'Invalid Futures forward status', 'Invalid Futures pause diagnostics',

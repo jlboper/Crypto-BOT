@@ -18,6 +18,10 @@ class RemotePaperControls:
     def available(self):
         return self.script.is_file() and self.script.resolve().is_relative_to(self.source)
 
+    @property
+    def quant_available(self):
+        return self.available
+
     def results(self):
         rows = []
         for path in sorted(self.directory.glob('*.json'), key=lambda p: int(p.stem) if p.stem.isdecimal() else -1)[-20:]:
@@ -36,7 +40,7 @@ class RemotePaperControls:
         payload = item.get('payload')
         expires = item.get('expires')
         if (not self.available or type(identifier) is not int or identifier <= 0 or
-                action not in {'risk_profile', 'paper_close', 'ai_model', 'restart_engine', 'execution_mode', 'testnet_smoke', 'futures_testnet_check', 'futures_testnet_smoke', 'futures_testnet_reconcile', 'futures_forward_pause', 'futures_forward_resume', 'market_pulse_pause', 'market_pulse_resume'} or not isinstance(payload, dict) or
+                action not in {'risk_profile', 'paper_close', 'ai_model', 'restart_engine', 'execution_mode', 'testnet_smoke', 'futures_testnet_check', 'futures_testnet_smoke', 'futures_testnet_reconcile', 'futures_forward_pause', 'futures_forward_resume', 'market_pulse_pause', 'market_pulse_resume', 'quant_arbitrage_pause', 'quant_arbitrage_resume'} or not isinstance(payload, dict) or
                 type(expires) not in (int, float) or not now < expires <= now + 305):
             raise ValueError('Invalid or unavailable trading control')
         expected = {'action': action, 'payload': payload}
@@ -117,6 +121,8 @@ class RemotePaperControls:
                         'futures_testnet_reconcile': 'Futures Demo reconciliado · posición técnica cerrada',
                         'market_pulse_pause': 'AI Market Pulse SHADOW pausado · Spot y Futures continúan',
                         'market_pulse_resume': 'AI Market Pulse SHADOW reanudado · ejecución bloqueada',
+                        'quant_arbitrage_pause': 'Quant SHADOW pausado · protecciones existentes independientes',
+                        'quant_arbitrage_resume': 'Quant SHADOW reanudado · ejecución al exchange bloqueada',
                         'futures_forward_pause': 'Futures Demo automático pausado · Spot Testnet continúa activo',
                         'futures_forward_resume': 'Futures Demo automático reanudado · BTC / ETH / SOL · 1x',
                     }

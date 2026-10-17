@@ -1,3 +1,19 @@
+# Candidate — 0.10.37 functional Quant Shadow
+
+Prepared from verified 0.10.36 main
+`1bb77fad1a490472907ce29591e0b1075d3e7ba3` (PR #113), signed and installed with
+167/167 hashes. Add Quant's optional supervised Shadow service, independent
+virtual ledger/journal, conservative Funding Carry, research-only StatArb,
+typed bounded remote evidence and authenticated independent pause controls.
+Guardian remains Observer without veto. Four cards/Windows show actual initialized
+hypothetical state; null/stale finances are never fabricated. No account execution,
+strategy promotion, paid provider or existing-engine risk change is introduced.
+
+Focused checks recorded: 70 core, 59 contract, 31 UI, 20 Windows assets and
+PowerShell 5.1 view/render. Full offline/Node suites and exact Linux/Windows CI
+are pending; publication/signature/installed inventory/operating health must be
+verified separately for 0.10.37. Do not report this candidate as released or installed.
+
 # Candidate — 0.10.34 ten-asset/five-source Pulse and compact portal
 
 Prepared from main `815ba27bbe52d2ec3a3f5790caedfc7fe8901a04` (0.10.33),

@@ -74,6 +74,63 @@ Source installation and a running indicator are distinct: verify the signed hash
 before reopening the existing indicator to load its new layout. No extra trading
 process is created. Missing/stale optional evidence does not imply engine failure.
 
-Stage 3 Quant simulation, two-leg accounting and statistical research remain
-unimplemented. Stage 4 evaluation follows those actual strategies. Guardian Control
-and new Testnet execution remain disabled pending separate validation/authorization.
+Stage 2 was observed signed and installed as 0.10.36, main
+`1bb77fad1a490472907ce29591e0b1075d3e7ba3`, PR #113, with 167/167 file hashes.
+This is source-installation evidence; an offscreen synthetic component render
+does not prove the actual desktop window was captured.
+
+## Stage 3 — 0.10.37 Quant Shadow candidate
+
+`trader/quant_shadow.py` runs as one optional service inside the existing signed,
+supervised process. It has no account-executor dependency or exchange-order path.
+It persists its own `data/quant-shadow.db`, hypotheses, virtual wallet, two-leg
+positions, costs, decisions, source evidence, funding receipts, equity and journal.
+Lease/ownership recovery, idempotent events, independent pause/kill and isolated
+provider failures preserve the other engines. A missing database stays NOT_STARTED;
+an unreadable ledger is unavailable, never a fabricated zero wallet.
+
+Anonymous allowlisted Binance Spot/Futures reference GETs observe BTC/ETH/SOL,
+depth, basis, premium/funding and historical funding schedules. Public production
+prices are reference data, never Testnet/Demo fills. Evaluation is once per minute,
+freshness is 90 seconds, transport/history are bounded and rate limits back off.
+No new credential, paid subscription, model call or GPU dependency is introduced.
+
+Funding Carry evaluates hypothetical Spot LONG/Futures SHORT pairs against
+independent quantity, spread, depth, timing, basis, historical adverse funding,
+fees/slippage, collateral and stress checks. An observed rate and a conditional
+projection are distinct from an authoritative historical event applied once as
+`SETTLED_SIMULATION`; none is real income. Missing due funding evidence makes net
+valuation/statistics unavailable. Each leg has costs; failure of a second leg has
+a conservative simulated unwind. The hedge is never claimed atomic.
+
+Initial virtual capital is 1,000 USDT, at most two pairs/four legs, 15% gross
+exposure and 0.25% estimated risk per pair, subordinate to existing global bounds.
+Quant's own daily/weekly entry-loss latches are 1%/2%; baselines use the first valid
+ledger equity within each UTC period, possibly after midnight. Unknown valuation
+blocks entries. Pauses and loss latches preserve hypothetical protective exits.
+The 80% virtual-collateral stress exit and extra simulated stress cost are research
+proxies, not a Binance liquidation model, maximum-loss or intrabar-fill guarantee.
+Spot/Futures risk settings are unchanged; no actual shared capital is allocated.
+
+StatArb calculates aligned BTC/ETH/SOL pair diagnostics, train/holdout stability,
+z-score, residual unit-root screen, correlation/volatility and structural-break
+checks. These are exploratory hypotheses, not independent cointegration proof:
+its entries remain blocked, even if a screen looks favorable. Frozen-source replay
+uses only information received by the decision cutoff; matching a replay does not
+validate profitability, OOS performance or statistical significance.
+
+The shared local/remote portal and Windows app show actual initialized Shadow
+state, hypothetical pairs/legs, costs, decisions/journal, market/funding and data
+quality. Stale projections mask current valuations. Authenticated pause/resume
+uses the existing agent with a dedicated Quant capability; it cannot change mode,
+risk or promotion. Guardian observes the fourth separate ledger and still has no
+veto, reservations or allocation authority.
+
+Focused checks recorded: 70 core, 59 contract, 31 UI and 20 Windows-asset tests;
+PowerShell 5.1 view/render checks also passed. The complete offline/Node suites,
+Linux/Windows CI, exact main publication, signature and installed audit are still
+pending for this candidate. Prepared is not published or installed.
+
+Stage 4 independent historical/OOS calibration, matched net benchmarks and longer
+forward evidence remain pending. Guardian Control and new Testnet execution still
+require separate validation and explicit owner authorization; LIVE remains absent.

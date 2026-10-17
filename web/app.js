@@ -768,7 +768,7 @@ function renderFuturesCycle(futures,status){
 /* Shared supervised engine view. External event text is always escaped, never executable. */
 const PulsePortal = (() => {
   let pendingControl=null;
-  const foldIds=new Set(['spot-analysis','futures-analysis','pulse-live','pulse-news','pulse-scanner','pulse-decisions','pulse-finance','pulse-health','guardian-exposure','guardian-overlaps','guardian-quality','quant-funding','quant-statistical','observation-details','comparison-details','spot-limits','futures-limits','spot-positions','futures-positions','spot-finance','futures-finance','diagnosticsPanel','research-lab']);
+  const foldIds=new Set(['spot-analysis','futures-analysis','pulse-live','pulse-news','pulse-scanner','pulse-decisions','pulse-finance','pulse-health','guardian-exposure','guardian-overlaps','guardian-quality','quant-funding','quant-statistical','quant-positions','quant-decisions','quant-finance','quant-health','observation-details','comparison-details','spot-limits','futures-limits','spot-positions','futures-positions','spot-finance','futures-finance','diagnosticsPanel','research-lab']);
   const navIds=new Set(['platform-overview','spot-bot','futures-bot','market-pulse','portfolio-guardian','quant-arbitrage','activity-section','modelSettingsPanel',...foldIds]);
   const foldStorageKey='crypto-ai-trader.ui.folds.v1';
   let redrawQueued=false;
@@ -970,6 +970,7 @@ window.PulsePortal=PulsePortal;
 
 /* Optional four-engine diagnostics. It only renders allowlisted, read-only evidence. */
 const FourEnginePortal = (() => {
+  let quantPending=null;
   const ids=new Set(['SPOT','FUTURES','AI_MARKET_PULSE','QUANT_ARBITRAGE']);
   const names={SPOT:'Spot',FUTURES:'Futures',AI_MARKET_PULSE:'AI Market Pulse',QUANT_ARBITRAGE:'Quant Arbitrage'};
   const labels={OBSERVING:'OBSERVER ACTIVO',PARTIAL:'OBSERVACIÓN PARCIAL',DEGRADED:'OBSERVACIÓN NO DISPONIBLE',NOT_STARTED:'SIN INICIAR',FRESH:'RECIENTE',UNKNOWN:'SIN EVIDENCIA',UNAVAILABLE:'SIN DATOS',WITHIN:'Dentro del límite observado',EXCEEDED:'Límite observado excedido',OBSERVED_WITHIN:'Estimación observada dentro del límite',OBSERVED_EXCEEDED:'Estimación observada excedida'};
@@ -985,16 +986,87 @@ const FourEnginePortal = (() => {
   const metric=values=>values.map(([key,value])=>`<div><dt>${esc(key)}</dt><dd>${esc(value)}</dd></div>`).join('');
   const badge=(id,value,warning=false)=>{const node=document.getElementById(id);if(node){node.textContent=value;node.className='state '+(warning?'warning':'neutral');}};
   function isOld(value,remote=false){const stamp=Date.parse(value);return remote||!Number.isFinite(stamp)||Date.now()-stamp>120000||stamp-Date.now()>5000;}
+  const short=value=>typeof value==='string'?value.slice(0,160):'—';
+  const pct=value=>finite(value)?`${number(value,4)}%`:'—';
+  const rate=value=>finite(value)?pct(value*100):'—';
+  const strategyName=value=>({FUNDING_CARRY:'Funding Carry',STATISTICAL_ARBITRAGE:'Statistical Arbitrage'})[value]||'Estrategia sin identificar';
+  const quantControlsAvailable=()=>typeof window.quantControlsAvailable==='function'?window.quantControlsAvailable()===true:['localhost','127.0.0.1','::1','[::1]'].includes(location.hostname);
+  const quantReason=value=>({COINTEGRATION_NOT_INDEPENDENTLY_VALIDATED:'Esperar: cointegración sin validación independiente',COLLECTING_ALIGNED_HISTORY:'Acumulando historia alineada',COLLECTING_FUNDING_HISTORY:'Acumulando historial de funding',PROJECTED_CARRY_BELOW_ALL_COSTS:'Funding proyectado inferior a los costes',NO_PAIR_DISLOCATION:'Sin dislocación del par',NONPOSITIVE_OR_EXTREME_FUNDING:'Funding no positivo o extremo',SOURCE_STALE_OR_UNAVAILABLE:'Referencia antigua o no disponible',OWNER_PAUSED:'Nuevas entradas pausadas',ACCEPTED_HYPOTHETICAL_PAIR:'Par hipotético aceptado'})[value]||short(value);
+  function quantStale(value,remote=false){
+    const age=(Date.now()-Date.parse(value?.updated_at))/1000, snapshotAge=(Date.now()-Date.parse(value?.at))/1000;
+    return remote||value?.remote_sync_stale===true||value?.freshness?.state!=='FRESH'||!finite(value?.freshness?.age_seconds)||value.freshness.age_seconds<0||value.freshness.age_seconds>90||!Number.isFinite(age)||age < -5||age>90||!Number.isFinite(snapshotAge)||snapshotAge < -5||snapshotAge>120;
+  }
+  function clearQuantDetails(message){
+    for(const id of ['quantMarket','quantFundingSignals','quantFunding','quantStatisticalSignals','quantPositions','quantDecisions','quantJournal','quantSources'])html(id,`<p class="empty">${esc(message)}</p>`);
+    html('quantPerformance',metric([['Capital / equity / P&L','—'],['Exposición / cierres','—']]));
+    html('quantComparison',metric([['Estado','Sin evidencia financiera'],['Capital / P&L / exposición','—']]));
+    html('quantHealth',metric([['Estado','Sin evidencia actual']]));html('quantRisk',metric([['Riesgo actual','Sin evidencia disponible']]));set('quantRiskMethod','Baseline y límites actuales sin evidencia disponible.');set('quantQuality',message);set('quantLastError','');set('quantBenchmarks','Referencias comparables no disponibles.');
+  }
+  function quantSignal(row,statistical,old){
+    const m=row.metrics&&typeof row.metrics==='object'?row.metrics:{};
+    const fields=statistical?[
+      ['Z-score exploratorio',number(m.z_score,3)],['Ratio de cobertura',number(m.hedge_ratio,4)],['ADF residual exploratorio',number(m.residual_adf_lag1_t,3)],
+      ['Semivida · muestras',number(m.approximate_half_life_observations,1)],['Correlación train / holdout',`${number(m.train_return_correlation,3)} / ${number(m.holdout_return_correlation,3)}`],['Cambio de media · sigma',number(m.holdout_mean_shift_sigma,3)]
+    ]:[['Tasa funding observada',rate(m.observed_funding_rate)],['Funding proyectado condicional',cash(m.projected_funding_usdt)],['Neto condicional estimado',cash(m.conditional_net_estimate_usdt)],['Costes ida/vuelta · ambas piernas',cash(m.roundtrip_cost_usdt)],['Reserva basis',cash(m.basis_cost_reserve_usdt)],['Pérdida estimada bajo estrés',cash(m.estimated_stress_loss_usdt)]];
+    return `<article class="pulse-item"><div class="pulse-item-head"><strong>${esc(short(row.instrument))} · ${esc(short(row.action))}</strong><time>${esc(time(row.at))}</time></div><p>${esc(quantReason(row.reason))}${old?' · REGISTRO HISTÓRICO':''}</p><dl>${metric(fields)}</dl><p class="platform-note">${statistical?'Screen exploratorio; no valida cointegración ni habilita entradas.':'Proyección disponible en ese instante; no es funding liquidado ni ganancia garantizada.'}</p></article>`;
+  }
   function renderQuant(value,remote=false){
-    const valid=value?.schema===1&&value.engine==='QUANT_ARBITRAGE'&&value.mode==='SHADOW'&&value.state==='NOT_STARTED'&&value.initialized===false&&value.enabled===false&&value.execution_enabled===false&&value.controls_available===false&&value.promotion_allowed===false;
-    const text=valid?'SIN INICIAR':'SIN DATOS';
-    badge('summaryQuantState',text);badge('quantState',text);
-    for(const field of ['Capital','Positions','Return','Evaluation'])set('summaryQuant'+field,'—');
+    const identity=value?.schema===1&&value.engine==='QUANT_ARBITRAGE'&&value.mode==='SHADOW'&&value.execution_enabled===false&&value.promotion_allowed===false;
+    const scaffold=identity&&value.initialized===false&&value.enabled===false&&value.controls_available===false&&['NOT_STARTED','DEGRADED'].includes(value.state);
+    const initialized=identity&&value.initialized===true&&typeof value.enabled==='boolean'&&typeof value.controls_available==='boolean'&&['SHADOW','PAUSED','DEGRADED'].includes(value.state);
+    const old=initialized&&quantStale(value,remote);
+    const riskState=value?.risk_halt?.state;
+    const text=initialized?`${value.enabled===false?'NO HABILITADO':value.state==='SHADOW'&&riskState==='HALTED'?'LÍMITE DE PÉRDIDA':value.state==='SHADOW'&&riskState==='UNKNOWN'?'VALORACIÓN PENDIENTE':({SHADOW:'SHADOW ACTIVO',PAUSED:'ENTRADAS PAUSADAS',DEGRADED:'DATOS PARCIALES'})[value.state]}${old?' · ANTIGUO':''}`:scaffold?(value.state==='NOT_STARTED'?'SIN INICIAR':'LEDGER NO DISPONIBLE'):'SIN DATOS';
+    badge('summaryQuantState',text,old||value?.state==='DEGRADED'||riskState==='HALTED'||riskState==='UNKNOWN');badge('quantState',text,old||value?.state==='DEGRADED'||riskState==='HALTED'||riskState==='UNKNOWN');
+    if(quantPending&&initialized&&!old&&((quantPending.action==='pause'&&value.state==='PAUSED')||(quantPending.action==='resume'&&value.state!=='PAUSED'))){set('quantControlMessage','Windows confirmó el estado '+text.toLowerCase()+'.');quantPending=null;}
+    if(quantPending&&Date.now()-quantPending.at>90000){set('quantControlMessage','La solicitud aún no tiene confirmación reciente. Consulta Actividad antes de repetirla.');quantPending=null;}
+    for(const [id,action] of [['pauseQuant','pause'],['resumeQuant','resume']]){const button=document.getElementById(id);if(button)button.disabled=!initialized||old||value.enabled!==true||value.controls_available!==true||!paperControlsAvailable()||!quantControlsAvailable()||!!quantPending||(action==='pause'?value.state==='PAUSED':value.state!=='PAUSED');}
+    if(!initialized){
+      for(const field of ['Capital','Positions','Return','Evaluation'])set('summaryQuant'+field,'—');
+      const message=scaffold&&value.state==='NOT_STARTED'?'Quant aún no tiene un motor ni ledger inicializado. Capital, posiciones y resultados no disponibles.':scaffold?'El ledger Shadow no está disponible; no se reconstruye un capital ficticio.':'No hay un contrato Quant compatible. Su ausencia no modifica la operación de Spot, Futures o Market Pulse.';
+      set('quantStatusNote',`${remote?'Última identidad sincronizada: ':''}${message}`);clearQuantDetails(message);
+      for(const id of ['quantFundingState','quantStatisticalState'])set(id,scaffold&&value.state==='NOT_STARTED'?'SIN INICIAR':'SIN DATOS');
+      return;
+    }
+    const perf=value.performance||{}, positions=bounded(value.positions,2), financial=old?{...perf,equity:null,cash:null,collateral_usdt:null,net_pnl:null,return_pct:null,gross_exposure_usdt:null}:perf;
+    set('summaryQuantCapital',cash(financial.equity));set('summaryQuantReturn',cash(financial.net_pnl));
+    set('summaryQuantPositions',Array.isArray(value.positions)?`${positions.length} pares / ${number(perf.closed_trades,0)} cierres${old?' · último registro':''}`:'—');set('summaryQuantEvaluation',time(value.last_evaluation));
+    set('quantStatusNote',`${text} · ${old?'proyección o mercado antiguos; operación actual sin verificar':'última evaluación '+time(value.last_evaluation)}. Ledger virtual independiente. Todas las piernas, cierres y asientos de funding son hipotéticos; ninguna orden llega al exchange.`);
     const strategies=bounded(value?.strategies,2);
-    set('quantFundingState',valid&&strategies.some(row=>row.id==='FUNDING_CARRY'&&row.state==='NOT_STARTED')?'SIN INICIAR':'SIN DATOS');
-    set('quantStatisticalState',valid&&strategies.some(row=>row.id==='STATISTICAL_ARBITRAGE'&&row.state==='NOT_STARTED')?'SIN INICIAR':'SIN DATOS');
-    set('quantStatusNote',valid?`${remote?'Última identidad sincronizada: ':''}Quant aún no tiene un motor ni ledger inicializado. Funding Carry y Statistical Arbitrage están pendientes de implementación y pruebas. Capital, posiciones y resultados no disponibles.`:'No hay un contrato Quant compatible. Su ausencia no modifica la operación de Spot, Futures o Market Pulse.');
-    const button=document.getElementById('startQuant');if(button)button.disabled=true;
+    for(const [id,identifier,statistical] of [['quantFundingState','FUNDING_CARRY',false],['quantStatisticalState','STATISTICAL_ARBITRAGE',true]]){
+      const strategy=strategies.find(row=>row.id===identifier);
+      set(id,strategy?(statistical?'SCREEN · ENTRADAS BLOQUEADAS':old?'ÚLTIMO REGISTRO':strategy.state==='OBSERVING'?'OBSERVANDO':'SIN DATOS'):'SIN DATOS');
+      const signals=bounded(strategy?.signals,6);
+      html(statistical?'quantStatisticalSignals':'quantFundingSignals',signals.map(row=>quantSignal(row,statistical,old)).join('')||'<p class="empty">Todavía no hay señales registradas. Esperar es una decisión válida.</p>');
+    }
+    html('quantMarket',bounded(value.market,3).map(row=>{
+      const current=!old&&row.state==='FRESH'&&!quantStale({...value,updated_at:row.at},false)&&!quantStale({...value,updated_at:row.received_at},false);
+      return `<article class="guardian-scope"><div class="pulse-item-head"><h3>${esc(short(row.symbol))}</h3><span class="badge">${current?'RECIENTE':'ANTIGUO / SIN DATOS'}</span></div><dl>${metric([['Spot / Futures de referencia',`${cash(current?row.spot_price:null)} / ${cash(current?row.futures_price:null)}`],['Basis',finite(row.basis_bps)&&current?`${number(row.basis_bps,2)} bps`:'—'],['Tasa funding observada',current?rate(row.observed_funding_rate):'—'],['Próximo evento de funding',current?time(row.next_funding_at):'—'],['Intervalo observado',current&&finite(row.funding_interval_seconds)?`${number(row.funding_interval_seconds/3600,1)} h`:'—'],['Mercado / recepción',`${time(row.at)} / ${time(row.received_at)}`]])}</dl></article>`;
+    }).join('')||'<p class="empty">Sin referencias de mercado disponibles.</p>');
+    html('quantFunding',bounded(value.funding,10).filter(row=>row.state==='SETTLED_SIMULATION').map(row=>`<article class="pulse-item"><div class="pulse-item-head"><strong>${esc(short(row.symbol))} · ASIENTO SHADOW</strong><time>${esc(time(row.funding_at))}</time></div><dl>${metric([['Tasa histórica observada',rate(row.rate)],['Flujo asentado en simulación',cash(row.simulated_cashflow_usdt)],['Recibido',time(row.received_at)]])}</dl><p class="platform-note">Evento histórico observado aplicado una vez al ledger virtual; no es un ingreso real del exchange.</p></article>`).join('')||'<p class="empty">Sin asientos hipotéticos de funding registrados. Una proyección no se contabiliza como ingreso.</p>');
+    html('quantPositions',positions.map(position=>`<article class="pulse-item"><div class="pulse-item-head"><strong>${esc(short(position.instrument))} · ${esc(strategyName(position.strategy))}</strong><time>${esc(time(position.opened_at))}</time></div><p>Par SHADOW · ejecución no atómica${old?' · ÚLTIMO REGISTRO':''}</p><dl>${metric([['Exposición bruta / neta',`${cash(old?null:position.gross_exposure_usdt)} / ${cash(old?null:position.net_exposure_usdt)}`],['P&L con costes estimados de salida',cash(old||value.data_quality?.funding==='PENDING_AUTHORITATIVE_EVENTS'?null:position.net_pnl_usdt)],['Comisiones / deslizamiento de entrada',`${cash(position.entry_fees_usdt)} / ${cash(position.entry_slippage_usdt)}`],['Costes estimados de salida',cash(old?null:position.estimated_exit_cost_usdt)],['Funding asentado simulado',cash(position.funding_usdt)],['Presupuesto estimado de riesgo',cash(position.risk_budget_usdt)]])}</dl><div class="quant-leg-grid">${bounded(position.legs,2).map(leg=>{
+      const slip=finite(leg.quantity)&&finite(leg.entry_price)&&finite(leg.entry_reference)?leg.quantity*Math.abs(leg.entry_price-leg.entry_reference):null;
+      const legCurrent=!old&&leg.state==='FRESH'&&!quantStale({...value,updated_at:leg.priced_at},false)&&!quantStale({...value,updated_at:leg.received_at},false);
+      return `<div class="quant-leg"><strong>${esc(short(leg.symbol))} · ${esc(short(leg.direction))}</strong><p>${esc(short(leg.venue))} · pierna hipotética</p><dl>${metric([['Cantidad',number(leg.quantity,8)],['Entrada / mark',`${number(leg.entry_price,6)} / ${number(legCurrent?leg.mark_price:null,6)}`],['Comisión / deslizamiento de entrada',`${cash(leg.entry_fee_usdt)} / ${cash(slip)}`],['Precio / recepción',`${time(leg.priced_at)} / ${time(leg.received_at)}`]])}</dl></div>`;
+    }).join('')}</div></article>`).join('')||'<p class="empty">Sin pares hipotéticos abiertos en el último registro.</p>');
+    html('quantDecisions',bounded(value.decisions,12).map(row=>`<article class="pulse-item"><div class="pulse-item-head"><strong>${esc(strategyName(row.strategy))} · ${esc(short(row.instrument))} · ${esc(short(row.action))}</strong><time>${esc(time(row.at))}</time></div><p>${esc(quantReason(row.reason))}</p><details><summary>Evidencia disponible al decidir</summary><p>Regla ${esc(short(row.rule_version))}. Corte: ${esc(time(row.available_at_decision?.observation_cutoff))}. Muestras alineadas: ${esc(number(row.available_at_decision?.aligned_observations,0))}.</p><pre>${esc(JSON.stringify({available_at_decision:row.available_at_decision||{},metrics:row.metrics||{},qualification:row.qualification||null},null,2).slice(0,6000))}</pre><p class="platform-note">Identidad y métricas de la evidencia conservada; no se incorpora información posterior a la decisión.</p></details></article>`).join('')||'<p class="empty">Sin decisiones Quant registradas.</p>');
+    const journalNames={COHORT_STARTED:'Cohorte Shadow inicializada',PAIR_OPENED_SIMULATION:'Par hipotético abierto',PAIR_CLOSED_SIMULATION:'Par hipotético cerrado',FUNDING_SETTLED_SIMULATION:'Asiento de funding simulado',PAUSE_CHANGED:'Pausa de entradas modificada',LEG_FAILURE_UNWIND_SIMULATION:'Fallo de pierna y deshacer simulado',EXIT_WAIT_FOR_FRESH_LEGS:'Cierre pendiente de precios recientes',MARGIN_STRESS_COST_SIMULATION:'Coste de estrés de margen simulado',RISK_BASELINE_OBSERVED:'Referencia de riesgo registrada',ENTRY_LOSS_HALT:'Entradas bloqueadas por pérdida'};
+    html('quantJournal',bounded(value.journal,12).map(row=>`<article class="pulse-item"><div class="pulse-item-head"><strong>${esc(journalNames[row.kind]||short(row.kind))} · SHADOW</strong><time>${esc(time(row.at))}</time></div><p>${esc(short(row.reason||row.position_id||row.decision_id||row.id))}</p><dl>${metric([['Coste de estrés simulado',row.stress_costs_usdt],['Comisiones simuladas',row.fees_usdt],['Deslizamiento simulado',row.slippage_usdt]].filter(([,amount])=>finite(amount)).map(([title,amount])=>[title,cash(amount)]))}</dl></article>`).join('')||'<p class="empty">Journal no disponible en esta proyección. No se infiere ausencia de registros persistentes.</p>');
+    const metrics=[['Capital virtual inicial',cash(perf.initial_capital)],['Equity virtual',cash(financial.equity)],['Efectivo virtual',cash(financial.cash)],['Colateral virtual',cash(financial.collateral_usdt)],['P&L neto simulado',cash(financial.net_pnl)],['Retorno simulado',pct(financial.return_pct)],['Exposición bruta',cash(financial.gross_exposure_usdt)],['Drawdown registrado',pct(perf.drawdown_pct)],['Cierres hipotéticos',number(perf.closed_trades,0)],['Win rate / profit factor',`${pct(perf.win_rate)} / ${number(perf.profit_factor,2)}`],['Costes simulados registrados',cash(perf.costs_usdt)],['Funding asentado simulado',cash(perf.simulated_funding_usdt)],['Días de observación',number(perf.observation_days,2)],['Coste de estrés simulado · incluido en costes',cash(perf.stress_costs_usdt)]];
+    html('quantPerformance',metric(metrics));html('quantComparison',metric([metrics[5],metrics[4],metrics[7],metrics[8],metrics[9],metrics[6],metrics[12],['Calidad / metodología',old?'Valoración antigua':'Shadow · dos piernas no atómicas']]));
+    const benchmarks=bounded(value.benchmarks,3).filter(row=>finite(row.buy_hold_return_pct)&&!old);
+    set('quantBenchmarks',benchmarks.length?`Referencia buy-and-hold Spot bruta: ${benchmarks.map(row=>`${short(row.symbol)} ${pct(row.buy_hold_return_pct)}`).join(' · ')}. No descuenta costes ni equivale a la estrategia neta; requiere comparar períodos emparejados. Efectivo: referencia descriptiva independiente.`:'Buy-and-hold y efectivo: sin referencia reciente comparable disponible. No se reconstruye rentabilidad con datos posteriores.');
+    html('quantSources',bounded(value.sources,12).map(row=>`<article class="pulse-source"><strong>${esc(short(row.id))}</strong><span>${old?'Último estado: ':''}${esc(short(row.state))}</span>${row.error?`<small>${esc(short(row.error))}</small>`:''}</article>`).join('')||'<p class="empty">Sin estado de fuentes disponible.</p>');
+    const health=value.health||{};html('quantHealth',metric([['Edad del mercado',finite(value.freshness?.age_seconds)?`${number(value.freshness.age_seconds,1)} s`:'—'],['Llamadas / errores de referencia',`${number(health.calls,0)} / ${number(health.errors,0)}`],['Última evaluación',time(value.last_evaluation)],['Última recepción correcta',time(health.last_success_at)],['Intervalo de evaluación',finite(value.limits?.evaluation_interval_seconds)?`${number(value.limits.evaluation_interval_seconds,0)} s`:'—'],['Calidad de funding',value.data_quality?.funding==='PENDING_AUTHORITATIVE_EVENTS'?'Pendiente de eventos históricos verificables':value.data_quality?.funding==='COMPLETE_OBSERVED_SCHEDULE'?'Calendario observado completo':'Sin evidencia']]));
+    const risk=value.risk_halt||{},riskMetrics=[['Entradas por límite de pérdida',old?'Último estado histórico':risk.state==='HALTED'?'Bloqueadas hasta reinicio del período':risk.state==='READY'?'Sin bloqueo de pérdida observado':'Bloqueadas: valoración o baseline desconocidos']];
+    for(const [key,name] of [['daily','Diario'],['weekly','Semanal']]){
+      const period=risk[key]||{};
+      riskMetrics.push([`${name} · retorno / límite`,`${pct(old?null:period.return_pct)} / ${pct(period.limit_pct)}`],[`${name} · equity de referencia`,cash(period.baseline_equity)],[`${name} · primera muestra válida`,time(period.baseline_at)],[`${name} · próximo período UTC`,time(period.resets_at)]);
+    }
+    html('quantRisk',metric(riskMetrics));
+    set('quantRiskMethod','La referencia es la primera equity válida observada dentro del día o semana UTC; puede empezar después de medianoche. Un bloqueo permanece hasta cambiar el período y no impide cierres protectores hipotéticos. Pausar o reanudar no cambia límites ni elimina ese bloqueo.');
+    set('quantQuality',`${old?'Datos antiguos. ':''}Mercado: ${short(value.data_quality?.market)}. Funding pendiente puede impedir valorar equity y P&L. La salida por estrés usa colateral virtual a 1x; no reproduce la liquidación de Binance ni garantiza un fill intravela. Simulación no atómica, StatArb exploratorio sin validación independiente y promoción bloqueada.`);
+    set('quantLastError',health.last_error?`Último diagnóstico: ${short(health.last_error)}`:'Sin diagnóstico de error reportado. La falta de pares puede ser una observación normal.');
   }
   function render(platform){
     const remote=platform?.remote_sync_stale===true;
@@ -1039,11 +1111,28 @@ const FourEnginePortal = (() => {
     for(const field of ['Capital','Positions','Return','Evaluation'])set('summaryQuant'+field,'—');
     for(const id of ['quantFundingState','quantStatisticalState'])set(id,'LECTURA NO DISPONIBLE');
     set('quantStatusNote','No se pudo actualizar el contrato Quant. Su estado actual no está verificado; ejecución y promoción siguen sin controles disponibles en esta pantalla.');
+    clearQuantDetails('Lectura Quant actual no disponible. Consulta una proyección reciente.');
+    for(const id of ['pauseQuant','resumeQuant']){const button=document.getElementById(id);if(button)button.disabled=true;}
     html('guardianScopes','<p class="empty">Valoración actual no disponible. Consulta una lectura reciente antes de evaluar exposición.</p>');
     html('guardianAlerts','<p class="empty">Alertas actuales no disponibles.</p>');html('guardianOverlaps','<p class="empty">Coincidencias actuales no disponibles.</p>');
     html('guardianQuality',metric([['Calidad actual','Lectura no disponible'],['Control de entradas','Sin veto · Observer']]));
   }
-  return {render,disconnected,isOld};
+  function init(){
+    for(const [id,action] of [['pauseQuant','pause'],['resumeQuant','resume']]){
+      const button=document.getElementById(id);if(!button)continue;
+      button.addEventListener('click',async()=>{
+        if(button.disabled||!quantControlsAvailable()||!paperControlsAvailable()||quantPending||button.dataset.pending==='true')return;
+        quantPending={action,at:Date.now()};button.dataset.pending='true';
+        for(const name of ['pauseQuant','resumeQuant']){const sibling=document.getElementById(name);if(sibling)sibling.disabled=true;}
+        set('quantControlMessage','Enviando solicitud al supervisor…');
+        try{const result=await api('/api/quant-arbitrage/'+action,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+          set('quantControlMessage',result.status==='pending'?'Solicitud recibida; pendiente de confirmación de Windows.':'Solicitud procesada. Consultando confirmación del estado Shadow…');await refresh();
+        }catch(error){quantPending=null;set('quantControlMessage','No se confirmó el cambio: '+error.message);await refresh();}
+        finally{delete button.dataset.pending;}
+      });
+    }
+  }
+  return {render,disconnected,isOld,init,quantStale};
 })();
 window.FourEnginePortal=FourEnginePortal;
 
@@ -1312,7 +1401,7 @@ document.getElementById('researchDetail').addEventListener('click',event=>{
 window.addEventListener('resize',()=>Promise.all([api('/api/equity'),api('/api/futures-forward')]).then(([spot,futures])=>{renderChart(spot);renderFuturesChart(futures?.equity||[]);}).catch(()=>{}));
 window.addEventListener('portal-ready',PulsePortal.onPortalReady);
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('/service-worker.js').catch(()=>{});
-window.addEventListener('DOMContentLoaded',()=>{installPortalMotion();PulsePortal.init();refresh();});
+window.addEventListener('DOMContentLoaded',()=>{installPortalMotion();PulsePortal.init();FourEnginePortal.init();refresh();});
 setInterval(()=>{if(!document.hidden&&!document.querySelector('.shell').hidden)refresh();},30000);
 
 document.getElementById('researchCurveChoice').addEventListener('change',renderResearchCurve);

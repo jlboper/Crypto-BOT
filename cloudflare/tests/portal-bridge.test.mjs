@@ -34,12 +34,44 @@ function bridge(hostname,responses){
     location:{hostname,hash:''},crypto:webcrypto,TextEncoder,btoa,
     Event:class{constructor(type){this.type=type;}},confirm:()=>true});
   vm.runInContext(source,context,{filename:'portal-bridge.js'});
-  return {api:window.portalApi,calls,elements,start:()=>listeners.get('DOMContentLoaded')()};
+  return {api:window.portalApi,quantControlsAvailable:window.quantControlsAvailable,calls,elements,start:()=>listeners.get('DOMContentLoaded')()};
 }
 
 function state(overrides={}){
   return {csrf:'csrf-token',stale:false,commands:[],jobs:[],snapshot:{dashboard:{}},...overrides};
 }
+
+test('Quant controls require fresh dedicated agent capability and only queue empty Shadow pause/resume',async()=>{
+  const quant={enabled:true,initialized:true,controls_available:true,mode:'SHADOW',execution_enabled:false};
+  const ready=state({snapshot:{paper_controls:true,quant_controls:true,dashboard:{quant}}});
+  for(const action of ['pause','resume']){
+    const instance=bridge('paper.example.workers.dev',[{status:200,body:ready},{status:202,body:{status:'pending'}}]);
+    assert.equal(instance.quantControlsAvailable(),false);
+    const result=await instance.api(`/api/quant-arbitrage/${action}`,{method:'POST',body:'{}'});
+    assert.equal(result.status,'pending');assert.equal(instance.quantControlsAvailable(),true);
+    assert.equal(instance.calls[1].path,'/v1/paper-controls');
+    const body=JSON.parse(instance.calls[1].options.body);
+    assert.equal(body.action,`quant_arbitrage_${action}`);assert.deepEqual(body.payload,{});
+    assert.equal(instance.calls[1].options.headers['X-CSRF-Token'],'csrf-token');
+    assert.equal(instance.calls[1].options.credentials,'same-origin');
+  }
+  for(const mutation of [r=>{r.stale=true;},r=>{delete r.snapshot.quant_controls;},r=>{r.snapshot.paper_controls=false;},
+    r=>{r.snapshot.dashboard.quant.initialized=false;},r=>{r.snapshot.dashboard.quant.execution_enabled=true;},r=>{r.snapshot.dashboard.quant.mode='TESTNET';}]){
+    const candidate=structuredClone(ready);mutation(candidate);
+    const instance=bridge('paper.example.workers.dev',[{status:200,body:candidate}]);
+    await assert.rejects(()=>instance.api('/api/quant-arbitrage/resume',{method:'POST',body:'{}'}),/capacidad de Windows/);
+    assert.equal(instance.calls.length,1);
+  }
+  for(const body of ['{"mode":"LIVE"}','[]','null','bad']){
+    const instance=bridge('paper.example.workers.dev',[{status:200,body:ready}]);
+    await assert.rejects(()=>instance.api('/api/quant-arbitrage/pause',{method:'POST',body}),/sin parámetros|inválida/);
+    assert.equal(instance.calls.length,1);
+  }
+  const local=bridge('127.0.0.1',[{status:200,body:{ok:true}}]);
+  assert.equal(local.quantControlsAvailable(),true);
+  assert.equal((await local.api('/api/quant-arbitrage/pause',{method:'POST',body:'{}'})).ok,true);
+  assert.equal(local.calls[0].path,'/api/quant-arbitrage/pause');
+});
 
 test('remote Market Pulse reads its optional bounded dashboard projection',async()=>{
   const instance=bridge('paper.example.workers.dev',[{status:200,body:state({snapshot:{dashboard:{market_pulse:{schema:1,mode:'SHADOW',state:'WARMING_UP'}}}})}]);

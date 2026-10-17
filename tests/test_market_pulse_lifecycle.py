@@ -11,7 +11,8 @@ from trader.engine import TradingEngine
 class PulseLifecycleTests(unittest.TestCase):
     def engine(self, folder):
         config = load_config()
-        config = replace(config, bot=replace(config.bot, mode="paper", database_path=Path(folder)/"spot.db"))
+        config = replace(config, bot=replace(config.bot, mode="paper", database_path=Path(folder)/"spot.db"),
+                         quant_arbitrage=replace(config.quant_arbitrage, enabled=False))
         return TradingEngine(config)
 
     def test_pulse_failure_does_not_interrupt_spot_or_futures_loop(self):

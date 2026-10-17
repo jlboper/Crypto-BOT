@@ -103,6 +103,47 @@ Assert-View ((Get-ManagerGuardianView $platform $now) -match 'sin lectura') 'A c
 $platform.quant.execution_enabled = $true
 $incompatible = Get-ManagerEngineViews $spot $futures $pulse $now -Quant $platform.quant
 Assert-View ($incompatible.Quant.State -eq 'SIN DATOS') 'Unknown execution-capable Quant contracts must not be presented as running safely'
+Assert-View ($ast.Extent.Text.Contains('$modeBadge.Text = "4 BOTS"')) 'Native badge must identify four bots'
+$quantLive = @'
+{"schema":1,"engine":"QUANT_ARBITRAGE","mode":"SHADOW","state":"SHADOW","initialized":true,"enabled":true,"execution_enabled":false,"controls_available":true,"promotion_allowed":false,"at":"2026-10-16T12:00:00Z","updated_at":"2026-10-16T12:00:00Z","last_evaluation":"2026-10-16T12:00:00Z","freshness":{"state":"FRESH","age_seconds":0},"positions":[{"legs":[{"symbol":"BTCUSDT","direction":"LONG"},{"symbol":"BTCUSDT","direction":"SHORT"}]}],"performance":{"equity":1001,"net_pnl":1,"closed_trades":0}}
+'@ | ConvertFrom-Json
+$shadow = Get-ManagerEngineViews $spot $futures $pulse $now -Quant $quantLive
+Assert-View ($shadow.Quant.State -eq 'SHADOW ACTIVO' -and $shadow.Quant.Tone -eq 'Green') 'Fresh initialized Quant is explicitly hypothetical Shadow'
+Assert-View ($shadow.Quant.Capital -eq 'Equity: 1,001.00 USDT' -and $shadow.Quant.Return -eq 'Neto simulado: 1.00 USDT') 'Quant must render its own virtual equity and net result'
+Assert-View ($shadow.Quant.Positions -match 'Pares: 1 · piernas: 2') 'Quant counts hypothetical pairs and legs without claiming actual exchange positions'
+$flatQuant = $quantLive | ConvertTo-Json -Depth 10 | ConvertFrom-Json
+$flatQuant.positions = @()
+$flatQuantView = Get-ManagerEngineViews $spot $futures $pulse $now -Quant $flatQuant
+Assert-View ($flatQuantView.Quant.Positions -match 'Pares: 0 · piernas: 0' -and $flatQuantView.Quant.Positions -match 'Cierres: 0$') 'Known empty Quant positions and integer close counts must remain zero'
+$flatQuant.PSObject.Properties.Remove('positions')
+$unknownInventory = Get-ManagerEngineViews $spot $futures $pulse $now -Quant $flatQuant
+Assert-View ($unknownInventory.Quant.Positions -match 'Pares: — · piernas: —') 'Missing Quant inventory must not become a known empty pair ledger'
+Assert-View ($shadow.Quant.Protection -match 'Sin órdenes al exchange' -and $shadow.Quant.Protection -match 'no atómicas') 'Quant must not imply an atomic real hedge'
+$quantLive | Add-Member -NotePropertyName risk_halt -NotePropertyValue ([PSCustomObject]@{state='HALTED'})
+$lossHalt = Get-ManagerEngineViews $spot $futures $pulse $now -Quant $quantLive
+Assert-View ($lossHalt.Quant.State -eq 'LÍMITE DE PÉRDIDA' -and $lossHalt.Quant.Tone -eq 'Amber') 'Quant loss halt is visible and does not imply removal of protective simulation'
+$quantLive.risk_halt.state = 'UNKNOWN'
+$unknownRisk = Get-ManagerEngineViews $spot $futures $pulse $now -Quant $quantLive
+Assert-View ($unknownRisk.Quant.State -eq 'VALORACIÓN PENDIENTE') 'Unknown Quant risk must remain visible'
+$quantLive.risk_halt.state = 'READY'
+$quantLive.updated_at = '2026-10-16T11:58:29Z'
+$oldQuant = Get-ManagerEngineViews $spot $futures $pulse $now -Quant $quantLive
+Assert-View ($oldQuant.Quant.State -match 'ANTIGUO' -and $oldQuant.Quant.Capital -eq 'Equity: —') 'Quant marks older than ninety seconds must hide current valuations'
+$quantLive.updated_at = '2026-10-16T12:00:10Z'
+$futureQuant = Get-ManagerEngineViews $spot $futures $pulse $now -Quant $quantLive
+Assert-View ($futureQuant.Quant.State -match 'ANTIGUO') 'Quant future timestamps beyond clock tolerance are not fresh'
+$quantLive.updated_at = '2026-10-16T12:00:00Z'
+$quantLive.state = 'PAUSED'
+$pausedQuant = Get-ManagerEngineViews $spot $futures $pulse $now -Quant $quantLive
+Assert-View ($pausedQuant.Quant.State -eq 'ENTRADAS PAUSADAS' -and $pausedQuant.Quant.Protection -match 'Sin órdenes') 'Quant pause is independent and remains hypothetical'
+$quantLive.performance.equity = $null
+$quantLive.performance.net_pnl = $null
+$pendingFunding = Get-ManagerEngineViews $spot $futures $pulse $now -Quant $quantLive
+Assert-View ($pendingFunding.Quant.Capital -eq 'Equity: —' -and $pendingFunding.Quant.Return -eq 'Neto simulado: —') 'Pending authoritative funding must preserve unknown financial values'
+$platform.quant.execution_enabled = $false
+$platform.quant.state = 'DEGRADED'
+$missingLedger = Get-ManagerEngineViews $spot $futures $pulse $now -Quant $platform.quant
+Assert-View ($missingLedger.Quant.State -eq 'LEDGER NO DISPONIBLE' -and $missingLedger.Quant.Capital -eq 'Capital: —') 'A failed uninitialized ledger is not a fresh zero wallet or an unstarted healthy identity'
 
 if ($RenderPath) {
     Add-Type -AssemblyName System.Windows.Forms
@@ -111,7 +152,7 @@ if ($RenderPath) {
     $canvas.Size = New-Object System.Drawing.Size(716, 316)
     $canvas.BackColor = [Drawing.Color]::FromArgb(8,13,24)
     $drawn = @()
-    foreach ($row in @(@('SPOT BOT',12,8,$views.Spot), @('FUTURES BOT',362,8,$views.Futures), @('AI MARKET PULSE',12,160,$views.Pulse), @('QUANT ARBITRAGE',362,160,$four.Quant))) {
+    foreach ($row in @(@('SPOT BOT',12,8,$views.Spot), @('FUTURES BOT',362,8,$views.Futures), @('AI MARKET PULSE',12,160,$views.Pulse), @('QUANT ARBITRAGE',362,160,$shadow.Quant))) {
         $card = New-EngineCard $row[0] $row[1] $row[2]
         Set-EngineCard $card $row[3]
         $canvas.Controls.Add($card.Panel); $drawn += $card

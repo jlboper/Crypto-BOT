@@ -1,5 +1,27 @@
 # Work Context — Crypto AI Trader
 
+## Continuación actual — 0.10.37 en preparación
+
+Predecesora verificada: 0.10.36, main
+`1bb77fad1a490472907ce29591e0b1075d3e7ba3`, PR #113, firmada e instalada 167/167.
+La candidata 0.10.37 implementa Quant SHADOW dentro del mismo proceso supervisado:
+Funding Carry hipotético con costes por pierna, ledger/journal propios, fuentes
+Binance públicas sin credenciales y pausa independiente mediante el agente.
+StatArb sólo diagnostica y espera/rechaza; no abre pares hasta validación
+independiente. Guardian sigue Observer sin veto ni reservas de capital compartido.
+
+El portal y Windows muestran estados/finanzas virtuales reales del ledger,
+frescura, funding observado/proyectado/asentado simulado y límites propios 1%/2%
+diario/semanal con referencia en la primera equity válida del período UTC.
+La valoración desconocida bloquea entradas; pausas no detienen cierres protectores
+hipotéticos. Estrés de colateral virtual no equivale a liquidación Binance.
+Datos de Spot/Futures/Pulse, límites previos y flujo firmado deben conservarse.
+
+Focalizadas registradas: 70 core, 59 contratos, 31 UI, 20 assets Windows y vista
+PowerShell 5.1. Suite completa, CI Linux/Windows, publicación/firma e instalación
+de 0.10.37 pendientes de verificar. Ver `FOUR_ENGINE_EXPANSION.md`; no afirmar
+ventaja estadística, promoción, Guardian Control ni nueva ejecución Testnet/LIVE.
+
 ## Ampliación 0.10.34 y siguiente etapa solicitada
 
 El propietario autorizó diez mayores activos negociables sin stablecoins/duplicados,

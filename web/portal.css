@@ -332,3 +332,5 @@ header{position:relative;z-index:100;overflow:visible}
 .four-scorecards{grid-template-columns:repeat(4,minmax(0,1fr))}.four-scorecards article{min-width:0}.four-scorecards dd{overflow-wrap:anywhere}
 @media(max-width:1200px){.four-scorecards{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:700px){.four-scorecards{grid-template-columns:1fr}}
+.quant-leg-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:12px}.quant-leg{min-width:0;border:1px solid rgba(143,160,186,.16);border-radius:10px;padding:12px;background:rgba(8,17,30,.4)}.quant-leg p{color:#8fa0ba;font-size:.73rem;overflow-wrap:anywhere}.quant-panel pre{max-width:100%;max-height:260px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;font-size:.7rem}.quant-panel .pulse-subnav{flex-wrap:wrap}
+@media(max-width:700px){.quant-leg-grid{grid-template-columns:1fr}.quant-panel .pulse-controls{display:flex;flex-wrap:wrap}.quant-panel .pulse-controls button{flex:1 1 160px;min-height:42px}}

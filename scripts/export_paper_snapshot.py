@@ -7,7 +7,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 from scripts.windows_agent import source_settings
-from trader.portal_snapshot import dashboard_snapshot, bounded_futures_projection, bounded_market_pulse_projection
+from trader.portal_snapshot import (dashboard_snapshot, bounded_futures_projection,
+                                    bounded_market_pulse_projection, bounded_quant_projection)
 
 
 def compatible_remote_projection(payload):
@@ -28,6 +29,8 @@ def compatible_remote_projection(payload):
     bounded_futures_projection(futures)
     if 'market_pulse' in payload:
         bounded_market_pulse_projection(payload['market_pulse'])
+    if 'quant' in payload:
+        bounded_quant_projection(payload['quant'])
     return payload
 
 
