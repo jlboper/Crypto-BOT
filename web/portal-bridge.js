@@ -178,6 +178,10 @@ window.portalApi=async(path,options={})=>{
   }
   const data=state.snapshot?.dashboard;
   if(!data)throw new Error('Esperando la primera sincronización del panel completo');
+  if(path==='/api/platform')return {
+    engine_catalog:structuredClone(data.engine_catalog??null),
+    portfolio_guardian:structuredClone(data.portfolio_guardian??null),
+    quant:structuredClone(data.quant??null),remote_sync_stale:state.stale===true};
   if(!portalRoute[path])throw new Error('Ruta no disponible');
   const result=structuredClone(data[portalRoute[path]]??{});
   if(path==='/api/market-pulse'&&objectLike(result))result.remote_sync_stale=state.stale===true;

@@ -21,6 +21,43 @@ from trader.update_supervisor import ProcessRuntime
 
 
 class DashboardTests(unittest.TestCase):
+    def test_platform_observer_failure_keeps_auth_and_existing_status_available(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            config = load_config()
+            config = replace(config, bot=replace(config.bot, mode='paper', database_path=root/'spot.db'),
+                             research=replace(config.research, report_path=root/'research.json'))
+            db = Database(config.bot.database_path)
+            dashboard = DashboardServer(config, db)
+            dashboard.token = 'synthetic-local-token'
+            server = ThreadingHTTPServer(('127.0.0.1', 0), dashboard._handler())
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            try:
+                address = f'http://127.0.0.1:{server.server_port}'
+                with self.assertRaises(urllib.error.HTTPError) as missing:
+                    urllib.request.urlopen(address+'/api/platform')
+                self.assertEqual(missing.exception.code, 401)
+                headers = {'X-Dashboard-Token': dashboard.token}
+                with patch('trader.portal_snapshot.dashboard_snapshot', side_effect=RuntimeError('synthetic observer failure')) as snapshot:
+                    for _ in range(2):
+                        with urllib.request.urlopen(urllib.request.Request(address+'/api/platform', headers=headers)) as response:
+                            payload = json.load(response)
+                            self.assertEqual(response.headers['Cache-Control'], 'no-store')
+                            self.assertEqual(payload['portfolio_guardian']['state'], 'DEGRADED')
+                            self.assertFalse(payload['portfolio_guardian']['can_veto'])
+                            self.assertEqual(payload['quant']['state'], 'NOT_STARTED')
+                            self.assertIsNone(payload['quant']['performance']['equity'])
+                    snapshot.assert_called_once()
+                with urllib.request.urlopen(urllib.request.Request(address+'/api/status', headers=headers)) as response:
+                    self.assertEqual(json.load(response)['mode'], 'PAPER')
+                with self.assertRaises(urllib.error.HTTPError) as post:
+                    urllib.request.urlopen(urllib.request.Request(address+'/api/platform', data=b'{}', headers={**headers, 'Content-Type':'application/json'}, method='POST'))
+                self.assertEqual(post.exception.code, 404)
+                self.assertIsNone(db.setting('spot_last_error'))
+            finally:
+                server.shutdown(); server.server_close(); thread.join(timeout=2)
+
     def test_pulse_status_and_controls_keep_existing_auth_origin_and_payload_checks(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

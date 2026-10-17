@@ -155,16 +155,29 @@ class RemoteAgent:
                               'Invalid dashboard', 'Invalid Testnet status', 'Invalid Futures forward status',
                               'Invalid Futures pause diagnostics', 'Invalid Spot cycle diagnostic',
                               'Invalid Futures cycle diagnostic', 'Invalid Futures latest signals',
-                              'Invalid financial scorecard', 'Invalid Market Pulse status'} or 'dashboard' not in payload['snapshot']:
+                              'Invalid financial scorecard', 'Invalid Market Pulse status',
+                              'Invalid Portfolio Guardian status', 'Invalid Quant Arbitrage status',
+                              'Invalid engine catalog'} or 'dashboard' not in payload['snapshot']:
                 self.last_error = f'HTTPError:{error.code}' + (f':{reason}' if reason else '')
                 raise
             # Preserve a working heartbeat and update jobs when an optional
             # dashboard projection is incompatible. Report the partial sync.
             dashboard = payload['snapshot'].get('dashboard')
-            if reason == 'Invalid Market Pulse status' and isinstance(dashboard, dict) and 'market_pulse' in dashboard:
-                # An optional third-engine schema fault must not hide the two
-                # existing ledgers/protections from the authenticated owner.
-                dashboard.pop('market_pulse')
+            optional_field = {'Invalid Market Pulse status': 'market_pulse',
+                'Invalid Portfolio Guardian status': 'portfolio_guardian',
+                'Invalid Quant Arbitrage status': 'quant',
+                'Invalid engine catalog': 'engine_catalog'}.get(reason)
+            new_fields = ('portfolio_guardian', 'quant', 'engine_catalog')
+            if isinstance(dashboard, dict) and optional_field in dashboard:
+                # An optional observer schema fault must not hide existing
+                # ledgers or their protection evidence.
+                dashboard.pop(optional_field)
+            elif (reason == 'Unknown dashboard field' and isinstance(dashboard, dict)
+                  and any(field in dashboard for field in new_fields)):
+                # Rolling deployment to the previous Worker: omit only the new
+                # optional identities/observer, retaining all three old engines.
+                for field in new_fields:
+                    dashboard.pop(field, None)
             else:
                 payload['snapshot'].pop('dashboard')
             self.last_error = f'DASHBOARD_REJECTED:{reason}'
@@ -234,6 +247,7 @@ class RemoteAgent:
                    'Invalid Futures forward status', 'Invalid Futures pause diagnostics',
                    'Invalid Spot cycle diagnostic', 'Invalid Futures cycle diagnostic',
                    'Invalid Futures latest signals', 'Invalid financial scorecard', 'Invalid Market Pulse status',
+                   'Invalid Portfolio Guardian status', 'Invalid Quant Arbitrage status', 'Invalid engine catalog',
                    'Invalid balance', 'Invalid position', 'Invalid position value',
                    'Invalid bot release', 'Invalid restore offer',
                    'Invalid model', 'Invalid cycle time', 'Invalid acknowledgements',

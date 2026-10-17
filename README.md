@@ -10,6 +10,13 @@ Ver [Market Pulse](MARKET_PULSE.md) para la selección fechada, fuentes, hipóte
 limitaciones. La siguiente expansión a Quant Arbitrage y Portfolio Guardian está
 documentada en [cuatro motores](FOUR_ENGINE_EXPANSION.md); no implica activación.
 
+0.10.35 incorpora Portfolio Guardian **Observer** y contratos opcionales para
+cuatro motores. Observa exposición, concentración, frescura y presupuestos
+existentes por ledger; no suma capital de entornos separados ni veta entradas.
+Quant Arbitrage figura **NOT_STARTED**, sin capital o rendimiento inventado.
+`GET /api/platform` ofrece estos diagnósticos con la autenticación vigente.
+La interfaz de cuatro motores y Quant Shadow son etapas posteriores.
+
 Bot de swing trading de varios días/semanas con Binance Spot Testnet como entorno operativo predeterminado; PAPER se conserva como respaldo técnico/CI. Consume datos reales de mercado, crea señales cuantitativas y utiliza OpenAI como una segunda barrera de riesgo. Desde 0.8.0, cuando Spot está en TESTNET, corre además un forward test separado de Binance USDⓈ-M Futures Demo: BTCUSDT, LONG/SHORT, 1x automático, máximo una posición, ledger y kill switch propios. Los smoke tests manuales 1x–3x permanecen solo como diagnóstico. Binance LIVE sigue sin implementación.
 
 El ajuste operativo del 12 de octubre de 2026 amplía Spot Testnet y Futures Demo a diez posiciones por bot. Futures observa 15 monedas y alterna 1x/2x/3x sin multiplicar la cantidad: máximo 100 USDT por entrada, 300 USDT de notional bruto conjunto y 7,5 USDT de pérdida estimada hasta los stops, incluida una reserva de costos del 0,5%. El objetivo de las nuevas entradas Futures pasa de 60 a 30 USDT al distribuir el mismo presupuesto entre diez cupos; las posiciones existentes conservan su tamaño. La cantidad se adapta a filtros actuales y presupuesto disponible; los límites pueden permitir menos de diez posiciones. Son estimaciones previas a órdenes MARKET, no garantías de pérdidas máximas. Publicación e instalación se verifican por separado; las descripciones versionadas anteriores son históricas.

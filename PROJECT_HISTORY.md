@@ -297,3 +297,21 @@ The owner requested better returns and more dynamic Testnet observation using th
 An execution defect was demonstrated: replacing only Spot signal.price changed the intended stop fraction and reward/risk before AI and sizing. New entry plans preserve their fractions and original admission bounds; observed and executable prices stay explicit. Initial ATR scales with the confirmed fill. This does not retroactively widen stops or resolve all public/Testnet volatility or slippage differences. Futures sizing could stay valid after price crossed the original or reviewed setup; entries now reject that condition without blocking recovery or exits.
 
 Research had used Spot 4h for Futures despite the operating 1h cadence. Interval identity must be checked rather than inferred from internally consistent OHLC. Caches remain separate, old cohort registration is archived and only the changed market starts a new observation. Exact configured signal references share production signal functions, but must never be described as an execution-profitability replay: AI, fill/fee/funding details, exits, filters and portfolio state need independent modeling. Historical five-slot proportional scenarios remain distinct from the operating ten-slot and absolute Futures budgets. Do not relax income attribution to conceal small unmatched realized amounts without authoritative fill precision.
+# 2026-10-16 — Four-engine expansion begins with read-only Guardian
+
+The owner requested finishing Pulse's ten-asset/five-source expansion before
+adding Quant Arbitrage and Portfolio Guardian in four reversible stages. Signed
+0.10.34 main06de9109a0ae49ffbdb5f94bc6310a9239f421fc was observed installed with
+162/162 hashes and fresh HTTPS sync; retained trade/decision journal rows matched.
+The first Guardian is a pure projection of existing dashboard evidence, outside
+trading cycles. It observes separate ledgers without netting Testnet/Demo/Shadow
+capital or claiming verified cross-account hedges. Nominal stop distance excludes
+costs/gaps/funding and is not a hard loss bound. Existing inclusive Futures budget
+is reported separately. Native protection does not depend on Guardian availability.
+
+Control/veto, common reservation admission and allocation journals are deliberately
+absent until compatibility is validated. Unknown risk metrics must remain unknown.
+Quant has a NOT_STARTED identity, with no fake wallet/performance and no execution.
+Follow FOUR_ENGINE_EXPANSION.md for the separate UI, Quant Shadow and evaluation
+stages. Signed rollout, anti-downgrade/recovery and existing financial state remain
+mandatory; authorization does not extend to new Testnet execution or LIVE.

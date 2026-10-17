@@ -818,3 +818,22 @@ La versión 0.5.0 incorpora un canal estable en línea. El Centro de Control avi
 ## Aplicación gráfica
 
 `Crypto AI Trader.vbs` abre un centro de control sin mostrar PowerShell. Incluye estado, resumen de inversión, último ciclo y botones para abrir los portales, reiniciar, manejar el kill switch, configurar el inicio automático e instalar actualizaciones. Al minimizarlo queda como indicador en el área de notificaciones. El actualizador continúa disponible por consola como mecanismo alternativo de recuperación.
+# 0.10.35 — Portfolio Guardian Observer and four-engine contracts
+
+- Observes four separate ledger identities and scoped gross/net exposure,
+  concentration, nominal stop distance, native status, existing budget and data
+  quality. Missing/stale/overflow evidence stays unknown; bounded prioritized
+  alerts cannot command orders, veto entries or modify risk.
+- Quant identity remains NOT_STARTED, with no virtual wallet or execution.
+- Optional authenticated `/api/platform` diagnostics, backward-compatible remote
+  schema and isolated projection failures preserve the existing engine/updater.
+- Guardian has no I/O or trading dependencies; no engine-cycle changes. Shared
+  reservations, correlation/drawdown/liquidation analysis and Quant simulation
+  remain future stages. Web/Windows four-card view is a separate next PR.
+- Installed observation exposed Binance timestamps about 1.5 seconds ahead of
+  Windows. Pulse freshness now matches the existing five-second ingestion bound
+  while independently requiring receipt before decision, a recent eligible price
+  and current depth. Old prices/future buckets remain blocked; coverage and risk
+  hypotheses are unchanged. Protective simulation uses the same receipt check.
+- Verify exact main CI, signed publication and Windows installation separately;
+  this note is not deployment evidence.

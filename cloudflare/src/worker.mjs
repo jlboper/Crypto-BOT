@@ -38,6 +38,104 @@ class HttpError extends Error {
 }
 function object(value) { return value !== null && typeof value === 'object' && !Array.isArray(value); }
 function assert(condition, message) { if (!condition) throw new HttpError(400, message); }
+const observerEngines=['SPOT','FUTURES','AI_MARKET_PULSE','QUANT_ARBITRAGE'];
+const exactKeys=(value,fields)=>object(value)&&Object.keys(value).length===fields.length&&fields.every(k=>Object.hasOwn(value,k));
+const observerStamp=value=>value===null||(typeof value==='string'&&value.length<=40&&/T.+(?:Z|[+-]\d{2}:\d{2})$/.test(value)&&Number.isFinite(Date.parse(value)));
+const observerNumber=value=>value===null||(typeof value==='number'&&Number.isFinite(value));
+const observerNonnegative=value=>observerNumber(value)&&(value===null||value>=0);
+const observerPositive=value=>observerNumber(value)&&(value===null||value>0);
+const observerCount=value=>Number.isSafeInteger(value)&&value>=0&&value<=100000;
+const observerSymbol=value=>typeof value==='string'&&/^[A-Z0-9]{2,24}USDT$/.test(value);
+function validateEngineCatalog(catalog,mode){
+  const expected=[
+    ['SPOT','Spot Bot',mode==='TESTNET'?'SPOT_TESTNET':mode==='PAPER'?'PAPER':'UNKNOWN','TREND','OBSERVED_EXTERNALLY'],
+    ['FUTURES','Futures Bot','FUTURES_DEMO','LONG_SHORT','OBSERVED_EXTERNALLY'],
+    ['AI_MARKET_PULSE','AI Market Pulse','SHADOW','EVENTS','OBSERVED_EXTERNALLY'],
+    ['QUANT_ARBITRAGE','Quant Arbitrage','SHADOW','CARRY_STATISTICAL_RESEARCH','NOT_STARTED']];
+  assert(Array.isArray(catalog)&&catalog.length===4&&catalog.every((row,index)=>
+    exactKeys(row,['id','name','environment','role','state'])&&
+    ['id','name','environment','role','state'].every((key,column)=>row[key]===expected[index][column])),
+    'Invalid engine catalog');
+}
+function validateQuantArbitrage(q){
+  assert(exactKeys(q,['schema','engine','mode','state','initialized','enabled','execution_enabled',
+    'controls_available','at','updated_at','freshness','positions','performance','strategies','promotion_allowed'])
+    &&q.schema===1&&q.engine==='QUANT_ARBITRAGE'&&q.mode==='SHADOW'&&q.state==='NOT_STARTED'
+    &&['initialized','enabled','execution_enabled','controls_available','promotion_allowed'].every(k=>q[k]===false)
+    &&q.at!==null&&observerStamp(q.at)&&q.updated_at===null
+    &&exactKeys(q.freshness,['state','age_seconds'])&&q.freshness.state==='UNAVAILABLE'&&q.freshness.age_seconds===null
+    &&Array.isArray(q.positions)&&q.positions.length===0
+    &&exactKeys(q.performance,['initial_capital','equity','net_pnl','closed_trades'])&&Object.values(q.performance).every(v=>v===null)
+    &&Array.isArray(q.strategies)&&q.strategies.length===2&&q.strategies.every((row,index)=>
+      exactKeys(row,['id','state'])&&row.id===['FUNDING_CARRY','STATISTICAL_ARBITRAGE'][index]&&row.state==='NOT_STARTED')
+    &&JSON.stringify(q).length<1600,'Invalid Quant Arbitrage status');
+}
+function validatePortfolioGuardian(g){
+  const error='Invalid Portfolio Guardian status';
+  const native=['ARMED','PENDING','ERROR','UNAVAILABLE','RECONCILING','UNKNOWN','NOT_APPLICABLE'];
+  const scopeFields=['id','engine','environment','inventory_scope','state','position_count','unpriced_positions',
+    'gross_usdt','net_usdt','known_gross_usdt','known_net_usdt','nominal_stop_risk_usdt','capital','limits',
+    'budget_status','observed_budget','assets','assets_omitted'];
+  const assetFields=['symbol','direction','quantity','mark_price','notional_usdt','signed_notional_usdt',
+    'stop_price','nominal_stop_risk_usdt','priced_at','native_protection','state','concentration_pct'];
+  const asset=a=>exactKeys(a,assetFields)&&observerSymbol(a.symbol)&&['LONG','SHORT','UNKNOWN'].includes(a.direction)
+    &&['quantity','mark_price','stop_price'].every(k=>observerPositive(a[k]))
+    &&['notional_usdt','nominal_stop_risk_usdt'].every(k=>observerNonnegative(a[k]))
+    &&observerNumber(a.signed_notional_usdt)&&observerStamp(a.priced_at)&&native.includes(a.native_protection)
+    &&['FRESH','UNKNOWN'].includes(a.state)&&observerNonnegative(a.concentration_pct)
+    &&(a.concentration_pct===null||a.concentration_pct<=100);
+  const scope=(s,index)=>exactKeys(s,scopeFields)&&s.id===observerEngines[index]&&s.engine===s.id
+    &&({SPOT:['SPOT_TESTNET','PAPER','UNKNOWN'],FUTURES:['FUTURES_DEMO'],AI_MARKET_PULSE:['SHADOW'],QUANT_ARBITRAGE:['SHADOW']}[s.id]).includes(s.environment)
+    &&s.inventory_scope==='LEDGER_ONLY'&&['FRESH','PARTIAL','UNAVAILABLE','NOT_STARTED'].includes(s.state)
+    &&['position_count','unpriced_positions'].every(k=>s[k]===null||observerCount(s[k]))
+    &&['gross_usdt','known_gross_usdt','nominal_stop_risk_usdt'].every(k=>observerNonnegative(s[k]))
+    &&['net_usdt','known_net_usdt'].every(k=>observerNumber(s[k]))
+    &&exactKeys(s.capital,['equity_usdt','cash_usdt','available_usdt','at','state'])
+    &&['equity_usdt','cash_usdt','available_usdt'].every(k=>observerNonnegative(s.capital[k]))
+    &&observerStamp(s.capital.at)&&['FRESH','UNKNOWN'].includes(s.capital.state)
+    &&exactKeys(s.limits,['gross_usdt','stop_risk_usdt'])&&Object.values(s.limits).every(observerPositive)
+    &&exactKeys(s.budget_status,['gross','stop_risk'])&&['UNKNOWN','WITHIN','EXCEEDED'].includes(s.budget_status.gross)
+    &&['UNKNOWN','OBSERVED_WITHIN','OBSERVED_EXCEEDED'].includes(s.budget_status.stop_risk)
+    &&exactKeys(s.observed_budget,['gross_usdt','stop_risk_usdt','at'])
+    &&observerNonnegative(s.observed_budget.gross_usdt)&&observerNonnegative(s.observed_budget.stop_risk_usdt)&&observerStamp(s.observed_budget.at)
+    &&Array.isArray(s.assets)&&s.assets.length<=40&&s.assets.every(asset)
+    &&new Set(s.assets.map(a=>a.symbol)).size===s.assets.length&&observerCount(s.assets_omitted)
+    &&(s.position_count===null?s.assets.length===0:s.assets.length+s.assets_omitted<=s.position_count)
+    &&(s.unpriced_positions===null||s.position_count!==null&&s.unpriced_positions<=s.position_count)
+    &&(s.id!=='QUANT_ARBITRAGE'||s.state==='NOT_STARTED'&&s.position_count===null&&s.unpriced_positions===null
+      &&['gross_usdt','net_usdt','known_gross_usdt','known_net_usdt','nominal_stop_risk_usdt'].every(k=>s[k]===null)
+      &&['equity_usdt','cash_usdt','available_usdt','at'].every(k=>s.capital[k]===null)&&s.capital.state==='UNKNOWN'
+      &&Object.values(s.limits).every(v=>v===null)&&Object.values(s.observed_budget).every(v=>v===null));
+  const alertCodes=['GUARDIAN_UNAVAILABLE','INVALID_POSITION','DUPLICATE_POSITION','PROTECTIVE_THRESHOLD_CROSSED',
+    'NATIVE_PROTECTION_UNCONFIRMED','POSITION_VALUE_UNKNOWN','AGGREGATE_VALUE_UNKNOWN','SOURCE_STALE_OR_UNAVAILABLE',
+    'GROSS_LIMIT_EXCEEDED','OBSERVED_STOP_RISK_LIMIT_EXCEEDED'];
+  const limitations=['SEPARATE_ENVIRONMENTS_NO_FINANCIAL_TOTAL','LEDGER_INVENTORY_IS_NOT_COMPLETE_EXCHANGE_ACCOUNT_RECONCILIATION',
+    'NOMINAL_STOP_DISTANCE_EXCLUDES_COSTS_GAPS_AND_FUNDING','NATIVE_PROTECTION_IS_NOT_A_GUARANTEED_LOSS_BOUND',
+    'RESERVATIONS_NOT_INTEGRATED_NO_ADMISSION_OR_VETO','CROSS_SCOPE_OVERLAP_IS_NOT_A_VERIFIED_HEDGE',
+    'FUNDING_LIQUIDATION_NOT_OBSERVED','CORRELATION_DRAWDOWN_NOT_COMPUTED'];
+  assert(exactKeys(g,['schema','engine','mode','state','at','controls_enabled','can_veto','execution_enabled',
+    'scopes','reservations','risk_quality','overlaps','alerts','truncation','limitations'])
+    &&g.schema===1&&g.engine==='PORTFOLIO_GUARDIAN'&&g.mode==='OBSERVER'
+    &&['OBSERVING','PARTIAL','DEGRADED'].includes(g.state)&&g.at!==null&&observerStamp(g.at)
+    &&g.controls_enabled===false&&g.can_veto===false&&g.execution_enabled===false
+    &&Array.isArray(g.scopes)&&g.scopes.length===4&&g.scopes.every(scope)
+    &&g.scopes.reduce((count,s)=>count+s.assets.length,0)<=40
+    &&exactKeys(g.reservations,['state','reserved_usdt','reserved_stop_risk_usdt'])
+    &&g.reservations.state==='NOT_INTEGRATED'&&g.reservations.reserved_usdt===null&&g.reservations.reserved_stop_risk_usdt===null
+    &&exactKeys(g.risk_quality,['correlation','daily_loss','weekly_loss','drawdown'])&&Object.values(g.risk_quality).every(v=>v==='UNKNOWN'),error);
+  assert(Array.isArray(g.alerts)&&g.alerts.length<=20&&g.alerts.every(a=>
+    exactKeys(a,['code','severity','scope','symbol'])&&alertCodes.includes(a.code)&&a.severity==='WARNING'
+    &&(a.scope===null||observerEngines.includes(a.scope))&&(a.symbol===null||observerSymbol(a.symbol)))
+    &&Array.isArray(g.overlaps)&&g.overlaps.length<=10&&g.overlaps.every(o=>
+      exactKeys(o,['symbol','scopes','directions','classification'])&&observerSymbol(o.symbol)&&o.classification==='CROSS_SCOPE_OBSERVATION'
+      &&Array.isArray(o.scopes)&&o.scopes.length>=2&&o.scopes.length<=4&&o.scopes.every(s=>observerEngines.includes(s))
+      &&new Set(o.scopes).size===o.scopes.length&&Array.isArray(o.directions)&&o.directions.length===o.scopes.length
+      &&o.directions.every(d=>['LONG','SHORT','UNKNOWN'].includes(d)))
+    &&exactKeys(g.truncation,['assets_omitted','alerts_omitted','overlaps_omitted'])&&Object.values(g.truncation).every(observerCount)
+    &&g.truncation.assets_omitted===g.scopes.reduce((count,s)=>count+s.assets_omitted,0)
+    &&Array.isArray(g.limitations)&&g.limitations.length===limitations.length&&new Set(g.limitations).size===limitations.length
+    &&g.limitations.every(l=>limitations.includes(l))&&JSON.stringify(g).length<15000,error);
+}
 function validateMarketPulse(p) {
   const error='Invalid Market Pulse status';
   const keys=(value,allowed)=>object(value)&&Object.keys(value).every(k=>allowed.includes(k));
@@ -225,8 +323,11 @@ function validateSnapshot(snapshot) {
         &&object(c.reasons)&&Object.entries(c.reasons).every(([k,v])=>codes.includes(k)&&Number.isInteger(v)&&v>0&&v<=10000)
         &&JSON.stringify(c).length<2400,'Invalid Spot cycle diagnostic');
     }
-    assert(Object.keys(d).every(k=>['status','positions','equity','trades','reviews','events','risk','research','research_state','testnet','testnet_execution','updates','paper_scorecard','futures_forward','market_pulse'].includes(k)), 'Unknown dashboard field');
+    assert(Object.keys(d).every(k=>['status','positions','equity','trades','reviews','events','risk','research','research_state','testnet','testnet_execution','updates','paper_scorecard','futures_forward','market_pulse','portfolio_guardian','quant','engine_catalog'].includes(k)), 'Unknown dashboard field');
     if(d.market_pulse!==undefined)validateMarketPulse(d.market_pulse);
+    if(d.portfolio_guardian!==undefined)validatePortfolioGuardian(d.portfolio_guardian);
+    if(d.quant!==undefined)validateQuantArbitrage(d.quant);
+    if(d.engine_catalog!==undefined)validateEngineCatalog(d.engine_catalog,d.status.mode);
     if(d.testnet_execution!==undefined){
       const x=d.testnet_execution;
       assert(object(x)&&x.mode==='SPOT_TESTNET'&&Array.isArray(x.orders)&&x.orders.length<=5&&

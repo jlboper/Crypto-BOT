@@ -48,6 +48,28 @@ test('remote Market Pulse reads its optional bounded dashboard projection',async
   assert.equal(result.mode,'SHADOW');
 });
 
+test('platform observer reads authenticated optional snapshots and reports remote freshness separately',async()=>{
+  const platform={engine_catalog:[{id:'SPOT'}],portfolio_guardian:{mode:'OBSERVER',state:'PARTIAL'},
+    quant:{mode:'SHADOW',state:'NOT_STARTED'}};
+  const instance=bridge('paper.example.workers.dev',[{status:200,body:state({stale:true,snapshot:{dashboard:platform}})}]);
+  const result=await instance.api('/api/platform');
+  assert.deepEqual(result.engine_catalog,platform.engine_catalog);
+  assert.equal(result.portfolio_guardian.mode,'OBSERVER');
+  assert.equal(result.quant.state,'NOT_STARTED');
+  assert.equal(result.remote_sync_stale,true);
+  assert.equal(instance.calls[0].path,'/v1/status');
+  assert.equal(instance.calls[0].options.credentials,'same-origin');
+  const legacy=bridge('paper.example.workers.dev',[{status:200,body:state()}]);
+  const missing=await legacy.api('/api/platform');
+  assert.equal(missing.portfolio_guardian,null);assert.equal(missing.quant,null);assert.equal(missing.engine_catalog,null);
+});
+
+test('platform observer has no remote command or promotion route',async()=>{
+  const instance=bridge('paper.example.workers.dev',[]);
+  await assert.rejects(()=>instance.api('/api/platform',{method:'POST',body:'{}'}),/requiere el servicio supervisado/);
+  assert.equal(instance.calls.length,0);
+});
+
 test('remote Market Pulse independent pause uses authenticated allowlisted controls without mode parameters',async()=>{
   const ready=state({snapshot:{paper_controls:true,dashboard:{market_pulse:{enabled:true,controls_available:true}}}});
   const instance=bridge('paper.example.workers.dev',[{status:200,body:ready},{status:202,body:{status:'pending'}}]);

@@ -146,6 +146,52 @@ class RemoteConnectionTests(unittest.TestCase):
         self.agent.jobs.accept.assert_called_once_with(job)
         self.assertEqual(self.agent.last_error,'DASHBOARD_REJECTED:Invalid Futures forward status')
 
+    def test_optional_guardian_quant_and_catalog_rejection_retains_all_existing_engines(self):
+        Database(self.config.bot.database_path)
+        labels = {'Invalid Portfolio Guardian status': 'portfolio_guardian',
+                  'Invalid Quant Arbitrage status': 'quant', 'Invalid engine catalog': 'engine_catalog'}
+        for label, field in labels.items():
+            with self.subTest(label=label):
+                self.agent.dashboard_provider = lambda: {'status': {'mode': 'PAPER'},
+                    'futures_forward': {'killed': False}, 'market_pulse': {'mode': 'SHADOW'},
+                    'portfolio_guardian': {'mode': 'OBSERVER'}, 'quant': {'mode': 'SHADOW'},
+                    'engine_catalog': []}
+                self.agent.update_provider = lambda: {'version': '0.10.35', 'enabled': True}
+                requests = []
+                def send(request, timeout):
+                    requests.append(json.loads(request.data))
+                    if len(requests) == 1:
+                        raise urllib.error.HTTPError(request.full_url, 400, 'Bad Request', {},
+                            io.BytesIO(json.dumps({'error': label}).encode()))
+                    return io.BytesIO(b'{"commands":[],"jobs":[]}')
+                with patch.object(self.agent.opener, 'open', side_effect=send):
+                    self.agent.sync()
+                self.assertEqual(len(requests), 2)
+                final = requests[-1]['snapshot']
+                self.assertNotIn(field, final['dashboard'])
+                self.assertIn('futures_forward', final['dashboard'])
+                self.assertIn('market_pulse', final['dashboard'])
+                self.assertEqual(final['bot_update']['version'], '0.10.35')
+                self.assertEqual(self.agent.last_error, 'DASHBOARD_REJECTED:' + label)
+
+    def test_previous_worker_unknown_field_omits_only_new_observer_contracts(self):
+        Database(self.config.bot.database_path)
+        self.agent.dashboard_provider = lambda: {'status': {'mode': 'PAPER'},
+            'futures_forward': {'killed': False}, 'market_pulse': {'mode': 'SHADOW'},
+            'portfolio_guardian': {'mode': 'OBSERVER'}, 'quant': {'mode': 'SHADOW'}, 'engine_catalog': []}
+        requests = []
+        def send(request, timeout):
+            requests.append(json.loads(request.data))
+            if len(requests) == 1:
+                raise urllib.error.HTTPError(request.full_url, 400, 'Bad Request', {},
+                    io.BytesIO(b'{"error":"Unknown dashboard field"}'))
+            return io.BytesIO(b'{"commands":[],"jobs":[]}')
+        with patch.object(self.agent.opener, 'open', side_effect=send):
+            self.agent.sync()
+        final = requests[-1]['snapshot']['dashboard']
+        self.assertEqual(set(final), {'status', 'futures_forward', 'market_pulse'})
+        self.assertEqual(self.agent.last_error, 'DASHBOARD_REJECTED:Unknown dashboard field')
+
     def test_remote_paper_control_executes_after_authenticated_device_sync_and_reports_result(self):
         Database(self.config.bot.database_path)
         self.agent.paper_controls = Mock(available=True)

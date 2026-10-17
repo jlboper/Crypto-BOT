@@ -166,6 +166,14 @@ class MarketWindow:
             self.buckets.popleft()
         return True
 
+    def trade_fresh(self, now: float) -> bool:
+        # Public exchange timestamps may lead the Windows clock by the same
+        # bounded five seconds accepted at ingestion. Local receipt still has
+        # to precede the decision and expire independently of provider time.
+        return bool(self.last_trade_at is not None and self.last_received_at is not None
+                    and -5 <= now - self.last_trade_at <= self.config.stale_seconds
+                    and 0 <= now - self.last_received_at <= self.config.stale_seconds)
+
     def depth(self, data: dict, received_at: float) -> None:
         bids, asks = data.get("bids"), data.get("asks")
         if not isinstance(bids, list) or not isinstance(asks, list) or not bids or not asks:
@@ -193,8 +201,8 @@ class MarketWindow:
         short, long = self.config.windows_seconds
         rows = [b for b in self.buckets if now - long - 2 <= b[0] <= now]
         price = rows[-1][2] if rows else None
-        fresh = bool(rows and self.last_trade_at is not None and self.book_at is not None
-                     and 0 <= now - self.last_trade_at <= self.config.stale_seconds
+        fresh = bool(rows and self.trade_fresh(now) and self.book_at is not None
+                     and 0 <= now - rows[-1][0] <= self.config.stale_seconds
                      and 0 <= now - self.book_at <= self.config.stale_seconds)
         # Liquid initial assets need broad time coverage and no unresolved trade-ID gap.
         complete = bool(rows and rows[0][0] <= now - long and len(rows) >= long * 0.80
@@ -743,7 +751,7 @@ class MarketPulseService:
             btc = next((market for market in markets if market["symbol"] == "BTCUSDT"), None)
             for symbol, position in list(self._positions.items()):
                 window = self.windows[symbol]
-                if window.last_trade_at is not None and 0 <= now - window.last_trade_at <= self.config.stale_seconds:
+                if window.trade_fresh(now):
                     self._protective_check(symbol, window.buckets[-1][2], now)
             with _connect(self.path) as db:
                 db.execute("BEGIN IMMEDIATE")
