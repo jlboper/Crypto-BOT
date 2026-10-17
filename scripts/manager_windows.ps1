@@ -495,24 +495,25 @@ function Get-ManagerProtection($Native, $Positions, [string]$Name) {
     return "$armed/$Positions $Name confirmados"
 }
 
-function Get-ManagerEngineViews($Spot, $Futures, $Pulse, [DateTimeOffset]$Now = [DateTimeOffset]::UtcNow) {
+function Get-ManagerEngineViews($Spot, $Futures, $Pulse, [DateTimeOffset]$Now = [DateTimeOffset]::UtcNow, $Quant = $null) {
     $spotCount = Get-ManagerValue $Spot 'positions'
     $spotState = switch ([string](Get-ManagerValue $Spot 'activity.state')) {
         'operational' { 'OPERATIVO' } 'delayed' { 'RETRASADO' } 'offline' { 'SIN CICLO RECIENTE' } default { 'SIN DATOS' }
     }
     if ((Get-ManagerValue $Spot 'killed') -eq $true) { $spotState = 'ENTRADAS PAUSADAS' }
     $spotNative = Get-ManagerValue $Spot 'native_protection.positions'
-    if ($spotState -eq 'OPERATIVO' -and $null -ne $spotCount -and [int]$spotCount -gt 0 -and (Get-ManagerArmedCount $spotNative) -lt [int]$spotCount) {
+    $spotMode = [string](Get-ManagerValue $Spot 'mode')
+    $spotPaper = $spotMode.ToUpperInvariant() -eq 'PAPER'
+    if (-not $spotPaper -and $spotState -eq 'OPERATIVO' -and $null -ne $spotCount -and [int]$spotCount -gt 0 -and (Get-ManagerArmedCount $spotNative) -lt [int]$spotCount) {
         $spotState = 'PROTECCIÓN PENDIENTE'
     }
-    $spotMode = [string](Get-ManagerValue $Spot 'mode')
     $spotPositions = if ($null -eq $spotCount) { 'Posiciones: —' } else { "Posiciones: $spotCount" }
     $spotView = [PSCustomObject]@{
         State=$spotState; Environment= $(if ($spotMode) { 'Spot ' + $spotMode.ToUpperInvariant() } else { 'Entorno sin confirmar' })
         Capital=('Equity: ' + (Format-ManagerNumber (Get-ManagerValue $Spot 'equity') ' USDT'))
         Return=('Retorno: ' + (Format-ManagerNumber (Get-ManagerValue $Spot 'return_pct') '%'))
         Positions=($spotPositions + "`r`nExposición: " + (Format-ManagerNumber (Get-ManagerValue $Spot 'exposure') ' USDT'))
-        Protection=(Get-ManagerProtection $spotNative $spotCount 'OCO')
+        Protection=$(if ($spotPaper) { if ($null -ne $spotCount -and [int]$spotCount -eq 0) { 'Sin exposición · stops simulados' } else { 'Stops simulados · PAPER' } } else { Get-ManagerProtection $spotNative $spotCount 'OCO' })
         Latest=(Format-ManagerTime (Get-ManagerValue $Spot 'activity.last_cycle_at'))
         Tone=$(if ($spotState -eq 'OPERATIVO') { 'Green' } elseif ($null -eq $Spot) { 'Muted' } else { 'Amber' })
     }
@@ -569,24 +570,54 @@ function Get-ManagerEngineViews($Spot, $Futures, $Pulse, [DateTimeOffset]$Now = 
         Latest=(Format-ManagerTime (Get-ManagerValue $Pulse 'updated_at'))
         Tone=$(if ($pulseState -eq 'SHADOW ACTIVO' -and -not $pulseOld) {'Green'} elseif ($null -eq $Pulse -or $pulseState -eq 'SIN INICIAR') {'Muted'} else {'Amber'})
     }
-    return [PSCustomObject]@{ Spot=$spotView; Futures=$fView; Pulse=$pView }
+    # Quant is a contract scaffold in this phase, never an initialized virtual wallet.
+    $quantValid = (Get-ManagerValue $Quant 'schema') -eq 1 -and (Get-ManagerValue $Quant 'engine') -eq 'QUANT_ARBITRAGE' -and
+        (Get-ManagerValue $Quant 'mode') -eq 'SHADOW' -and (Get-ManagerValue $Quant 'state') -eq 'NOT_STARTED' -and
+        (Get-ManagerValue $Quant 'initialized') -eq $false -and (Get-ManagerValue $Quant 'enabled') -eq $false -and
+        (Get-ManagerValue $Quant 'execution_enabled') -eq $false -and (Get-ManagerValue $Quant 'controls_available') -eq $false -and
+        (Get-ManagerValue $Quant 'promotion_allowed') -eq $false
+    $qView = [PSCustomObject]@{
+        State=$(if ($quantValid) { 'SIN INICIAR' } else { 'SIN DATOS' }); Environment='SHADOW · investigación pendiente'
+        Capital='Capital: —'; Return='Neto simulado: —'; Positions="Funding Carry / StatArb`r`nSin ledger inicializado"
+        Protection="Ejecución bloqueada`r`nPromoción bloqueada"; Latest='Sin evaluación registrada'; Tone='Muted'
+    }
+    return [PSCustomObject]@{ Spot=$spotView; Futures=$fView; Pulse=$pView; Quant=$qView }
+}
+
+function Get-ManagerGuardianView($Platform, [DateTimeOffset]$Now = [DateTimeOffset]::UtcNow) {
+    $guardian = Get-ManagerValue $Platform 'portfolio_guardian'
+    $compatible = (Get-ManagerValue $guardian 'schema') -eq 1 -and (Get-ManagerValue $guardian 'engine') -eq 'PORTFOLIO_GUARDIAN' -and
+        (Get-ManagerValue $guardian 'mode') -eq 'OBSERVER' -and (Get-ManagerValue $guardian 'controls_enabled') -eq $false -and
+        (Get-ManagerValue $guardian 'can_veto') -eq $false -and (Get-ManagerValue $guardian 'execution_enabled') -eq $false -and
+        (Get-ManagerValue $guardian 'state') -in @('OBSERVING','PARTIAL','DEGRADED')
+    if (-not $compatible) { return 'Guardian: sin lectura · sin veto' }
+    $age = Get-ManagerAge (Get-ManagerValue $guardian 'at') $Now
+    if ((Get-ManagerValue $Platform 'remote_sync_stale') -eq $true -or $null -eq $age -or $age -gt 120) {
+        return 'Guardian: lectura antigua · sin veto'
+    }
+    $alerts = @(Get-ManagerValue $guardian 'alerts' | Where-Object { $null -ne $_ }).Count
+    $state = switch ([string](Get-ManagerValue $guardian 'state')) {
+        'OBSERVING' { 'Observer' } 'PARTIAL' { 'datos parciales' } default { 'sin evidencia actual' }
+    }
+    return "Guardian: $state · $([math]::Min($alerts,20)) alertas · sin veto"
 }
 
 function New-EngineCard {
     param([string]$Title, [int]$X, [int]$Y)
     $panel = New-Object System.Windows.Forms.Panel
     $panel.Location = New-Object System.Drawing.Point($X, $Y)
-    $panel.Size = New-Object System.Drawing.Size(222, 234)
+    $panel.Size = New-Object System.Drawing.Size(338, 144)
     $panel.BackColor = [System.Drawing.Color]::FromArgb(16, 27, 45)
     $card = @{ Panel=$panel }
-    foreach ($field in @(@('Title',12,22,10,'Bold'), @('State',39,19,8,'Bold'), @('Environment',61,20,8,'Regular'),
-        @('Capital',85,23,11,'Bold'), @('Return',111,19,8,'Regular'), @('Positions',137,31,8,'Regular'),
-        @('Protection',173,31,8,'Regular'), @('Latest',211,19,8,'Regular'))) {
+    foreach ($field in @(@('Title',12,9,155,21,9,'Bold'), @('State',172,12,154,18,7,'Bold'),
+        @('Environment',12,34,314,18,8,'Regular'), @('Capital',12,58,156,22,10,'Bold'),
+        @('Return',172,60,154,20,8,'Regular'), @('Positions',12,86,156,31,8,'Regular'),
+        @('Protection',172,86,154,31,8,'Regular'), @('Latest',12,122,314,17,7,'Regular'))) {
         $label = New-Object System.Windows.Forms.Label
         $label.Text = if ($field[0] -eq 'Title') { $Title } else { '—' }
-        $label.Location = New-Object System.Drawing.Point(12, ([int]$field[1]))
-        $label.Size = New-Object System.Drawing.Size(198, ([int]$field[2]))
-        $label.Font = New-Object System.Drawing.Font('Segoe UI', ([single]$field[3]), ([System.Drawing.FontStyle]$field[4]))
+        $label.Location = New-Object System.Drawing.Point(([int]$field[1]), ([int]$field[2]))
+        $label.Size = New-Object System.Drawing.Size(([int]$field[3]), ([int]$field[4]))
+        $label.Font = New-Object System.Drawing.Font('Segoe UI', ([single]$field[5]), ([System.Drawing.FontStyle]$field[6]))
         $label.ForeColor = [System.Drawing.Color]::FromArgb(157, 181, 202)
         if ($field[0] -in @('Title','Capital')) { $label.ForeColor = [System.Drawing.Color]::FromArgb(236,242,255) }
         $panel.Controls.Add($label); $card[$field[0]]=$label
@@ -606,7 +637,7 @@ function Set-EngineCard($Card, $View) {
 $form = New-Object System.Windows.Forms.Form
 $form.Text = "Crypto AI Trader"
 $form.Size = New-Object System.Drawing.Size(760, 770)
-$form.MinimumSize = New-Object System.Drawing.Size(760, 720)
+$form.MinimumSize = New-Object System.Drawing.Size(760, 770)
 $form.MaximumSize = New-Object System.Drawing.Size(760, 770)
 $form.AutoScroll = $true
 $form.StartPosition = [System.Windows.Forms.FormStartPosition]::CenterScreen
@@ -646,20 +677,20 @@ $title.ForeColor = [System.Drawing.Color]::FromArgb(236, 242, 255)
 $form.Controls.Add($title)
 
 $subtitle = New-Object System.Windows.Forms.Label
-$subtitle.Text = "Spot · Futures · AI Market Pulse | tres motores supervisados"
+$subtitle.Text = "Spot · Futures · Pulse · Quant | Guardian Observer"
 $subtitle.Location = New-Object System.Drawing.Point(103, 59)
 $subtitle.Size = New-Object System.Drawing.Size(460, 22)
 $subtitle.ForeColor = [System.Drawing.Color]::FromArgb(132, 153, 184)
 $form.Controls.Add($subtitle)
 
 $pulseOpenLink = New-Object System.Windows.Forms.LinkLabel
-$pulseOpenLink.Text = 'Inteligencia y controles Market Pulse →'
+$pulseOpenLink.Text = 'Inteligencia, Quant y Guardian →'
 $pulseOpenLink.Location = New-Object System.Drawing.Point(103, 83)
 $pulseOpenLink.Size = New-Object System.Drawing.Size(370, 17)
 $pulseOpenLink.Font = New-Object System.Drawing.Font('Segoe UI', 8)
 $pulseOpenLink.LinkColor = [System.Drawing.Color]::FromArgb(77,239,187)
 $pulseOpenLink.ActiveLinkColor = [System.Drawing.Color]::FromArgb(157,250,220)
-$pulseOpenLink.Add_LinkClicked({ Start-Process ($DashboardUrl + '/#market-pulse') })
+$pulseOpenLink.Add_LinkClicked({ Start-Process ($DashboardUrl + '/#portfolio-guardian') })
 $form.Controls.Add($pulseOpenLink)
 
 $modeBadge = New-Object System.Windows.Forms.Label
@@ -709,30 +740,31 @@ $lastCycleLabel.Font = New-Object System.Drawing.Font("Segoe UI", 9)
 $lastCycleLabel.ForeColor = [System.Drawing.Color]::FromArgb(139, 169, 190)
 $statusPanel.Controls.Add($lastCycleLabel)
 
-$spotCard = New-EngineCard "SPOT BOT" 28 210
-$futuresCard = New-EngineCard "FUTURES BOT" 260 210
-$pulseCard = New-EngineCard "AI MARKET PULSE" 492 210
-foreach ($card in @($spotCard, $futuresCard, $pulseCard)) {
+$spotCard = New-EngineCard "SPOT BOT" 28 202
+$futuresCard = New-EngineCard "FUTURES BOT" 378 202
+$pulseCard = New-EngineCard "AI MARKET PULSE" 28 354
+$quantCard = New-EngineCard "QUANT ARBITRAGE" 378 354
+foreach ($card in @($spotCard, $futuresCard, $pulseCard, $quantCard)) {
     $form.Controls.Add($card.Panel)
 }
 
 $actionsLabel = New-Object System.Windows.Forms.Label
 $actionsLabel.Text = "ACCIONES RÁPIDAS"
-$actionsLabel.Location = New-Object System.Drawing.Point(29, 459)
+$actionsLabel.Location = New-Object System.Drawing.Point(29, 506)
 $actionsLabel.Size = New-Object System.Drawing.Size(250, 22)
 $actionsLabel.Font = New-Object System.Drawing.Font("Segoe UI Semibold", 9)
 $actionsLabel.ForeColor = [System.Drawing.Color]::FromArgb(113, 139, 176)
 $form.Controls.Add($actionsLabel)
 
-$openLocalButton = New-AppButton "⌂   Portal local · tres bots" 28 487
+$openLocalButton = New-AppButton "⌂   Portal local · cuatro bots" 28 530
 $openLocalButton.Add_Click({ Start-Process $DashboardUrl })
 $form.Controls.Add($openLocalButton)
 
-$openRemoteButton = New-AppButton "↗   Portal remoto / móvil" 386 487
+$openRemoteButton = New-AppButton "↗   Portal remoto / móvil" 386 530
 $openRemoteButton.Add_Click({ Start-Process -FilePath $RemotePortalUrl })
 $form.Controls.Add($openRemoteButton)
 
-$restartButton = New-AppButton "↻   Reiniciar motor supervisado" 28 543
+$restartButton = New-AppButton "↻   Reiniciar motor supervisado" 28 580
 $restartButton.Add_Click({
     $answer = [System.Windows.Forms.MessageBox]::Show(
         "¿Quieres reiniciar el motor ahora? El portal dejará de responder durante unos segundos.",
@@ -750,7 +782,7 @@ $restartButton.Add_Click({
 })
 $form.Controls.Add($restartButton)
 
-$killButton = New-AppButton "⚠   Pausar entradas Spot" 386 543 330 "Danger"
+$killButton = New-AppButton "⚠   Pausar entradas Spot" 386 580 330 "Danger"
 $killButton.Add_Click({
     if (Test-Path $KillSwitchPath) {
         $answer = [System.Windows.Forms.MessageBox]::Show(
@@ -779,11 +811,11 @@ $killButton.Add_Click({
 })
 $form.Controls.Add($killButton)
 
-$updateButton = New-AppButton "↻   Actualización firmada local" 28 599 330 "Accent"
+$updateButton = New-AppButton "↻   Actualización firmada local" 28 630 330 "Accent"
 $updateButton.Add_Click({ Show-LocalUpdateCenter })
 $form.Controls.Add($updateButton)
 
-$startupButton = New-AppButton "⚙   Activar inicio automático" 386 599
+$startupButton = New-AppButton "⚙   Activar inicio automático" 386 630
 $startupButton.Add_Click({
     if (Test-CanonicalStartup) {
         $answer = [System.Windows.Forms.MessageBox]::Show(
@@ -810,29 +842,30 @@ $startupButton.Add_Click({
 $form.Controls.Add($startupButton)
 
 $footerPanel = New-Object System.Windows.Forms.Panel
-$footerPanel.Location = New-Object System.Drawing.Point(28, 662)
-$footerPanel.Size = New-Object System.Drawing.Size(688, 66)
+$footerPanel.Location = New-Object System.Drawing.Point(28, 686)
+$footerPanel.Size = New-Object System.Drawing.Size(688, 42)
 $footerPanel.BackColor = [System.Drawing.Color]::FromArgb(11, 20, 34)
 $form.Controls.Add($footerPanel)
 
 $protectionLabel = New-Object System.Windows.Forms.Label
-$protectionLabel.Text = "Tres motores · ledgers separados · Market Pulse SHADOW"
-$protectionLabel.Location = New-Object System.Drawing.Point(16, 12)
-$protectionLabel.Size = New-Object System.Drawing.Size(470, 22)
+$protectionLabel.Text = "Entornos separados · Pulse Shadow · Quant sin iniciar"
+$protectionLabel.Location = New-Object System.Drawing.Point(16, 5)
+$protectionLabel.Size = New-Object System.Drawing.Size(490, 17)
+$protectionLabel.Font = New-Object System.Drawing.Font('Segoe UI', 8)
 $protectionLabel.ForeColor = [System.Drawing.Color]::FromArgb(92, 215, 171)
 $footerPanel.Controls.Add($protectionLabel)
 
 $footerHint = New-Object System.Windows.Forms.Label
-$footerHint.Text = "Al cerrar, el indicador continúa junto al reloj de Windows."
-$footerHint.Location = New-Object System.Drawing.Point(17, 36)
-$footerHint.Size = New-Object System.Drawing.Size(480, 20)
+$footerHint.Text = "Guardian: esperando lectura · sin veto"
+$footerHint.Location = New-Object System.Drawing.Point(17, 23)
+$footerHint.Size = New-Object System.Drawing.Size(490, 16)
 $footerHint.Font = New-Object System.Drawing.Font("Segoe UI", 8)
 $footerHint.ForeColor = [System.Drawing.Color]::FromArgb(104, 128, 158)
 $footerPanel.Controls.Add($footerHint)
 
 $versionLabel = New-Object System.Windows.Forms.Label
 $versionLabel.Text = "VERSIÓN " + (Get-InstalledVersion)
-$versionLabel.Location = New-Object System.Drawing.Point(520, 20)
+$versionLabel.Location = New-Object System.Drawing.Point(520, 8)
 $versionLabel.Size = New-Object System.Drawing.Size(148, 24)
 $versionLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleRight
 $versionLabel.Font = New-Object System.Drawing.Font("Segoe UI Semibold", 8)
@@ -869,7 +902,7 @@ function Read-ManagerRemoteConnection {
 function Update-ManagerStatus {
     if ($null -ne $script:ManagerRequests) { return }
     $script:ManagerRequests = @{}
-    foreach ($route in @(@('Spot','/api/status'), @('Futures','/api/futures-forward'), @('Pulse','/api/market-pulse'))) {
+    foreach ($route in @(@('Spot','/api/status'), @('Futures','/api/futures-forward'), @('Pulse','/api/market-pulse'), @('Platform','/api/platform'))) {
         $script:ManagerRequests[$route[0]] = $script:ManagerHttp.GetAsync($DashboardUrl + $route[1])
     }
 }
@@ -877,8 +910,8 @@ function Update-ManagerStatus {
 function Receive-ManagerStatus {
     if ($null -eq $script:ManagerRequests) { return }
     foreach ($request in $script:ManagerRequests.Values) { if (-not $request.IsCompleted) { return } }
-    $snapshots = @{ Spot=$null; Futures=$null; Pulse=$null }
-    foreach ($name in @('Spot','Futures','Pulse')) {
+    $snapshots = @{ Spot=$null; Futures=$null; Pulse=$null; Platform=$null }
+    foreach ($name in @('Spot','Futures','Pulse','Platform')) {
         $response = $null
         try {
             $response = $script:ManagerRequests[$name].GetAwaiter().GetResult()
@@ -889,10 +922,12 @@ function Receive-ManagerStatus {
         } catch { } finally { if ($null -ne $response) { $response.Dispose() } }
     }
     $script:ManagerRequests = $null
-    $views = Get-ManagerEngineViews $snapshots.Spot $snapshots.Futures $snapshots.Pulse
+    $views = Get-ManagerEngineViews $snapshots.Spot $snapshots.Futures $snapshots.Pulse -Quant (Get-ManagerValue $snapshots.Platform 'quant')
     Set-EngineCard $spotCard $views.Spot
     Set-EngineCard $futuresCard $views.Futures
     Set-EngineCard $pulseCard $views.Pulse
+    Set-EngineCard $quantCard $views.Quant
+    $footerHint.Text = Get-ManagerGuardianView $snapshots.Platform
     $remoteText = Read-ManagerRemoteConnection
     $connected = $null -ne $snapshots.Spot
     $statusLabel.Text = if ($connected) { 'Lectura local disponible' } else { 'Lectura local no disponible' }
@@ -906,21 +941,22 @@ function Receive-ManagerStatus {
     if ($connected -and $views.Spot.Tone -eq 'Green') { $notifyIcon.Icon = $script:OperationalIcon }
     else { $notifyIcon.Icon = $script:WarningIcon }
     $trayStatusItem.Text = "Spot: $($views.Spot.State) | Futures: $($views.Futures.State)"
-    $trayPulseStatusItem.Text = "Market Pulse: $($views.Pulse.State)"
+    $trayPulseStatusItem.Text = "Pulse: $($views.Pulse.State) | Quant: $($views.Quant.State)"
+    $trayGuardianStatusItem.Text = Get-ManagerGuardianView $snapshots.Platform
     $trayStatusItem.ForeColor = $color
-    $tip = "Crypto AI Trader | 3 bots | Pulse $($views.Pulse.State)"
+    $tip = "Crypto AI Trader | 4 bots | Pulse $($views.Pulse.State)"
     $notifyIcon.Text = $tip.Substring(0, [math]::Min(63, $tip.Length))
     if (Test-Path $KillSwitchPath) {
         $killButton.Text = '▶   Reanudar entradas Spot'
         $killButton.BackColor = [System.Drawing.Color]::FromArgb(14,52,48)
         $killButton.ForeColor = [System.Drawing.Color]::FromArgb(77,239,187)
-        $protectionLabel.Text = 'Spot: entradas pausadas · protecciones según tarjeta · Pulse SHADOW'
+        $protectionLabel.Text = 'Spot: entradas pausadas · protecciones independientes'
         $protectionLabel.ForeColor = [System.Drawing.Color]::FromArgb(255,204,102)
     } else {
         $killButton.Text = '⚠   Pausar entradas Spot'
         $killButton.BackColor = [System.Drawing.Color]::FromArgb(55,24,35)
         $killButton.ForeColor = [System.Drawing.Color]::FromArgb(255,147,164)
-        $protectionLabel.Text = 'Tres ledgers separados · Pulse SHADOW · LIVE bloqueado'
+        $protectionLabel.Text = 'Ledgers separados · Pulse Shadow · Quant sin iniciar'
         $protectionLabel.ForeColor = [System.Drawing.Color]::FromArgb(92,215,171)
     }
     if (Test-CanonicalStartup) { $startupButton.Text = '✓   Inicio automático activado' }
@@ -944,6 +980,8 @@ $trayStatusItem.Enabled = $false
 $trayStatusItem.ForeColor = [System.Drawing.Color]::FromArgb(255, 204, 102)
 $trayPulseStatusItem = $notifyMenu.Items.Add('Market Pulse: comprobando Shadow')
 $trayPulseStatusItem.Enabled = $false
+$trayGuardianStatusItem = $notifyMenu.Items.Add('Guardian: comprobando Observer')
+$trayGuardianStatusItem.Enabled = $false
 $notifyMenu.Items.Add("-") | Out-Null
 $showManagerItem = $notifyMenu.Items.Add("Abrir centro de control")
 $script:MenuBitmap = $script:OperationalIcon.ToBitmap()
@@ -955,6 +993,10 @@ $openPortalItem = $notifyMenu.Items.Add("Abrir portal remoto")
 $openPortalItem.Add_Click({ Start-Process -FilePath $RemotePortalUrl })
 $openPulseItem = $notifyMenu.Items.Add('AI Market Pulse · Shadow')
 $openPulseItem.Add_Click({ Start-Process ($RemotePortalUrl + '#market-pulse') })
+$openQuantItem = $notifyMenu.Items.Add('Quant Arbitrage · sin iniciar')
+$openQuantItem.Add_Click({ Start-Process ($RemotePortalUrl + '#quant-arbitrage') })
+$openGuardianItem = $notifyMenu.Items.Add('Portfolio Guardian · Observer')
+$openGuardianItem.Add_Click({ Start-Process ($RemotePortalUrl + '#portfolio-guardian') })
 $checkUpdatesItem = $notifyMenu.Items.Add("Centro de actualizaciones")
 $checkUpdatesItem.Add_Click({ Show-LocalUpdateCenter })
 $repairAgentItem = $notifyMenu.Items.Add("Reparar conexión del portal")

@@ -314,3 +314,10 @@ hashes matched. Device syncs17:52/17:54UTC were fresh and distinct.
 Next release must pass its own tests/PR/main publication and installed audit.
 Observer cannot control trading; Quant remains NOT_STARTED. Four-card web/Windows
 and Quant simulation are later separate stages.
+# 0.10.36 — Prepared UI stage
+
+PR112 merged0.10.35 maincf3eec5a9e310f4162e0b9edcd2c9a2f4dc2f9e6 after workflows
+38983739524/38983739576 succeeded (515 Python tests,115 Node tests locally).
+0.10.36 prepares shared four-card web/mobile and Windows2x2 layout from that main.
+Its own main run, signature, installed hashes, engine health and indicator reload
+must be observed separately. Quant NOT_STARTED; Guardian Observer only, no veto.
