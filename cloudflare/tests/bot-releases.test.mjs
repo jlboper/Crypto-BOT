@@ -64,6 +64,84 @@ test('signer rejects a genuine main identity superseded by a newer commit',async
     ? new Response('private provider detail',{status:503}):transport(url,options);
   await assert.rejects(authorizePublisher(token(),origin,now,unavailable),/Publisher revision unavailable/);
 });
+
+test('main revision HTTP failures use fixed bounded labels without reading provider bodies or private headers',async()=>{
+  const cases=[
+    [403,'0','Publisher revision rate limited','publisher_revision_rate_limited'],
+    [429,null,'Publisher revision rate limited','publisher_revision_rate_limited'],
+    [403,'58','Publisher revision forbidden','publisher_revision_forbidden'],
+    [403,null,'Publisher revision forbidden','publisher_revision_forbidden'],
+    [404,null,'Publisher revision not found','publisher_revision_not_found'],
+    [500,null,'Publisher revision unavailable','publisher_revision_unavailable'],
+    [503,null,'Publisher revision unavailable','publisher_revision_unavailable'],
+    [401,null,'Publisher revision unavailable','publisher_revision_unavailable'],
+    [302,null,'Publisher revision unavailable','publisher_revision_unavailable'],
+  ];
+  for(const [status,remaining,label,code] of cases){
+    let mainCalls=0,headerReads=0;
+    const failing=async(url,options)=>{
+      if(url.includes('token.actions.githubusercontent.com'))return transport(url,options);
+      mainCalls++;
+      assert.equal(url,'https://api.github.com/repos/jlboper/Crypto-BOT/git/ref/heads/main');
+      assert.equal(options.redirect,'manual');
+      return {ok:false,status,statusText:'private upstream address and bearer token',
+        headers:{get(name){
+          headerReads++;
+          assert.equal(name,'x-ratelimit-remaining');
+          return remaining;
+        }},
+        json(){assert.fail('A rejected provider body must not be read');},
+        text(){assert.fail('A rejected provider body must not be read');}};
+    };
+    await assert.rejects(authorizePublisher(token(),origin,now,failing),error=>{
+      assert.equal(error.message,label);
+      assert.equal(releaseFailureCode(error),code);
+      assert.doesNotMatch(error.message,/private|address|bearer|token/);
+      return true;
+    });
+    assert.equal(mainCalls,1,'The Worker must not retry the main-ref request');
+    assert.equal(headerReads,status===403?1:0);
+  }
+});
+
+test('main revision transport and body-read errors do not expose arbitrary exception details',async()=>{
+  for(const stage of ['network','json']){
+    let mainCalls=0;
+    const failing=async(url,options)=>{
+      if(url.includes('token.actions.githubusercontent.com'))return transport(url,options);
+      mainCalls++;
+      if(stage==='network')throw new Error('sensitive private key token upstream 203.0.113.1');
+      return {ok:true,json:async()=>{throw new Error('private provider response content');}};
+    };
+    await assert.rejects(authorizePublisher(token(),origin,now,failing),error=>{
+      assert.equal(error.message,'Publisher revision unavailable');
+      assert.equal(releaseFailureCode(error),'publisher_revision_unavailable');
+      return true;
+    });
+    assert.equal(mainCalls,1);
+  }
+});
+
+test('invalid OIDC identities cannot trigger a main-ref availability query',async()=>{
+  const other=generateKeyPairSync('rsa',{modulusLength:2048});
+  const input=token().split('.').slice(0,2).join('.');
+  const forged=input+'.'+sign('RSA-SHA256',Buffer.from(input),other.privateKey).toString('base64url');
+  const invalid=[token({iss:'https://untrusted.example'}),token({aud:'elsewhere'}),
+    token({repository_id:'1'}),token({sub:'untrusted'}),token({environment:'other'}),
+    token({ref:'refs/heads/other'}),token({event_name:'pull_request'}),token({exp:now-1}),
+    token({workflow_ref:'untrusted'}),token({sha:'not-a-commit'}),forged,
+    token({}, {alg:'none',kid:'test-key'})];
+  for(const publisher of invalid){
+    let mainCalls=0;
+    const limited=async(url,options)=>{
+      if(url.includes('token.actions.githubusercontent.com'))return transport(url,options);
+      mainCalls++;
+      return new Response('sensitive failure',{status:403,headers:{'x-ratelimit-remaining':'0'}});
+    };
+    await assert.rejects(authorizePublisher(publisher,origin,now,limited));
+    assert.equal(mainCalls,0);
+  }
+});
 test('signing creates verifiable Ed25519 envelopes and rejects sequence substitution',async t=>{
   const db=new DatabaseSync(':memory:');t.after(()=>db.close());
   db.exec('CREATE TABLE bot_releases(sequence INTEGER PRIMARY KEY,release_id TEXT UNIQUE,commit_sha TEXT,envelope TEXT,created INTEGER)');
@@ -73,6 +151,11 @@ test('signing creates verifiable Ed25519 envelopes and rejects sequence substitu
   assert.equal(verify(null,Buffer.from(canonical(m)),ed.publicKey,Buffer.from(result.signature,'base64')),true);
   assert.deepEqual(await signRelease(env,token(),m,now,transport),result);
   await assert.rejects(signRelease(env,token(),{...m,sha256:'d'.repeat(64)},now,transport));
+  await assert.rejects(signRelease({...env,PORTAL_COMMIT:'f'.repeat(40)},token(),m,now,transport),
+    /Portal and bot revision must match/);
+  await assert.rejects(signRelease(env,token({run_id:'12344'}),{...m,sequence:12344},now,transport),
+    /Release sequence already superseded/);
+  assert.equal(db.prepare('SELECT COUNT(*) AS count FROM bot_releases').get().count,1);
   for(const wrong of [{mode:'live'},{commit:'b'.repeat(40)},{package_url:'https://evil.example/bot.zip'},
     {files:{...m.files,'secrets.toml':'e'.repeat(64)}},{expires:now+91*86400}])assert.throws(()=>validateManifest({...m,...wrong},claim,now));
   assert.doesNotThrow(()=>validateManifest({...m,mode:'testnet',files:{...m.files,'config.toml':'e'.repeat(64)}},claim,now));
