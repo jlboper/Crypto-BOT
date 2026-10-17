@@ -36,11 +36,26 @@ export async function authorizePublisher(token,origin,now,transport=fetch){
   require(mainPublisher,'Invalid publisher workflow');
   require(Number.isInteger(claim.exp)&&claim.exp>now&&claim.exp<=now+900&&Number.isInteger(claim.nbf)&&claim.nbf<=now+30,'Expired publisher token');
   require(/^[a-f0-9]{40}$/.test(claim.sha)&&/^[1-9][0-9]{0,14}$/.test(claim.run_id),'Invalid publisher revision');
-  const current=await transport(`https://api.github.com/repos/${repo}/git/ref/heads/main`,{
-    headers:{Accept:'application/vnd.github+json','User-Agent':'CryptoPaperPortal'},
-    redirect:'manual',signal:AbortSignal.timeout(10000)});
-  require(current.ok,'Publisher revision unavailable');
-  const ref=await current.json();
+  let current;
+  try{
+    current=await transport(`https://api.github.com/repos/${repo}/git/ref/heads/main`,{
+      headers:{Accept:'application/vnd.github+json','User-Agent':'CryptoPaperPortal'},
+      redirect:'manual',signal:AbortSignal.timeout(10000)});
+  }catch{
+    throw new ReleaseValidationError('Publisher revision unavailable');
+  }
+  if(!current.ok){
+    // Read only the HTTP status and the documented exhausted-quota signal.
+    // Provider bodies, status text and other headers can contain private data.
+    const rateLimited=current.status===429||current.status===403&&current.headers.get('x-ratelimit-remaining')==='0';
+    throw new ReleaseValidationError(rateLimited?'Publisher revision rate limited'
+      :current.status===403?'Publisher revision forbidden'
+      :current.status===404?'Publisher revision not found':'Publisher revision unavailable');
+  }
+  let ref;
+  try{ref=await current.json();}catch{
+    throw new ReleaseValidationError('Publisher revision unavailable');
+  }
   require(ref?.object?.sha===claim.sha,'Publisher revision superseded');
   return claim;
 }

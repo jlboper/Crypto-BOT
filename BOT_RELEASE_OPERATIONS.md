@@ -35,11 +35,25 @@ merge, publication, signing and Windows installation remain separate states.
 Never bypass a restored review or infer installation from a workflow result.
 
 The portal may pass its post-deployment health check at one Cloudflare edge
-before the signer request reaches an edge with the same revision. When the
-signer reports only `portal_and_bot_revision_must_match`, the protected
-publisher retries that exact manifest and OIDC identity for a bounded period.
-Other rejections fail immediately; successful signing still requires matching
-deployed and bot commits. Before claiming publication, confirm the protected
+before the signer request reaches an edge with the same revision. A GitHub
+current-main lookup may also be unavailable without proving its concrete cause.
+Starting with candidate 0.10.39, the protected publisher retries only the explicit
+403 codes `portal_and_bot_revision_must_match` and `publisher_revision_unavailable`,
+using the exact same serialized manifest and OIDC token, existing bounded delays
+and at most 105 seconds of cumulative backoff: seven requests, each with a 30-second
+timeout. This is not general retry authority
+for signing failures. Every attempt revalidates OIDC, authorized repository/
+workflow/main-push context, exact current-main SHA and matching deployed commit.
+Superseded revisions, expired/invalid identities and other rejections fail closed.
+Sanitized bounded HTTP/rate-limit diagnostics expose neither credentials nor
+response bodies; do not infer quota exhaustion from the old generic code alone.
+If current-main evidence remains unavailable, no signature is issued.
+
+Observed 0.10.38 main `a94f1124d57439e90620f4b2d5c02cbb07f53f58` passed CI but
+publication attempts 1/2 failed with that availability code. Windows remained on
+verified signed 0.10.37 (176/176 hashes). Candidate 0.10.39 publication, signature
+and installation still need their own evidence; this procedure is not deployment
+confirmation. Before claiming publication, confirm the protected
 job succeeded and `/v1/releases/latest` returns the expected signed version
 and commit. A failed run can have deployed portal assets and uploaded an
 unsigned ZIP; neither is an installable bot release. Rerunning a GitHub job

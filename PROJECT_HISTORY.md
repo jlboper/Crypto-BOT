@@ -1,5 +1,18 @@
 # Project History and Decision Log
 
+## 2026-10-17 — Signer availability must not weaken source identity
+
+Version 0.10.38 main `a94f1124d57439e90620f4b2d5c02cbb07f53f58` passed CI,
+then publication attempts 1/2 failed with `publisher_revision_unavailable` (403).
+Its cadence fix is merged but not verified signed or installed; verified Windows
+remains 0.10.37 (176/176 hashes). The failure does not yet establish GitHub quota
+exhaustion or another specific HTTP cause. Add only sanitized bounded diagnostics
+and same-manifest/token availability retries with at most 105 seconds of cumulative
+backoff, seven requests and a 30-second timeout per request.
+Exact current-main, deployed revision, OIDC and workflow validation still fail
+closed on unavailable evidence; superseded or unauthorized publishers remain
+rejected. This candidate is 0.10.39, with publication/install verification pending.
+
 ## 2026-10-17 — Quant scheduling respects completed reference refresh
 
 After verified signed installation of 0.10.37 main
