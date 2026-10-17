@@ -162,6 +162,35 @@ class QuantLedgerTests(unittest.TestCase):
             time.sleep(.01)
         self.service.stop()
         self.assertFalse(self.service._thread.is_alive())
+    def test_public_refresh_waits_full_interval_after_completed_tick(self):
+        # PublicFeed starts its strict 60s cache timer after the service lease.
+        # Scheduling from the earlier tick start can therefore reuse old quotes
+        # at the next deadline. This virtual scheduler uses no wall-clock sleep.
+        self.service.initialize()
+        starts = []
+        event_clock = self.clock
+        class VirtualStop:
+            stopped = False
+            def is_set(self):
+                return self.stopped
+            def set(self):
+                self.stopped = True
+            def wait(self,seconds):
+                if not self.stopped:
+                    event_clock.now += seconds
+                return self.stopped
+        stopped = VirtualStop()
+        self.service._stop = stopped
+        def tick():
+            starts.append(self.clock())
+            self.clock.now += 7  # Bounded provider work, simulated instantaneously.
+            if len(starts) == 2:
+                stopped.set()
+            return True
+        with patch.object(self.service,'tick',side_effect=tick), patch.object(self.service,'_lease',return_value=True):
+            self.service._run()
+        self.assertEqual(len(starts),2)
+        self.assertGreaterEqual(starts[1]-starts[0],67)
     def test_interrupted_open_rolls_back_wallet_pair_and_journal_together(self):
         module = sys.modules[QuantShadowService.__module__]
         original = module._journal

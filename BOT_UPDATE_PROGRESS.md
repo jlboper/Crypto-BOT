@@ -1,4 +1,15 @@
-# Candidate — 0.10.37 functional Quant Shadow
+# Candidate — 0.10.38 Quant reference cadence
+
+Prepared from verified 0.10.37 main
+`3b02326c435acf3c9c666940a90923908e9bab64`, signed and installed 176/176 hashes.
+Post-install observation detected intermittent stale references when the
+start-anchored tick reached the strict 60-second cache slightly before expiry.
+Schedule the next tick 60 seconds after completion; retain 90-second freshness,
+bounded API use, all financial hypotheses/state and strict Shadow execution.
+Full suites/CI, exact main publication/signature, installed hashes and fresh
+operating evidence are pending for 0.10.38; do not infer them from 0.10.37.
+
+# Candidate — 0.10.37 functional Quant Shadow (historical preparation record)
 
 Prepared from verified 0.10.36 main
 `1bb77fad1a490472907ce29591e0b1075d3e7ba3` (PR #113), signed and installed with

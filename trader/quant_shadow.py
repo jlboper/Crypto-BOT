@@ -333,7 +333,7 @@ class QuantShadowService:
                     now = self.clock()
                     if now >= next_tick:
                         self.tick()
-                        next_tick = now+self.config.evaluation_interval
+                        next_tick = self.clock()+self.config.evaluation_interval
                     elif not self._lease(now):
                         next_tick = now
                 except Exception as exc:

@@ -20,7 +20,10 @@ Market Pulse conservan sus ledgers, riesgos y mecanismos de protección separado
   posiciones, operaciones cerradas, decisiones, precios contemporáneos,
   financiación observada y recibos simulados. No se incorpora al repositorio.
 
-Un hilo opcional del motor existente evalúa cada 60 segundos. Su lease persistente
+Un hilo opcional del motor existente espera 60 segundos después de completar cada
+evaluación antes de iniciar la siguiente. La cadencia efectiva incluye además el
+tiempo de consultas y procesamiento; no se adelanta una consulta para eludir la
+caché o el presupuesto del proveedor. Su lease persistente
 se adquiere antes de consultar proveedores y se comprueba después de las lecturas,
 del análisis y antes del commit. Una transacción interrumpida no puede confirmar
 solo una parte del saldo, posición o journal. El servicio recupera la cartera

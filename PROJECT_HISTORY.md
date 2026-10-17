@@ -1,5 +1,16 @@
 # Project History and Decision Log
 
+## 2026-10-17 — Quant scheduling respects completed reference refresh
+
+After verified signed installation of 0.10.37 main
+`3b02326c435acf3c9c666940a90923908e9bab64` (176/176 hashes), actual observation
+exposed intermittent aging references. The next tick had been anchored before
+the preceding refresh finished, allowing the strict 60-second cache to be reused
+just before expiry. The 0.10.38 candidate schedules after completion, preserving
+freshness and request limits rather than treating old data as current. Financial
+hypotheses, persistent state, protective paths and Shadow-only authority remain
+unchanged. This entry is not evidence of 0.10.38 publication or installation.
+
 ## 2026-10-17 — Quant enters Shadow; statistical admission stays blocked
 
 After Guardian Observer and the four-card portal/Windows stages, the owner asked
