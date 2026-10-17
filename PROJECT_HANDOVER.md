@@ -19,7 +19,21 @@ Then inspect current `main`, recent commits, open PRs/issues and CI. Documentati
 
 ## Mission
 
-### Current continuation — 0.10.38 cadence candidate
+### Current continuation — 0.10.39 signer-availability candidate
+
+Main 0.10.38 `a94f1124d57439e90620f4b2d5c02cbb07f53f58` passed CI, but
+publication attempts 1/2 failed with 403 `publisher_revision_unavailable`.
+No signed/installed 0.10.38 is verified; Windows remains on verified 0.10.37,
+176/176 hashes. The underlying GitHub HTTP cause, including quota, is unconfirmed.
+Candidate 0.10.39 adds sanitized diagnostics and bounded availability retries
+using the same manifest/OIDC token with at most 105 seconds of cumulative backoff
+and seven requests with 30-second timeouts. All OIDC,
+authorized workflow, exact current-main and deployed-revision checks remain.
+Superseded or invalid identities never become retryable authorization successes.
+Retain the 0.10.38 cadence fix and all financial state. Full checks, CI, protected
+publication/signature and installed audit of 0.10.39 are pending separately.
+
+### 0.10.38 cadence — preparation record
 
 Version 0.10.37 main `3b02326c435acf3c9c666940a90923908e9bab64` was observed
 signed and installed with 176/176 hashes. Post-install observation found Quant's

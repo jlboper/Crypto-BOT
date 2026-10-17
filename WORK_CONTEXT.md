@@ -1,6 +1,20 @@
 # Work Context — Crypto AI Trader
 
-## Continuación actual — 0.10.38 en preparación
+## Continuación actual — 0.10.39 en preparación
+
+0.10.38 main `a94f1124d57439e90620f4b2d5c02cbb07f53f58` superó CI; publicación
+falló en intentos 1/2 con 403 `publisher_revision_unavailable`. No está verificada
+como firmada/instalada; Windows conserva 0.10.37, 176/176 hashes. La causa HTTP
+GitHub no está confirmada, incluida una posible limitación de cuota.
+La candidata 0.10.39 añade diagnóstico saneado y reintento de disponibilidad
+acotado a 105 s de espera acumulada, hasta siete solicitudes de 30 s cada una,
+con el mismo manifiesto/token OIDC. Conserva validación
+de `main` exacto, contexto autorizado, firma y coincidencia de revisión desplegada;
+no acepta revisiones superadas ni relaja seguridad. Incluye el ajuste de cadencia
+38 sin cambios de trading/UI. Suite completa, CI, publicación/firma e instalación
+39 siguen pendientes. Ver `BOT_RELEASE_OPERATIONS.md`.
+
+## Ajuste 0.10.38 — registro de preparación
 
 0.10.37 main `3b02326c435acf3c9c666940a90923908e9bab64` verificada firmada e
 instalada con 176/176 hashes. Después de instalar se observaron referencias

@@ -1,4 +1,18 @@
-# Candidate — 0.10.38 Quant reference cadence
+# Candidate — 0.10.39 signer availability and safe diagnostics
+
+Based on 0.10.38 main `a94f1124d57439e90620f4b2d5c02cbb07f53f58`: CI passed,
+publication attempts 1/2 failed with 403 `publisher_revision_unavailable`.
+No signed or installed 0.10.38 is verified; 0.10.37 remains installed 176/176.
+The GitHub HTTP/root cause and possible quota exhaustion remain unconfirmed.
+Add sanitized bounded diagnostics and same-manifest/OIDC-token retries only for
+availability/propagation with at most 105 seconds of cumulative backoff, seven
+requests and 30-second timeouts. Preserve exact current
+main, authorized identity/workflow, deployed revision, trust anchor and all data.
+The 0.10.38 cadence fix is retained; no trading/UI/risk change. Full suites, CI,
+protected publication, latest signed manifest and installed evidence for 0.10.39
+must still be verified. An unsigned ZIP or deployed portal is not an installed bot.
+
+# Candidate — 0.10.38 Quant reference cadence (historical preparation record)
 
 Prepared from verified 0.10.37 main
 `3b02326c435acf3c9c666940a90923908e9bab64`, signed and installed 176/176 hashes.

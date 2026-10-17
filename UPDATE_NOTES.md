@@ -1,4 +1,25 @@
-# 0.10.38 — Cadencia de referencias Quant (en preparación)
+# 0.10.39 — Disponibilidad y diagnóstico de firma (en preparación)
+
+- 0.10.38 main `a94f1124d57439e90620f4b2d5c02cbb07f53f58` superó CI,
+  pero los intentos 1/2 de publicación fallaron con HTTP 403 y código
+  `publisher_revision_unavailable`. No hay firma/instalación 0.10.38 verificada;
+  continúa instalada la 0.10.37 con 176/176 hashes. La causa concreta del fallo
+  de consulta GitHub todavía no está acreditada; no se atribuye a cuota sin evidencia.
+- El firmante añade diagnóstico acotado y saneado de HTTP/límites de consulta,
+  sin cuerpos ni credenciales. El publicador admite reintentos sólo de
+  disponibilidad de revisión y propagación, conservando manifiesto y token OIDC
+  exactos y un máximo acumulado de 105 s de espera entre intentos (siete
+  solicitudes como máximo, cada una con timeout de 30 s).
+- Cada intento vuelve a exigir OIDC válido, identidad/workflow autorizados,
+  `main` actual exacto, revisión desplegada coincidente y controles de firma.
+  Una revisión superada, identidad inválida u otro rechazo no se autoriza ni se
+  convierte en disponibilidad transitoria. Se conserva la corrección de cadencia
+  de 0.10.38 sin cambios de trading, riesgo, datos, UI o confianza de Windows.
+- 0.10.39 está preparada; suite completa, CI, publicación, firma e instalación
+  requieren evidencias propias. Un despliegue del portal o ZIP sin firma no
+  demuestra una release instalable.
+
+# 0.10.38 — Cadencia de referencias Quant (registro de preparación)
 
 - La 0.10.37, main `3b02326c435acf3c9c666940a90923908e9bab64`, se verificó
   firmada e instalada con 176/176 hashes. La observación posterior detectó
