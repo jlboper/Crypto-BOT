@@ -140,3 +140,10 @@ sync. Next PR adds pure read-only Guardian diagnostics and optional four-engine
 contracts. Quant remains NOT_STARTED; four-card UI and Quant Shadow follow in
 separate PRs. Do not call Observer from financial cycles or treat it as allocation
 enforcement. Verify prepared/merged/published/installed independently.
+# 0.10.36 prepared — four-card shared UI and Windows
+
+Based on merged0.10.35 maincf3eec5a9e310f4162e0b9edcd2c9a2f4dc2f9e6. Portal and
+Windows now represent four identities plus a separate Observer, with no invented
+Quant performance. Quant simulation and Guardian Control remain future stages.
+Reload only the indicator after installed signed-inventory verification; never
+start another trading engine to update its appearance. Keep release states explicit.

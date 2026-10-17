@@ -91,3 +91,12 @@ con protección ARMED y exposición no ampliada. Guardian observa cuatro ledgers
 contrato opcional y `/api/platform`; no veta ni reserva capital. Quant NOT_STARTED,
 sin métricas inventadas. Las etapas UI cuatro motores/Windows y Quant Shadow son
 PRs separados. No introducir nuevas órdenes Testnet ni LIVE. Ver FOUR_ENGINE_EXPANSION.md.
+# Continuación 0.10.36 — portal y Windows de cuatro motores
+
+PR112 integró Guardian Observer y contratos en maincf3eec5a9e310f4162e0b9edcd2c9a2f4dc2f9e6.
+La siguiente etapa añade cuatro tarjetas web/móvil/Windows y paneles plegables
+Guardian/Quant. Quant sigue NOT_STARTED: ningún wallet, retorno o ejecución se
+inventa. Sin cambios de riesgo, ledgers, lifecycle o actualizador. Verificar CI,
+firma, instalación y recarga real del indicador por separado. Quant Shadow y
+evaluación estadística siguen pendientes de desarrollo; ejecución Testnet requiere
+autorización posterior y Guardian Control permanece deshabilitado.

@@ -837,3 +837,18 @@ La versión 0.5.0 incorpora un canal estable en línea. El Centro de Control avi
   hypotheses are unchanged. Protective simulation uses the same receipt check.
 - Verify exact main CI, signed publication and Windows installation separately;
   this note is not deployment evidence.
+# 0.10.36 — Four-engine portal and Windows control center
+
+- Four responsive cards, Guardian Observer scopes/alerts/quality and Quant Funding
+  Carry/Statistical Arbitrage folds share web assets locally and remotely.
+- Quant remains NOT_STARTED. Null finances, unavailable controls and an explicit
+  fourth comparison cohort avoid presenting a prepared identity as a running bot.
+- Windows uses four compact cards in a 2x2 layout, optional async platform reads,
+  Guardian status and portal links. Ownership, startup, watchdogs, trading and
+  signed update/recovery functions are unchanged. PAPER protections are simulated;
+  Testnet native protection remains separately evidenced.
+- Missing/stale/disconnected Guardian evidence clears current valuations and
+  qualifies recorded alerts/native statuses. It cannot veto or command trades.
+- Android360px preview showed four cards,21 collapsed detail groups and no
+  horizontal overflow. Full suites/CI/publication/install must be verified for
+  this exact revision; visual draft tests alone are not installation evidence.

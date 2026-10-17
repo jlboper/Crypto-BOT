@@ -15,7 +15,9 @@ cuatro motores. Observa exposición, concentración, frescura y presupuestos
 existentes por ledger; no suma capital de entornos separados ni veta entradas.
 Quant Arbitrage figura **NOT_STARTED**, sin capital o rendimiento inventado.
 `GET /api/platform` ofrece estos diagnósticos con la autenticación vigente.
-La interfaz de cuatro motores y Quant Shadow son etapas posteriores.
+0.10.36 presenta cuatro tarjetas en el portal compartido y la app Windows,
+con Guardian Observer y paneles Quant plegables. Quant Shadow es una etapa
+posterior: la identidad permanece NOT_STARTED, sin capital ni resultados.
 
 Bot de swing trading de varios días/semanas con Binance Spot Testnet como entorno operativo predeterminado; PAPER se conserva como respaldo técnico/CI. Consume datos reales de mercado, crea señales cuantitativas y utiliza OpenAI como una segunda barrera de riesgo. Desde 0.8.0, cuando Spot está en TESTNET, corre además un forward test separado de Binance USDⓈ-M Futures Demo: BTCUSDT, LONG/SHORT, 1x automático, máximo una posición, ledger y kill switch propios. Los smoke tests manuales 1x–3x permanecen solo como diagnóstico. Binance LIVE sigue sin implementación.
 

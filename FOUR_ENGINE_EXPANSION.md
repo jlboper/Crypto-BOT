@@ -56,3 +56,24 @@ decision and expire independently; the selected price must also be recent.
 Future buckets are excluded and the existing 80% time coverage gate remains.
 Sparse trading can therefore keep an asset incomplete; no forced entry or
 fabricated statistical confidence fills that gap.
+
+## Stage 2 — 0.10.36 shared portal and Windows app
+
+Four consistent overview cards preserve the existing identity and use a responsive
+4/2/1 layout. Guardian has scoped exposure/budget, overlap/alert and data-quality
+folds. Quant has Funding Carry and Statistical Arbitrage folds, explicitly not
+started, with unknown finances and unavailable execution/promotion controls.
+The comparison includes a fourth unavailable cohort, never an invented return.
+Twenty-one long detail groups can collapse; navigation opens the correct group.
+
+The Windows indicator uses four compact cards in two rows, read-only asynchronous
+optional platform diagnostics, Guardian status and direct portal links. Process
+ownership, startup, watchdogs, update/recovery and engine controls are preserved.
+PAPER labels simulated protections; Testnet retains native confirmation evidence.
+Source installation and a running indicator are distinct: verify the signed hashes
+before reopening the existing indicator to load its new layout. No extra trading
+process is created. Missing/stale optional evidence does not imply engine failure.
+
+Stage 3 Quant simulation, two-leg accounting and statistical research remain
+unimplemented. Stage 4 evaluation follows those actual strategies. Guardian Control
+and new Testnet execution remain disabled pending separate validation/authorization.

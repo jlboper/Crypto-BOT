@@ -765,11 +765,11 @@ function renderFuturesCycle(futures,status){
     +(issueText.length?' · Detalle: '+issueText.join(' · '):'');
 }
 
-/* Shared three-engine view. External event text is always escaped, never executable. */
+/* Shared supervised engine view. External event text is always escaped, never executable. */
 const PulsePortal = (() => {
   let pendingControl=null;
-  const foldIds=new Set(['spot-analysis','futures-analysis','pulse-live','pulse-news','pulse-scanner','pulse-decisions','pulse-finance','pulse-health','observation-details','comparison-details','spot-limits','futures-limits','spot-positions','futures-positions','spot-finance','futures-finance','diagnosticsPanel','research-lab']);
-  const navIds=new Set(['platform-overview','spot-bot','futures-bot','market-pulse','activity-section','modelSettingsPanel',...foldIds]);
+  const foldIds=new Set(['spot-analysis','futures-analysis','pulse-live','pulse-news','pulse-scanner','pulse-decisions','pulse-finance','pulse-health','guardian-exposure','guardian-overlaps','guardian-quality','quant-funding','quant-statistical','observation-details','comparison-details','spot-limits','futures-limits','spot-positions','futures-positions','spot-finance','futures-finance','diagnosticsPanel','research-lab']);
+  const navIds=new Set(['platform-overview','spot-bot','futures-bot','market-pulse','portfolio-guardian','quant-arbitrage','activity-section','modelSettingsPanel',...foldIds]);
   const foldStorageKey='crypto-ai-trader.ui.folds.v1';
   let redrawQueued=false;
   const set=(id,value)=>{const node=document.getElementById(id);if(node)node.textContent=value;};
@@ -865,7 +865,8 @@ const PulsePortal = (() => {
     set('summarySpotEnvironment',status.mode?`${String(status.mode).toUpperCase()} · cuenta Spot independiente`:'Entorno pendiente');
     for(const [key,value] of [['Capital',cash(status.equity)],['Exposure',cash(status.exposure)],['Positions',n(status.positions,0)],['Return',percent(status.return_pct)],['Evaluation',time(activity.last_cycle_at)]])set('summarySpot'+key,value);
     const native=status.native_protection?.positions;
-    set('summarySpotProtection',native?(positions.length?`${positions.filter(pos=>native[pos.symbol]?.status==='ARMED').length}/${positions.length} OCO confirmados${status.killed?' · entradas pausadas':''}`:'Sin exposición · verificación al abrir'):'Confirmación nativa pendiente');
+    const spotPaper=String(status.mode||'').toUpperCase()==='PAPER';
+    set('summarySpotProtection',spotPaper?(status.positions===0?'Sin exposición · stops simulados PAPER':'Stops simulados · PAPER'):native?(positions.length?`${positions.filter(pos=>native[pos.symbol]?.status==='ARMED').length}/${positions.length} OCO confirmados${status.killed?' · entradas pausadas':''}`:'Sin exposición · verificación al abrir'):'Confirmación nativa pendiente');
     const fEnabled=futures.enabled===true;
     const fState=futures.enabled==null?'SIN ESTADO':!fEnabled?'NO OPERATIVO':futures.killed?'PAUSADO':futures.cycle_diagnostic&&!futuresCycleFresh(futures,status)?'SIN ANÁLISIS RECIENTE':futures.cycle_diagnostic?.state==='ATTENTION'?'DATOS PARCIALES':fPositions.length?'CON POSICIONES':'ESPERANDO SEÑAL';
     state('summaryFuturesState',fState,futures.killed||fState==='SIN ANÁLISIS RECIENTE'||fState==='DATOS PARCIALES');
@@ -967,10 +968,89 @@ const PulsePortal = (() => {
 })();
 window.PulsePortal=PulsePortal;
 
+/* Optional four-engine diagnostics. It only renders allowlisted, read-only evidence. */
+const FourEnginePortal = (() => {
+  const ids=new Set(['SPOT','FUTURES','AI_MARKET_PULSE','QUANT_ARBITRAGE']);
+  const names={SPOT:'Spot',FUTURES:'Futures',AI_MARKET_PULSE:'AI Market Pulse',QUANT_ARBITRAGE:'Quant Arbitrage'};
+  const labels={OBSERVING:'OBSERVER ACTIVO',PARTIAL:'OBSERVACIÓN PARCIAL',DEGRADED:'OBSERVACIÓN NO DISPONIBLE',NOT_STARTED:'SIN INICIAR',FRESH:'RECIENTE',UNKNOWN:'SIN EVIDENCIA',UNAVAILABLE:'SIN DATOS',WITHIN:'Dentro del límite observado',EXCEEDED:'Límite observado excedido',OBSERVED_WITHIN:'Estimación observada dentro del límite',OBSERVED_EXCEEDED:'Estimación observada excedida'};
+  const codes={GUARDIAN_UNAVAILABLE:'Guardian no dispone de una lectura compatible',GROSS_LIMIT_EXCEEDED:'Exposición observada superior al límite',OBSERVED_STOP_RISK_LIMIT_EXCEEDED:'Estimación inclusiva observada superior al límite de stop',PROTECTIVE_THRESHOLD_CROSSED:'Precio observado atravesó el umbral protector',NATIVE_PROTECTION_UNCONFIRMED:'Protección nativa sin confirmar',POSITION_VALUE_UNKNOWN:'Valor de posición sin precio reciente',SOURCE_STALE_OR_UNAVAILABLE:'Fuente antigua o no disponible',AGGREGATE_VALUE_UNKNOWN:'Exposición completa desconocida',INVALID_POSITION:'Registro de posición no válido',DUPLICATE_POSITION:'Posición duplicada en el ledger'};
+  const set=(id,value)=>{const node=document.getElementById(id);if(node)node.textContent=value;};
+  const html=(id,value)=>{const node=document.getElementById(id);if(node)node.innerHTML=value;};
+  const finite=value=>typeof value==='number'&&Number.isFinite(value);
+  const number=(value,digits=2)=>finite(value)?value.toLocaleString('en-US',{maximumFractionDigits:digits}):'—';
+  const cash=value=>finite(value)?`${number(value)} USDT`:'—';
+  const time=value=>typeof value==='string'&&Number.isFinite(Date.parse(value))?new Date(value).toLocaleString('es-MX',{dateStyle:'short',timeStyle:'medium'}):'—';
+  const bounded=(value,max)=>Array.isArray(value)?value.filter(row=>row&&typeof row==='object').slice(0,max):[];
+  const label=value=>labels[value]||'SIN EVIDENCIA';
+  const metric=values=>values.map(([key,value])=>`<div><dt>${esc(key)}</dt><dd>${esc(value)}</dd></div>`).join('');
+  const badge=(id,value,warning=false)=>{const node=document.getElementById(id);if(node){node.textContent=value;node.className='state '+(warning?'warning':'neutral');}};
+  function isOld(value,remote=false){const stamp=Date.parse(value);return remote||!Number.isFinite(stamp)||Date.now()-stamp>120000||stamp-Date.now()>5000;}
+  function renderQuant(value,remote=false){
+    const valid=value?.schema===1&&value.engine==='QUANT_ARBITRAGE'&&value.mode==='SHADOW'&&value.state==='NOT_STARTED'&&value.initialized===false&&value.enabled===false&&value.execution_enabled===false&&value.controls_available===false&&value.promotion_allowed===false;
+    const text=valid?'SIN INICIAR':'SIN DATOS';
+    badge('summaryQuantState',text);badge('quantState',text);
+    for(const field of ['Capital','Positions','Return','Evaluation'])set('summaryQuant'+field,'—');
+    const strategies=bounded(value?.strategies,2);
+    set('quantFundingState',valid&&strategies.some(row=>row.id==='FUNDING_CARRY'&&row.state==='NOT_STARTED')?'SIN INICIAR':'SIN DATOS');
+    set('quantStatisticalState',valid&&strategies.some(row=>row.id==='STATISTICAL_ARBITRAGE'&&row.state==='NOT_STARTED')?'SIN INICIAR':'SIN DATOS');
+    set('quantStatusNote',valid?`${remote?'Última identidad sincronizada: ':''}Quant aún no tiene un motor ni ledger inicializado. Funding Carry y Statistical Arbitrage están pendientes de implementación y pruebas. Capital, posiciones y resultados no disponibles.`:'No hay un contrato Quant compatible. Su ausencia no modifica la operación de Spot, Futures o Market Pulse.');
+    const button=document.getElementById('startQuant');if(button)button.disabled=true;
+  }
+  function render(platform){
+    const remote=platform?.remote_sync_stale===true;
+    renderQuant(platform?.quant,remote);
+    const g=platform?.portfolio_guardian;
+    const valid=g?.schema===1&&g.engine==='PORTFOLIO_GUARDIAN'&&g.mode==='OBSERVER'&&g.controls_enabled===false&&g.can_veto===false&&g.execution_enabled===false&&['OBSERVING','PARTIAL','DEGRADED'].includes(g.state);
+    const old=valid&&isOld(g.at,remote);
+    set('summaryGuardianStatus',valid?`Guardian Observer: ${old?'lectura antigua':label(g.state).toLowerCase()} · sin veto de entradas.`:'Guardian Observer: sin lectura compatible · sin veto de entradas.');
+    badge('guardianState',valid?(old?'OBSERVER · LECTURA ANTIGUA':label(g.state)):'SIN DATOS',old||valid&&g.state!=='OBSERVING');
+    set('guardianStatusNote',valid?`Observer · ${old?'proyección antigua; estado actual sin verificar':'capturado '+time(g.at)}. Observa ledgers separados; no reserva capital, veta entradas ni cambia límites. La sincronización remota no certifica que un motor esté detenido.`:'Guardian todavía no ha sincronizado una lectura compatible. Los motores conservan sus controles y protecciones. Observer no interviene en sus decisiones.');
+    const seen=new Set();
+    const scopes=valid?bounded(g.scopes,4).filter(scope=>ids.has(scope.id)&&!seen.has(scope.id)&&(seen.add(scope.id),true)):[];
+    html('guardianScopes',scopes.map(scope=>{
+      const current=!old&&scope.state==='FRESH',capital=scope.capital||{},limits=scope.limits||{},budget=scope.budget_status||{};
+      const capitalCurrent=!old&&capital.state==='FRESH';
+      const assets=bounded(scope.assets,40);
+      const native=assets.filter(asset=>asset.native_protection==='ARMED').length;
+      const title=names[scope.id];
+      return `<article class="guardian-scope"><div class="pulse-item-head"><h3>${esc(title)}</h3><span class="badge">${esc(old?'ÚLTIMO REGISTRO':label(scope.state))}</span></div><p class="platform-environment">${esc(scope.environment||'Entorno sin confirmar')} · inventario del ledger</p><dl>${metric([
+        ['Posiciones / sin precio',`${number(scope.position_count,0)} / ${number(scope.unpriced_positions,0)}`],
+        ['Equity / efectivo',`${cash(capitalCurrent?capital.equity_usdt:null)} / ${cash(!old?capital.cash_usdt:null)}`],
+        ['Exposición bruta / neta',`${cash(current?scope.gross_usdt:null)} / ${cash(current?scope.net_usdt:null)}`],
+        ['Distancia nominal a stops',cash(current?scope.nominal_stop_risk_usdt:null)],
+        ['Límite bruto / riesgo inclusivo',`${cash(limits.gross_usdt)} / ${cash(limits.stop_risk_usdt)}`],
+        ['Presupuesto bruto',old?'Lectura antigua':label(budget.gross)],['Presupuesto de stop inclusivo',old?'Lectura antigua':label(budget.stop_risk)],
+        ['Estados nativos registrados',scope.id==='SPOT'||scope.id==='FUTURES'?`${native} ARMED / ${number(scope.position_count,0)} posiciones`:'No aplica · Shadow']
+      ])}</dl><small>${esc(old?'Cantidades, límites y protecciones corresponden al último registro; no confirman el estado actual.':'El inventario del ledger no acredita conciliación completa de la cuenta. Los estados nativos registrados no son una confirmación actual independiente del exchange ni garantizan una pérdida máxima.')}</small></article>`;
+    }).join('')||'<p class="empty">Sin exposición verificable disponible. No se sustituye por cero.</p>');
+    const alerts=valid?bounded(g.alerts,20):[];
+    set('guardianAlertSummary',valid?`${old?'Último registro: ':''}${alerts.length?`${alerts.length} alertas observadas`:'Sin alertas en la evidencia disponible'} · ${scopes.filter(scope=>scope.state==='FRESH').length}/${scopes.length} ledgers con valoración completa${old?' en esa lectura':''}. Reservas no integradas; no hay veto de entradas.`:'Sin evidencia Guardian disponible. Reservas y control de entradas no integrados.');
+    html('guardianAlerts',alerts.map(alert=>`<article class="pulse-item"><strong>${esc(codes[alert.code]||'Diagnóstico no reconocido')}</strong><p>${esc(names[alert.scope]||'Plataforma')}${typeof alert.symbol==='string'?' · '+esc(alert.symbol.slice(0,24)):''} · ${old?'última lectura antigua':'observación; no ejecuta acciones'}</p></article>`).join('')||'<p class="empty">Sin alertas registradas en esta proyección.</p>');
+    const overlaps=valid?bounded(g.overlaps,10):[];
+    html('guardianOverlaps',overlaps.map(row=>`<article class="pulse-item"><strong>${esc(typeof row.symbol==='string'?row.symbol.slice(0,24):'Activo sin identificar')}</strong><p>${bounded(Array.isArray(row.scopes)?row.scopes.map(id=>({id})):[],4).map(item=>esc(names[item.id]||'Entorno desconocido')).join(' / ')} · coincidencia entre ledgers separados. No acredita cobertura ni capital compartido.</p></article>`).join('')||'<p class="empty">Sin coincidencias observadas; no demuestra ausencia de correlación.</p>');
+    html('guardianQuality',metric([['Correlación','No calculada'],['Pérdida diaria / semanal','Sin evidencia agregada'],['Drawdown global','No calculado'],['Reservas compartidas','No integradas'],['Control de entradas','Sin veto · Observer'],['Captura',valid?time(g.at):'—']]));
+    set('guardianLimitations','No existe una cartera financiera conjunta entre Spot Testnet, Futures Demo y Shadow. La distancia nominal a stop excluye costes, gaps y funding; no es una pérdida máxima. Coincidir en un activo no prueba una cobertura. Correlación, drawdown, liquidación y reservas requieren evidencia e integración adicionales.');
+  }
+  function disconnected(){
+    set('summaryGuardianStatus','Guardian Observer: lectura no disponible · datos anteriores históricos · sin veto.');
+    badge('summaryQuantState','LECTURA NO DISPONIBLE',true);badge('quantState','LECTURA NO DISPONIBLE',true);badge('guardianState','LECTURA NO DISPONIBLE',true);
+    set('guardianStatusNote','El portal no pudo actualizar la lectura. Los valores conservados son históricos y no confirman el estado actual de los motores.');
+    set('guardianAlertSummary','Alertas y coincidencias actuales no disponibles. Consulta una lectura reciente; no se infiere que los motores estén detenidos.');
+    for(const field of ['Capital','Positions','Return','Evaluation'])set('summaryQuant'+field,'—');
+    for(const id of ['quantFundingState','quantStatisticalState'])set(id,'LECTURA NO DISPONIBLE');
+    set('quantStatusNote','No se pudo actualizar el contrato Quant. Su estado actual no está verificado; ejecución y promoción siguen sin controles disponibles en esta pantalla.');
+    html('guardianScopes','<p class="empty">Valoración actual no disponible. Consulta una lectura reciente antes de evaluar exposición.</p>');
+    html('guardianAlerts','<p class="empty">Alertas actuales no disponibles.</p>');html('guardianOverlaps','<p class="empty">Coincidencias actuales no disponibles.</p>');
+    html('guardianQuality',metric([['Calidad actual','Lectura no disponible'],['Control de entradas','Sin veto · Observer']]));
+  }
+  return {render,disconnected,isOld};
+})();
+window.FourEnginePortal=FourEnginePortal;
+
 async function refresh() {
   try {
-    const [status,positions,trades,reviews,equity,events,research,researchState,paperReport,futuresForward,marketPulse] = await Promise.all([
-      api('/api/status'),api('/api/positions'),api('/api/trades'),api('/api/ai-reviews'),api('/api/equity'),api('/api/events'),api('/api/research'),api('/api/research/status'),api('/api/paper-scorecard'),api('/api/futures-forward'),api('/api/market-pulse').catch(()=>null)
+    const [status,positions,trades,reviews,equity,events,research,researchState,paperReport,futuresForward,marketPulse,platform] = await Promise.all([
+      api('/api/status'),api('/api/positions'),api('/api/trades'),api('/api/ai-reviews'),api('/api/equity'),api('/api/events'),api('/api/research'),api('/api/research/status'),api('/api/paper-scorecard'),api('/api/futures-forward'),api('/api/market-pulse').catch(()=>null),api('/api/platform').catch(()=>null)
     ]);
     currentExecutionMode=String(status.mode||'paper').toLowerCase();
     const modeUpper=currentExecutionMode.toUpperCase();
@@ -1165,8 +1245,10 @@ async function refresh() {
     renderFuturesChart(futuresForward?.equity||[]);
     document.getElementById('updated').textContent=`Último ciclo ${ageLabel(activity.age_seconds)} · ${shortTime(activity.last_cycle_at)}`;
     PulsePortal.render(marketPulse,status,futuresForward,positions);
+    FourEnginePortal.render(platform);
   } catch(error) {
     PulsePortal.disconnected();
+    FourEnginePortal.disconnected();
     const botState=document.getElementById('botState');
     botState.textContent='PORTAL SIN CONEXIÓN'; botState.classList.add('offline');
     document.getElementById('operationSummary').textContent='No se pudo consultar el motor. Comprueba la conexión con Windows antes de operar.';

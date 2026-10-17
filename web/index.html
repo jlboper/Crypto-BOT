@@ -14,13 +14,13 @@
   <script src="/portal-bridge.js" defer></script>
 </head>
 <body>
-  <form id="portalLogin" hidden><h1>Crypto AI Trader</h1><p>Portal privado · tres motores de observación</p><label for="portalPassword">Contraseña del propietario</label><input id="portalPassword" type="password" autocomplete="current-password" required maxlength="128"><button id="portalLoginButton" type="submit">Entrar</button><p id="portalLoginMessage" role="status"></p></form>
+  <form id="portalLogin" hidden><h1>Crypto AI Trader</h1><p>Portal privado · cuatro motores y Portfolio Guardian</p><label for="portalPassword">Contraseña del propietario</label><input id="portalPassword" type="password" autocomplete="current-password" required maxlength="128"><button id="portalLoginButton" type="submit">Entrar</button><p id="portalLoginMessage" role="status"></p></form>
   <main class="shell">
     <header>
       <div class="brand">
         <img class="brand-mark" src="/crypto-ai-trader-icon.png" alt="">
         <div class="brand-copy">
-          <p class="eyebrow">TRES MOTORES · OBSERVACIÓN SUPERVISADA</p>
+          <p class="eyebrow">CUATRO MOTORES · OBSERVACIÓN SUPERVISADA</p>
           <div class="brand-title-row"><h1>Crypto AI Trader</h1><span id="botVersion" class="bot-version" aria-label="Versión instalada">v—</span></div>
           <p id="portalConnection"></p>
         </div>
@@ -46,12 +46,12 @@
     <nav class="platform-nav" aria-label="Secciones del portal">
       <a href="#platform-overview" aria-current="location">Resumen general</a>
       <a href="#spot-bot">Spot Bot</a><a href="#futures-bot">Futures Bot</a>
-      <a href="#market-pulse">AI Market Pulse</a><a href="#research-lab">Research &amp; Backtesting</a>
+      <a href="#market-pulse">AI Market Pulse</a><a href="#quant-arbitrage">Quant Arbitrage</a><a href="#portfolio-guardian">Portfolio Guardian</a><a href="#research-lab">Research &amp; Backtesting</a>
       <a href="#activity-section">Actividad y operaciones</a><a href="#modelSettingsPanel">Configuración y diagnóstico</a>
     </nav>
-    <section id="platform-overview" class="platform-overview" aria-label="Resumen de los tres bots">
-      <div class="panel-title"><div><p class="eyebrow">VISTA GENERAL</p><h2>Tres motores, una plataforma</h2></div><span class="badge">ENTORNOS SEPARADOS</span></div>
-      <p class="platform-note">Spot sigue tendencias; Futures observa LONG/SHORT; Market Pulse estudia eventos y anomalías en Shadow. Cada motor conserva su capital y su historial.</p>
+    <section id="platform-overview" class="platform-overview" aria-label="Resumen de los cuatro bots">
+      <div class="panel-title"><div><p class="eyebrow">VISTA GENERAL</p><h2>Cuatro motores, una plataforma</h2></div><span class="badge">ENTORNOS SEPARADOS</span></div>
+      <p class="platform-note">Spot sigue tendencias; Futures observa LONG/SHORT; Market Pulse estudia eventos y anomalías en Shadow. Quant tiene su espacio de investigación, aún sin iniciar. Guardian observa cada entorno por separado.</p>
       <div class="platform-grid">
         <article class="panel platform-card"><div class="platform-card-head"><div><p class="eyebrow">MOTOR 1</p><h3>SPOT BOT</h3></div><span id="summarySpotState" class="state neutral">ESPERANDO DATOS</span></div>
           <p id="summarySpotEnvironment" class="platform-environment">Entorno pendiente</p><dl>
@@ -74,8 +74,16 @@
           <div><dt>Retorno simulado</dt><dd id="summaryPulseReturn">—</dd></div><div><dt>Último evento / evaluación</dt><dd id="summaryPulseEvaluation">—</dd></div></dl>
           <a class="platform-detail" href="#market-pulse">Ver Market Pulse →</a>
         </article>
+        <article class="panel platform-card quant-accent"><div class="platform-card-head"><div><p class="eyebrow">MOTOR 4</p><h3>QUANT ARBITRAGE</h3></div><span id="summaryQuantState" class="state neutral">SIN DATOS</span></div>
+          <p class="platform-environment">Shadow · investigación sin ejecución</p><dl>
+          <div><dt>Estrategias</dt><dd>Funding Carry / StatArb</dd></div><div><dt>Capital hipotético</dt><dd id="summaryQuantCapital">—</dd></div>
+          <div><dt>Posiciones / cierres</dt><dd id="summaryQuantPositions">—</dd></div><div><dt>P&amp;L simulado</dt><dd id="summaryQuantReturn">—</dd></div>
+          <div><dt>Última evaluación</dt><dd id="summaryQuantEvaluation">—</dd></div><div><dt>Ejecución / promoción</dt><dd>Bloqueadas</dd></div></dl>
+          <a class="platform-detail" href="#quant-arbitrage">Ver Quant →</a>
+        </article>
       </div>
-      <p id="platformAlerts" class="platform-note" role="status">Esperando una lectura reciente de los tres motores.</p>
+      <p id="platformAlerts" class="platform-note" role="status">Esperando una lectura reciente de la plataforma.</p>
+      <p id="summaryGuardianStatus" class="platform-note" role="status">Guardian Observer: esperando evidencia · sin veto de entradas.</p>
     </section>
     <section id="passwordPanel" class="panel" hidden>
       <h2>Cambiar contraseña del portal</h2>
@@ -129,7 +137,7 @@
     </section>
     <section id="modelSettingsPanel" class="panel" hidden aria-label="Motor y entornos">
       <div class="panel-title"><div><p class="eyebrow">CONTROL DEL MOTOR</p><h2>Motor y entornos</h2></div><button id="closeModelSettings" class="secondary">Cerrar</button></div>
-      <p class="settings-intro">Spot Testnet y Futures Demo mantienen sus controles. Market Pulse observa en Shadow con pausa independiente en su panel. PAPER se conserva como respaldo técnico/CI. Binance LIVE permanece bloqueado.</p>
+      <p class="settings-intro">Spot Testnet y Futures Demo mantienen sus controles. Market Pulse observa en Shadow con pausa independiente en su panel. Quant aún no se ha iniciado; Guardian es solo observador. PAPER se conserva como respaldo técnico/CI. Binance LIVE permanece bloqueado.</p>
       <div class="settings-grid">
         <article class="settings-card">
           <div class="settings-card-head"><div><span class="settings-kicker">MOTOR PRINCIPAL</span><h3>Binance Spot Testnet</h3></div><span class="state neutral" id="primaryEnvironmentState">CARGANDO</span></div>
@@ -240,6 +248,24 @@
     </section>
     <section class="panel" aria-label="Pruebas de apalancamiento Futures Demo"><details class="update-details"><summary>Futures Demo · pruebas de apalancamiento</summary>
           <div id="futuresLeverageTrials"></div></details></section>
+    <section id="portfolio-guardian" class="panel guardian-panel" aria-label="Portfolio Guardian Observer">
+      <div class="panel-title"><div><p class="eyebrow">SUPERVISIÓN DE EXPOSICIÓN</p><h2>Portfolio Guardian</h2></div><span id="guardianState" class="state neutral">SIN DATOS</span></div>
+      <p id="guardianStatusNote" class="platform-note" role="status">Observer · lectura de ledgers separados. Sin reservas ni veto de entradas.</p>
+      <div class="guardian-strip"><span>Solo observación</span><span>Sin cambio de límites</span><span>Protecciones independientes</span></div>
+      <div id="guardianAlertSummary" class="guardian-alert-summary" role="status">Esperando evidencia.</div>
+      <details id="guardian-exposure" class="portal-fold" data-remember-fold><summary>Exposición y presupuestos por entorno</summary><div class="fold-body"><div id="guardianScopes" class="guardian-scope-grid"></div><p class="platform-note">Cada ledger se muestra por separado. No se suman capitales Testnet, Demo y Shadow. El riesgo nominal hasta stop excluye costes, gaps y funding.</p></div></details>
+      <details id="guardian-overlaps" class="portal-fold" data-remember-fold><summary>Coincidencias de activos y alertas</summary><div class="fold-body"><div id="guardianOverlaps" class="pulse-feed"></div><div id="guardianAlerts" class="pulse-feed"></div></div></details>
+      <details id="guardian-quality" class="portal-fold" data-remember-fold><summary>Calidad y límites de la observación</summary><div class="fold-body"><dl id="guardianQuality" class="pulse-metrics"></dl><p id="guardianLimitations" class="platform-note"></p></div></details>
+    </section>
+    <section id="quant-arbitrage" class="panel quant-panel" aria-label="Quant Arbitrage">
+      <div class="panel-title"><div><p class="eyebrow">MOTOR 4 · INVESTIGACIÓN</p><h2>Quant Arbitrage</h2></div><span id="quantState" class="state neutral">SIN DATOS</span></div>
+      <p id="quantStatusNote" class="platform-note" role="status">El contrato identifica el futuro motor. Aún no hay estrategia, ledger ni resultados Quant disponibles.</p>
+      <div class="pulse-subnav"><a href="#quant-funding">Funding Carry</a><a href="#quant-statistical">Statistical Arbitrage</a></div>
+      <div class="pulse-controls"><button id="startQuant" class="secondary" disabled aria-describedby="quantAuthorization">Iniciar Quant · no disponible</button></div>
+      <p id="quantAuthorization" class="platform-note">La ejecución y promoción permanecen bloqueadas. Esta pantalla no autoriza órdenes ni crea un motor.</p>
+      <details id="quant-funding" class="portal-fold pulse-section" data-remember-fold><summary><div class="panel-title"><h3>Funding Carry</h3><span id="quantFundingState" class="badge">SIN DATOS</span></div></summary><div class="fold-body"><p>Investigación prevista: Spot LONG + Futures SHORT, financiación observada, basis y costes de ambas piernas. Una cobertura teórica no acredita ejecución simultánea ni elimina riesgo de margen.</p><p class="empty">Sin señales, posiciones o cobros de funding Quant registrados. No se presentan estimaciones como ingresos liquidados.</p></div></details>
+      <details id="quant-statistical" class="portal-fold pulse-section" data-remember-fold><summary><div class="panel-title"><h3>Statistical Arbitrage</h3><span id="quantStatisticalState" class="badge">SIN DATOS</span></div></summary><div class="fold-body"><p>Investigación prevista: estabilidad de cointegración, z-score, reversión a la media, cambios de régimen y pruebas fuera de muestra. La correlación por sí sola no demuestra una oportunidad.</p><p class="empty">Sin backtest válido ni resultados Quant disponibles.</p></div></details>
+    </section>
     <details class="portal-fold panel observation-health" aria-label="Salud de observación últimas 24 horas" id="observation-details" data-remember-fold>
       <summary><div class="panel-title">
         <div><p class="eyebrow">SALUD DE OBSERVACIÓN · 24 H</p><h2>Calidad operativa de la muestra</h2></div>
@@ -256,13 +282,13 @@
       </div>
 
       </div></details>
-    <details class="portal-fold panel dual-observation" aria-label="Comparación financiera de los tres bots" id="comparison-details" data-remember-fold>
+    <details class="portal-fold panel dual-observation" aria-label="Comparación financiera de los motores observados" id="comparison-details" data-remember-fold>
       <summary><div class="panel-title">
-        <div><p class="eyebrow">FORWARD TEST · SEGUIMIENTO</p><h2>Comparación de los tres bots</h2></div>
+        <div><p class="eyebrow">FORWARD TEST · SEGUIMIENTO</p><h2>Comparación de los cuatro motores</h2></div>
         <span id="dualEvidenceState" class="state neutral">ACUMULANDO DATOS</span>
       </div></summary><div class="fold-body">
       <p id="dualEvidenceNote">Los resultados se miden por separado. Ninguna métrica habilita Binance LIVE automáticamente.</p>
-      <div class="dual-scorecards three-scorecards">
+      <div class="dual-scorecards four-scorecards">
         <article>
           <h3>Spot Testnet</h3>
           <dl>
@@ -289,6 +315,7 @@
           </dl>
         </article>
         <article class="pulse-comparison"><h3>AI Market Pulse · SHADOW</h3><dl id="pulseComparison"><div><dt>Evidencia prospectiva</dt><dd>Pendiente</dd></div></dl></article>
+        <article><h3>Quant Arbitrage · SHADOW</h3><dl><div><dt>Estado</dt><dd>Sin iniciar</dd></div><div><dt>Capital / P&amp;L / exposición</dt><dd>—</dd></div><div><dt>Calidad / comparabilidad</dt><dd>Sin muestras ni ledger</dd></div></dl><p class="settings-help">No participa en una comparación de resultados hasta disponer de evidencia válida.</p></article>
       </div>
       <p id="platformComparisonNote" class="settings-help">No comparables como una sola cartera: entornos, ventanas y metodologías distintos. Los saldos y P&amp;L no se suman. Shadow simula comisión, spread y deslizamiento; Spot Testnet y Futures Demo registran su propia ejecución.</p>
       <p class="settings-help">Ventanas y capitales distintos por motor. Los resultados netos descuentan costos registrados; Futures concilia comisiones y funding con Binance Demo. Si falta evidencia, el neto queda pendiente. El retorno observado de cuenta no separa aportes/retiros. Los cierres técnicos no evalúan la estrategia. No se incluyen costos de la API de IA.</p>
