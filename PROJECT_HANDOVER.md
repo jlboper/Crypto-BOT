@@ -19,7 +19,40 @@ Then inspect current `main`, recent commits, open PRs/issues and CI. Documentati
 
 ## Mission
 
-### Current continuation — 0.10.40 closed-minute diagnostic candidate
+### Current continuation — 0.10.41 Command Center foundation
+
+Start from main `81ba4366cf587c16cae20d403974a340080c4d10`, 0.10.40,
+[PR #117](https://github.com/jlboper/Crypto-BOT/pull/117). Its publication
+[39089416208](https://github.com/jlboper/Crypto-BOT/actions/runs/39089416208)
+and safety [39089416215](https://github.com/jlboper/Crypto-BOT/actions/runs/39089416215)
+succeeded; signed installation was verified 178/178 hashes at 2026-10-18 02:27 UTC.
+That is predecessor evidence, not proof of 0.10.41 publication or installation.
+
+Read [COMMAND_CENTER_2_0.md](COMMAND_CENTER_2_0.md) for the audited component map,
+typed future contracts, authority levels and phase checkpoints. Candidate 41
+reorganizes existing shared-web/Windows presentation only. Seven views retain
+current authenticated controls and environment-scoped financial evidence. No new
+AI request, capital allocator, reservation or trading admission hook is added.
+Guardian Intelligence (phase 2), Capital Manager Shadow (phase 3) and expressly
+authorized future Guardian Control are separate from today's pure Observer.
+The `ExposureCoordinator` prototype has no production caller; it does not protect
+shared account capital. Never enable shared Spot/Pulse funds from that scaffold.
+
+Phase-2 blocker: Guardian's pure function has no E/S, but current snapshot
+acquisition constructs `FuturesTestnetLedger`, which can initialize/migrate the
+database and set WAL. Implement an explicit ≤1 s read-only adapter before frequent
+Guardian supervision; preserve each source timestamp because multi-ledger reads
+are not one atomic transaction. Do not claim an exact cross-engine decision view.
+
+Preserve `AIAdvisor`: Spot ALLOW/REJECT/REDUCE, Futures ALLOW/REJECT. Individual
+review and all existing deterministic limits remain; protection/recovery must not
+depend on Guardian or AI. No autonomy level, risk state, NL query service, LIVE
+executor or counterfactual effectiveness claim is implemented by this foundation.
+Each later phase needs its own implementation, tests, publication/signature,
+installed inventory and operating evidence. Future level changes require owner
+authorization and validation; routine signed-release policy remains unchanged.
+
+### 0.10.40 closed-minute diagnostics — historical preparation record
 
 Based on verified signed/installed 0.10.39 main
 `2328f2959dc9b4fb939e889519b59a19e5a58423`, 176/176 hashes. Publication
@@ -111,8 +144,8 @@ The current architecture intentionally separates:
 - **Futures Demo**: separate LONG/SHORT forward test with its own ledger, journal, risk controls and kill switch. Version 0.10.27 observes fifteen USDT perpetuals, allows up to ten positions, and sizes against 300 USDT gross exposure and 7.5 USDT estimated loss-to-stop (including cost reserve). Confirmed entries alternate 1x/2x/3x without multiplying quantities; actual fills/gaps can exceed pre-submit estimates. Expanded open state prevents incompatible code restoration.
 - **PAPER**: regression, CI and technical fallback.
 - **Market Pulse / Quant SHADOW**: separate hypothetical ledgers; no exchange
-  execution. Quant's new candidate must be installed and verified before inferring
-  its current operation from a source-level implementation.
+  execution. Quant's 0.10.40 foundation is installed/verified; current liveness
+  and data quality still require fresh runtime evidence. StatArb remains blocked.
 - **LIVE**: intentionally not implemented. Never infer that observed profitability authorizes production trading.
 
 ## Architectural invariants

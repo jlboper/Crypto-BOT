@@ -1,6 +1,26 @@
 # Work Context — Crypto AI Trader
 
-## Continuación actual — 0.10.40 en preparación
+## Continuación actual — 0.10.41 Command Center
+
+Base main 0.10.40 `81ba4366cf587c16cae20d403974a340080c4d10`, PR #117,
+publicada/firmada e instalada 178/178 hashes, verificada 2026-10-18 02:27 UTC.
+Publicación 39089416208 y seguridad Linux/Windows 39089416215 exitosas.
+La nueva misión CRYPTO-BOT 2.0 añade auditoría y organiza siete vistas compartidas
+con Windows coherente; no altera ejecución, estrategias, límites, capital o IA.
+Ver `COMMAND_CENTER_2_0.md`: mapa, contratos futuros, matriz y fases verificables.
+
+Guardian actual es Observer puro, sin veto/reservas; Portfolio & Capital sólo
+proyecta evidencia por entorno. Intelligence Shadow y Capital Manager Shadow son
+fases 2/3 diseñadas, aún sin implementar. El coordinador de exposición es un
+prototipo sin integración en bots; no habilitar capital compartido. Guardian
+Control Testnet requiere autorización expresa futura y validación. Fase 1 tiene
+presupuesto Guardian IA cero y ninguna llamada nueva; conserva revisión individual
+Spot ALLOW/REJECT/REDUCE y Futures ALLOW/REJECT. No hay NL ejecutor ni LIVE.
+Publicación/firma/instalación/verificación operativa de 41 siguen pendientes;
+la evidencia de 40 no las sustituye. Las notas de preparación anteriores se
+conservan como historia y no definen el estado actual.
+
+## 0.10.40 — registro histórico de preparación
 
 Base main 0.10.39 `2328f2959dc9b4fb939e889519b59a19e5a58423`, firmada e instalada
 176/176. Publicación 39070205949 y seguridad 39070205944 exitosas; agente 11/11 y
@@ -93,7 +113,7 @@ de BTC/ETH/SOL dentro del proceso existente, con ledger, pausa y cuota IA propio
 No admite órdenes, PAPER/Testnet/LIVE ni promoción desde configuración o botones.
 Ver `MARKET_PULSE.md`. Los antecedentes de dos motores que siguen son históricos.
 
-## Estado actual
+## Antecedente 0.10.18–0.10.19 — arquitectura de dos motores
 
 La rama estable trabaja con un único proceso supervisado y dos motores de prueba en paralelo:
 
@@ -102,7 +122,7 @@ La rama estable trabaja con un único proceso supervisado y dos motores de prueb
 - **PAPER**: respaldo técnico, CI, regresiones y recuperación. No es el entorno diario predeterminado.
 - **LIVE**: no implementado. Ninguna métrica o estado habilita capital real automáticamente.
 
-## Arquitectura operativa
+## Arquitectura registrada en ese antecedente
 
 - `web/`: interfaz única compartida por localhost y Cloudflare. El portal local y remoto deben conservar la misma estructura, nomenclatura y métricas.
 - `scripts/manager_windows.ps1`: centro de control compacto de Windows; abre portal local/remoto, reinicia el motor, gestiona inicio automático, kill switch y actualizaciones firmadas.

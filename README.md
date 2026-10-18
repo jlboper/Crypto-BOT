@@ -1,4 +1,4 @@
-# Crypto AI Trading Bot — Binance Spot
+# Crypto AI Trader — CRYPTO-BOT 2.0
 
 > Copia de desarrollo aislada de la instalación Windows. El repositorio no contiene credenciales ni datos de la instancia operativa. No inicies un segundo motor. Consulta `BOT_UPDATE_PROGRESS.md` para distinguir versión preparada, publicada e instalada.
 
@@ -10,42 +10,42 @@ Ver [Market Pulse](MARKET_PULSE.md) para la selección fechada, fuentes, hipóte
 limitaciones. La expansión progresiva a Quant Arbitrage y Portfolio Guardian está
 documentada en [cuatro motores](FOUR_ENGINE_EXPANSION.md).
 
-La 0.10.36, commit `1bb77fad1a490472907ce29591e0b1075d3e7ba3` del
-[PR #113](https://github.com/jlboper/Crypto-BOT/pull/113), se verificó firmada e
-instalada con 167/167 hashes. Incorpora cuatro tarjetas web/Windows y Guardian
-**Observer**, sin veto, reservas compartidas ni suma de capitales entre entornos.
-Quant permanecía NOT_STARTED en esa versión.
+La base **0.10.40**, main `81ba4366cf587c16cae20d403974a340080c4d10`,
+[PR #117](https://github.com/jlboper/Crypto-BOT/pull/117), se verificó publicada,
+firmada e instalada con **178/178 hashes** el 18 de octubre a las 02:27 UTC.
+[Publicación](https://github.com/jlboper/Crypto-BOT/actions/runs/39089416208)
+y [CI Linux/Windows](https://github.com/jlboper/Crypto-BOT/actions/runs/39089416215)
+exitosas. Conserva cuatro motores: Spot Testnet, Futures Demo y dos ledgers
+hipotéticos independientes, Market Pulse y Quant SHADOW. Funding Carry simula
+pares tras sus barreras; StatArb usa hasta 500 cierres Spot 1m con recepción real
+y replay, pero sigue sin entradas. Estos datos retrospectivos no acreditan OOS.
+Guardian continúa **Observer**, sin veto ni reservas compartidas.
 
-La **0.10.37 se verificó firmada e instalada con 176/176 hashes**: añade Quant exclusivamente **SHADOW** dentro
-del proceso supervisado, con ledger virtual, dos piernas hipotéticas, costes,
-funding histórico observado y pausa independiente. Funding Carry puede registrar
-pares simulados si supera todas las barreras; Statistical Arbitrage produce
-diagnósticos y WAIT/REJECT, con entradas bloqueadas hasta validación independiente.
-El portal distingue proyecciones de funding de asientos simulados, muestra evidencia
-temporal, journal, calidad y límites de pérdida propios. No añade órdenes Testnet,
-Demo o LIVE. La versión del código no demuestra su despliegue.
-
-La **0.10.40 está en preparación**, sobre main 0.10.39
-`2328f2959dc9b4fb939e889519b59a19e5a58423`, ya firmada e instalada con 176/176
-hashes tras [publicación verificada](https://github.com/jlboper/Crypto-BOT/actions/runs/39070205949).
-La candidata permite diagnosticar StatArb con hasta 500 velas Spot
-cerradas de un minuto por BTC/ETH/SOL, conservadas aparte con su recepción real.
-No rellena huecos de snapshots ni finge que el bot conocía antes esas barras.
-Es investigación retrospectiva, sin validación de backtest o evidencia prospectiva
-OOS; todas las entradas StatArb siguen bloqueadas. Mantiene el límite de 15
-peticiones/minuto, simulación Shadow, riesgos y proceso de actualización firmado.
-CI, firma, publicación e instalación de 0.10.40 requieren verificación propia.
+La candidata **0.10.41** inicia el **Intelligent Trading Command Center**:
+auditoría de arquitectura y siete vistas compartidas para Command Center,
+Portfolio & Capital, Trading Engines, Guardian AI, Operations & Decisions,
+Research Lab y System & Settings, con presentación Windows coherente.
+Capital muestra evidencia por entorno; no reparte fondos. Guardian Intelligence,
+Capital Manager y Guardian Control son fases futuras, sin nuevas llamadas/coste IA
+en esta entrega. Ver [arquitectura, contratos y fases](COMMAND_CENTER_2_0.md).
+Su implementación/pruebas, CI, publicación/firma e instalación se verifican
+por separado; la instalación de 0.10.40 no demuestra la de 0.10.41.
 
 Plataforma supervisada de swing trading con Spot Testnet y un forward test LONG/SHORT de Futures Demo, con cuentas, ledgers, pausas y protecciones separados. PAPER se conserva como respaldo técnico/CI. Market Pulse observa eventos en Shadow; Quant añade investigación y simulación de pares. Consume datos reales de referencia y conserva costes y entornos explícitos. Binance LIVE sigue sin implementación.
 
 El ajuste operativo del 12 de octubre de 2026 amplía Spot Testnet y Futures Demo a diez posiciones por bot. Futures observa 15 monedas y alterna 1x/2x/3x sin multiplicar la cantidad: máximo 100 USDT por entrada, 300 USDT de notional bruto conjunto y 7,5 USDT de pérdida estimada hasta los stops, incluida una reserva de costos del 0,5%. El objetivo de las nuevas entradas Futures pasa de 60 a 30 USDT al distribuir el mismo presupuesto entre diez cupos; las posiciones existentes conservan su tamaño. La cantidad se adapta a filtros actuales y presupuesto disponible; los límites pueden permitir menos de diez posiciones. Son estimaciones previas a órdenes MARKET, no garantías de pérdidas máximas. Publicación e instalación se verifican por separado; las descripciones versionadas anteriores son históricas.
 
-La IA no puede inventar compras, aumentar el tamaño de una posición, eliminar stops ni cambiar límites. En Spot y Futures, OpenAI únicamente puede `ALLOW`, `REJECT` o `REDUCE` una entrada que ya pasó las reglas cuantitativas. Pulse interpreta eventos con cuota propia; Quant usa cálculos deterministas sin llamadas nuevas al modelo.
+La IA no puede inventar compras, aumentar tamaño, eliminar stops ni cambiar
+límites. La revisión individual Spot admite `ALLOW`, `REJECT` o `REDUCE`;
+Futures admite únicamente `ALLOW` o `REJECT` sobre su propuesta exacta.
+Pulse interpreta eventos con cuota propia; Quant y Guardian Observer usan
+cálculos deterministas. Los cierres protectores y la conciliación no esperan a IA.
 
-## Límites iniciales
+## Límites Spot y simulación PAPER
 
 - Capital simulado: 1,000 USDT.
-- Máximo 10 posiciones por bot.
+- Máximo 10 posiciones Spot. Futures conserva sus diez cupos y presupuestos
+  propios; Pulse tiene tres posiciones hipotéticas y Quant hasta dos pares.
 - Máximo 15% por posición y 60% de exposición total.
 - Riesgo objetivo: 0.75% del portafolio por operación.
 - Detención diaria: −2%; semanal: −5%.
@@ -54,7 +54,8 @@ La IA no puede inventar compras, aumentar el tamaño de una posición, eliminar 
 - El motor principal Spot no usa margen ni cortos. Futures Demo vive en un laboratorio separado, limitado a `ISOLATED`, One-way y 1x–3x con fondos ficticios.
 - Kill switch manual y automático después de tres errores consecutivos. Bloquea entradas nuevas, pero el motor continúa vigilando stops y salidas de posiciones existentes.
 
-Todos estos valores están en `config.toml`.
+Los límites Spot/Futures configurables están en `config.toml`; Pulse y Quant
+conservan sus hipótesis y ledgers independientes. No son una cartera común.
 
 ## Requisitos
 

@@ -1,7 +1,7 @@
 {
-  "name": "Crypto AI Trader",
-  "short_name": "Crypto Trader",
-  "description": "Portal privado de monitoreo y laboratorio de estrategias",
+  "name": "CRYPTO-BOT 2.0 — Intelligent Trading Command Center",
+  "short_name": "CRYPTO-BOT 2.0",
+  "description": "Centro privado de cuatro motores, Portfolio Guardian Observer e investigación por entornos",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#080d18",

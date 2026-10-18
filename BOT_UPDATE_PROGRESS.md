@@ -1,4 +1,25 @@
-# Candidate — 0.10.40 closed-minute diagnostic evidence
+# Candidate — 0.10.41 Command Center foundation
+
+Prepared from current main `81ba4366cf587c16cae20d403974a340080c4d10`,
+0.10.40, [PR #117](https://github.com/jlboper/Crypto-BOT/pull/117). Predecessor
+[publication 39089416208](https://github.com/jlboper/Crypto-BOT/actions/runs/39089416208)
+and [Linux/Windows safety 39089416215](https://github.com/jlboper/Crypto-BOT/actions/runs/39089416215)
+succeeded; signature and installation were verified 178/178 hashes at
+2026-10-18 02:27 UTC. Current operation still requires fresh runtime evidence.
+
+Phase 0 audits existing components and records typed future contracts in
+`COMMAND_CENTER_2_0.md`. Phase 1 reorganizes shared portal/Windows presentation
+into seven views, without financial effects, new Guardian API calls, risk changes
+or execution authority. Capital is scoped observation; Intelligence/Capital Shadow
+and future expressly authorized Testnet Control remain separate pending phases.
+No production exposure reservation integration exists; do not share account funds.
+
+Candidate 41 implementation and tests, PR/main CI, protected publication,
+Ed25519 signature, installed inventory and operative verification are separate
+checkpoints. Do not infer completion from predecessor evidence or a version label.
+Preserve the updater, activation barrier, independent agent closure and all ledgers.
+
+# Candidate — 0.10.40 closed-minute diagnostic evidence (historical preparation record)
 
 Based on verified signed/installed 0.10.39 main
 `2328f2959dc9b4fb939e889519b59a19e5a58423`, 176/176 hashes.

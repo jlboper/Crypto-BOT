@@ -1,5 +1,25 @@
 # Four engines and Portfolio Guardian — approved staged continuation
 
+## Current baseline and Command Center continuation
+
+The four-engine foundation is now verified at 0.10.40 main
+`81ba4366cf587c16cae20d403974a340080c4d10`, [PR #117](https://github.com/jlboper/Crypto-BOT/pull/117),
+published/signed and installed 178/178 hashes at 2026-10-18 02:27 UTC.
+[Publication](https://github.com/jlboper/Crypto-BOT/actions/runs/39089416208)
+and [Linux/Windows safety](https://github.com/jlboper/Crypto-BOT/actions/runs/39089416215)
+succeeded. Spot Testnet, Futures Demo, Pulse Shadow and Quant Shadow remain
+separate. Funding Carry simulation and closed-bar research are implemented;
+StatArb entries and Guardian Control remain blocked.
+
+Candidate 0.10.41 starts [CRYPTO-BOT 2.0](COMMAND_CENTER_2_0.md): phase-0 audit
+and phase-1 shared presentation with seven views and coherent Windows labels.
+Existing Guardian evidence under Portfolio & Capital is read-only. Future
+Guardian Intelligence, Capital Manager Shadow and explicitly authorized Control
+are distinct components, not capabilities implied by this interface or the
+prototype reservation module. No new API cost, execution path or risk change.
+Verification of 41 remains separate. The versioned preparation records below
+preserve development history and do not override this current baseline.
+
 Owner request received 2026-10-16 after installed 0.10.33. Finish the pending
 ten-asset/five-source Pulse and collapsible portal release before starting this
 work from updated main. Existing Spot Testnet/Futures Demo and Pulse Shadow remain
