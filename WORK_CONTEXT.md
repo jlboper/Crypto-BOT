@@ -1,6 +1,21 @@
 # Work Context — Crypto AI Trader
 
-## Continuación actual — 0.10.39 en preparación
+## Continuación actual — 0.10.40 en preparación
+
+Base main 0.10.39 `2328f2959dc9b4fb939e889519b59a19e5a58423`, firmada e instalada
+176/176. Publicación 39070205949 y seguridad 39070205944 exitosas; agente 11/11 y
+cuatro ticks Quant recientes con edad máxima observada 60.85 s.
+El historial de snapshots Quant observado tiene huecos;
+su cantidad total no acredita una ventana StatArb contigua. La candidata añade
+hasta 500 velas Spot cerradas 1m por BTC/ETH/SOL, guardadas aparte append-only
+con primera recepción real y corte de replay. No interpola ni rellena snapshots
+viejos y no atribuye conocimiento al instante de cierre anterior a la recepción.
+Es diagnóstico retrospectivo; no forward/OOS ni backtest validado. StatArb sigue
+sin entradas y Guardian sin veto. `premiumIndex` en lote conserva máximo 15
+peticiones/minuto (14 iniciales/10 estables previstas), riesgos y SHADOW.
+Pruebas completas, CI, publicación/firma e instalación 0.10.40 pendientes.
+
+## Ajuste 0.10.39 — registro de preparación
 
 0.10.38 main `a94f1124d57439e90620f4b2d5c02cbb07f53f58` superó CI; publicación
 falló en intentos 1/2 con 403 `publisher_revision_unavailable`. No está verificada

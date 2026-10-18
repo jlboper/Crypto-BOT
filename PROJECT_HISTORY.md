@@ -1,5 +1,20 @@
 # Project History and Decision Log
 
+## 2026-10-17 — Closed-bar research is not reconstructed forward evidence
+
+Observed Quant snapshot history had persistent gaps: a large total row count did
+not establish the contiguous minute window required by StatArb. Waiting alone
+would not repair those earlier gaps. The 0.10.40 candidate imports official closed
+Spot minute bars into a separate append-only evidence store, preserving first
+receipt and replay cutoff. It does not backfill snapshot journals or imply that
+the bot knew a historical bar before receiving it. Retrospective train/holdout
+diagnostics remain unvalidated research, not prospective OOS or proven profit.
+StatArb admission stays blocked; batch reference reads preserve the API ceiling,
+Shadow-only authority and existing risk. Based on 0.10.39 main
+`2328f2959dc9b4fb939e889519b59a19e5a58423`, subsequently verified signed and
+installed 176/176 after successful publication 39070205949 and safety 39070205944.
+That predecessor evidence does not establish publication or installation of 0.10.40.
+
 ## 2026-10-17 — Signer availability must not weaken source identity
 
 Version 0.10.38 main `a94f1124d57439e90620f4b2d5c02cbb07f53f58` passed CI,

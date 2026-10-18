@@ -1,4 +1,22 @@
-# Candidate — 0.10.39 signer availability and safe diagnostics
+# Candidate — 0.10.40 closed-minute diagnostic evidence
+
+Based on verified signed/installed 0.10.39 main
+`2328f2959dc9b4fb939e889519b59a19e5a58423`, 176/176 hashes.
+[Publication 39070205949](https://github.com/jlboper/Crypto-BOT/actions/runs/39070205949)
+and [safety 39070205944](https://github.com/jlboper/Crypto-BOT/actions/runs/39070205944)
+succeeded; independent agent matched 11/11 modules and four observed Quant ticks
+were fresh (maximum observed age 60.85 s). Persistent gaps in observed
+Quant snapshots require valid closed-bar evidence rather than waiting or
+interpolating. Add a separate append-only BTC/ETH/SOL Spot 1m store, up to 500
+closed bars per symbol/read, first actual receipt and decision/replay cutoff.
+This does not repair snapshot gaps retroactively or create prospective OOS/
+validated backtest results. StatArb entries stay blocked. Batch premium-index
+reads retain the 15-request/minute cap (planned 14 startup/10 steady calls).
+Risk, Shadow-only execution, persistent financial data and signing policy stay.
+Full checks, CI, publication/signature and installed evidence for 0.10.40 are
+pending separately; predecessor evidence proves none of this candidate's release states.
+
+# Candidate — 0.10.39 signer availability and safe diagnostics (historical preparation record)
 
 Based on 0.10.38 main `a94f1124d57439e90620f4b2d5c02cbb07f53f58`: CI passed,
 publication attempts 1/2 failed with 403 `publisher_revision_unavailable`.

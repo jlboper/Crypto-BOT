@@ -1065,7 +1065,8 @@ const FourEnginePortal = (() => {
     }
     html('quantRisk',metric(riskMetrics));
     set('quantRiskMethod','La referencia es la primera equity válida observada dentro del día o semana UTC; puede empezar después de medianoche. Un bloqueo permanece hasta cambiar el período y no impide cierres protectores hipotéticos. Pausar o reanudar no cambia límites ni elimina ese bloqueo.');
-    set('quantQuality',`${old?'Datos antiguos. ':''}Mercado: ${short(value.data_quality?.market)}. Funding pendiente puede impedir valorar equity y P&L. La salida por estrés usa colateral virtual a 1x; no reproduce la liquidación de Binance ni garantiza un fill intravela. Simulación no atómica, StatArb exploratorio sin validación independiente y promoción bloqueada.`);
+    const retrospectiveBars=Array.isArray(value.limitations)&&value.limitations.includes('HISTORICAL_CLOSED_BARS_RECEIVED_DURING_OBSERVATION_NOT_FORWARD_OOS');
+    set('quantQuality',`${old?'Datos antiguos. ':''}Mercado: ${short(value.data_quality?.market)}. ${retrospectiveBars?'Velas históricas cerradas recibidas durante la observación; no son evidencia prospectiva fuera de muestra. ':''}Funding pendiente puede impedir valorar equity y P&L. La salida por estrés usa colateral virtual a 1x; no reproduce la liquidación de Binance ni garantiza un fill intravela. Simulación no atómica, StatArb exploratorio sin validación independiente y promoción bloqueada.`);
     set('quantLastError',health.last_error?`Último diagnóstico: ${short(health.last_error)}`:'Sin diagnóstico de error reportado. La falta de pares puede ser una observación normal.');
   }
   function render(platform){

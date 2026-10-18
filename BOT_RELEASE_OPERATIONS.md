@@ -37,8 +37,9 @@ Never bypass a restored review or infer installation from a workflow result.
 The portal may pass its post-deployment health check at one Cloudflare edge
 before the signer request reaches an edge with the same revision. A GitHub
 current-main lookup may also be unavailable without proving its concrete cause.
-Starting with candidate 0.10.39, the protected publisher retries only the explicit
-403 codes `portal_and_bot_revision_must_match` and `publisher_revision_unavailable`,
+Starting with 0.10.39, the protected publisher retries only the explicit 403 codes
+`portal_and_bot_revision_must_match`, `publisher_revision_unavailable` and
+`publisher_revision_rate_limited`,
 using the exact same serialized manifest and OIDC token, existing bounded delays
 and at most 105 seconds of cumulative backoff: seven requests, each with a 30-second
 timeout. This is not general retry authority
@@ -50,10 +51,13 @@ response bodies; do not infer quota exhaustion from the old generic code alone.
 If current-main evidence remains unavailable, no signature is issued.
 
 Observed 0.10.38 main `a94f1124d57439e90620f4b2d5c02cbb07f53f58` passed CI but
-publication attempts 1/2 failed with that availability code. Windows remained on
-verified signed 0.10.37 (176/176 hashes). Candidate 0.10.39 publication, signature
-and installation still need their own evidence; this procedure is not deployment
-confirmation. Before claiming publication, confirm the protected
+publication attempts 1/2 failed with that availability code; 0.10.38 remained
+unsigned and Windows then retained signed 0.10.37. Subsequently, 0.10.39 main
+`2328f2959dc9b4fb939e889519b59a19e5a58423` was verified published, signed and
+installed with 176/176 matching hashes after successful
+[publication run 39070205949](https://github.com/jlboper/Crypto-BOT/actions/runs/39070205949).
+That evidence applies to 0.10.39; later candidates require independent verification.
+Before claiming publication, confirm the protected
 job succeeded and `/v1/releases/latest` returns the expected signed version
 and commit. A failed run can have deployed portal assets and uploaded an
 unsigned ZIP; neither is an installable bot release. Rerunning a GitHub job

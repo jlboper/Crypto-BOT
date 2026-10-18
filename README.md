@@ -16,17 +16,27 @@ instalada con 167/167 hashes. Incorpora cuatro tarjetas web/Windows y Guardian
 **Observer**, sin veto, reservas compartidas ni suma de capitales entre entornos.
 Quant permanecía NOT_STARTED en esa versión.
 
-La **0.10.37 está en preparación**: añade Quant exclusivamente **SHADOW** dentro
+La **0.10.37 se verificó firmada e instalada con 176/176 hashes**: añade Quant exclusivamente **SHADOW** dentro
 del proceso supervisado, con ledger virtual, dos piernas hipotéticas, costes,
 funding histórico observado y pausa independiente. Funding Carry puede registrar
 pares simulados si supera todas las barreras; Statistical Arbitrage produce
 diagnósticos y WAIT/REJECT, con entradas bloqueadas hasta validación independiente.
 El portal distingue proyecciones de funding de asientos simulados, muestra evidencia
 temporal, journal, calidad y límites de pérdida propios. No añade órdenes Testnet,
-Demo o LIVE. CI, publicación, firma e instalación de 0.10.37 siguen pendientes de
-verificación; la versión del código no demuestra su despliegue.
+Demo o LIVE. La versión del código no demuestra su despliegue.
 
-Plataforma supervisada de swing trading con Spot Testnet y un forward test LONG/SHORT de Futures Demo, con cuentas, ledgers, pausas y protecciones separados. PAPER se conserva como respaldo técnico/CI. Market Pulse observa eventos en Shadow; la candidata Quant añade investigación y simulación de pares. Consume datos reales de referencia y conserva costes y entornos explícitos. Binance LIVE sigue sin implementación.
+La **0.10.40 está en preparación**, sobre main 0.10.39
+`2328f2959dc9b4fb939e889519b59a19e5a58423`, ya firmada e instalada con 176/176
+hashes tras [publicación verificada](https://github.com/jlboper/Crypto-BOT/actions/runs/39070205949).
+La candidata permite diagnosticar StatArb con hasta 500 velas Spot
+cerradas de un minuto por BTC/ETH/SOL, conservadas aparte con su recepción real.
+No rellena huecos de snapshots ni finge que el bot conocía antes esas barras.
+Es investigación retrospectiva, sin validación de backtest o evidencia prospectiva
+OOS; todas las entradas StatArb siguen bloqueadas. Mantiene el límite de 15
+peticiones/minuto, simulación Shadow, riesgos y proceso de actualización firmado.
+CI, firma, publicación e instalación de 0.10.40 requieren verificación propia.
+
+Plataforma supervisada de swing trading con Spot Testnet y un forward test LONG/SHORT de Futures Demo, con cuentas, ledgers, pausas y protecciones separados. PAPER se conserva como respaldo técnico/CI. Market Pulse observa eventos en Shadow; Quant añade investigación y simulación de pares. Consume datos reales de referencia y conserva costes y entornos explícitos. Binance LIVE sigue sin implementación.
 
 El ajuste operativo del 12 de octubre de 2026 amplía Spot Testnet y Futures Demo a diez posiciones por bot. Futures observa 15 monedas y alterna 1x/2x/3x sin multiplicar la cantidad: máximo 100 USDT por entrada, 300 USDT de notional bruto conjunto y 7,5 USDT de pérdida estimada hasta los stops, incluida una reserva de costos del 0,5%. El objetivo de las nuevas entradas Futures pasa de 60 a 30 USDT al distribuir el mismo presupuesto entre diez cupos; las posiciones existentes conservan su tamaño. La cantidad se adapta a filtros actuales y presupuesto disponible; los límites pueden permitir menos de diez posiciones. Son estimaciones previas a órdenes MARKET, no garantías de pérdidas máximas. Publicación e instalación se verifican por separado; las descripciones versionadas anteriores son históricas.
 

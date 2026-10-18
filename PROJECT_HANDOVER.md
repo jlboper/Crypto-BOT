@@ -19,7 +19,23 @@ Then inspect current `main`, recent commits, open PRs/issues and CI. Documentati
 
 ## Mission
 
-### Current continuation — 0.10.39 signer-availability candidate
+### Current continuation — 0.10.40 closed-minute diagnostic candidate
+
+Based on verified signed/installed 0.10.39 main
+`2328f2959dc9b4fb939e889519b59a19e5a58423`, 176/176 hashes. Publication
+39070205949 and safety 39070205944 succeeded; agent matched 11/11 modules and
+four observed Quant ticks stayed fresh (maximum observed age 60.85 s).
+Candidate 0.10.40 addresses observed gapped
+StatArb snapshot history with a separate append-only store of up to 500 closed
+Spot minute bars per BTC/ETH/SOL refresh. Preserve each bar's first actual receipt
+and decision-cutoff availability. Never interpolate old snapshots, rewrite their
+gaps, use an open bar or treat its earlier close as earlier local knowledge.
+These are retrospective diagnostics, not prospective OOS/backtest validation.
+StatArb entries stay blocked; Shadow, risk and Guardian Observer authority remain.
+Batch premium-index requests retain the existing 15-request/minute ceiling.
+Full suites/CI, publication/signature and installed evidence for 0.10.40 are pending.
+
+### 0.10.39 signer availability — preparation record
 
 Main 0.10.38 `a94f1124d57439e90620f4b2d5c02cbb07f53f58` passed CI, but
 publication attempts 1/2 failed with 403 `publisher_revision_unavailable`.

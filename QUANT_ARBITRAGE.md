@@ -18,7 +18,9 @@ Market Pulse conservan sus ledgers, riesgos y mecanismos de protección separado
 - `trader/quant_shadow.py`: servicio, cartera virtual, journal, simulación y replay.
 - `data/quant-shadow.db`: SQLite independiente con WAL; conserva hipótesis,
   posiciones, operaciones cerradas, decisiones, precios contemporáneos,
-  financiación observada y recibos simulados. No se incorpora al repositorio.
+  financiación observada y recibos simulados. La tabla adicional
+  `quant_closed_bars` conserva cierres oficiales de un minuto con primera recepción
+  y primer instante de registro. No se incorpora al repositorio.
 
 Un hilo opcional del motor existente espera 60 segundos después de completar cada
 evaluación antes de iniciar la siguiente. La cadencia efectiva incluye además el
@@ -44,8 +46,9 @@ público, no fills de Spot Testnet ni de Futures Demo.
 | Referencia | Host fijo | Ruta permitida |
 | --- | --- | --- |
 | Profundidad Spot, cinco niveles | `data-api.binance.vision` | `/api/v3/depth` |
+| Velas Spot cerradas de un minuto | `data-api.binance.vision` | `/api/v3/klines` |
 | Profundidad Futures, cinco niveles | `fapi.binance.com` | `/fapi/v1/depth` |
-| Mark y funding observado | `fapi.binance.com` | `/fapi/v1/premiumIndex` |
+| Mark y funding observado, lote público filtrado a tres activos | `fapi.binance.com` | `/fapi/v1/premiumIndex` |
 | Historial de funding, hasta 32 eventos | `fapi.binance.com` | `/fapi/v1/fundingRate` |
 | Ajustes del intervalo de funding | `fapi.binance.com` | `/fapi/v1/fundingInfo` |
 
@@ -56,9 +59,16 @@ consistentes, sin asumir ocho horas para todos los contratos. Véanse las refere
 de [USD-M market data](https://developers.binance.com/en/docs/catalog/core-trading-derivatives-trading-usd-s-m-futures/api/rest-api/market-data)
 y [Spot market data](https://developers.binance.com/en/docs/catalog/core-trading-spot-trading/api/rest-api/market).
 
-El presupuesto propio es de 15 consultas por minuto, con timeout de dos segundos,
-respuesta acotada y rechazo de redirecciones. El historial se consulta como máximo
-cada cinco minutos y los ajustes cada quince. Las respuestas de límite de consumo
+El presupuesto propio sigue siendo de 15 consultas por minuto, con timeout de dos
+segundos, respuesta acotada y rechazo de redirecciones. Un pase inicial completo
+utiliza hasta 14 consultas; un pase normal, diez. La referencia de mark/funding se
+recibe en un solo lote y solo se conservan BTC, ETH y SOL. El historial de funding
+se consulta como máximo cada cinco minutos y los ajustes cada quince. Para velas
+se solicitan hasta 500 al inicio o cuando una página corta no puede cubrir con
+seguridad los cierres faltantes. Se comparan el último cierre aceptado y el reloj
+actual al consultar, con margen para timeout y la vela abierta; normalmente se
+solicitan cinco por activo y se añaden solo las nuevas.
+Las respuestas de límite de consumo
 activan backoff; los fallos repetidos también ralentizan las consultas. Estas
 restricciones son más bajas que las cuotas del proveedor y no sustituyen sus
 condiciones vigentes. No se configuran URLs arbitrarias, firmas, claves ni rutas
@@ -170,10 +180,37 @@ el riesgo estimado como esta penalización. No se promete una cobertura atómica
 
 ## Statistical Arbitrage
 
-Se acumulan observaciones prospectivas alineadas de un minuto para BTC/ETH,
-BTC/SOL y ETH/SOL, sin rellenar activos ausentes. Los diagnósticos usan entre 360
-y 1.440 observaciones. Ajustan la relación entre log-precios con los primeros dos
-tercios; el tercio restante comprueba estabilidad sin reajustar la cobertura.
+Los diagnósticos de BTC/ETH, BTC/SOL y ETH/SOL usan cierres oficiales de velas Spot
+de un minuto, comunes a los tres activos. Se toma una ventana acotada de hasta
+500 cierres disponibles y se mantiene el mínimo de 360 observaciones del modelo.
+No se interpolan minutos ni se rellenan activos ausentes. Las velas abiertas se
+excluyen, así como los cierres cuyo final normalizado no preceda la recepción por
+al menos cinco segundos. Las comprobaciones de antigüedad, continuidad y calidad
+del modelo permanecen intactas.
+
+La marca de cada vela representa el final exclusivo de su minuto UTC. Se guardan
+por separado ese instante, su primera recepción efectiva y cuándo se registró por
+primera vez en el ledger. Una vela de hace varias horas obtenida ahora solo queda
+disponible para decisiones tomadas desde su recepción y registro; no se atribuye
+a decisiones pasadas. Un cierre repetido conserva precio y timestamps originales.
+Una contradicción o página inválida se rechaza mediante un savepoint, sin
+sobrescribir evidencia ni impedir la contabilidad y protección de Funding Carry.
+Una página parcial puede dejar historial insuficiente, antiguo o con huecos; no
+se inventa el dato que falta.
+
+Esta entrada resuelve la incompatibilidad entre consultar después de completar
+cada evaluación y exigir minutos contiguos: una cadencia efectiva superior a
+60 segundos salta algunos buckets de las observaciones instantáneas anteriores.
+Esos registros originales de `quant_observations` se conservan y siguen siendo la
+única entrada de los replays antiguos que los utilizaron. No se reescriben señales,
+hipótesis financieras, posiciones, saldo ni P&L para aplicar el nuevo método.
+
+La ventana histórica recibida durante la observación **no es evidencia forward ni
+una validación fuera de muestra independiente**. Su procedencia se identifica con
+`HISTORICAL_CLOSED_BARS_RECEIVED_DURING_OBSERVATION_NOT_FORWARD_OOS`. El modelo
+ajusta la relación entre log-precios con los primeros dos tercios; el tercio
+restante comprueba estabilidad sin reajustar la cobertura. Este corte cronológico
+interno no elimina sesgos de selección ni valida por sí solo la estrategia.
 
 Se muestran Z-score normalizado por entrenamiento, hedge ratio y su deriva,
 cambios de media/escala, correlaciones de retornos, volatilidad, semivida AR(1)
@@ -212,7 +249,17 @@ resultado neto de dos patas ni con una cuenta Testnet/Demo de otro período.
 
 `replay_quant_decision(data_dir, decision_id)` reproduce el modelo numérico con
 precios, funding, supuestos y observaciones inmutables disponibles en el instante
-guardado. Respeta tanto publicación/evento como recepción. No consulta APIs
+guardado. Las decisiones nuevas de StatArb congelan método de entrada, corte,
+extremos de ventana, número de observaciones y digest de sus cierres. El replay
+consulta únicamente registros recibidos y conocidos entonces, dentro de esa
+ventana; comprueba el digest y rechaza evidencia cambiada o ausente. El primer
+registro impide que una página cacheada o un backfill recibido más tarde altere
+el pasado. Se almacena cada cierre una sola vez, sin repetir las 500 velas en
+cada fuente ni en la proyección remota.
+
+Los replays de decisiones anteriores, sin el marcador del nuevo método, siguen
+leyendo exactamente sus observaciones instantáneas originales. Se respetan tanto
+publicación/evento como recepción y registro. No se consultan APIs
 actuales, noticias posteriores ni precios futuros. La coincidencia del modelo
 no reproduce todos los overrides de cartera o fills, y no constituye validación
 independiente ni backtest de ejecución.

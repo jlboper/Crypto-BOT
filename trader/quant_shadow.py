@@ -28,12 +28,15 @@ RULE_VERSION = "quant-shadow-v1"
 _OWNERS = {}
 _OWNERS_LOCK = threading.Lock()
 STRATEGIES = ("FUNDING_CARRY", "STATISTICAL_ARBITRAGE")
+CLOSED_BAR_METHOD = "BINANCE_SPOT_CLOSED_1M_FIRST_RECEIPT_V1"
+CLOSED_BAR_WINDOW = 500
 LIMITATIONS = ["SHADOW_ONLY_NO_EXCHANGE_EXECUTION", "TWO_LEGS_ARE_NOT_AN_ATOMIC_EXCHANGE_HEDGE",
     "SEPARATE_VIRTUAL_CAPITAL_NO_TESTNET_DEMO_AGGREGATION", "STRESS_RISK_ESTIMATE_IS_NOT_A_MAXIMUM_LOSS_GUARANTEE",
     "FUNDING_PROJECTIONS_ARE_NOT_SETTLED_INCOME", "PUBLIC_REFERENCE_DEPTH_IS_PARTIAL",
     "VIRTUAL_MARGIN_STRESS_PROXY_NOT_EXCHANGE_LIQUIDATION_MODEL",
     "INITIAL_HYPOTHESES_NOT_STATISTICALLY_OPTIMAL", "STATISTICAL_SCREEN_NOT_INDEPENDENT_COINTEGRATION_PROOF",
-    "PROSPECTIVE_EVIDENCE_NOT_AUTOMATIC_STRATEGY_PROMOTION", "GUARDIAN_OBSERVER_HAS_NO_VETO"]
+    "PROSPECTIVE_EVIDENCE_NOT_AUTOMATIC_STRATEGY_PROMOTION", "GUARDIAN_OBSERVER_HAS_NO_VETO",
+    "HISTORICAL_CLOSED_BARS_RECEIVED_DURING_OBSERVATION_NOT_FORWARD_OOS"]
 
 
 @dataclass(frozen=True)
@@ -225,6 +228,45 @@ def _unknown_risk(config, now):
     return result
 
 
+def _closed_bar_rows(db, cutoff, *, first_at=None, last_at=None):
+    """Common official minute closes known by this decision, without filling gaps.
+
+    Provider receipt and first durable observation are independent cutoffs. A
+    cached or late page inserted now cannot enter an earlier decision's replay.
+    """
+    bounds = ""
+    parameters = [cutoff] * 7
+    if first_at is not None and last_at is not None:
+        bounds = " AND b.at>=? AND b.at<=?"
+        parameters.extend((first_at, last_at))
+    rows = db.execute("""SELECT b.at,b.price AS btc,e.price AS eth,s.price AS sol,
+            MAX(b.received,e.received,s.received) AS received
+        FROM quant_closed_bars b
+        JOIN quant_closed_bars e ON e.at=b.at AND e.symbol='ETHUSDT'
+        JOIN quant_closed_bars s ON s.at=b.at AND s.symbol='SOLUSDT'
+        WHERE b.symbol='BTCUSDT' AND b.at<=?
+          AND b.received<=? AND e.received<=? AND s.received<=?
+          AND b.known_at<=? AND e.known_at<=? AND s.known_at<=?""" + bounds +
+        " ORDER BY b.at DESC LIMIT 500", parameters).fetchall()
+    return [{"at": row["at"], "received_at": row["received"],
+             "prices": {"BTCUSDT": row["btc"], "ETHUSDT": row["eth"], "SOLUSDT": row["sol"]}}
+            for row in reversed(rows)]
+
+
+def _closed_bar_reference(rows, cutoff, status):
+    return {"method": CLOSED_BAR_METHOD, "cutoff_at": cutoff,
+            "first_at": rows[0]["at"] if rows else None,
+            "last_at": rows[-1]["at"] if rows else None,
+            "observation_count": len(rows), "digest": _id(rows), "status": status}
+
+
+def _closed_bar_rejection(now, hypotheses):
+    result = statarb_signal([], now, hypotheses)
+    reason = "INVALID_OR_CONFLICTING_CLOSED_BAR_EVIDENCE"
+    result.update(decision="REJECT", reason=reason, reasons=[reason])
+    return result
+
+
 class QuantShadowService:
     """One daemon thread inside the existing signed, supervised engine process."""
     def __init__(self, data_dir, *, config=None, source=None, clock=time.time,
@@ -255,6 +297,7 @@ class QuantShadowService:
                 CREATE TABLE IF NOT EXISTS quant_pending_funding(position_id TEXT PRIMARY KEY);
                 CREATE TABLE IF NOT EXISTS quant_source_funding(symbol TEXT NOT NULL,at REAL NOT NULL,received REAL NOT NULL,data TEXT NOT NULL,PRIMARY KEY(symbol,at));
                 CREATE TABLE IF NOT EXISTS quant_observations(at INTEGER PRIMARY KEY,received REAL NOT NULL,data TEXT NOT NULL);
+                CREATE TABLE IF NOT EXISTS quant_closed_bars(symbol TEXT NOT NULL,at INTEGER NOT NULL,received REAL NOT NULL,known_at REAL NOT NULL,price REAL NOT NULL,PRIMARY KEY(symbol,at));
                 CREATE TABLE IF NOT EXISTS quant_sources(id TEXT PRIMARY KEY,at REAL NOT NULL,data TEXT NOT NULL);
                 CREATE TABLE IF NOT EXISTS quant_equity(at INTEGER PRIMARY KEY,equity REAL,data TEXT NOT NULL);
                 CREATE TABLE IF NOT EXISTS quant_journal(sequence INTEGER PRIMARY KEY AUTOINCREMENT,id TEXT UNIQUE NOT NULL,at REAL NOT NULL,kind TEXT NOT NULL,data TEXT NOT NULL);
@@ -388,7 +431,9 @@ class QuantShadowService:
         source_evidence = {"at": now, "markets": [{"symbol": symbol, "spot": row.get("spot"), "futures": row.get("futures"),
                             "history": [{"at": event["at"], "received_at": event["received_at"]} for event in row.get("history", [])]}
                            for symbol, row in markets.items()], "sources": source.get("sources", [])[:12]}
-        db.execute("INSERT OR IGNORE INTO quant_sources VALUES(?,?,?)", (_id(source), now, _json(source_evidence)))
+        source_evidence["statistical_input_method"] = CLOSED_BAR_METHOD
+        source_digest = _id(source_evidence)
+        db.execute("INSERT OR IGNORE INTO quant_sources VALUES(?,?,?)", (source_digest, now, _json(source_evidence)))
         successful_quotes = [min(row["spot"]["at"], row["futures"]["at"]) for row in markets.values()
                              if _fresh_book(row.get("spot"), now) and _fresh_book(row.get("futures"), now)]
         if successful_quotes:
@@ -401,7 +446,45 @@ class QuantShadowService:
                 # First contemporaneous minute sample is immutable; never backfill.
                 db.execute("INSERT OR IGNORE INTO quant_observations VALUES(?,?,?)",
                            (observation["at"], now, _json(observation)))
-        return markets
+        return markets, source_digest
+
+    def _store_closed_bars(self, db, bars, now):
+        """Append first-received historical closes, isolated from Funding Carry.
+
+        A contradictory/invalid page is rejected as a whole. A savepoint prevents
+        partial historical ingestion without rolling back protective accounting.
+        Previously recorded prices, receipt times, wallets and hypotheses remain.
+        """
+        if bars is None:
+            return "UNAVAILABLE"
+        db.execute("SAVEPOINT quant_closed_bar_ingestion")
+        try:
+            if not isinstance(bars, dict) or len(bars) > 3 or set(bars) - set(SYMBOLS):
+                raise ValueError("Invalid closed-bar universe")
+            for symbol, rows in bars.items():
+                if not isinstance(rows, list) or len(rows) > CLOSED_BAR_WINDOW:
+                    raise ValueError("Unbounded closed-bar page")
+                for row in rows:
+                    if not isinstance(row, dict) or set(row) != {"at", "received_at", "price"}:
+                        raise ValueError("Invalid closed-bar fields")
+                    at = _number(row["at"], positive=True)
+                    received = _number(row["received_at"], positive=True)
+                    price = _number(row["price"], positive=True)
+                    if (at % 60 != 0 or not at+5 <= received <= now
+                            or not 1e-12 <= price <= 1e12):
+                        raise ValueError("Invalid closed-bar chronology or price")
+                    previous = db.execute("SELECT price FROM quant_closed_bars WHERE symbol=? AND at=?",
+                                          (symbol, int(at))).fetchone()
+                    if previous is not None and previous[0] != price:
+                        raise ValueError("Conflicting closed-bar observation")
+                    db.execute("INSERT OR IGNORE INTO quant_closed_bars VALUES(?,?,?,?,?)",
+                               (symbol, int(at), received, now, price))
+            db.execute("RELEASE SAVEPOINT quant_closed_bar_ingestion")
+            return "AVAILABLE"
+        except (ValueError, TypeError, KeyError, OverflowError, sqlite3.Error):
+            db.execute("ROLLBACK TO SAVEPOINT quant_closed_bar_ingestion")
+            db.execute("RELEASE SAVEPOINT quant_closed_bar_ingestion")
+            return "REJECTED"
 
     def _settle_funding(self, db, markets, now):
         candidates = _positions(db)
@@ -647,7 +730,10 @@ class QuantShadowService:
             db.execute("BEGIN IMMEDIATE")
             if not self._owned(db, now) or self._stop.is_set():
                 return False
-            markets = self._store_source(db, source, now)
+            # Historical pages have their own bounded append-only table; storing
+            # all 500 closes in every source/decision would duplicate that history.
+            reduced_source = {key: value for key, value in source.items() if key != "closed_bars"} if isinstance(source, dict) else source
+            markets, source_digest = self._store_source(db, reduced_source, now)
             self._settle_funding(db, markets, now)
             closed_assets = self._protect(db, markets, now)  # Always before entry models/pauses.
             positions, balance, collateral, equity, gross = self._wallet(db, markets, now)
@@ -669,10 +755,14 @@ class QuantShadowService:
                 except Exception as exc:
                     result = {"decision": "REJECT", "reason": "MODEL_ERROR", "metrics": {}, "evidence": {"error": type(exc).__name__}, "legs": []}
                 candidates.append(("FUNDING_CARRY", symbol, result))
-            aligned = [json.loads(row[0]) for row in db.execute("SELECT data FROM quant_observations WHERE received<=? ORDER BY at DESC LIMIT 1440", (now,))][::-1]
+            bar_status = self._store_closed_bars(db, source.get("closed_bars"), now)
+            aligned = _closed_bar_rows(db, now)
+            statistical_input = _closed_bar_reference(aligned, now, bar_status)
             for a, b in (("BTCUSDT", "ETHUSDT"), ("BTCUSDT", "SOLUSDT"), ("ETHUSDT", "SOLUSDT")):
                 try:
-                    result = self.model_statarb(aligned, now, {**hypotheses, "symbol_a": a, "symbol_b": b})
+                    pair_hypotheses = {**hypotheses, "symbol_a": a, "symbol_b": b}
+                    result = (_closed_bar_rejection(now, pair_hypotheses) if bar_status == "REJECTED"
+                              else self.model_statarb(aligned, now, pair_hypotheses))
                 except Exception as exc:
                     result = {"decision": "REJECT", "reason": "MODEL_ERROR", "metrics": {}, "evidence": {"error": type(exc).__name__}, "legs": []}
                 candidates.append(("STATISTICAL_ARBITRAGE", a+"/"+b, result))
@@ -721,8 +811,10 @@ class QuantShadowService:
                                 "symbol_b": instrument.split("/")[1]} if strategy == "STATISTICAL_ARBITRAGE" else {})},
                             "environment": "SHADOW", "rule_version": RULE_VERSION,
                             "available_at_decision": {"observation_cutoff": _iso(now),
-                                "aligned_observations": len(aligned), "source_digest": _id(source),
+                                "aligned_observations": len(aligned), "source_digest": source_digest,
                                 "hypotheses_digest": _id(json.loads(_get(db, "hypotheses")))}}
+                if strategy == "STATISTICAL_ARBITRAGE":
+                    decision["statistical_input"] = statistical_input
                 db.execute("INSERT INTO quant_decisions VALUES(?,?,?,?,?,?)", (identity, strategy, instrument, now, action, _json(decision)))
             positions, balance, collateral, equity, gross = self._wallet(db, markets, now)
             self._risk_halt(db,now,equity)
@@ -800,8 +892,35 @@ def replay_quant_decision(data_dir, decision_id):
                 history.append({**historical, "received_at": event["received_at"]})
             replay = funding_signal(market.get("spot"), market.get("futures"), history, now, hypotheses)
         elif decision["strategy"] == "STATISTICAL_ARBITRAGE":
-            aligned = [json.loads(row[0]) for row in db.execute("SELECT data FROM quant_observations WHERE received<=? ORDER BY at DESC LIMIT 1440", (now,))][::-1]
-            replay = statarb_signal(aligned, now, hypotheses)
+            reference = decision.get("statistical_input")
+            if reference is None:
+                # Legacy decisions retain their exact irregular contemporaneous
+                # minute observations. New historical bars never replace them.
+                aligned = [json.loads(row[0]) for row in db.execute("SELECT data FROM quant_observations WHERE received<=? ORDER BY at DESC LIMIT 1440", (now,))][::-1]
+                replay = statarb_signal(aligned, now, hypotheses)
+            else:
+                if (not isinstance(reference, dict)
+                        or set(reference) != {"method", "cutoff_at", "first_at", "last_at", "observation_count", "digest", "status"}
+                        or reference.get("method") != CLOSED_BAR_METHOD
+                        or reference.get("cutoff_at") != now
+                        or reference.get("status") not in {"AVAILABLE", "UNAVAILABLE", "REJECTED"}
+                        or type(reference.get("observation_count")) is not int
+                        or not 0 <= reference["observation_count"] <= CLOSED_BAR_WINDOW
+                        or not isinstance(reference.get("digest"), str)
+                        or not re.fullmatch(r"[a-f0-9]{32}", reference["digest"])
+                        or (reference["observation_count"] == 0
+                            and (reference.get("first_at") is not None or reference.get("last_at") is not None))
+                        or (reference["observation_count"] > 0
+                            and (type(reference.get("first_at")) is not int or type(reference.get("last_at")) is not int
+                                 or not 0 < reference["first_at"] <= reference["last_at"] <= now))):
+                    raise ValueError("Unrecognized frozen Quant statistical input")
+                aligned = _closed_bar_rows(db, now, first_at=reference.get("first_at"),
+                                           last_at=reference.get("last_at"))
+                if (len(aligned) != reference.get("observation_count")
+                        or _id(aligned) != reference.get("digest")):
+                    raise ValueError("Frozen Quant closed-bar evidence changed or is unavailable")
+                replay = (_closed_bar_rejection(now, hypotheses) if reference["status"] == "REJECTED"
+                          else statarb_signal(aligned, now, hypotheses))
         else:
             raise ValueError("Unrecognized recorded Quant model")
         return {"decision_id": decision_id, "mode": "SHADOW", "replayed_at": _iso(now),
@@ -889,7 +1008,7 @@ def quant_snapshot(data_dir, *, now=None):
                 controls_available=True, updated_at=_iso(at), last_evaluation=_iso(float(_get(db,"last_evaluation"))) if _get(db,"last_evaluation") else None,
                 freshness={"state": "FRESH" if fresh else "STALE" if at else "UNAVAILABLE", "age_seconds": age},
                 positions=projections, market=market, strategies=strategies,
-                decisions=[{**{key:value for key,value in row.items() if key not in {"model", "model_assumptions"}},
+                decisions=[{**{key:value for key,value in row.items() if key not in {"model", "model_assumptions", "statistical_input"}},
                             "metrics": row["model"].get("metrics", {}),
                             "qualification": row["model"].get("evidence", {}).get("qualification")} for row in decisions],
                 funding=[json.loads(row[0]) for row in db.execute("SELECT data FROM quant_funding ORDER BY at DESC LIMIT 10")],

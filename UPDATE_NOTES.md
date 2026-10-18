@@ -1,4 +1,27 @@
-# 0.10.39 — Disponibilidad y diagnóstico de firma (en preparación)
+# 0.10.40 — Evidencia de minutos cerrados para StatArb (en preparación)
+
+- La observación detectó que acumular snapshots no resolvía huecos de cadencia:
+  el historial podía ser largo sin una ventana contigua suficiente. Quant solicita
+  hasta 500 velas Spot cerradas de un minuto por BTC/ETH/SOL desde la API pública
+  allowlisted, en lugar de interpolar o reconstruir snapshots perdidos.
+- Las barras viven en un almacén separado append-only, con primera recepción
+  real conservada. Los diagnósticos y replay sólo usan evidencia recibida antes
+  del corte; una barra cerrada previamente no se atribuye retrospectivamente a
+  una decisión anterior a su recepción. No se aceptan velas todavía abiertas.
+- `premiumIndex` se obtiene en lote para conservar el presupuesto: 14 peticiones
+  de arranque y 10 por refresco estable previsto, siempre bajo el máximo vigente
+  de 15/minuto. No se amplían frescura, riesgo, capital, modos ni permisos.
+- Son diagnósticos retrospectivos de barras cerradas recibidas durante la
+  observación. No equivalen a forward/OOS, backtest validado ni ventaja probada;
+  StatArb continúa sin entradas. Se conservan los huecos originales, decisiones,
+  posiciones, journals, Guardian Observer y ejecución exclusiva SHADOW.
+- Preparada desde main 0.10.39 `2328f2959dc9b4fb939e889519b59a19e5a58423`,
+  verificada firmada e instalada 176/176 tras publicación 39070205949 y seguridad
+  39070205944 exitosas. Agente 11/11; cuatro ticks Quant recientes, edad máxima
+  observada 60.85 s. Esta evidencia es de 0.10.39. La 0.10.40 requiere suite completa,
+  CI, publicación/firma e instalación propias antes de declararse disponible.
+
+# 0.10.39 — Disponibilidad y diagnóstico de firma (registro de preparación)
 
 - 0.10.38 main `a94f1124d57439e90620f4b2d5c02cbb07f53f58` superó CI,
   pero los intentos 1/2 de publicación fallaron con HTTP 403 y código
