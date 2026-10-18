@@ -451,6 +451,47 @@ function Get-ManagerValue($Value, [string]$Path) {
     return $Value
 }
 
+function Get-ManagerPortalSections {
+    # Navigation only. These destinations grant no execution or risk authority.
+    return @(
+        [PSCustomObject]@{ Id='command-center'; Label='Command Center' }
+        [PSCustomObject]@{ Id='portfolio-capital'; Label='Portfolio & Capital' }
+        [PSCustomObject]@{ Id='trading-engines'; Label='Trading Engines' }
+        [PSCustomObject]@{ Id='guardian-ai'; Label='Guardian AI' }
+        [PSCustomObject]@{ Id='operations-decisions'; Label='Operations & Decisions' }
+        [PSCustomObject]@{ Id='research-lab'; Label='Research Lab' }
+        [PSCustomObject]@{ Id='system-settings'; Label='System & Settings' }
+    )
+}
+
+function Get-ManagerPortalUrl {
+    param([string]$Section, [switch]$Remote)
+    if (@(Get-ManagerPortalSections | Where-Object { $_.Id -ceq $Section }).Count -ne 1) {
+        throw 'Unknown platform section'
+    }
+    $base = if ($Remote) { $RemotePortalUrl } else { $DashboardUrl }
+    return $base.TrimEnd('/') + '/#' + $Section
+}
+
+function New-ManagerPortalMenu {
+    param([switch]$Remote)
+    $menu = New-Object System.Windows.Forms.ContextMenuStrip
+    $menu.BackColor = [System.Drawing.Color]::FromArgb(16, 27, 45)
+    $menu.ForeColor = [System.Drawing.Color]::FromArgb(236, 242, 255)
+    $menu.Font = New-Object System.Drawing.Font('Segoe UI', 9)
+    $menu.ShowImageMargin = $false
+    foreach ($section in Get-ManagerPortalSections) {
+        $item = New-Object System.Windows.Forms.ToolStripMenuItem($section.Label)
+        $item.Tag = [PSCustomObject]@{ Section=$section.Id; Remote=$Remote.IsPresent }
+        $item.Add_Click({
+            param($sender, $eventArgs)
+            Start-Process -FilePath (Get-ManagerPortalUrl -Section ([string]$sender.Tag.Section) -Remote:([bool]$sender.Tag.Remote))
+        })
+        $menu.Items.Add($item) | Out-Null
+    }
+    return $menu
+}
+
 function Format-ManagerNumber($Value, [string]$Suffix = '') {
     if ($null -eq $Value -or $Value -is [bool]) { return '—' }
     $number = 0.0
@@ -670,7 +711,7 @@ function Set-EngineCard($Card, $View) {
 }
 
 $form = New-Object System.Windows.Forms.Form
-$form.Text = "Crypto AI Trader"
+$form.Text = "CRYPTO-BOT 2.0 · Command Center"
 $form.Size = New-Object System.Drawing.Size(760, 770)
 $form.MinimumSize = New-Object System.Drawing.Size(760, 770)
 $form.MaximumSize = New-Object System.Drawing.Size(760, 770)
@@ -704,7 +745,7 @@ $logo.Image = $script:LogoBitmap
 $form.Controls.Add($logo)
 
 $title = New-Object System.Windows.Forms.Label
-$title.Text = "Crypto AI Trader"
+$title.Text = "CRYPTO-BOT 2.0"
 $title.Location = New-Object System.Drawing.Point(100, 20)
 $title.Size = New-Object System.Drawing.Size(470, 40)
 $title.Font = New-Object System.Drawing.Font("Segoe UI", 22, [System.Drawing.FontStyle]::Bold)
@@ -712,20 +753,21 @@ $title.ForeColor = [System.Drawing.Color]::FromArgb(236, 242, 255)
 $form.Controls.Add($title)
 
 $subtitle = New-Object System.Windows.Forms.Label
-$subtitle.Text = "Spot · Futures · Pulse · Quant | Guardian Observer"
+$subtitle.Text = "Intelligent Trading Command Center"
 $subtitle.Location = New-Object System.Drawing.Point(103, 59)
 $subtitle.Size = New-Object System.Drawing.Size(460, 22)
 $subtitle.ForeColor = [System.Drawing.Color]::FromArgb(132, 153, 184)
 $form.Controls.Add($subtitle)
 
 $pulseOpenLink = New-Object System.Windows.Forms.LinkLabel
-$pulseOpenLink.Text = 'Inteligencia, Quant y Guardian →'
+$pulseOpenLink.Text = 'Explorar plataforma · 7 secciones ▾'
 $pulseOpenLink.Location = New-Object System.Drawing.Point(103, 83)
 $pulseOpenLink.Size = New-Object System.Drawing.Size(370, 17)
 $pulseOpenLink.Font = New-Object System.Drawing.Font('Segoe UI', 8)
 $pulseOpenLink.LinkColor = [System.Drawing.Color]::FromArgb(77,239,187)
 $pulseOpenLink.ActiveLinkColor = [System.Drawing.Color]::FromArgb(157,250,220)
-$pulseOpenLink.Add_LinkClicked({ Start-Process ($DashboardUrl + '/#portfolio-guardian') })
+$portalSectionsMenu = New-ManagerPortalMenu
+$pulseOpenLink.Add_LinkClicked({ $portalSectionsMenu.Show($pulseOpenLink, [System.Drawing.Point]::new(0, $pulseOpenLink.Height)) })
 $form.Controls.Add($pulseOpenLink)
 
 $modeBadge = New-Object System.Windows.Forms.Label
@@ -737,6 +779,15 @@ $modeBadge.Font = New-Object System.Drawing.Font("Segoe UI", 9, [System.Drawing.
 $modeBadge.BackColor = [System.Drawing.Color]::FromArgb(14, 52, 48)
 $modeBadge.ForeColor = [System.Drawing.Color]::FromArgb(60, 232, 175)
 $form.Controls.Add($modeBadge)
+
+$levelBadge = New-Object System.Windows.Forms.Label
+$levelBadge.Text = 'LEVEL 0'
+$levelBadge.Location = New-Object System.Drawing.Point(625, 70)
+$levelBadge.Size = New-Object System.Drawing.Size(91, 22)
+$levelBadge.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
+$levelBadge.Font = New-Object System.Drawing.Font('Segoe UI', 8, [System.Drawing.FontStyle]::Bold)
+$levelBadge.ForeColor = [System.Drawing.Color]::FromArgb(157, 181, 202)
+$form.Controls.Add($levelBadge)
 
 $statusPanel = New-Object System.Windows.Forms.Panel
 $statusPanel.Location = New-Object System.Drawing.Point(28, 102)
@@ -791,11 +842,11 @@ $actionsLabel.Font = New-Object System.Drawing.Font("Segoe UI Semibold", 9)
 $actionsLabel.ForeColor = [System.Drawing.Color]::FromArgb(113, 139, 176)
 $form.Controls.Add($actionsLabel)
 
-$openLocalButton = New-AppButton "⌂   Portal local · cuatro bots" 28 530
+$openLocalButton = New-AppButton "⌂   Command Center local" 28 530
 $openLocalButton.Add_Click({ Start-Process $DashboardUrl })
 $form.Controls.Add($openLocalButton)
 
-$openRemoteButton = New-AppButton "↗   Portal remoto / móvil" 386 530
+$openRemoteButton = New-AppButton "↗   Command Center remoto / móvil" 386 530
 $openRemoteButton.Add_Click({ Start-Process -FilePath $RemotePortalUrl })
 $form.Controls.Add($openRemoteButton)
 
@@ -883,7 +934,7 @@ $footerPanel.BackColor = [System.Drawing.Color]::FromArgb(11, 20, 34)
 $form.Controls.Add($footerPanel)
 
 $protectionLabel = New-Object System.Windows.Forms.Label
-$protectionLabel.Text = "Entornos separados · Pulse / Quant SHADOW"
+$protectionLabel.Text = "Testnet / Demo / SHADOW · capitales separados"
 $protectionLabel.Location = New-Object System.Drawing.Point(16, 5)
 $protectionLabel.Size = New-Object System.Drawing.Size(490, 17)
 $protectionLabel.Font = New-Object System.Drawing.Font('Segoe UI', 8)
@@ -891,7 +942,7 @@ $protectionLabel.ForeColor = [System.Drawing.Color]::FromArgb(92, 215, 171)
 $footerPanel.Controls.Add($protectionLabel)
 
 $footerHint = New-Object System.Windows.Forms.Label
-$footerHint.Text = "Guardian: esperando lectura · sin veto"
+$footerHint.Text = "LEVEL 0 · Guardian: esperando lectura · sin veto"
 $footerHint.Location = New-Object System.Drawing.Point(17, 23)
 $footerHint.Size = New-Object System.Drawing.Size(490, 16)
 $footerHint.Font = New-Object System.Drawing.Font("Segoe UI", 8)
@@ -962,11 +1013,11 @@ function Receive-ManagerStatus {
     Set-EngineCard $futuresCard $views.Futures
     Set-EngineCard $pulseCard $views.Pulse
     Set-EngineCard $quantCard $views.Quant
-    $footerHint.Text = Get-ManagerGuardianView $snapshots.Platform
+    $footerHint.Text = 'LEVEL 0 · ' + (Get-ManagerGuardianView $snapshots.Platform)
     $remoteText = Read-ManagerRemoteConnection
     $connected = $null -ne $snapshots.Spot
     $statusLabel.Text = if ($connected) { 'Lectura local disponible' } else { 'Lectura local no disponible' }
-    $statusDescription.Text = if ($connected) { "$remoteText. Entornos separados." } else { 'Sin respuesta local; esto no confirma que el motor esté detenido.' }
+    $statusDescription.Text = if ($connected) { "$remoteText. Capitales separados." } else { 'Sin respuesta local; esto no confirma que el motor esté detenido.' }
     $color = if ($connected -and $views.Spot.Tone -eq 'Green' -and $views.Futures.Tone -ne 'Amber' -and $views.Pulse.Tone -ne 'Amber' -and $views.Quant.Tone -ne 'Amber') {
         [System.Drawing.Color]::FromArgb(45,226,166)
     } else { [System.Drawing.Color]::FromArgb(255,204,102) }
@@ -979,7 +1030,7 @@ function Receive-ManagerStatus {
     $trayPulseStatusItem.Text = "Pulse: $($views.Pulse.State) | Quant: $($views.Quant.State)"
     $trayGuardianStatusItem.Text = Get-ManagerGuardianView $snapshots.Platform
     $trayStatusItem.ForeColor = $color
-    $tip = "Crypto AI Trader | 4 bots | Pulse $($views.Pulse.State)"
+    $tip = "CRYPTO-BOT 2.0 | LEVEL 0 | Pulse $($views.Pulse.State)"
     $notifyIcon.Text = $tip.Substring(0, [math]::Min(63, $tip.Length))
     if (Test-Path $KillSwitchPath) {
         $killButton.Text = '▶   Reanudar entradas Spot'
@@ -991,7 +1042,7 @@ function Receive-ManagerStatus {
         $killButton.Text = '⚠   Pausar entradas Spot'
         $killButton.BackColor = [System.Drawing.Color]::FromArgb(55,24,35)
         $killButton.ForeColor = [System.Drawing.Color]::FromArgb(255,147,164)
-        $protectionLabel.Text = 'Ledgers separados · Pulse / Quant SHADOW'
+        $protectionLabel.Text = 'Testnet / Demo / SHADOW · capitales separados'
         $protectionLabel.ForeColor = [System.Drawing.Color]::FromArgb(92,215,171)
     }
     if (Test-CanonicalStartup) { $startupButton.Text = '✓   Inicio automático activado' }
@@ -1002,7 +1053,7 @@ function Receive-ManagerStatus {
 
 $notifyIcon = New-Object System.Windows.Forms.NotifyIcon
 $notifyIcon.Icon = $script:WarningIcon
-$notifyIcon.Text = "Crypto AI Trader - comprobando"
+$notifyIcon.Text = "CRYPTO-BOT 2.0 | LEVEL 0 | comprobando"
 $notifyIcon.Visible = $true
 
 $notifyMenu = New-Object System.Windows.Forms.ContextMenuStrip
@@ -1018,7 +1069,7 @@ $trayPulseStatusItem.Enabled = $false
 $trayGuardianStatusItem = $notifyMenu.Items.Add('Guardian: comprobando Observer')
 $trayGuardianStatusItem.Enabled = $false
 $notifyMenu.Items.Add("-") | Out-Null
-$showManagerItem = $notifyMenu.Items.Add("Abrir centro de control")
+$showManagerItem = $notifyMenu.Items.Add("Abrir Command Center")
 $script:MenuBitmap = $script:OperationalIcon.ToBitmap()
 $showManagerItem.Image = $script:MenuBitmap
 $showManagerItem.Add_Click({
@@ -1026,12 +1077,8 @@ $showManagerItem.Add_Click({
 })
 $openPortalItem = $notifyMenu.Items.Add("Abrir portal remoto")
 $openPortalItem.Add_Click({ Start-Process -FilePath $RemotePortalUrl })
-$openPulseItem = $notifyMenu.Items.Add('AI Market Pulse · Shadow')
-$openPulseItem.Add_Click({ Start-Process ($RemotePortalUrl + '#market-pulse') })
-$openQuantItem = $notifyMenu.Items.Add('Quant Arbitrage · Shadow')
-$openQuantItem.Add_Click({ Start-Process ($RemotePortalUrl + '#quant-arbitrage') })
-$openGuardianItem = $notifyMenu.Items.Add('Portfolio Guardian · Observer')
-$openGuardianItem.Add_Click({ Start-Process ($RemotePortalUrl + '#portfolio-guardian') })
+$explorePortalItem = $notifyMenu.Items.Add('Explorar plataforma · 7 secciones')
+$explorePortalItem.DropDown = New-ManagerPortalMenu -Remote
 $checkUpdatesItem = $notifyMenu.Items.Add("Centro de actualizaciones")
 $checkUpdatesItem.Add_Click({ Show-LocalUpdateCenter })
 $repairAgentItem = $notifyMenu.Items.Add("Reparar conexión del portal")
@@ -1092,7 +1139,7 @@ $form.Add_FormClosing({
         Hide-ManagerWindow
         $notifyIcon.ShowBalloonTip(
             2500,
-            "Crypto AI Trader",
+            "CRYPTO-BOT 2.0",
             "El indicador continuará funcionando en segundo plano.",
             [System.Windows.Forms.ToolTipIcon]::Info
         )
@@ -1107,6 +1154,7 @@ $form.Add_FormClosed({
     $script:ManagerHttp.Dispose()
     $notifyIcon.Visible = $false
     $notifyIcon.Dispose()
+    $portalSectionsMenu.Dispose()
     $script:LogoBitmap.Dispose()
     $script:MenuBitmap.Dispose()
     if ($script:RestartManager) {

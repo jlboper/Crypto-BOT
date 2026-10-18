@@ -1,5 +1,28 @@
 # Project History and Decision Log
 
+## 2026-10-17 — Command Center separates intelligence from execution authority
+
+The owner requested CRYPTO-BOT 2.0 with four engines, Guardian Intelligence,
+separate Guardian Control and Central Risk & Capital Management. Begin with the
+verified 0.10.40 main `81ba4366cf587c16cae20d403974a340080c4d10` (PR #117),
+published/signed and installed 178/178 hashes at 2026-10-18 02:27 UTC after
+successful publication 39089416208 and safety 39089416215.
+
+Candidate 0.10.41 audits and reorganizes the existing shared interface/Windows
+presentation. It introduces no financial hook or Guardian model call. Guardian
+Observer remains pure read-only; its capital projection is not an allocator.
+The exposure-reservation prototype is not integrated with operating accounts and
+cannot establish common admission. Preserve individual Spot/Futures AI semantics,
+deterministic risk, native protection, recovery and all persistent state.
+
+Record later Intelligence and Capital Manager as separate Shadow phases before
+considering expressly authorized Testnet Control. Every autonomy transition needs
+owner authorization, validation and reversible fallback; no level implies LIVE.
+Counterfactual outcomes require preregistered comparable evidence, never the sum
+of later losses on rejected trades. Architecture and typed design contracts live
+in `COMMAND_CENTER_2_0.md`; designed, implemented, tested, published, signed,
+installed and operatively verified are independent checkpoints.
+
 ## 2026-10-17 — Closed-bar research is not reconstructed forward evidence
 
 Observed Quant snapshot history had persistent gaps: a large total row count did

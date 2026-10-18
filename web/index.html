@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="color-scheme" content="dark">
   <meta name="theme-color" content="#080d18">
-  <title>Crypto AI Trader</title>
+  <title>CRYPTO-BOT 2.0 · Intelligent Trading Command Center</title>
   <link rel="icon" type="image/png" href="/crypto-ai-trader-icon.png">
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="stylesheet" href="/styles.css">
@@ -14,14 +14,15 @@
   <script src="/portal-bridge.js" defer></script>
 </head>
 <body>
-  <form id="portalLogin" hidden><h1>Crypto AI Trader</h1><p>Portal privado · cuatro motores y Portfolio Guardian</p><label for="portalPassword">Contraseña del propietario</label><input id="portalPassword" type="password" autocomplete="current-password" required maxlength="128"><button id="portalLoginButton" type="submit">Entrar</button><p id="portalLoginMessage" role="status"></p></form>
+  <form id="portalLogin" hidden><h1>CRYPTO-BOT 2.0</h1><p>Intelligent Trading Command Center · portal privado</p><label for="portalPassword">Contraseña del propietario</label><input id="portalPassword" type="password" autocomplete="current-password" required maxlength="128"><button id="portalLoginButton" type="submit">Entrar</button><p id="portalLoginMessage" role="status"></p></form>
+  <a class="skip-link" href="#command-center-heading">Saltar al contenido</a>
   <main class="shell">
     <header>
       <div class="brand">
         <img class="brand-mark" src="/crypto-ai-trader-icon.png" alt="">
         <div class="brand-copy">
-          <p class="eyebrow">CUATRO MOTORES · OBSERVACIÓN SUPERVISADA</p>
-          <div class="brand-title-row"><h1>Crypto AI Trader</h1><span id="botVersion" class="bot-version" aria-label="Versión instalada">v—</span></div>
+          <p class="eyebrow">INTELLIGENT TRADING COMMAND CENTER</p>
+          <div class="brand-title-row"><h1>CRYPTO-BOT 2.0</h1><span id="botVersion" class="bot-version" aria-label="Versión instalada">v—</span></div>
           <p id="portalConnection"></p>
         </div>
       </div>
@@ -43,14 +44,33 @@
         </div>
       </div>
     </header>
-    <nav class="platform-nav" aria-label="Secciones del portal">
-      <a href="#platform-overview" aria-current="location">Resumen general</a>
-      <a href="#spot-bot">Spot Bot</a><a href="#futures-bot">Futures Bot</a>
-      <a href="#market-pulse">AI Market Pulse</a><a href="#quant-arbitrage">Quant Arbitrage</a><a href="#portfolio-guardian">Portfolio Guardian</a><a href="#research-lab">Research &amp; Backtesting</a>
-      <a href="#activity-section">Actividad y operaciones</a><a href="#modelSettingsPanel">Configuración y diagnóstico</a>
-    </nav>
-    <section id="platform-overview" class="platform-overview" aria-label="Resumen de los cuatro bots">
-      <div class="panel-title"><div><p class="eyebrow">VISTA GENERAL</p><h2>Cuatro motores, una plataforma</h2></div><span class="badge">ENTORNOS SEPARADOS</span></div>
+    <div class="command-layout">
+    <aside class="command-sidebar" aria-label="Navegación principal">
+      <div class="sidebar-caption"><span class="sidebar-orbit" aria-hidden="true"></span><span>Tu centro de operaciones<small>Cuatro motores · supervisión central</small></span></div>
+      <nav class="platform-nav" aria-label="Workspaces">
+        <a href="#command-center" aria-current="page"><span aria-hidden="true">01</span>Command Center</a>
+        <a href="#portfolio-capital"><span aria-hidden="true">02</span>Portfolio &amp; Capital</a>
+        <a href="#trading-engines"><span aria-hidden="true">03</span>Trading Engines</a>
+        <a href="#guardian-ai"><span aria-hidden="true">04</span>Guardian AI</a>
+        <a href="#operations-decisions"><span aria-hidden="true">05</span>Operations &amp; Decisions</a>
+        <a href="#research-lab"><span aria-hidden="true">06</span>Research Lab</a>
+        <a href="#system-settings"><span aria-hidden="true">07</span>System &amp; Settings</a>
+      </nav>
+      <p class="sidebar-foot">Guardian <strong>LEVEL 0 · Observer</strong><br>Ledgers y protecciones independientes</p>
+    </aside>
+    <div class="command-content">
+      <div class="workspace-switcher"><label for="workspaceChoice">Workspace</label><select id="workspaceChoice" aria-label="Seleccionar workspace">
+        <option value="command-center">Command Center</option><option value="portfolio-capital">Portfolio &amp; Capital</option><option value="trading-engines">Trading Engines</option><option value="guardian-ai">Guardian AI</option><option value="operations-decisions">Operations &amp; Decisions</option><option value="research-lab">Research Lab</option><option value="system-settings">System &amp; Settings</option>
+      </select></div>
+      <p id="workspaceAnnouncement" class="sr-only" aria-live="polite" aria-atomic="true"></p>
+<section id="command-center" class="command-workspace" data-workspace="command-center" aria-labelledby="command-center-heading">
+      <div class="workspace-heading"><div><p class="eyebrow">CRYPTO-BOT 2.0 / COMMAND CENTER</p><h2 id="command-center-heading" tabindex="-1">Command Center</h2><p>Estado de los motores, decisiones y alertas en una sola lectura.</p></div></div>
+      <div class="command-health" aria-label="Salud de la plataforma">
+        <article><span>Lectura del portal</span><strong id="commandReadingState">ESPERANDO DATOS</strong><small id="commandReadingAt">Sin captura verificable</small></article>
+        <article><span>Guardian AI · LEVEL 0</span><strong id="commandGuardianState">SIN EVIDENCIA</strong><small>Observer · sin veto ni reservas</small></article>
+        <article><span>Actividad de decisión</span><strong id="commandDecisionState">ESPERANDO EVIDENCIA</strong><small id="commandDecisionAt">La inactividad puede ser normal</small></article>
+      </div><section id="platform-overview" class="platform-overview" aria-label="Resumen de los cuatro bots">
+      <div class="panel-title"><div><p class="eyebrow">MOTORES SUPERVISADOS</p><h2>Una mirada a los cuatro motores</h2></div><span class="badge">ENTORNOS SEPARADOS</span></div>
       <p class="platform-note">Spot sigue tendencias; Futures observa LONG/SHORT; Market Pulse estudia eventos y anomalías. Quant investiga pares y financiación en Shadow. Guardian observa cada entorno por separado.</p>
       <div class="platform-grid">
         <article class="panel platform-card"><div class="platform-card-head"><div><p class="eyebrow">MOTOR 1</p><h3>SPOT BOT</h3></div><span id="summarySpotState" class="state neutral">ESPERANDO DATOS</span></div>
@@ -84,210 +104,14 @@
       </div>
       <p id="platformAlerts" class="platform-note" role="status">Esperando una lectura reciente de la plataforma.</p>
       <p id="summaryGuardianStatus" class="platform-note" role="status">Guardian Observer: esperando evidencia · sin veto de entradas.</p>
-    </section>
-    <section id="passwordPanel" class="panel" hidden>
-      <h2>Cambiar contraseña del portal</h2>
-      <p>Se cerrarán las sesiones abiertas. El bot seguirá conectado con su propia credencial.</p>
-      <form id="passwordForm">
-        <label for="currentPassword">Contraseña actual</label>
-        <input id="currentPassword" type="password" autocomplete="current-password" required maxlength="128">
-        <label for="newPassword">Nueva contraseña (16 a 128 caracteres)</label>
-        <input id="newPassword" type="password" autocomplete="new-password" required minlength="16" maxlength="128">
-        <label for="confirmPassword">Repite la nueva contraseña</label>
-        <input id="confirmPassword" type="password" autocomplete="new-password" required minlength="16" maxlength="128">
-        <button id="savePassword" type="submit">Guardar contraseña y cerrar sesiones</button>
-        <button id="cancelPassword" type="button" class="secondary">Cancelar</button>
-        <p id="passwordMessage" role="status"></p>
-      </form>
-    </section>
-    <section id="updatePanel" class="panel update-center" hidden>
-      <div class="update-center-bar">
-        <div>
-          <p class="eyebrow">ACTUALIZACIONES</p>
-          <h2>Crypto AI Trader</h2>
-        </div>
-        <button id="closeUpdatePanel" class="icon-close secondary" aria-label="Cerrar centro de actualizaciones">×</button>
+    </section><div class="command-recent-grid">
+        <section class="panel"><div class="panel-title"><h2>Decisiones recientes</h2><a class="command-link" href="#operations-decisions">Ver actividad →</a></div><p class="settings-help">Últimos registros disponibles, por motor y entorno; no equivalen a órdenes ejecutadas.</p><div id="commandDecisions" class="command-feed"><p class="empty">Esperando evidencia de decisiones.</p></div></section>
+        <section class="panel"><div class="panel-title"><h2>Alertas y observaciones</h2><a class="command-link" href="#guardian-ai">Abrir Guardian →</a></div><div id="commandAlerts" class="command-feed"><p class="empty">Esperando una lectura verificable.</p></div></section>
       </div>
-
-      <div id="updateHero" class="update-hero">
-        <div id="updateHeroIcon" class="update-hero-icon" aria-hidden="true">✓</div>
-        <div class="update-hero-copy">
-          <h3 id="updateHeadline">Comprobando actualizaciones…</h3>
-          <p id="botUpdateMessage" role="status">Verificando la versión firmada y el supervisor de Windows.</p>
-        </div>
-      </div>
-
-      <div class="update-primary-actions">
-        <button id="checkAllUpdates" class="primary">Comprobar ahora</button>
-        <button id="installBotUpdate" class="primary" hidden disabled>Instalar actualización</button>
-      </div>
-
-      <details id="updateDetails" class="update-details">
-        <summary>Detalles técnicos</summary>
-        <p id="updateMessage" class="update-summary" role="status"></p>
-        <div id="updateReleases"></div>
-      </details>
     </section>
-    <section id="historyPanel" class="panel" hidden aria-label="Historial de actividad">
-      <div class="panel-title"><h2>Historial de actividad</h2><button id="closeHistory" class="secondary">Cerrar</button></div>
-      <p>Solicitudes del portal y sus resultados. Se conservan hasta 90 días.</p>
-      <ul id="historyRows" class="activity-list"></ul>
-      <button id="loadMoreHistory" class="secondary" hidden>Ver anteriores</button>
-      <p id="historyMessage" role="status"></p>
-    </section>
-    <section id="modelSettingsPanel" class="panel" hidden aria-label="Motor y entornos">
-      <div class="panel-title"><div><p class="eyebrow">CONTROL DEL MOTOR</p><h2>Motor y entornos</h2></div><button id="closeModelSettings" class="secondary">Cerrar</button></div>
-      <p class="settings-intro">Spot Testnet y Futures Demo mantienen sus controles. Market Pulse y Quant observan en Shadow con pausas independientes. Guardian es solo observador. PAPER se conserva como respaldo técnico/CI. Binance LIVE permanece bloqueado.</p>
-      <div class="settings-grid">
-        <article class="settings-card">
-          <div class="settings-card-head"><div><span class="settings-kicker">MOTOR PRINCIPAL</span><h3>Binance Spot Testnet</h3></div><span class="state neutral" id="primaryEnvironmentState">CARGANDO</span></div>
-          <div class="settings-field">
-            <label for="aiModelChoice">Modelo IA compartido · Spot + Futures</label>
-            <select id="aiModelChoice"><option value="gpt-6-luna">GPT-6 Luna</option><option value="gpt-5.6-luna">GPT-5.6 Luna</option></select>
-          </div>
-          <div class="settings-actions">
-            <button id="applyAiModel" class="secondary" type="button">Aplicar modelo</button>
-            <button id="restartMotor" class="secondary" type="button">Reiniciar motores</button>
-            <button id="testTestnetExecution" class="secondary" type="button">Diagnóstico Spot</button>
-          </div>
-          <details class="update-details">
-            <summary>Respaldo técnico / PAPER</summary>
-            <p class="settings-help">PAPER no forma parte de la observación diaria; se conserva para CI, regresiones y recuperación.</p>
-            <div class="settings-field">
-              <label for="executionModeChoice">Entorno primario</label>
-              <select id="executionModeChoice"><option value="testnet">Binance Spot Testnet</option><option value="paper">PAPER · respaldo técnico</option></select>
-            </div>
-            <div class="settings-actions"><button id="applyExecutionMode" class="secondary" type="button">Cambiar entorno técnico</button></div>
-          </details>
-        </article>
-
-        <article class="settings-card futures-card">
-          <div class="settings-card-head"><div><span class="settings-kicker">SEGUNDO MOTOR · FORWARD TEST</span><h3>USDⓈ-M Futures Demo</h3></div><span class="state neutral" id="futuresState">CARGANDO</span></div>
-          <div class="futures-guardrails">
-            <span id="futuresConfiguredSymbols">—</span><span id="futuresConfiguredTimeframe">—</span><span id="futuresConfiguredLeverage">—</span><span>ISOLATED</span><span>ONE-WAY</span><span id="futuresConfiguredPositions">—</span>
-          </div>
-          <p class="settings-help">Corre en paralelo con Spot Testnet, con ledger y kill switch propios. Pruebas Demo 1x/2x/3x por entrada, manteniendo el valor de posición.</p>
-          <details class="update-details">
-            <summary>Diagnóstico manual Futures</summary>
-            <div class="settings-two-col">
-              <div class="settings-field">
-                <label for="futuresDirection">Dirección de prueba</label>
-                <select id="futuresDirection"><option value="LONG">LONG</option><option value="SHORT">SHORT</option></select>
-              </div>
-              <div class="settings-field">
-                <label for="futuresLeverage">Apalancamiento manual</label>
-                <select id="futuresLeverage"><option value="1">1x</option><option value="2">2x</option><option value="3">3x</option></select>
-              </div>
-            </div>
-            <div class="settings-actions futures-actions">
-              <button id="checkFuturesTestnet" class="secondary" type="button">Verificar</button>
-              <button id="testFuturesExecution" class="secondary" type="button">Smoke manual</button>
-              <button id="reconcileFutures" class="secondary" type="button">Reconciliar</button>
-            </div>
-          </details>
-          <p id="futuresMessage" class="futures-status" role="status">Forward test automático con fondos ficticios.</p>
-        </article>
-      </div>
-      <p id="modelSettingsMessage" role="status">Windows aplicará cambios solo después de verificar el motor. Binance LIVE permanece bloqueado.</p>
-    </section>
-    <section class="engine-workspace" aria-label="Motores de prueba">
-      <article data-nav-fold="spot-analysis" id="spot-bot" class="panel engine-console spot-console">
-        <div class="settings-card-head"><div><p class="eyebrow">MOTOR 1 · SPOT</p><h2 id="accountEnvironmentTitle">Binance Spot Testnet</h2></div><span id="spotEngineState" class="state neutral">CARGANDO</span></div>
-        <p id="operationSummary">Swing multi-activo · límites fijos · revisión IA final · fondos ficticios.</p>
-        <div class="spot-cycle" role="status" aria-label="Último análisis Spot">
-          <div class="spot-cycle-head"><strong>Último análisis Spot</strong><span id="spotCycleState" class="state neutral">SIN DETALLE AÚN</span></div>
-          <p id="spotCycleSummary">Esperando el diagnóstico del próximo ciclo.</p>
-          <small id="spotCycleReasons"></small>
-        </div>
-        <details id="spot-analysis" class="portal-fold engine-chart-fold" data-remember-fold><summary>Capital, rendimiento y curva de equity</summary><div class="fold-body"><div class="engine-kpis">
-          <span><small>Equity</small><strong id="equity">—</strong><em id="return">—</em></span>
-          <span><small>Efectivo</small><strong id="cash">—</strong><em>USDT disponible</em></span>
-          <span><small>Exposición</small><strong id="exposure">—</strong><em id="positionsCount">—</em></span>
-          <span><small>IA final</small><strong id="aiStatus">—</strong><em id="aiModel">—</em></span>
-        </div>
-        <div class="engine-chart-head"><span>Curva de equity</span><small id="updated">Esperando primer ciclo</small></div>
-        <canvas id="equityChart" height="190" aria-label="Curva de equity Spot Testnet"></canvas></div></details>
-      </article>
-
-      <article data-nav-fold="futures-analysis" id="futures-bot" class="panel engine-console futures-console">
-        <div class="settings-card-head"><div><p class="eyebrow">MOTOR 2 · FUTURES</p><h2>USDⓈ-M Futures Demo</h2></div><span id="futuresForwardState" class="state neutral">CARGANDO</span></div>
-        <p>LONG/SHORT · pruebas Demo 1x/2x/3x · ISOLATED · hasta diez posiciones · revisión IA final · fondos ficticios.</p>
-        <div class="spot-cycle" role="status" aria-label="Último análisis Futures">
-          <div class="spot-cycle-head"><strong>Último análisis Futures</strong><span id="futuresCycleState" class="state neutral">SIN DETALLE AÚN</span></div>
-          <p id="futuresCycleSummary">Esperando el diagnóstico del próximo ciclo.</p>
-          <small id="futuresCycleReasons"></small>
-        </div>
-        <details id="futures-analysis" class="portal-fold engine-chart-fold" data-remember-fold><summary>Capital, rendimiento y curva de equity</summary><div class="fold-body"><div class="engine-kpis">
-          <span><small>Wallet</small><strong id="futuresForwardWallet">—</strong><em>USDT Demo</em></span>
-          <span><small>Retorno observado</small><strong id="futuresForwardReturn">—</strong><em id="futuresForwardClosed">—</em></span>
-          <span><small>Posición</small><strong id="futuresForwardPosition">—</strong><em id="futuresForwardRecovery">—</em></span>
-          <span><small>Última revisión IA</small><strong id="futuresForwardAi">—</strong><em id="futuresForwardAiModel">—</em></span>
-        </div>
-        <div class="engine-chart-head"><span>Equity · wallet + P&amp;L abierto</span><small>Últimas 120 muestras · cuenta Demo</small></div>
-        <canvas id="futuresEquityChart" height="190" aria-label="Curva de equity Futures Demo"></canvas></div></details>
-        <p id="futuresForwardPauseReason" class="settings-help" role="status" hidden></p>
-        <p id="futuresForwardSafety" class="settings-help">Journal durable, conciliación tras reinicio y kill switch independiente. LIVE bloqueado.</p>
-        <div class="settings-actions compact-actions">
-          <button id="pauseFuturesForward" class="secondary" type="button">Pausar</button>
-          <button id="resumeFuturesForward" class="secondary" type="button">Reanudar</button>
-        </div>
-      </article>
-    </section>
-    <section id="market-pulse" class="panel pulse-panel" aria-label="AI Market Pulse">
-      <div class="panel-title"><div><p class="eyebrow">MOTOR 3 · EVENTOS Y ANOMALÍAS</p><h2>AI Market Pulse</h2></div><span id="pulseState" class="state neutral">SIN DATOS</span></div>
-      <p id="pulseStatusNote" class="platform-note">Esperando la primera sincronización del motor. Sin órdenes al exchange.</p>
-      <div class="settings-actions pulse-controls"><button id="pauseMarketPulse" class="secondary" type="button" disabled>Pausar Market Pulse</button><button id="resumeMarketPulse" class="secondary" type="button" disabled>Reanudar Shadow</button></div>
-      <p id="pulseControlMessage" class="settings-help" role="status">La pausa es independiente. La ejecución y promoción de estrategias permanecen bloqueadas.</p>
-      <div class="pulse-subnav"><a href="#pulse-live">Mercado</a><a href="#pulse-news">Noticias</a><a href="#pulse-scanner">Oportunidades</a><a href="#pulse-decisions">Decisiones</a><a href="#pulse-finance">Rendimiento</a><a href="#pulse-health">Salud</a></div>
-      <details id="pulse-live" class="pulse-section portal-fold" data-remember-fold><summary><div class="panel-title"><h3>Live Market Intelligence</h3><span id="pulseFreshness" class="badge">SIN DATOS</span></div></summary><div class="fold-body"><p id="pulseUniverse" class="settings-help" hidden></p><p class="settings-help">Ventanas incrementales de 1 y 5 minutos. Datos incompletos o antiguos bloquean nuevas señales.</p><div id="pulseMarket" class="pulse-market-grid"><p class="empty">Esperando suficientes observaciones de mercado.</p></div></div></details>
-      <details id="pulse-news" class="pulse-section portal-fold" data-remember-fold><summary><div class="panel-title"><h3>News &amp; Events Feed</h3><span id="pulseProviderSummary">Publicación → recepción → decisión</span></div></summary><div class="fold-body"><div id="pulseNewsProviders" class="pulse-provider-grid" hidden></div><div id="pulseNews" class="pulse-feed"><p class="empty">Aún no hay noticias verificables registradas. La ausencia de noticias no es un error del motor.</p></div></div></details>
-      <details id="pulse-scanner" class="pulse-section portal-fold" data-remember-fold><summary><div class="panel-title"><h3>Opportunity Scanner</h3><span>Score experimental · 0–100</span></div></summary><div class="fold-body"><p class="settings-help">Las ponderaciones son hipótesis iniciales; las confirmaciones cuantitativas y los límites prevalecen sobre la IA.</p><div id="pulseOpportunities" class="pulse-feed"><p class="empty">Aún no hay oportunidades registradas.</p></div></div></details>
-      <details id="pulse-decisions" class="pulse-section portal-fold" data-remember-fold><summary><div class="panel-title"><h3>Trading Decisions</h3><span>Evidencia disponible en ese instante</span></div></summary><div class="fold-body"><div id="pulseDecisions" class="pulse-feed"><p class="empty">Aún no hay decisiones registradas.</p></div></div></details>
-      <details id="pulse-finance" class="pulse-section portal-fold" data-remember-fold><summary><div class="panel-title"><h3>Financial Performance · Shadow</h3><span id="pulseFinanceQuality" class="badge">SIN DATOS</span></div></summary><div class="fold-body"><dl id="pulsePerformance" class="pulse-metrics"></dl><p id="pulseBenchmark" class="platform-note">La comparación requiere muestras coincidentes y costos simulados.</p><h4>Posiciones hipotéticas</h4><div id="pulsePositions" class="pulse-feed"><p class="empty">Esperando el ledger Shadow.</p></div></div></details>
-      <details id="pulse-health" class="pulse-section portal-fold" data-remember-fold><summary><div class="panel-title"><h3>Engine Health</h3><span id="pulseHealthState" class="badge">SIN DATOS</span></div></summary><div class="fold-body"><div id="pulseSources" class="pulse-source-grid"></div><dl id="pulseHealth" class="pulse-metrics"></dl><p id="pulseLastError" class="platform-note"></p><details class="finance-details"><summary>Investigación y condiciones de promoción</summary><p id="pulseResearch" class="platform-note">Acumulación prospectiva. Promoción bloqueada.</p></details></div></details>
-    </section>
-    <section class="panel" aria-label="Pruebas de apalancamiento Futures Demo"><details class="update-details"><summary>Futures Demo · pruebas de apalancamiento</summary>
-          <div id="futuresLeverageTrials"></div></details></section>
-    <section id="portfolio-guardian" class="panel guardian-panel" aria-label="Portfolio Guardian Observer">
-      <div class="panel-title"><div><p class="eyebrow">SUPERVISIÓN DE EXPOSICIÓN</p><h2>Portfolio Guardian</h2></div><span id="guardianState" class="state neutral">SIN DATOS</span></div>
-      <p id="guardianStatusNote" class="platform-note" role="status">Observer · lectura de ledgers separados. Sin reservas ni veto de entradas.</p>
-      <div class="guardian-strip"><span>Solo observación</span><span>Sin cambio de límites</span><span>Protecciones independientes</span></div>
-      <div id="guardianAlertSummary" class="guardian-alert-summary" role="status">Esperando evidencia.</div>
-      <details id="guardian-exposure" class="portal-fold" data-remember-fold><summary>Exposición y presupuestos por entorno</summary><div class="fold-body"><div id="guardianScopes" class="guardian-scope-grid"></div><p class="platform-note">Cada ledger se muestra por separado. No se suman capitales Testnet, Demo y Shadow. El riesgo nominal hasta stop excluye costes, gaps y funding.</p></div></details>
-      <details id="guardian-overlaps" class="portal-fold" data-remember-fold><summary>Coincidencias de activos y alertas</summary><div class="fold-body"><div id="guardianOverlaps" class="pulse-feed"></div><div id="guardianAlerts" class="pulse-feed"></div></div></details>
-      <details id="guardian-quality" class="portal-fold" data-remember-fold><summary>Calidad y límites de la observación</summary><div class="fold-body"><dl id="guardianQuality" class="pulse-metrics"></dl><p id="guardianLimitations" class="platform-note"></p></div></details>
-    </section>
-    <section id="quant-arbitrage" class="panel quant-panel" aria-label="Quant Arbitrage">
-      <div class="panel-title"><div><p class="eyebrow">MOTOR 4 · INVESTIGACIÓN</p><h2>Quant Arbitrage</h2></div><span id="quantState" class="state neutral">SIN DATOS</span></div>
-      <p id="quantStatusNote" class="platform-note" role="status">Esperando evidencia del ledger Shadow independiente.</p>
-      <div class="pulse-subnav"><a href="#quant-funding">Funding Carry</a><a href="#quant-statistical">Statistical Arbitrage</a><a href="#quant-positions">Pares</a><a href="#quant-decisions">Decisiones</a><a href="#quant-finance">Rendimiento</a><a href="#quant-health">Salud</a></div>
-      <div class="pulse-controls"><button id="pauseQuant" class="secondary" disabled>Pausar nuevas entradas Quant</button><button id="resumeQuant" class="secondary" disabled>Reanudar observación Quant</button></div>
-      <p id="quantControlMessage" class="platform-note" role="status"></p>
-      <p id="quantAuthorization" class="platform-note">Solo simulación Shadow. La pausa conserva el seguimiento y los cierres protectores hipotéticos. Ejecución en exchange y promoción bloqueadas.</p>
-      <details id="quant-funding" class="portal-fold pulse-section" data-remember-fold><summary><div class="panel-title"><h3>Funding Carry</h3><span id="quantFundingState" class="badge">SIN DATOS</span></div></summary><div class="fold-body"><p>Spot LONG + Futures SHORT hipotéticos. Las tasas observadas y las proyecciones condicionales no son ingresos liquidados. Las dos piernas no forman una cobertura atómica ni eliminan el riesgo de margen.</p><div id="quantMarket" class="guardian-scope-grid"></div><div id="quantFundingSignals" class="pulse-feed"></div><h4>Funding asentado en la simulación</h4><div id="quantFunding" class="pulse-feed"></div></div></details>
-      <details id="quant-statistical" class="portal-fold pulse-section" data-remember-fold><summary><div class="panel-title"><h3>Statistical Arbitrage</h3><span id="quantStatisticalState" class="badge">SIN DATOS</span></div></summary><div class="fold-body"><p>Diagnósticos exploratorios de cointegración, z-score, reversión y estabilidad fuera de muestra. La correlación no prueba una oportunidad. Las entradas StatArb permanecen bloqueadas hasta una calibración independiente validada.</p><div id="quantStatisticalSignals" class="pulse-feed"></div></div></details>
-      <details id="quant-positions" class="portal-fold pulse-section" data-remember-fold><summary>Pares y piernas hipotéticas</summary><div class="fold-body"><div id="quantPositions" class="pulse-feed"></div></div></details>
-      <details id="quant-decisions" class="portal-fold pulse-section" data-remember-fold><summary>Decisiones y journal persistente</summary><div class="fold-body"><div id="quantDecisions" class="pulse-feed"></div><h4>Journal</h4><div id="quantJournal" class="pulse-feed"></div></div></details>
-      <details id="quant-finance" class="portal-fold pulse-section" data-remember-fold><summary>Rendimiento financiero Shadow</summary><div class="fold-body"><dl id="quantPerformance" class="pulse-metrics"></dl><p id="quantBenchmarks" class="platform-note"></p><p class="platform-note">Capital virtual independiente. Los costes incluyen comisiones y deslizamiento simulados; no se suma este ledger con Spot Testnet, Futures Demo o Market Pulse. El P&amp;L no acredita rentabilidad futura.</p></div></details>
-      <details id="quant-health" class="portal-fold pulse-section" data-remember-fold><summary>Salud y calidad de la evidencia</summary><div class="fold-body"><div id="quantSources" class="pulse-source-grid"></div><dl id="quantHealth" class="pulse-metrics"></dl><h4>Límites de pérdida para nuevas entradas</h4><dl id="quantRisk" class="pulse-metrics"></dl><p id="quantRiskMethod" class="platform-note"></p><p id="quantQuality" class="platform-note"></p><p id="quantLastError" class="platform-note"></p></div></details>
-    </section>
-    <details class="portal-fold panel observation-health" aria-label="Salud de observación últimas 24 horas" id="observation-details" data-remember-fold>
-      <summary><div class="panel-title">
-        <div><p class="eyebrow">SALUD DE OBSERVACIÓN · 24 H</p><h2>Calidad operativa de la muestra</h2></div>
-        <span id="observationHealthState" class="state neutral">CARGANDO</span>
-      </div></summary><div class="fold-body">
-      <p id="observationHealthNote">Mide continuidad e integridad sin cambiar estrategia, riesgo ni ejecución.</p>
-      <div class="health-grid">
-        <article><div class="health-head"><h3>Spot Testnet</h3><span id="spotHealthState" class="state neutral">—</span></div><dl>
-          <div><dt>Cobertura de ciclos</dt><dd id="spotCycleCoverage">—</dd></div><div><dt>Muestras / estimadas</dt><dd id="spotCycleSamples">—</dd></div><div><dt>Gap promedio</dt><dd id="spotCycleGap">—</dd></div><div><dt>Errores / avisos (24 h)</dt><dd id="spotDailyErrors">—</dd></div><div><dt>Errores consecutivos activos</dt><dd id="spotConsecutiveErrors">—</dd></div><div><dt>Último diagnóstico</dt><dd id="spotLastError">—</dd></div><div><dt>IA: revisiones / rechazos</dt><dd id="spotDailyAi">—</dd></div><div><dt>Cierres / P&amp;L</dt><dd id="spotDailyTrading">—</dd></div><div><dt>Integridad</dt><dd id="spotIntegrity">—</dd></div>
-        </dl><p id="spotHealthReason" class="health-reason">Esperando diagnóstico de 24 h.</p></article>
-        <article><div class="health-head"><h3>Futures Demo</h3><span id="futuresHealthState" class="state neutral">—</span></div><dl>
-          <div><dt>Cobertura de ciclos</dt><dd id="futuresCycleCoverage">—</dd></div><div><dt>Muestras / estimadas</dt><dd id="futuresCycleSamples">—</dd></div><div><dt>Gap promedio</dt><dd id="futuresCycleGap">—</dd></div><div><dt>Errores consecutivos activos</dt><dd id="futuresDailyErrors">—</dd></div><div><dt>Último diagnóstico</dt><dd id="futuresHealthLatest">—</dd></div><div><dt>Incidentes / intentos / ciclos · historial total</dt><dd id="futuresHealthCounters">—</dd></div><div><dt>Cierres / P&amp;L bruto · 24 h</dt><dd id="futuresDailyTrading">—</dd></div><div><dt>Integridad</dt><dd id="futuresIntegrity">—</dd></div>
-        </dl><p id="futuresHealthReason" class="health-reason">Esperando diagnóstico de 24 h.</p></article>
-      </div>
-
-      </div></details>
-    <details class="portal-fold panel dual-observation" aria-label="Comparación financiera de los motores observados" id="comparison-details" data-remember-fold>
+<section id="portfolio-capital" class="command-workspace" data-workspace="portfolio-capital" aria-labelledby="portfolio-capital-heading" hidden>
+      <div class="workspace-heading"><div><p class="eyebrow">CRYPTO-BOT 2.0 / PORTFOLIO &amp; CAPITAL</p><h2 id="portfolio-capital-heading" tabindex="-1">Portfolio &amp; Capital</h2><p>Capital y exposición con su entorno, procedencia y calidad.</p></div></div>
+      <section class="panel capital-console"><div class="panel-title"><h2>Capital por entorno</h2><span class="badge neutral">LEDGER_ONLY</span></div><p id="capitalStatus" class="platform-note" role="status">Esperando evidencia de los ledgers.</p><div id="capitalScopes" class="guardian-scope-grid"></div><p class="platform-note">Inventario observado en ledgers independientes. No acredita conciliación completa de la cuenta. No se suman Spot Testnet, Futures Demo y los dos capitales Shadow como una cartera real.</p><div class="capital-reservations"><h3>Reservas compartidas</h3><strong id="capitalReservations">NO INTEGRADAS · importe desconocido</strong><p>Capital Manager es una fase futura: sin asignación automática, transferencias ni presupuesto global ejecutable.</p></div></section><details class="portal-fold panel dual-observation" aria-label="Comparación financiera de los motores observados" id="comparison-details" data-remember-fold>
       <summary><div class="panel-title">
         <div><p class="eyebrow">FORWARD TEST · SEGUIMIENTO</p><h2>Comparación de los cuatro motores</h2></div>
         <span id="dualEvidenceState" class="state neutral">ACUMULANDO DATOS</span>
@@ -330,79 +154,7 @@
         <p>Se pueden hacer correcciones de seguridad u operativas antes. Los cambios de estrategia, riesgo o leverage deben esperar suficiente evidencia para no sobreajustar a pocos días de datos. La protección local se reconcilia al volver Windows, pero los stops nativos persistentes del exchange siguen siendo una puerta obligatoria antes de capital real.</p>
       </div>
 
-      </div></details>
-
-    <section class="dual-detail-grid" aria-label="Límites Spot y Futures">
-      <details class="portal-fold panel guardrail consolidated-guardrail" id="spot-limits" data-remember-fold>
-      <summary><div class="panel-title"><h2 id="riskPanelTitle">Límites Spot</h2><span id="killState" class="state">Comprobando</span></div></summary><div class="fold-body">
-        <dl>
-          <div><dt>Riesgo / trade</dt><dd id="riskTrade">—</dd></div>
-          <div><dt>Máx. posición</dt><dd id="riskPosition">—</dd></div>
-          <div><dt>Máx. exposición</dt><dd id="riskExposure">—</dd></div>
-          <div><dt>Límite diario</dt><dd id="riskDaily">—</dd></div>
-          <div><dt>Límite semanal</dt><dd id="riskWeekly">—</dd></div>
-          <div><dt>Apalancamiento</dt><dd>Desactivado</dd></div>
-        </dl>
-        <div class="paper-controls">
-          <label for="riskProfile">Tamaño de riesgo para nuevas entradas</label>
-          <select id="riskProfile"><option value="minimo">Mínimo · 25% del límite</option><option value="leve">Leve · 35%</option><option value="prudente">Prudente · 50%</option><option value="moderado">Moderado · 65%</option><option value="alto">Alto · 85%</option><option value="normal">Muy alto · 100% del límite actual</option></select>
-          <button id="saveRiskProfile" class="secondary" type="button">Aplicar nivel de riesgo</button>
-          <small id="riskProfileNote">Afecta únicamente nuevas entradas Spot. «Muy alto» equivale al antiguo «Normal» y nunca supera los topes configurados.</small>
-        </div>
-
-      </div></details>
-
-      <details class="portal-fold panel guardrail consolidated-guardrail futures-guardrail" id="futures-limits" data-remember-fold>
-      <summary><div class="panel-title"><h2>Límites Futures · DEMO</h2><span id="futuresLimitState" class="state neutral">Comprobando</span></div></summary><div class="fold-body">
-        <dl>
-          <div><dt>Apalancamiento automático</dt><dd id="futuresLimitLeverage">—</dd></div>
-          <div><dt>Margen</dt><dd id="futuresLimitMarginType">—</dd></div>
-          <div><dt>Máx. posiciones</dt><dd id="futuresLimitPositions">—</dd></div>
-          <div><dt>Tope de notional estimado por entrada</dt><dd id="futuresLimitBudget">—</dd></div>
-          <div><dt>Score mínimo de entrada</dt><dd id="futuresLimitScore">—</dd></div>
-          <div><dt>Stop mínimo / ATR</dt><dd id="futuresLimitStop">—</dd></div>
-          <div><dt>Reward / Risk</dt><dd id="futuresLimitRR">—</dd></div>
-        </dl>
-        <p class="settings-help">Forward test de 15 monedas · ONE_WAY · hasta diez posiciones aisladas · kill switch independiente. Los valores automáticos no se modifican desde esta pantalla.</p><p id="futuresPortfolioBudget" class="settings-help">Esperando límites de cartera del motor.</p>
-
-      </div></details>
-    </section>
-
-    <section class="dual-detail-grid positions-grid" aria-label="Posiciones Spot y Futures">
-      <details class="portal-fold panel" id="spot-positions" data-remember-fold>
-      <summary><div class="panel-title"><h2>Posiciones abiertas · Spot</h2><span>Protección ATR activa</span></div></summary><div class="fold-body">
-        <div class="table-wrap compact-engine-table"><table><thead><tr><th>Par</th><th>Cant.</th><th>Entrada</th><th>Actual</th><th>P&amp;L</th><th>P&amp;L %</th><th>Stop</th><th>Objetivo</th><th>Acción</th></tr></thead><tbody id="positions"></tbody></table></div>
-        <p class="paper-action-note">Cerrar una posición usa Spot Testnet y una cotización reciente bajo controles supervisados de Windows.</p>
-
-      </div></details>
-
-      <details class="portal-fold panel" id="futures-positions" data-remember-fold>
-      <summary><div class="panel-title"><h2>Posiciones abiertas · Futures</h2><span id="futuresPositionState" class="state neutral">SIN POSICIÓN</span></div></summary><div class="fold-body">
-        <div class="futures-position-card" id="futuresPositionCard">
-          <dl>
-            <div><dt>Contrato / dirección</dt><dd id="futuresPositionContract">—</dd></div>
-            <div><dt>Cantidad</dt><dd id="futuresPositionQty">—</dd></div>
-            <div><dt>Precio de entrada</dt><dd id="futuresPositionPrices">—</dd></div>
-            <div><dt>P&amp;L no realizado</dt><dd id="futuresPositionUnrealized">—</dd></div>
-            <div><dt>Stop / objetivo</dt><dd id="futuresPositionProtection">—</dd></div>
-            <div><dt>Apalancamiento / margen</dt><dd id="futuresPositionLeverage">—</dd></div>
-            <div><dt>Abierta desde</dt><dd id="futuresPositionOpened">—</dd></div>
-          </dl>
-        </div>
-        <p class="settings-help">P&amp;L no realizado de toda la cuenta Demo: <strong id="futuresAccountUnrealized">—</strong>. Cada posición muestra su mark y P&amp;L cuando hay cotización reciente. El resultado tras costos acumulados incluye comisiones y funding ya registrados; no anticipa los costos de salida.</p>
-        <div id="futuresMultiAsset" class="futures-asset-grid"></div>
-        <details class="finance-details"><summary>Señales recientes y estrategias sombra</summary>
-          <h3>Señales por activo</h3>
-          <div id="futuresSignalGrid" class="futures-asset-grid"></div>
-          <h3>Shadow strategies</h3>
-          <div id="futuresShadowStrategies" class="research-summary"></div>
-        </details>
-        <p class="paper-action-note">Las posiciones Futures las gestiona el forward test automático. Pausar Futures bloquea nuevas entradas pero mantiene la protección/reconciliación de una posición existente.</p>
-
-      </div></details>
-    </section>
-
-    <section class="dual-detail-grid finance-grid" aria-label="Seguimiento financiero Spot y Futures">
+      </div></details><section class="dual-detail-grid finance-grid" aria-label="Seguimiento financiero Spot y Futures">
       <details class="portal-fold panel paper-scorecard" aria-label="Seguimiento financiero Spot" id="spot-finance" data-remember-fold>
       <summary><div class="panel-title"><h2 id="financialEvidenceTitle">Seguimiento financiero</h2><span id="paperEvidenceState" class="state neutral">SIN DATOS</span></div></summary><div class="fold-body">
       <p id="paperEvidenceNote">Los resultados observados no autorizan operar con dinero real.</p>
@@ -452,16 +204,187 @@
 
       </div></details>
     </section>
+    </section>
+<section id="trading-engines" class="command-workspace" data-workspace="trading-engines" aria-labelledby="trading-engines-heading" hidden>
+      <div class="workspace-heading"><div><p class="eyebrow">CRYPTO-BOT 2.0 / TRADING ENGINES</p><h2 id="trading-engines-heading" tabindex="-1">Trading Engines</h2><p>Consolas operativas independientes y evidencia de cada motor.</p></div></div>
+      <nav class="workspace-links" aria-label="Elegir motor"><a href="#spot-bot">Spot Bot</a><a href="#futures-bot">Futures Bot</a><a href="#market-pulse">AI Market Pulse</a><a href="#quant-arbitrage">Quant Arbitrage</a></nav><section class="engine-workspace" aria-label="Motores de prueba">
+      <article data-nav-fold="spot-analysis" id="spot-bot" class="panel engine-console spot-console">
+        <div class="settings-card-head"><div><p class="eyebrow">MOTOR 1 · SPOT</p><h2 id="accountEnvironmentTitle">Binance Spot Testnet</h2></div><span id="spotEngineState" class="state neutral">CARGANDO</span></div>
+        <p id="operationSummary">Swing multi-activo · límites fijos · revisión IA final · fondos ficticios.</p>
+        <div class="spot-cycle" role="status" aria-label="Último análisis Spot">
+          <div class="spot-cycle-head"><strong>Último análisis Spot</strong><span id="spotCycleState" class="state neutral">SIN DETALLE AÚN</span></div>
+          <p id="spotCycleSummary">Esperando el diagnóstico del próximo ciclo.</p>
+          <small id="spotCycleReasons"></small>
+        </div>
+        <details id="spot-analysis" class="portal-fold engine-chart-fold" data-remember-fold><summary>Capital, rendimiento y curva de equity</summary><div class="fold-body"><div class="engine-kpis">
+          <span><small>Equity</small><strong id="equity">—</strong><em id="return">—</em></span>
+          <span><small>Efectivo</small><strong id="cash">—</strong><em>USDT disponible</em></span>
+          <span><small>Exposición</small><strong id="exposure">—</strong><em id="positionsCount">—</em></span>
+          <span><small>IA final</small><strong id="aiStatus">—</strong><em id="aiModel">—</em></span>
+        </div>
+        <div class="engine-chart-head"><span>Curva de equity</span><small id="updated">Esperando primer ciclo</small></div>
+        <canvas id="equityChart" height="190" aria-label="Curva de equity Spot Testnet"></canvas></div></details>
+      </article>
 
+      <article data-nav-fold="futures-analysis" id="futures-bot" class="panel engine-console futures-console">
+        <div class="settings-card-head"><div><p class="eyebrow">MOTOR 2 · FUTURES</p><h2>USDⓈ-M Futures Demo</h2></div><span id="futuresForwardState" class="state neutral">CARGANDO</span></div>
+        <p>LONG/SHORT · pruebas Demo 1x/2x/3x · ISOLATED · hasta diez posiciones · revisión IA final · fondos ficticios.</p>
+        <div class="spot-cycle" role="status" aria-label="Último análisis Futures">
+          <div class="spot-cycle-head"><strong>Último análisis Futures</strong><span id="futuresCycleState" class="state neutral">SIN DETALLE AÚN</span></div>
+          <p id="futuresCycleSummary">Esperando el diagnóstico del próximo ciclo.</p>
+          <small id="futuresCycleReasons"></small>
+        </div>
+        <details id="futures-analysis" class="portal-fold engine-chart-fold" data-remember-fold><summary>Capital, rendimiento y curva de equity</summary><div class="fold-body"><div class="engine-kpis">
+          <span><small>Wallet</small><strong id="futuresForwardWallet">—</strong><em>USDT Demo</em></span>
+          <span><small>Retorno observado</small><strong id="futuresForwardReturn">—</strong><em id="futuresForwardClosed">—</em></span>
+          <span><small>Posición</small><strong id="futuresForwardPosition">—</strong><em id="futuresForwardRecovery">—</em></span>
+          <span><small>Última revisión IA</small><strong id="futuresForwardAi">—</strong><em id="futuresForwardAiModel">—</em></span>
+        </div>
+        <div class="engine-chart-head"><span>Equity · wallet + P&amp;L abierto</span><small>Últimas 120 muestras · cuenta Demo</small></div>
+        <canvas id="futuresEquityChart" height="190" aria-label="Curva de equity Futures Demo"></canvas></div></details>
+        <p id="futuresForwardPauseReason" class="settings-help" role="status" hidden></p>
+        <p id="futuresForwardSafety" class="settings-help">Journal durable, conciliación tras reinicio y kill switch independiente. LIVE bloqueado.</p>
+        <div class="settings-actions compact-actions">
+          <button id="pauseFuturesForward" class="secondary" type="button">Pausar</button>
+          <button id="resumeFuturesForward" class="secondary" type="button">Reanudar</button>
+        </div>
+      </article>
+    </section><section class="dual-detail-grid positions-grid" aria-label="Posiciones Spot y Futures">
+      <details class="portal-fold panel" id="spot-positions" data-remember-fold>
+      <summary><div class="panel-title"><h2>Posiciones abiertas · Spot</h2><span>Protección ATR activa</span></div></summary><div class="fold-body">
+        <div class="table-wrap compact-engine-table"><table><thead><tr><th>Par</th><th>Cant.</th><th>Entrada</th><th>Actual</th><th>P&amp;L</th><th>P&amp;L %</th><th>Stop</th><th>Objetivo</th><th>Acción</th></tr></thead><tbody id="positions"></tbody></table></div>
+        <p class="paper-action-note">Cerrar una posición usa Spot Testnet y una cotización reciente bajo controles supervisados de Windows.</p>
 
-    <section id="activity-section" class="activity-strip" aria-label="Actividad y operaciones">
+      </div></details>
+
+      <details class="portal-fold panel" id="futures-positions" data-remember-fold>
+      <summary><div class="panel-title"><h2>Posiciones abiertas · Futures</h2><span id="futuresPositionState" class="state neutral">SIN POSICIÓN</span></div></summary><div class="fold-body">
+        <div class="futures-position-card" id="futuresPositionCard">
+          <dl>
+            <div><dt>Contrato / dirección</dt><dd id="futuresPositionContract">—</dd></div>
+            <div><dt>Cantidad</dt><dd id="futuresPositionQty">—</dd></div>
+            <div><dt>Precio de entrada</dt><dd id="futuresPositionPrices">—</dd></div>
+            <div><dt>P&amp;L no realizado</dt><dd id="futuresPositionUnrealized">—</dd></div>
+            <div><dt>Stop / objetivo</dt><dd id="futuresPositionProtection">—</dd></div>
+            <div><dt>Apalancamiento / margen</dt><dd id="futuresPositionLeverage">—</dd></div>
+            <div><dt>Abierta desde</dt><dd id="futuresPositionOpened">—</dd></div>
+          </dl>
+        </div>
+        <p class="settings-help">P&amp;L no realizado de toda la cuenta Demo: <strong id="futuresAccountUnrealized">—</strong>. Cada posición muestra su mark y P&amp;L cuando hay cotización reciente. El resultado tras costos acumulados incluye comisiones y funding ya registrados; no anticipa los costos de salida.</p>
+        <div id="futuresMultiAsset" class="futures-asset-grid"></div>
+        <details class="finance-details"><summary>Señales recientes y estrategias sombra</summary>
+          <h3>Señales por activo</h3>
+          <div id="futuresSignalGrid" class="futures-asset-grid"></div>
+          <h3>Shadow strategies</h3>
+          <div id="futuresShadowStrategies" class="research-summary"></div>
+        </details>
+        <p class="paper-action-note">Las posiciones Futures las gestiona el forward test automático. Pausar Futures bloquea nuevas entradas pero mantiene la protección/reconciliación de una posición existente.</p>
+
+      </div></details>
+    </section><section id="market-pulse" class="panel pulse-panel" aria-label="AI Market Pulse">
+      <div class="panel-title"><div><p class="eyebrow">MOTOR 3 · EVENTOS Y ANOMALÍAS</p><h2>AI Market Pulse</h2></div><span id="pulseState" class="state neutral">SIN DATOS</span></div>
+      <p id="pulseStatusNote" class="platform-note">Esperando la primera sincronización del motor. Sin órdenes al exchange.</p>
+      <div class="settings-actions pulse-controls"><button id="pauseMarketPulse" class="secondary" type="button" disabled>Pausar Market Pulse</button><button id="resumeMarketPulse" class="secondary" type="button" disabled>Reanudar Shadow</button></div>
+      <p id="pulseControlMessage" class="settings-help" role="status">La pausa es independiente. La ejecución y promoción de estrategias permanecen bloqueadas.</p>
+      <div class="pulse-subnav"><a href="#pulse-live">Mercado</a><a href="#pulse-news">Noticias</a><a href="#pulse-scanner">Oportunidades</a><a href="#pulse-decisions">Decisiones</a><a href="#pulse-finance">Rendimiento</a><a href="#pulse-health">Salud</a></div>
+      <details id="pulse-live" class="pulse-section portal-fold" data-remember-fold><summary><div class="panel-title"><h3>Live Market Intelligence</h3><span id="pulseFreshness" class="badge">SIN DATOS</span></div></summary><div class="fold-body"><p id="pulseUniverse" class="settings-help" hidden></p><p class="settings-help">Ventanas incrementales de 1 y 5 minutos. Datos incompletos o antiguos bloquean nuevas señales.</p><div id="pulseMarket" class="pulse-market-grid"><p class="empty">Esperando suficientes observaciones de mercado.</p></div></div></details>
+      <details id="pulse-news" class="pulse-section portal-fold" data-remember-fold><summary><div class="panel-title"><h3>News &amp; Events Feed</h3><span id="pulseProviderSummary">Publicación → recepción → decisión</span></div></summary><div class="fold-body"><div id="pulseNewsProviders" class="pulse-provider-grid" hidden></div><div id="pulseNews" class="pulse-feed"><p class="empty">Aún no hay noticias verificables registradas. La ausencia de noticias no es un error del motor.</p></div></div></details>
+      <details id="pulse-scanner" class="pulse-section portal-fold" data-remember-fold><summary><div class="panel-title"><h3>Opportunity Scanner</h3><span>Score experimental · 0–100</span></div></summary><div class="fold-body"><p class="settings-help">Las ponderaciones son hipótesis iniciales; las confirmaciones cuantitativas y los límites prevalecen sobre la IA.</p><div id="pulseOpportunities" class="pulse-feed"><p class="empty">Aún no hay oportunidades registradas.</p></div></div></details>
+      <details id="pulse-decisions" class="pulse-section portal-fold" data-remember-fold><summary><div class="panel-title"><h3>Trading Decisions</h3><span>Evidencia disponible en ese instante</span></div></summary><div class="fold-body"><div id="pulseDecisions" class="pulse-feed"><p class="empty">Aún no hay decisiones registradas.</p></div></div></details>
+      <details id="pulse-finance" class="pulse-section portal-fold" data-remember-fold><summary><div class="panel-title"><h3>Financial Performance · Shadow</h3><span id="pulseFinanceQuality" class="badge">SIN DATOS</span></div></summary><div class="fold-body"><dl id="pulsePerformance" class="pulse-metrics"></dl><p id="pulseBenchmark" class="platform-note">La comparación requiere muestras coincidentes y costos simulados.</p><h4>Posiciones hipotéticas</h4><div id="pulsePositions" class="pulse-feed"><p class="empty">Esperando el ledger Shadow.</p></div></div></details>
+      <details id="pulse-health" class="pulse-section portal-fold" data-remember-fold><summary><div class="panel-title"><h3>Engine Health</h3><span id="pulseHealthState" class="badge">SIN DATOS</span></div></summary><div class="fold-body"><div id="pulseSources" class="pulse-source-grid"></div><dl id="pulseHealth" class="pulse-metrics"></dl><p id="pulseLastError" class="platform-note"></p><details class="finance-details"><summary>Investigación y condiciones de promoción</summary><p id="pulseResearch" class="platform-note">Acumulación prospectiva. Promoción bloqueada.</p></details></div></details>
+    </section><section id="quant-arbitrage" class="panel quant-panel" aria-label="Quant Arbitrage">
+      <div class="panel-title"><div><p class="eyebrow">MOTOR 4 · INVESTIGACIÓN</p><h2>Quant Arbitrage</h2></div><span id="quantState" class="state neutral">SIN DATOS</span></div>
+      <p id="quantStatusNote" class="platform-note" role="status">Esperando evidencia del ledger Shadow independiente.</p>
+      <div class="pulse-subnav"><a href="#quant-funding">Funding Carry</a><a href="#quant-statistical">Statistical Arbitrage</a><a href="#quant-positions">Pares</a><a href="#quant-decisions">Decisiones</a><a href="#quant-finance">Rendimiento</a><a href="#quant-health">Salud</a></div>
+      <div class="pulse-controls"><button id="pauseQuant" class="secondary" disabled>Pausar nuevas entradas Quant</button><button id="resumeQuant" class="secondary" disabled>Reanudar observación Quant</button></div>
+      <p id="quantControlMessage" class="platform-note" role="status"></p>
+      <p id="quantAuthorization" class="platform-note">Solo simulación Shadow. La pausa conserva el seguimiento y los cierres protectores hipotéticos. Ejecución en exchange y promoción bloqueadas.</p>
+      <details id="quant-funding" class="portal-fold pulse-section" data-remember-fold><summary><div class="panel-title"><h3>Funding Carry</h3><span id="quantFundingState" class="badge">SIN DATOS</span></div></summary><div class="fold-body"><p>Spot LONG + Futures SHORT hipotéticos. Las tasas observadas y las proyecciones condicionales no son ingresos liquidados. Las dos piernas no forman una cobertura atómica ni eliminan el riesgo de margen.</p><div id="quantMarket" class="guardian-scope-grid"></div><div id="quantFundingSignals" class="pulse-feed"></div><h4>Funding asentado en la simulación</h4><div id="quantFunding" class="pulse-feed"></div></div></details>
+      <details id="quant-statistical" class="portal-fold pulse-section" data-remember-fold><summary><div class="panel-title"><h3>Statistical Arbitrage</h3><span id="quantStatisticalState" class="badge">SIN DATOS</span></div></summary><div class="fold-body"><p>Diagnósticos exploratorios de cointegración, z-score, reversión y estabilidad fuera de muestra. La correlación no prueba una oportunidad. Las entradas StatArb permanecen bloqueadas hasta una calibración independiente validada.</p><div id="quantStatisticalSignals" class="pulse-feed"></div></div></details>
+      <details id="quant-positions" class="portal-fold pulse-section" data-remember-fold><summary>Pares y piernas hipotéticas</summary><div class="fold-body"><div id="quantPositions" class="pulse-feed"></div></div></details>
+      <details id="quant-decisions" class="portal-fold pulse-section" data-remember-fold><summary>Decisiones y journal persistente</summary><div class="fold-body"><div id="quantDecisions" class="pulse-feed"></div><h4>Journal</h4><div id="quantJournal" class="pulse-feed"></div></div></details>
+      <details id="quant-finance" class="portal-fold pulse-section" data-remember-fold><summary>Rendimiento financiero Shadow</summary><div class="fold-body"><dl id="quantPerformance" class="pulse-metrics"></dl><p id="quantBenchmarks" class="platform-note"></p><p class="platform-note">Capital virtual independiente. Los costes incluyen comisiones y deslizamiento simulados; no se suma este ledger con Spot Testnet, Futures Demo o Market Pulse. El P&amp;L no acredita rentabilidad futura.</p></div></details>
+      <details id="quant-health" class="portal-fold pulse-section" data-remember-fold><summary>Salud y calidad de la evidencia</summary><div class="fold-body"><div id="quantSources" class="pulse-source-grid"></div><dl id="quantHealth" class="pulse-metrics"></dl><h4>Límites de pérdida para nuevas entradas</h4><dl id="quantRisk" class="pulse-metrics"></dl><p id="quantRiskMethod" class="platform-note"></p><p id="quantQuality" class="platform-note"></p><p id="quantLastError" class="platform-note"></p></div></details>
+    </section><section class="dual-detail-grid" aria-label="Límites Spot y Futures">
+      <details class="portal-fold panel guardrail consolidated-guardrail" id="spot-limits" data-remember-fold>
+      <summary><div class="panel-title"><h2 id="riskPanelTitle">Límites Spot</h2><span id="killState" class="state">Comprobando</span></div></summary><div class="fold-body">
+        <dl>
+          <div><dt>Riesgo / trade</dt><dd id="riskTrade">—</dd></div>
+          <div><dt>Máx. posición</dt><dd id="riskPosition">—</dd></div>
+          <div><dt>Máx. exposición</dt><dd id="riskExposure">—</dd></div>
+          <div><dt>Límite diario</dt><dd id="riskDaily">—</dd></div>
+          <div><dt>Límite semanal</dt><dd id="riskWeekly">—</dd></div>
+          <div><dt>Apalancamiento</dt><dd>Desactivado</dd></div>
+        </dl>
+        <div class="paper-controls">
+          <label for="riskProfile">Tamaño de riesgo para nuevas entradas</label>
+          <select id="riskProfile"><option value="minimo">Mínimo · 25% del límite</option><option value="leve">Leve · 35%</option><option value="prudente">Prudente · 50%</option><option value="moderado">Moderado · 65%</option><option value="alto">Alto · 85%</option><option value="normal">Muy alto · 100% del límite actual</option></select>
+          <button id="saveRiskProfile" class="secondary" type="button">Aplicar nivel de riesgo</button>
+          <small id="riskProfileNote">Afecta únicamente nuevas entradas Spot. «Muy alto» equivale al antiguo «Normal» y nunca supera los topes configurados.</small>
+        </div>
+
+      </div></details>
+
+      <details class="portal-fold panel guardrail consolidated-guardrail futures-guardrail" id="futures-limits" data-remember-fold>
+      <summary><div class="panel-title"><h2>Límites Futures · DEMO</h2><span id="futuresLimitState" class="state neutral">Comprobando</span></div></summary><div class="fold-body">
+        <dl>
+          <div><dt>Apalancamiento automático</dt><dd id="futuresLimitLeverage">—</dd></div>
+          <div><dt>Margen</dt><dd id="futuresLimitMarginType">—</dd></div>
+          <div><dt>Máx. posiciones</dt><dd id="futuresLimitPositions">—</dd></div>
+          <div><dt>Tope de notional estimado por entrada</dt><dd id="futuresLimitBudget">—</dd></div>
+          <div><dt>Score mínimo de entrada</dt><dd id="futuresLimitScore">—</dd></div>
+          <div><dt>Stop mínimo / ATR</dt><dd id="futuresLimitStop">—</dd></div>
+          <div><dt>Reward / Risk</dt><dd id="futuresLimitRR">—</dd></div>
+        </dl>
+        <p class="settings-help">Forward test de 15 monedas · ONE_WAY · hasta diez posiciones aisladas · kill switch independiente. Los valores automáticos no se modifican desde esta pantalla.</p><p id="futuresPortfolioBudget" class="settings-help">Esperando límites de cartera del motor.</p>
+
+      </div></details>
+    </section><section class="panel" aria-label="Pruebas de apalancamiento Futures Demo"><details class="update-details"><summary>Futures Demo · pruebas de apalancamiento</summary>
+          <div id="futuresLeverageTrials"></div></details></section>
+    </section>
+<section id="guardian-ai" class="command-workspace" data-workspace="guardian-ai" aria-labelledby="guardian-ai-heading" hidden>
+      <div class="workspace-heading"><div><p class="eyebrow">CRYPTO-BOT 2.0 / GUARDIAN AI</p><h2 id="guardian-ai-heading" tabindex="-1">Guardian AI</h2><p>Portfolio Guardian observa. LEVEL 0 no interviene en la ejecución.</p></div></div>
+      <section id="portfolio-guardian" class="panel guardian-panel" aria-label="Portfolio Guardian Observer">
+      <div class="panel-title"><div><p class="eyebrow">GUARDIAN AI · LEVEL 0</p><h2>Portfolio Guardian · Observer</h2></div><span id="guardianState" class="state neutral">SIN DATOS</span></div>
+      <p id="guardianStatusNote" class="platform-note" role="status">Observer · lectura de ledgers separados. Sin reservas ni veto de entradas.</p>
+      <div class="guardian-strip"><span>Solo observación</span><span>Sin cambio de límites</span><span>Protecciones independientes</span></div>
+      <div id="guardianAlertSummary" class="guardian-alert-summary" role="status">Esperando evidencia.</div>
+      <details id="guardian-exposure" class="portal-fold" data-remember-fold><summary>Exposición y presupuestos por entorno</summary><div class="fold-body"><div id="guardianScopes" class="guardian-scope-grid"></div><p class="platform-note">Cada ledger se muestra por separado. No se suman capitales Testnet, Demo y Shadow. El riesgo nominal hasta stop excluye costes, gaps y funding.</p></div></details>
+      <details id="guardian-overlaps" class="portal-fold" data-remember-fold><summary>Coincidencias de activos y alertas</summary><div class="fold-body"><div id="guardianOverlaps" class="pulse-feed"></div><div id="guardianAlerts" class="pulse-feed"></div></div></details>
+      <details id="guardian-quality" class="portal-fold" data-remember-fold><summary>Calidad y límites de la observación</summary><div class="fold-body"><dl id="guardianQuality" class="pulse-metrics"></dl><p id="guardianLimitations" class="platform-note"></p></div></details>
+    </section><section class="panel guardian-roadmap"><div class="panel-title"><h2>Autoridad actual</h2><span class="badge neutral">LEVEL 0</span></div><p>Lectura y diagnóstico de exposición, calidad y coincidencias entre ledgers. Los motores conservan sus controles y protecciones independientes.</p><p class="settings-help">Guardian Intelligence y Capital Manager son fases futuras, sin activar. No hay veto de entradas, asignación de capital, cambios de riesgo ni órdenes desde esta consola.</p></section>
+    </section>
+<section id="operations-decisions" class="command-workspace" data-workspace="operations-decisions" aria-labelledby="operations-decisions-heading" hidden>
+      <div class="workspace-heading"><div><p class="eyebrow">CRYPTO-BOT 2.0 / OPERATIONS &amp; DECISIONS</p><h2 id="operations-decisions-heading" tabindex="-1">Operations &amp; Decisions</h2><p>Operaciones, revisiones IA y eventos con sus registros originales.</p></div></div>
+      <section id="activity-section" class="activity-strip" aria-label="Actividad y operaciones">
       <h2>Actividad reciente <small>Últimos 3 movimientos · historial en Opciones</small></h2>
       <ul id="portalCommands" class="activity-list"><li>Esperando actividad del portal.</li></ul>
     </section>
-
-    <details data-remember-fold id="diagnosticsPanel" class="advanced-details panel">
-      <summary>Diagnóstico y estrategias <span>Investigación, decisiones IA y alertas</span></summary>
-      <p>El motor activo sigue una estrategia fija. El estudio histórico sirve para evaluar cambios futuros y no activa estrategias automáticamente.</p>
+<section id="historyPanel" class="panel" hidden aria-label="Historial de actividad">
+      <div class="panel-title"><h2>Historial de actividad</h2><button id="closeHistory" class="secondary">Cerrar</button></div>
+      <p>Solicitudes del portal y sus resultados. Se conservan hasta 90 días.</p>
+      <ul id="historyRows" class="activity-list"></ul>
+      <button id="loadMoreHistory" class="secondary" hidden>Ver anteriores</button>
+      <p id="historyMessage" role="status"></p>
+    </section>
+<section class="split">
+      <article class="panel">
+        <div class="panel-title"><h2>Últimas operaciones</h2><span>Fills TESTNET o simulación PAPER, según entorno</span></div>
+        <div id="trades" class="feed"></div>
+      </article>
+      <article class="panel">
+        <div class="panel-title"><h2>Decisiones IA</h2><span>Solo veta o reduce</span></div>
+        <div id="reviews" class="feed"></div>
+      </article>
+    </section>
+<section class="panel">
+      <div class="panel-title"><h2>Actividad del motor</h2><span>Errores y advertencias recientes</span></div>
+      <div id="events" class="feed"></div>
+    </section>
+    </section>
+<section id="research-workspace" class="command-workspace" data-workspace="research-lab" aria-labelledby="research-lab-heading" hidden>
+      <div class="workspace-heading"><div><p class="eyebrow">CRYPTO-BOT 2.0 / RESEARCH LAB</p><h2 id="research-lab-heading" tabindex="-1">Research Lab</h2><p>Investigación reproducible y promoción de estrategias bajo sus puertas actuales.</p></div></div>
       <details data-remember-fold id="research-lab" class="research-lab">
         <summary>Comparar estrategias y ver evaluación histórica</summary>
       <div class="research-heading">
@@ -528,21 +451,125 @@
       <div id="researchDetail" class="research-detail" hidden></div>
       <p id="researchUpdated" class="research-updated">El estudio descarga aproximadamente 5,000 velas cerradas por activo y puede tardar varios minutos.</p>
       </details>
-    <section class="split">
-      <article class="panel">
-        <div class="panel-title"><h2>Últimas operaciones</h2><span>Fills TESTNET o simulación PAPER, según entorno</span></div>
-        <div id="trades" class="feed"></div>
-      </article>
-      <article class="panel">
-        <div class="panel-title"><h2>Decisiones IA</h2><span>Solo veta o reduce</span></div>
-        <div id="reviews" class="feed"></div>
-      </article>
     </section>
-    <section class="panel">
-      <div class="panel-title"><h2>Actividad del motor</h2><span>Errores y advertencias recientes</span></div>
-      <div id="events" class="feed"></div>
+<section id="system-settings" class="command-workspace" data-workspace="system-settings" aria-labelledby="system-settings-heading" hidden>
+      <div class="workspace-heading"><div><p class="eyebrow">CRYPTO-BOT 2.0 / SYSTEM &amp; SETTINGS</p><h2 id="system-settings-heading" tabindex="-1">System &amp; Settings</h2><p>Configuración, actualizaciones firmadas y diagnóstico del sistema.</p></div></div>
+      <section id="modelSettingsPanel" class="panel" hidden aria-label="Motor y entornos">
+      <div class="panel-title"><div><p class="eyebrow">CONTROL DEL MOTOR</p><h2>Motor y entornos</h2></div><button id="closeModelSettings" class="secondary">Cerrar</button></div>
+      <p class="settings-intro">Spot Testnet y Futures Demo mantienen sus controles. Market Pulse y Quant observan en Shadow con pausas independientes. Guardian es solo observador. PAPER se conserva como respaldo técnico/CI. Binance LIVE permanece bloqueado.</p>
+      <div class="settings-grid">
+        <article class="settings-card">
+          <div class="settings-card-head"><div><span class="settings-kicker">MOTOR PRINCIPAL</span><h3>Binance Spot Testnet</h3></div><span class="state neutral" id="primaryEnvironmentState">CARGANDO</span></div>
+          <div class="settings-field">
+            <label for="aiModelChoice">Modelo IA compartido · Spot + Futures</label>
+            <select id="aiModelChoice"><option value="gpt-6-luna">GPT-6 Luna</option><option value="gpt-5.6-luna">GPT-5.6 Luna</option></select>
+          </div>
+          <div class="settings-actions">
+            <button id="applyAiModel" class="secondary" type="button">Aplicar modelo</button>
+            <button id="restartMotor" class="secondary" type="button">Reiniciar motores</button>
+            <button id="testTestnetExecution" class="secondary" type="button">Diagnóstico Spot</button>
+          </div>
+          <details class="update-details">
+            <summary>Respaldo técnico / PAPER</summary>
+            <p class="settings-help">PAPER no forma parte de la observación diaria; se conserva para CI, regresiones y recuperación.</p>
+            <div class="settings-field">
+              <label for="executionModeChoice">Entorno primario</label>
+              <select id="executionModeChoice"><option value="testnet">Binance Spot Testnet</option><option value="paper">PAPER · respaldo técnico</option></select>
+            </div>
+            <div class="settings-actions"><button id="applyExecutionMode" class="secondary" type="button">Cambiar entorno técnico</button></div>
+          </details>
+        </article>
+
+        <article class="settings-card futures-card">
+          <div class="settings-card-head"><div><span class="settings-kicker">SEGUNDO MOTOR · FORWARD TEST</span><h3>USDⓈ-M Futures Demo</h3></div><span class="state neutral" id="futuresState">CARGANDO</span></div>
+          <div class="futures-guardrails">
+            <span id="futuresConfiguredSymbols">—</span><span id="futuresConfiguredTimeframe">—</span><span id="futuresConfiguredLeverage">—</span><span>ISOLATED</span><span>ONE-WAY</span><span id="futuresConfiguredPositions">—</span>
+          </div>
+          <p class="settings-help">Corre en paralelo con Spot Testnet, con ledger y kill switch propios. Pruebas Demo 1x/2x/3x por entrada, manteniendo el valor de posición.</p>
+          <details class="update-details">
+            <summary>Diagnóstico manual Futures</summary>
+            <div class="settings-two-col">
+              <div class="settings-field">
+                <label for="futuresDirection">Dirección de prueba</label>
+                <select id="futuresDirection"><option value="LONG">LONG</option><option value="SHORT">SHORT</option></select>
+              </div>
+              <div class="settings-field">
+                <label for="futuresLeverage">Apalancamiento manual</label>
+                <select id="futuresLeverage"><option value="1">1x</option><option value="2">2x</option><option value="3">3x</option></select>
+              </div>
+            </div>
+            <div class="settings-actions futures-actions">
+              <button id="checkFuturesTestnet" class="secondary" type="button">Verificar</button>
+              <button id="testFuturesExecution" class="secondary" type="button">Smoke manual</button>
+              <button id="reconcileFutures" class="secondary" type="button">Reconciliar</button>
+            </div>
+          </details>
+          <p id="futuresMessage" class="futures-status" role="status">Forward test automático con fondos ficticios.</p>
+        </article>
+      </div>
+      <p id="modelSettingsMessage" role="status">Windows aplicará cambios solo después de verificar el motor. Binance LIVE permanece bloqueado.</p>
     </section>
-    </details>
+<section id="updatePanel" class="panel update-center" hidden>
+      <div class="update-center-bar">
+        <div>
+          <p class="eyebrow">ACTUALIZACIONES</p>
+          <h2>CRYPTO-BOT 2.0</h2>
+        </div>
+        <button id="closeUpdatePanel" class="icon-close secondary" aria-label="Cerrar centro de actualizaciones">×</button>
+      </div>
+
+      <div id="updateHero" class="update-hero">
+        <div id="updateHeroIcon" class="update-hero-icon" aria-hidden="true">✓</div>
+        <div class="update-hero-copy">
+          <h3 id="updateHeadline">Comprobando actualizaciones…</h3>
+          <p id="botUpdateMessage" role="status">Verificando la versión firmada y el supervisor de Windows.</p>
+        </div>
+      </div>
+
+      <div class="update-primary-actions">
+        <button id="checkAllUpdates" class="primary">Comprobar ahora</button>
+        <button id="installBotUpdate" class="primary" hidden disabled>Instalar actualización</button>
+      </div>
+
+      <details id="updateDetails" class="update-details">
+        <summary>Detalles técnicos</summary>
+        <p id="updateMessage" class="update-summary" role="status"></p>
+        <div id="updateReleases"></div>
+      </details>
+    </section>
+<section id="passwordPanel" class="panel" hidden>
+      <h2>Cambiar contraseña del portal</h2>
+      <p>Se cerrarán las sesiones abiertas. El bot seguirá conectado con su propia credencial.</p>
+      <form id="passwordForm">
+        <label for="currentPassword">Contraseña actual</label>
+        <input id="currentPassword" type="password" autocomplete="current-password" required maxlength="128">
+        <label for="newPassword">Nueva contraseña (16 a 128 caracteres)</label>
+        <input id="newPassword" type="password" autocomplete="new-password" required minlength="16" maxlength="128">
+        <label for="confirmPassword">Repite la nueva contraseña</label>
+        <input id="confirmPassword" type="password" autocomplete="new-password" required minlength="16" maxlength="128">
+        <button id="savePassword" type="submit">Guardar contraseña y cerrar sesiones</button>
+        <button id="cancelPassword" type="button" class="secondary">Cancelar</button>
+        <p id="passwordMessage" role="status"></p>
+      </form>
+    </section><section class="panel system-entry"><div class="panel-title"><h2>Motor, actualizaciones y acceso</h2><span class="badge neutral">SUPERVISOR WINDOWS</span></div><p class="settings-help">Consulta el estado y abre los controles existentes. Las solicitudes mantienen autenticación y validación del supervisor; el portal no modifica los límites de riesgo de los motores.</p><div class="workspace-links"><a href="#modelSettingsPanel">Motores e IA</a><a href="#updates">Actualización firmada</a><a href="#diagnosticsPanel">Diagnóstico</a></div></section><details data-remember-fold id="diagnosticsPanel" class="advanced-details panel"><summary>Diagnóstico operativo <span>Continuidad e integridad de las muestras</span></summary><details class="portal-fold panel observation-health" aria-label="Salud de observación últimas 24 horas" id="observation-details" data-remember-fold>
+      <summary><div class="panel-title">
+        <div><p class="eyebrow">SALUD DE OBSERVACIÓN · 24 H</p><h2>Calidad operativa de la muestra</h2></div>
+        <span id="observationHealthState" class="state neutral">CARGANDO</span>
+      </div></summary><div class="fold-body">
+      <p id="observationHealthNote">Mide continuidad e integridad sin cambiar estrategia, riesgo ni ejecución.</p>
+      <div class="health-grid">
+        <article><div class="health-head"><h3>Spot Testnet</h3><span id="spotHealthState" class="state neutral">—</span></div><dl>
+          <div><dt>Cobertura de ciclos</dt><dd id="spotCycleCoverage">—</dd></div><div><dt>Muestras / estimadas</dt><dd id="spotCycleSamples">—</dd></div><div><dt>Gap promedio</dt><dd id="spotCycleGap">—</dd></div><div><dt>Errores / avisos (24 h)</dt><dd id="spotDailyErrors">—</dd></div><div><dt>Errores consecutivos activos</dt><dd id="spotConsecutiveErrors">—</dd></div><div><dt>Último diagnóstico</dt><dd id="spotLastError">—</dd></div><div><dt>IA: revisiones / rechazos</dt><dd id="spotDailyAi">—</dd></div><div><dt>Cierres / P&amp;L</dt><dd id="spotDailyTrading">—</dd></div><div><dt>Integridad</dt><dd id="spotIntegrity">—</dd></div>
+        </dl><p id="spotHealthReason" class="health-reason">Esperando diagnóstico de 24 h.</p></article>
+        <article><div class="health-head"><h3>Futures Demo</h3><span id="futuresHealthState" class="state neutral">—</span></div><dl>
+          <div><dt>Cobertura de ciclos</dt><dd id="futuresCycleCoverage">—</dd></div><div><dt>Muestras / estimadas</dt><dd id="futuresCycleSamples">—</dd></div><div><dt>Gap promedio</dt><dd id="futuresCycleGap">—</dd></div><div><dt>Errores consecutivos activos</dt><dd id="futuresDailyErrors">—</dd></div><div><dt>Último diagnóstico</dt><dd id="futuresHealthLatest">—</dd></div><div><dt>Incidentes / intentos / ciclos · historial total</dt><dd id="futuresHealthCounters">—</dd></div><div><dt>Cierres / P&amp;L bruto · 24 h</dt><dd id="futuresDailyTrading">—</dd></div><div><dt>Integridad</dt><dd id="futuresIntegrity">—</dd></div>
+        </dl><p id="futuresHealthReason" class="health-reason">Esperando diagnóstico de 24 h.</p></article>
+      </div>
+
+      </div></details></details>
+    </section>
+    </div>
+    </div>
   </main>
   <script src="/app.js"></script>
 </body>

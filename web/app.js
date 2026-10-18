@@ -765,6 +765,137 @@ function renderFuturesCycle(futures,status){
     +(issueText.length?' · Detalle: '+issueText.join(' · '):'');
 }
 
+/* Seven workspaces share the existing API reads, controls and engine renderers. */
+const CommandCenterPortal = (() => {
+  const routes=Object.freeze({
+    'command-center':'Command Center','portfolio-capital':'Portfolio & Capital','trading-engines':'Trading Engines',
+    'guardian-ai':'Guardian AI','operations-decisions':'Operations & Decisions','research-lab':'Research Lab','system-settings':'System & Settings'
+  });
+  const aliases=Object.freeze({
+    'platform-overview':'command-center','command-center-heading':'command-center',
+    'spot-bot':'trading-engines','futures-bot':'trading-engines','market-pulse':'trading-engines','quant-arbitrage':'trading-engines',
+    'spot-analysis':'trading-engines','futures-analysis':'trading-engines','spot-limits':'trading-engines','futures-limits':'trading-engines',
+    'spot-positions':'trading-engines','futures-positions':'trading-engines',
+    'pulse-live':'trading-engines','pulse-news':'trading-engines','pulse-scanner':'trading-engines','pulse-decisions':'trading-engines','pulse-finance':'trading-engines','pulse-health':'trading-engines',
+    'quant-funding':'trading-engines','quant-statistical':'trading-engines','quant-positions':'trading-engines','quant-decisions':'trading-engines','quant-finance':'trading-engines','quant-health':'trading-engines',
+    'portfolio-guardian':'guardian-ai','guardian-exposure':'guardian-ai','guardian-overlaps':'guardian-ai','guardian-quality':'guardian-ai',
+    'comparison-details':'portfolio-capital','spot-finance':'portfolio-capital','futures-finance':'portfolio-capital',
+    'activity-section':'operations-decisions','historyPanel':'operations-decisions',
+    'modelSettingsPanel':'system-settings','diagnosticsPanel':'system-settings','observation-details':'system-settings',
+    'updates':'system-settings','updatePanel':'system-settings','password':'system-settings','passwordPanel':'system-settings'
+  });
+  const targets=Object.freeze({updates:'updatePanel',password:'passwordPanel'});
+  const names=Object.freeze({SPOT:'Spot Bot',FUTURES:'Futures Bot',AI_MARKET_PULSE:'AI Market Pulse',QUANT_ARBITRAGE:'Quant Arbitrage'});
+  const scopeIds=Object.keys(names);
+  const panes=()=>[...(document.querySelectorAll?.('[data-workspace]')||[])].filter(node=>Object.hasOwn(routes,node.dataset.workspace));
+  const hasViews=()=>panes().length===7;
+  const resolve=id=>typeof id==='string'&&id.length<=100?(Object.hasOwn(routes,id)?id:Object.hasOwn(aliases,id)?aliases[id]:null):null;
+  const targetId=id=>Object.hasOwn(targets,id)?targets[id]:id;
+  const set=(id,value)=>{const node=document.getElementById(id);if(node)node.textContent=value;};
+  const html=(id,value)=>{const node=document.getElementById(id);if(node)node.innerHTML=value;};
+  const finite=value=>typeof value==='number'&&Number.isFinite(value);
+  const number=value=>finite(value)?value.toLocaleString('en-US',{maximumFractionDigits:2}):'—';
+  const cash=value=>finite(value)?number(value)+' USDT':'—';
+  const short=value=>typeof value==='string'?value.slice(0,280):'Sin detalle disponible';
+  const rows=(value,limit)=>Array.isArray(value)?value.filter(item=>item&&typeof item==='object').slice(0,limit):[];
+  const stamp=value=>typeof value==='string'&&Number.isFinite(Date.parse(value))?value:null;
+  const time=value=>stamp(value)?new Date(value).toLocaleString('es-MX',{dateStyle:'short',timeStyle:'medium'}):'Hora no disponible';
+  const metric=values=>values.map(([key,value])=>`<div><dt>${esc(key)}</dt><dd>${esc(value)}</dd></div>`).join('');
+  const validGuardian=g=>g?.schema===1&&g.engine==='PORTFOLIO_GUARDIAN'&&g.mode==='OBSERVER'&&g.controls_enabled===false&&g.can_veto===false&&g.execution_enabled===false&&['OBSERVING','PARTIAL','DEGRADED'].includes(g.state);
+  let initialized=false;
+  function selectFor(id){
+    const route=resolve(id);if(!route||!hasViews())return false;
+    for(const pane of panes())pane.hidden=pane.dataset.workspace!==route;
+    for(const link of document.querySelectorAll('.platform-nav a')){
+      if(link.getAttribute('href')==='#'+route)link.setAttribute('aria-current','page');else link.removeAttribute('aria-current');
+    }
+    const choice=document.getElementById('workspaceChoice');if(choice)choice.value=route;
+    set('workspaceAnnouncement',routes[route]);
+    window.PulsePortal?.redrawVisibleCharts();
+    return true;
+  }
+  function navigate(id,{historyMode='push',scroll=true,focus=false}={}){
+    if(!resolve(id)||!hasViews())return false;
+    if(!window.PulsePortal?.revealSection(id,scroll))return false;
+    if(historyMode!=='none'){
+      const url=`${location.pathname}${location.search||''}#${id}`;
+      if(historyMode==='replace')history.replaceState({},'',url);
+      else if(location.hash!=='#'+id)history.pushState({},'',url);
+    }
+    if(focus&&document.querySelector('.shell')?.hidden!==true){
+      const heading=document.getElementById(resolve(id)+'-heading');heading?.focus({preventScroll:true});
+    }
+    return true;
+  }
+  function restore(){
+    if(!hasViews())return;
+    let id='command-center';
+    try{const decoded=decodeURIComponent(location.hash.slice(1));if(resolve(decoded))id=decoded;}catch{}
+    navigate(id,{historyMode:'none',scroll:document.querySelector('.shell')?.hidden!==true});
+  }
+  function init(){
+    if(initialized||!hasViews())return;initialized=true;
+    for(const link of document.querySelectorAll('.platform-nav a,.platform-detail,.pulse-subnav a,.workspace-links a,.command-link,.skip-link'))link.addEventListener('click',event=>{
+      if(event.button>0||event.metaKey||event.ctrlKey||event.shiftKey||event.altKey)return;
+      const id=link.getAttribute('href')?.slice(1);if(!resolve(id))return;
+      event.preventDefault();
+      // The established update action performs authentication and release checks.
+      if(id==='updates'){document.getElementById('updateButton')?.click();return;}
+      navigate(id,{focus:true});
+    });
+    document.getElementById('workspaceChoice')?.addEventListener('change',event=>navigate(event.target.value,{focus:true}));
+    for(const [button,id] of [['modelSettingsButton','modelSettingsPanel'],['diagnosticsButton','diagnosticsPanel'],['historyButton','historyPanel'],['updateButton','updates'],['portalPasswordButton','password']]){
+      document.getElementById(button)?.addEventListener('click',()=>navigate(id,{scroll:false}),true);
+    }
+    window.addEventListener('popstate',restore);window.addEventListener('hashchange',restore);restore();
+  }
+  function renderCapital(platform){
+    const g=platform?.portfolio_guardian,valid=validGuardian(g),old=valid&&FourEnginePortal.isOld(g.at,platform?.remote_sync_stale===true);
+    const seen=new Set(),scopes=valid?rows(g.scopes,4).filter(scope=>scopeIds.includes(scope.id)&&!seen.has(scope.id)&&(seen.add(scope.id),true)):[];
+    set('capitalStatus',!valid?'Sin evidencia compatible. Los importes desconocidos no se sustituyen por cero.':old?`Lectura histórica de ${time(g.at)}. Capital y exposición actuales sin verificar.`:`Captura ${time(g.at)} · LEDGER_ONLY · cada entorno conserva su capital y límites.`);
+    html('capitalScopes',scopeIds.map(id=>{
+      const scope=scopes.find(item=>item.id===id),capital=scope?.capital||{},current=!!scope&&!old&&scope.state==='FRESH',capitalCurrent=current&&capital.state==='FRESH';
+      const state=!scope?'SIN EVIDENCIA':old?'LECTURA ANTIGUA':scope.state==='NOT_STARTED'?'SIN INICIAR':current?'VALORACIÓN RECIENTE':'VALORACIÓN INCOMPLETA';
+      return `<article class="guardian-scope"><div class="pulse-item-head"><h3>${esc(names[id])}</h3><span class="badge neutral">${state}</span></div><p class="platform-environment">${esc(short(scope?.environment||'Entorno sin confirmar'))} · LEDGER_ONLY</p><dl>${metric([
+        ['Equity observada',cash(capitalCurrent?capital.equity_usdt:null)],['Efectivo registrado',cash(capitalCurrent?capital.cash_usdt:null)],
+        ['Disponible reportado',cash(capitalCurrent?capital.available_usdt:null)],['Exposición bruta',cash(current?scope.gross_usdt:null)],['Exposición neta',cash(current?scope.net_usdt:null)],
+        ['Posiciones / piernas del ledger',current?number(scope.position_count):'—'],['Capital capturado',stamp(capital.at)?time(capital.at):'Sin hora verificable']
+      ])}</dl><small>${id==='AI_MARKET_PULSE'||id==='QUANT_ARBITRAGE'?'Capital hipotético Shadow. No son fondos disponibles para Spot o Futures.':'Capital de prueba del ledger; no acredita conciliación completa con todos los saldos del exchange.'}</small></article>`;
+    }).join(''));
+    set('capitalReservations','NO INTEGRADAS · importe desconocido');
+  }
+  function render({status={},reviews=[],events=[],marketPulse=null,platform=null,futuresForward={}}={}){
+    renderCapital(platform);
+    const g=platform?.portfolio_guardian,valid=validGuardian(g),remoteOld=platform?.remote_sync_stale===true;
+    const guardianOld=valid&&FourEnginePortal.isOld(g.at,remoteOld);
+    set('commandReadingState',remoteOld?'PROYECCIÓN ANTIGUA':'LECTURA RECIBIDA');
+    set('commandReadingAt',valid?`Guardian capturado ${time(g.at)}${guardianOld?' · estado actual sin verificar':''}`:'Guardian sin captura compatible; consulta las fuentes de cada motor');
+    set('commandGuardianState',valid?(guardianOld?'EVIDENCIA ANTIGUA':g.state==='OBSERVING'?'OBSERVANDO':'EVIDENCIA PARCIAL'):'SIN EVIDENCIA');
+    const decisions=[];
+    for(const row of rows(reviews,12))decisions.push({engine:'Spot Bot',environment:String(status.mode||'ENTORNO SIN CONFIRMAR'),action:row.verdict,at:row.created_at,reason:row.reason,symbol:row.symbol,href:'operations-decisions',old:remoteOld||['offline','delayed'].includes(status.activity?.state)});
+    for(const [symbol,row] of Object.entries(futuresForward?.last_ai_reviews||{}).slice(0,15))if(row&&typeof row==='object')decisions.push({engine:'Futures Bot',environment:'FUTURES DEMO',action:row.verdict,at:row.at,reason:row.reason,symbol,href:'futures-bot',old:remoteOld||!futuresCycleFresh(futuresForward,status)});
+    if(marketPulse?.schema===1&&marketPulse.engine==='AI_MARKET_PULSE'&&marketPulse.mode==='SHADOW'&&marketPulse.execution_enabled===false)for(const row of rows(marketPulse.decisions,12))decisions.push({engine:'AI Market Pulse',environment:'SHADOW',action:row.action,at:row.at,reason:row.reason,symbol:row.symbol,href:'pulse-decisions',old:remoteOld||marketPulse.remote_sync_stale===true||marketPulse.freshness?.state!=='FRESH'||FourEnginePortal.isOld(marketPulse.at,false)});
+    const q=platform?.quant;
+    if(q?.schema===1&&q.engine==='QUANT_ARBITRAGE'&&q.mode==='SHADOW'&&q.execution_enabled===false&&q.promotion_allowed===false)for(const row of rows(q.decisions,12))decisions.push({engine:'Quant Arbitrage',environment:'SHADOW',action:row.action,at:row.at,reason:row.reason,symbol:row.instrument,href:'quant-decisions',old:FourEnginePortal.quantStale(q,remoteOld)});
+    const recent=decisions.filter(row=>stamp(row.at)&&Date.parse(row.at)<=Date.now()+5000).sort((a,b)=>Date.parse(b.at)-Date.parse(a.at)).slice(0,6);
+    set('commandDecisionState',recent.length?`${recent.length} ÚLTIMOS REGISTROS DISPONIBLES`:'SIN REGISTROS DISPONIBLES');
+    set('commandDecisionAt',recent.length?`Último registro ${time(recent[0].at)} · no implica nueva ejecución`:'La ausencia de decisiones no demuestra un fallo');
+    html('commandDecisions',recent.map(row=>`<article class="command-record"><div><span class="command-record-source">${esc(row.engine)} · ${esc(short(row.environment))}${row.old?' · fuente antigua':''}</span><strong>${esc(short(row.action||'Decisión sin clasificar'))} · ${esc(short(row.symbol||'Activo sin identificar'))}</strong><p>${esc(short(row.reason))}</p></div><time>${esc(time(row.at))}</time><a class="command-link" href="#${row.href}">Ver evidencia →</a></article>`).join('')||'<p class="empty">Sin decisiones con hora verificable en esta lectura. La inactividad puede ser normal.</p>');
+    const alertNames={GROSS_LIMIT_EXCEEDED:'Límite de exposición bruta superado',OBSERVED_STOP_RISK_LIMIT_EXCEEDED:'Límite nominal hasta stop superado',PROTECTIVE_THRESHOLD_CROSSED:'Umbral protector cruzado',NATIVE_PROTECTION_UNCONFIRMED:'Protección nativa sin confirmar',SOURCE_STALE_OR_UNAVAILABLE:'Fuente antigua o no disponible',POSITION_VALUE_UNKNOWN:'Posición sin valoración',AGGREGATE_VALUE_UNKNOWN:'Valoración del entorno incompleta',INVALID_POSITION:'Registro de posición inválido',DUPLICATE_POSITION:'Registro de posición duplicado',GUARDIAN_UNAVAILABLE:'Guardian no disponible'};
+    const alerts=valid?rows(g.alerts,20).slice(0,4).map(row=>({title:Object.hasOwn(alertNames,row.code)?alertNames[row.code]:short(row.code||'Observación Guardian'),detail:`${Object.hasOwn(names,row.scope)?names[row.scope]:'Plataforma'}${row.symbol?' · '+short(row.symbol):''} · ${guardianOld?'último registro antiguo':'Observer; no ejecuta acciones'}`,at:g.at})):[];
+    for(const row of rows(events,20).filter(row=>['WARN','ERROR','CRITICAL'].includes(row.level)).slice(0,4))alerts.push({title:row.level,detail:short(row.message)+(remoteOld?' · último registro remoto':''),at:row.created_at});
+    html('commandAlerts',alerts.slice(0,6).map(row=>`<article class="command-record"><div><strong>${esc(row.title)}</strong><p>${esc(row.detail)}</p></div><time>${esc(time(row.at))}</time></article>`).join('')||`<p class="empty">${!valid?'Guardian sin evidencia compatible; no se infiere ausencia de alertas.':guardianOld?'Sin alertas en la última proyección; situación actual sin verificar.':'Sin alertas en esta evidencia. Consulta las protecciones y frescura de cada motor.'}</p>`);
+  }
+  function disconnected(){
+    set('commandReadingState','LECTURA NO DISPONIBLE');set('commandReadingAt','No confirma una caída de los motores. Comprueba conexión y sincronización.');
+    set('commandGuardianState','SIN LECTURA ACTUAL');set('commandDecisionState','REGISTROS SIN ACTUALIZAR');set('commandDecisionAt','La actividad actual no está verificada');
+    html('commandDecisions','<p class="empty">La lectura no está disponible. Consulta de nuevo para ver los registros recientes.</p>');
+    html('commandAlerts','<p class="empty">Alertas actuales sin verificar; una interrupción del portal no demuestra que los motores estén detenidos.</p>');renderCapital(null);
+  }
+  return {init,hasViews,resolve,targetId,selectFor,navigate,restore,render,disconnected};
+})();
+window.CommandCenterPortal=CommandCenterPortal;
+
 /* Shared supervised engine view. External event text is always escaped, never executable. */
 const PulsePortal = (() => {
   let pendingControl=null;
@@ -927,17 +1058,19 @@ const PulsePortal = (() => {
     }
   }
   function revealSection(id,scroll=true){
-    if(!navIds.has(id))return false;
-    const target=document.getElementById(id);if(!target)return false;
+    const workspaces=CommandCenterPortal.hasViews();
+    if(!navIds.has(id)&&!(workspaces&&CommandCenterPortal.resolve(id)))return false;
+    if(workspaces&&!CommandCenterPortal.selectFor(id))return false;
+    const target=document.getElementById(CommandCenterPortal.targetId(id));if(!target)return false;
     target.hidden=false;
     for(let node=target;node;node=node.parentElement)if(node.tagName==='DETAILS')node.open=true;
     if(target.dataset?.navFold&&foldIds.has(target.dataset.navFold)){const fold=document.getElementById(target.dataset.navFold);if(fold)fold.open=true;}
-    if(id==='activity-section'){const diagnostics=document.getElementById('diagnosticsPanel');if(diagnostics)diagnostics.open=true;}
+    if(!workspaces&&id==='activity-section'){const diagnostics=document.getElementById('diagnosticsPanel');if(diagnostics)diagnostics.open=true;}
     if(scroll)target.scrollIntoView({behavior:motionReduced()?'auto':'smooth',block:'start'});
-    for(const item of document.querySelectorAll('.platform-nav a')){if(item.getAttribute('href')==='#'+id)item.setAttribute('aria-current','location');else item.removeAttribute('aria-current');}
+    if(!workspaces)for(const item of document.querySelectorAll('.platform-nav a')){if(item.getAttribute('href')==='#'+id)item.setAttribute('aria-current','location');else item.removeAttribute('aria-current');}
     redrawVisibleCharts();return true;
   }
-  function revealHash(){try{const shell=document.querySelector('.shell');revealSection(decodeURIComponent(location.hash.slice(1)),shell?.hidden!==true);}catch{}}
+  function revealHash(){if(CommandCenterPortal.hasViews()){CommandCenterPortal.restore();return;}try{const shell=document.querySelector('.shell');revealSection(decodeURIComponent(location.hash.slice(1)),shell?.hidden!==true);}catch{}}
   async function onPortalReady(){
     await refresh();
     const shell=document.querySelector('.shell');
@@ -945,11 +1078,11 @@ const PulsePortal = (() => {
   }
   function init(){
     restoreFolds();
-    for(const link of document.querySelectorAll('.platform-nav a,.platform-detail,.pulse-subnav a'))link.addEventListener('click',event=>{
+    if(!CommandCenterPortal.hasViews())for(const link of document.querySelectorAll('.platform-nav a,.platform-detail,.pulse-subnav a'))link.addEventListener('click',event=>{
       const id=link.getAttribute('href')?.slice(1);if(!navIds.has(id))return;
       event.preventDefault();if(revealSection(id))history.replaceState({},'',`${location.pathname}${location.search||''}#${id}`);
     });
-    window.addEventListener('hashchange',revealHash);revealHash();
+    if(!CommandCenterPortal.hasViews()){window.addEventListener('hashchange',revealHash);revealHash();}
     for(const [id,action] of [['pauseMarketPulse','pause'],['resumeMarketPulse','resume']]){
       const button=document.getElementById(id);if(!button)continue;
       button.addEventListener('click',async()=>{
@@ -964,7 +1097,7 @@ const PulsePortal = (() => {
       });
     }
   }
-  return {render,renderResearch,disconnected,init,safeUrl,revealSection,restoreFolds,onPortalReady};
+  return {render,renderResearch,disconnected,init,safeUrl,revealSection,restoreFolds,onPortalReady,redrawVisibleCharts};
 })();
 window.PulsePortal=PulsePortal;
 
@@ -1336,9 +1469,11 @@ async function refresh() {
     document.getElementById('updated').textContent=`Último ciclo ${ageLabel(activity.age_seconds)} · ${shortTime(activity.last_cycle_at)}`;
     PulsePortal.render(marketPulse,status,futuresForward,positions);
     FourEnginePortal.render(platform);
+    CommandCenterPortal.render({status,reviews,events,marketPulse,platform,futuresForward});
   } catch(error) {
     PulsePortal.disconnected();
     FourEnginePortal.disconnected();
+    CommandCenterPortal.disconnected();
     const botState=document.getElementById('botState');
     botState.textContent='PORTAL SIN CONEXIÓN'; botState.classList.add('offline');
     document.getElementById('operationSummary').textContent='No se pudo consultar el motor. Comprueba la conexión con Windows antes de operar.';
@@ -1402,7 +1537,7 @@ document.getElementById('researchDetail').addEventListener('click',event=>{
 window.addEventListener('resize',()=>Promise.all([api('/api/equity'),api('/api/futures-forward')]).then(([spot,futures])=>{renderChart(spot);renderFuturesChart(futures?.equity||[]);}).catch(()=>{}));
 window.addEventListener('portal-ready',PulsePortal.onPortalReady);
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('/service-worker.js').catch(()=>{});
-window.addEventListener('DOMContentLoaded',()=>{installPortalMotion();PulsePortal.init();FourEnginePortal.init();refresh();});
+window.addEventListener('DOMContentLoaded',()=>{installPortalMotion();PulsePortal.init();FourEnginePortal.init();CommandCenterPortal.init();refresh();});
 setInterval(()=>{if(!document.hidden&&!document.querySelector('.shell').hidden)refresh();},30000);
 
 document.getElementById('researchCurveChoice').addEventListener('change',renderResearchCurve);

@@ -1,4 +1,22 @@
-# 0.10.40 — Evidencia de minutos cerrados para StatArb (en preparación)
+# 0.10.41 — Intelligent Trading Command Center (en preparación)
+
+- Auditoría de los cuatro motores, Guardian Observer, revisión IA individual,
+  reservas preparatorias, agente y flujo firmado. `COMMAND_CENTER_2_0.md` registra
+  mapa, matriz de reutilización/riesgos, contratos tipados y fases 0–6.
+- La fase 1 reorganiza el portal compartido en siete vistas y conserva identidad
+  coherente en Windows. Portfolio & Capital usa datos existentes separados por
+  entorno; Guardian AI muestra Observer y las funciones futuras pendientes.
+  Conserva autenticación/CSRF y significado de controles actuales.
+- No implementa Guardian Intelligence, Capital Manager, veto ni asignación.
+  Presupuesto Guardian IA cero: no añade llamadas, modelos, servicios de pago,
+  ejecución, cambios de riesgo o promoción. Spot conserva ALLOW/REJECT/REDUCE y
+  Futures ALLOW/REJECT; cierres y conciliación no dependen de IA/Guardian.
+- Base 0.10.40 main `81ba4366cf587c16cae20d403974a340080c4d10`, PR #117,
+  firmada e instalada 178/178 hashes a las 02:27 UTC del 18 de octubre.
+  Publicación 39089416208 y seguridad 39089416215 exitosas. Esa evidencia es
+  del predecesor: pruebas/CI/publicación/firma/instalación de 41 se verifican aparte.
+
+# 0.10.40 — Evidencia de minutos cerrados para StatArb (registro de preparación)
 
 - La observación detectó que acumular snapshots no resolvía huecos de cadencia:
   el historial podía ser largo sin una ventana contigua suficiente. Quant solicita
