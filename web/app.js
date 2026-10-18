@@ -779,6 +779,7 @@ const CommandCenterPortal = (() => {
     'pulse-live':'trading-engines','pulse-news':'trading-engines','pulse-scanner':'trading-engines','pulse-decisions':'trading-engines','pulse-finance':'trading-engines','pulse-health':'trading-engines',
     'quant-funding':'trading-engines','quant-statistical':'trading-engines','quant-positions':'trading-engines','quant-decisions':'trading-engines','quant-finance':'trading-engines','quant-health':'trading-engines',
     'portfolio-guardian':'guardian-ai','guardian-exposure':'guardian-ai','guardian-overlaps':'guardian-ai','guardian-quality':'guardian-ai',
+    'guardian-intelligence':'guardian-ai','intelligence-scopes':'guardian-ai','intelligence-sources':'guardian-ai','intelligence-ai':'guardian-ai','intelligence-conflicts':'guardian-ai','intelligence-journal':'guardian-ai','intelligence-queries':'guardian-ai',
     'comparison-details':'portfolio-capital','spot-finance':'portfolio-capital','futures-finance':'portfolio-capital',
     'activity-section':'operations-decisions','historyPanel':'operations-decisions',
     'modelSettingsPanel':'system-settings','diagnosticsPanel':'system-settings','observation-details':'system-settings',
@@ -899,7 +900,7 @@ window.CommandCenterPortal=CommandCenterPortal;
 /* Shared supervised engine view. External event text is always escaped, never executable. */
 const PulsePortal = (() => {
   let pendingControl=null;
-  const foldIds=new Set(['spot-analysis','futures-analysis','pulse-live','pulse-news','pulse-scanner','pulse-decisions','pulse-finance','pulse-health','guardian-exposure','guardian-overlaps','guardian-quality','quant-funding','quant-statistical','quant-positions','quant-decisions','quant-finance','quant-health','observation-details','comparison-details','spot-limits','futures-limits','spot-positions','futures-positions','spot-finance','futures-finance','diagnosticsPanel','research-lab']);
+  const foldIds=new Set(['spot-analysis','futures-analysis','pulse-live','pulse-news','pulse-scanner','pulse-decisions','pulse-finance','pulse-health','guardian-exposure','guardian-overlaps','guardian-quality','intelligence-scopes','intelligence-sources','intelligence-ai','intelligence-conflicts','intelligence-journal','intelligence-queries','quant-funding','quant-statistical','quant-positions','quant-decisions','quant-finance','quant-health','observation-details','comparison-details','spot-limits','futures-limits','spot-positions','futures-positions','spot-finance','futures-finance','diagnosticsPanel','research-lab']);
   const navIds=new Set(['platform-overview','spot-bot','futures-bot','market-pulse','portfolio-guardian','quant-arbitrage','activity-section','modelSettingsPanel',...foldIds]);
   const foldStorageKey='crypto-ai-trader.ui.folds.v1';
   let redrawQueued=false;
@@ -1270,6 +1271,161 @@ const FourEnginePortal = (() => {
 })();
 window.FourEnginePortal=FourEnginePortal;
 
+/* Advisory evidence only. Queries are closed local intents, never APIs or commands. */
+const GuardianIntelligencePortal = (() => {
+  const engines=['SPOT','FUTURES','AI_MARKET_PULSE','QUANT_ARBITRAGE'];
+  const names={SPOT:'Spot Bot',FUTURES:'Futures Bot',AI_MARKET_PULSE:'AI Market Pulse',QUANT_ARBITRAGE:'Quant Arbitrage'};
+  const flags=['controls_enabled','can_veto','execution_enabled','reservations_enabled','promotion_allowed'];
+  const intents=['SUMMARY','REGIME','SCOPE_RISK','CONFLICTS','DATA_QUALITY','ORIGINAL_REVIEW','LIMITATIONS','COUNTERFACTUAL'];
+  const riskLabels={CAUTION:'Cautela · revisar evidencia',RISK_REDUCED:'Revisar margen de presupuesto observado',ENTRY_HALTED:'Revisar pausa o exceso observado',RECOVERY_REQUIRED:'Revisar protección y conciliación'};
+  const regimeLabels={BULLISH:'Sesgo alcista observado',BEARISH:'Sesgo bajista observado',SIDEWAYS:'Movimiento lateral observado',HIGH_VOLATILITY:'Volatilidad elevada observada',LIQUIDITY_STRESS:'Estrés de liquidez observado',INSUFFICIENT_DATA:'Evidencia insuficiente'};
+  const allocations={KEEP_UNASSIGNED:'Mantener sin asignación sugerida',REVIEW_PROTECTION_AND_RECONCILIATION:'Revisar protección y conciliación',REVIEW_CURRENT_BUDGET_EXCESS:'Revisar exceso de presupuesto existente',REVIEW_EXISTING_PAUSE:'Revisar la pausa original del motor',REVIEW_NO_OBSERVED_GROSS_HEADROOM:'Revisar techo bruto observado'};
+  const reasons={ACCOUNT_IDENTITY_AND_FULL_ORDER_INVENTORY_UNVERIFIED:'Identidad de cuenta e inventario completo sin verificar',INCLUSIVE_GLOBAL_RISK_NOT_CERTIFIED:'Riesgo inclusivo global no certificado',INCOMPLETE_OR_UNAVAILABLE_SOURCE:'Fuente incompleta o no disponible',STALE_OR_UNPRICED_SOURCE:'Fuente antigua o sin precio verificable',PROTECTION_OR_INVENTORY_REVIEW_REQUIRED:'Protección o inventario requieren revisión',EXISTING_ENGINE_BUDGET_EXCEEDED:'Límite existente del motor excedido',ORIGINAL_ENGINE_ENTRY_PAUSE_OBSERVED:'Pausa original de entradas observada',EXISTING_GROSS_CEILING_REACHED:'Techo bruto existente alcanzado',CLOSED_BAR_WINDOW_UNAVAILABLE:'Faltan cierres contiguos disponibles en el corte',INVALID_CLOSED_BAR_EVIDENCE:'Evidencia de cierres inválida',CONFLICTING_OR_DUPLICATE_CLOSED_BAR:'Cierres duplicados o contradictorios',STALE_CLOSED_BAR_WINDOW:'Ventana de cierres antigua',NONCONTIGUOUS_CLOSED_BAR_WINDOW:'Ventana de cierres con huecos',INITIAL_DESCRIPTIVE_PROXY_ONLY:'Hipótesis descriptiva inicial sin calibrar'};
+  const sourceAges={SPOT:600,FUTURES:600,AI_MARKET_PULSE:30,QUANT_ARBITRAGE:90};
+  const hash=value=>typeof value==='string'&&/^[a-f0-9]{64}$/.test(value);
+  const object=value=>value!==null&&typeof value==='object'&&!Array.isArray(value);
+  const finite=value=>typeof value==='number'&&Number.isFinite(value);
+  const number=(value,digits=2)=>finite(value)?value.toLocaleString('en-US',{maximumFractionDigits:digits}):'—';
+  const stamp=value=>typeof value==='string'&&value.length<=40&&/T.+(?:Z|[+-]\d{2}:\d{2})$/.test(value)&&Number.isFinite(Date.parse(value));
+  const time=value=>stamp(value)?new Date(value).toLocaleString('es-MX',{dateStyle:'short',timeStyle:'medium'}):'Hora no disponible';
+  const short=(value,max=180)=>typeof value==='string'?value.slice(0,max):'Sin evidencia';
+  const rows=(value,max)=>Array.isArray(value)?value.filter(object).slice(0,max):[];
+  const mapped=(map,key,fallback='Sin evidencia')=>typeof key==='string'&&Object.hasOwn(map,key)?map[key]:fallback;
+  const set=(id,value)=>{const node=document.getElementById(id);if(node)node.textContent=value;};
+  const html=(id,value)=>{const node=document.getElementById(id);if(node)node.innerHTML=value;};
+  const metrics=values=>values.map(([key,value])=>`<div><dt>${esc(key)}</dt><dd>${esc(value)}</dd></div>`).join('');
+  const reason=value=>mapped(reasons,value,short(value,100));
+  const empty=value=>`<p class="empty">${esc(value)}</p>`;
+  const authority=value=>object(value)&&value.schema===1&&value.engine==='GUARDIAN_INTELLIGENCE'&&value.mode==='SHADOW'&&value.autonomy_level===0&&flags.every(key=>value[key]===false);
+  let current=null,initialized=false,querySerial=0,answerAssessment=null;
+  const queries=[];
+  function validWrapper(value){
+    try{return authority(value)&&['NOT_STARTED','INITIALIZED','OBSERVING','PARTIAL','STALE','DEGRADED','RETENTION_FULL','STOPPED'].includes(value.state)&&stamp(value.at)&&JSON.stringify(value).replace(/[\u007f-\uffff]/g,char=>'\\u'+char.charCodeAt(0).toString(16).padStart(4,'0')).length<=12000;}catch{return false;}
+  }
+  function validReport(value,wrapper){
+    return authority(value)&&hash(value.assessment_id)&&object(value.policy)&&typeof value.policy.id==='string'&&value.policy.id.length<=100&&value.policy.calibrated===false
+      &&stamp(value.at)&&stamp(value.captured_at)&&stamp(value.cutoff_at)&&Date.parse(value.cutoff_at)<=Date.parse(wrapper.at)+5000&&Date.parse(value.at)<=Date.parse(wrapper.at)+5000
+      &&Math.abs(Date.parse(value.captured_at)-Date.parse(value.cutoff_at))<=1000&&Math.abs(Date.parse(value.cutoff_at)-Date.parse(wrapper.updated_at))<=1000
+      &&['OBSERVING','PARTIAL'].includes(value.state)&&Array.isArray(value.scopes)&&value.scopes.length===4&&new Set(value.scopes.map(scope=>scope?.id)).size===4
+      &&value.scopes.every(scope=>object(scope)&&engines.includes(scope.id)&&scope.authoritative===false&&scope.assessment==='WOULD_REVIEW'&&Object.hasOwn(riskLabels,scope.risk_state)&&['FRESH','UNKNOWN'].includes(scope.data_state))
+      &&object(value.evidence)&&value.evidence.input_valid===true&&hash(value.evidence.source_digest);
+  }
+  function isOld(value,remote=false){
+    const age=(Date.now()-Date.parse(value?.updated_at))/1000,projectionAge=(Date.now()-Date.parse(value?.at))/1000;
+    return remote||value?.state==='STOPPED'||value?.freshness?.state!=='FRESH'||!finite(value?.freshness?.age_seconds)||value.freshness.age_seconds<0||value.freshness.age_seconds>90||!finite(age)||age < -5||age>90||!finite(projectionAge)||projectionAge < -5||projectionAge>120;
+  }
+  function scopeCurrent(scope,report,old){
+    const age=(Date.now()-Date.parse(scope.source_at))/1000;
+    return !old&&scope.data_state==='FRESH'&&scope.inventory_complete===true&&stamp(scope.source_at)&&stamp(scope.available_at)&&Date.parse(scope.source_at)<=Date.parse(report.cutoff_at)&&Date.parse(scope.available_at)<=Date.parse(report.cutoff_at)&&age>=-5&&age<=sourceAges[scope.id];
+  }
+  function reviewText(scope,report){
+    const review=scope.latest_original_review;
+    if(!object(review)||review.state!=='OBSERVED_METADATA_ONLY'||!stamp(review.at)||Date.parse(review.at)>Date.parse(report.cutoff_at)||!(scope.id==='SPOT'?['ALLOW','REJECT','REDUCE']:scope.id==='FUTURES'?['ALLOW','REJECT']:[]).includes(review.verdict))return 'Sin metadatos de revisión individual verificables en este reporte.';
+    return `${review.verdict} · ${time(review.at)} · ${short(review.model,80)}${finite(review.confidence)&&review.confidence>=0&&review.confidence<=1?' · confianza declarada '+number(review.confidence*100)+'%':''}. Metadatos originales; no equivalen a una propuesta completa ni a permiso actual de ejecución.`;
+  }
+  function clear(message){
+    for(const id of ['intelligenceScopes','intelligenceSources','intelligenceConflicts','intelligenceJournal','intelligenceAi'])html(id,empty(message));
+    html('intelligenceRegimeMetrics',metrics([['Retorno / volatilidad','—'],['Cierres','—']]));set('intelligenceRegime','Sin evidencia suficiente');set('intelligenceRegimeNote','Hipótesis inicial sin calibrar; no es una señal de entrada.');
+    html('intelligenceEvidence',metrics([['Assessment','Sin evidencia'],['Corte','—']]));html('intelligenceHealth',metrics([['Salud del observador','Sin lectura disponible']]));set('intelligenceQuality',message);set('intelligenceError','');
+  }
+  function renderAi(annotation,report,old,asOf){
+    if(!object(annotation)){html('intelligenceAi',empty('Sin interpretación opcional publicada. El reporte determinista conserva su validez independiente.'));return;}
+    const advisory=annotation.advisory_only===true&&annotation.controls_enabled===false&&annotation.execution_enabled===false;
+    if(['COMPLETED','CACHED_HISTORICAL'].includes(annotation.state)&&advisory&&hash(annotation.assessment_id)&&object(annotation.commentary)){
+      const c=annotation.commentary,postures={OBSERVE:'Observar',REVIEW_DATA:'Revisar datos',REVIEW_CONCENTRATION:'Revisar concentración',REVIEW_PROTECTION:'Revisar protección'};
+      const valid=typeof c.summary==='string'&&c.summary.length<=280&&Object.hasOwn(postures,c.posture)&&Array.isArray(c.cautions)&&c.cautions.length<=4&&c.cautions.every(item=>typeof item==='string'&&item.length<=120)&&Array.isArray(c.evidence_ids)&&c.evidence_ids.length>0&&c.evidence_ids.length<=4&&c.evidence_ids.every(id=>id===annotation.assessment_id)&&stamp(annotation.at)&&Date.parse(annotation.at)<=Date.parse(asOf)+5000;
+      if(!valid){html('intelligenceAi',empty('Comentario no compatible; no altera la evaluación determinista.'));return;}
+      const historical=old||annotation.state==='CACHED_HISTORICAL'||annotation.assessment_id!==report.assessment_id;
+      const usage=object(annotation.usage)?annotation.usage:{};
+      html('intelligenceAi',`<article class="pulse-item"><div class="pulse-item-head"><strong>${historical?'COMENTARIO HISTÓRICO':'INTERPRETACIÓN OPCIONAL'} · ${esc(postures[c.posture])}</strong><time>${esc(time(annotation.at))}</time></div><p>${esc(c.summary)}</p>${c.cautions.map(item=>`<p>${esc(item)}</p>`).join('')}<dl class="intelligence-evidence">${metrics([['Modelo',short(annotation.model,80)],['Assessment original',annotation.assessment_id],['Edad de caché',finite(annotation.cache_age_seconds)?number(annotation.cache_age_seconds)+' s':'No reportada'],['Tokens entrada / salida',`${number(usage.input_tokens,0)} / ${number(usage.output_tokens,0)}`],['Tokens de caché',number(usage.cached_tokens,0)],['Coste API estimado de esa respuesta',finite(usage.estimated_cost_usd)?number(usage.estimated_cost_usd,6)+' USD':'Desconocido'],['Fecha de referencia de precios',short(usage.pricing_verified_at,10)]])}</dl><p class="platform-note">Texto no autoritativo vinculado a su assessment original; no modifica estados, tamaños o límites. Los costes estimados no son una factura ni certifican gasto completo; la falta de usage no significa coste cero.</p></article>`);return;
+    }
+    html('intelligenceAi',empty(`Interpretación no disponible o desactivada. ${short(annotation.reason||annotation.state,100)}. El observador no depende de ella.`));
+  }
+  function render(platform){
+    const value=platform?.guardian_intelligence;
+    if(!validWrapper(value)){current=null;set('intelligenceState',value?'REPORTE NO COMPATIBLE':'SIN EVIDENCIA');set('intelligenceStatus','Sin reporte Intelligence compatible. No se infiere un fallo de los motores; Observer conserva su lectura independiente.');clear('Intelligence aún no ha publicado evidencia compatible. Los valores desconocidos no se sustituyen por cero.');html('intelligenceAnswer',empty('Sin reporte actual verificable para responder. Las consultas anteriores sólo figuran en el historial local.'));return;}
+    const old=isOld(value,platform?.remote_sync_stale===true),valid=validReport(value.report,value),report=valid?value.report:null;
+    current=report?{wrapper:value,report,old,remote:platform?.remote_sync_stale===true}:null;
+    if(answerAssessment&&(old||answerAssessment!==report?.assessment_id))set('intelligenceAnswerFreshness','Respuesta anterior sobre un assessment histórico; no representa el estado actual.');
+    const labels={NOT_STARTED:'SIN INICIAR',INITIALIZED:'INICIALIZADO · SIN REPORTE',OBSERVING:'OBSERVANDO · SHADOW',PARTIAL:'EVIDENCIA PARCIAL',STALE:'LECTURA ANTIGUA',DEGRADED:'OBSERVADOR CON DIAGNÓSTICO',RETENTION_FULL:'RETENCIÓN LLENA · REVISAR CAPACIDAD',STOPPED:'OBSERVADOR DETENIDO · ÚLTIMA EVIDENCIA'};
+    set('intelligenceState',value.state==='STOPPED'?labels.STOPPED:report&&old?'ÚLTIMO REPORTE HISTÓRICO':labels[value.state]);
+    set('intelligenceStatus',`LEVEL 0 · ${report?`${old?'último corte histórico':'corte'} ${time(report.cutoff_at)} · captura ${time(report.captured_at)}`:'sin evaluación verificable'} · proyección ${time(value.at)}. Sin veto, reservas, ejecución ni promoción.`);
+    if(!report)clear(value.state==='NOT_STARTED'?'Sin journal Intelligence inicializado. No se inventa un reporte vacío.':'No hay assessment verificable en esta lectura; consulta el diagnóstico del observador.');
+    const health=value.health||{};
+    html('intelligenceHealth',metrics([['Registros / máximo',`${number(health.records,0)} / ${number(health.max_records,0)}`],['Corpus comprimido / máximo',`${number(health.compressed_corpus_bytes,0)} / ${number(health.max_corpus_bytes,0)} bytes`],['Capacidad',mapped({AVAILABLE:'Disponible',WARNING:'Aviso de capacidad',FULL:'Retención llena; revisar capacidad',UNKNOWN:'Desconocida'},health.capacity_state)],['Uso de capacidad',finite(health.capacity_fraction)?number(health.capacity_fraction*100)+'%':'—'],['Heartbeat observador',time(health.heartbeat_at)],['Lease observador',mapped({ACTIVE:'Activo en esa lectura',EXPIRED:'Vencido',NONE:'Sin propietario',RELEASED:'Liberado',UNAVAILABLE:'Sin evidencia'},health.lease_state)],['Errores registrados',number(health.errors,0)],['Intentos IA hoy / límite',`${number(health.ai_calls_today,0)} / ${number(health.ai_daily_limit,0)}`]]));
+    set('intelligenceError',health.last_error?`Diagnóstico del observador: ${short(health.last_error)}. No demuestra parada de los motores.`:'Sin diagnóstico de error reportado. El heartbeat del observador no certifica el estado de los motores.');
+    if(!report)return;
+    const regime=object(report.regime)?report.regime:{},regimeKnown=Object.hasOwn(regimeLabels,regime.state)&&regime.state!=='INSUFFICIENT_DATA';
+    set('intelligenceRegime',`${old?'Último registro: ':''}${mapped(regimeLabels,regime.state,'Evidencia insuficiente')}`);
+    set('intelligenceRegimeNote',`${reason(regime.reason)}. Proxy BTC Spot / 60 minutos; no interpreta todas las monedas ni habilita entradas.${old?' Estado actual desconocido.':''}`);
+    html('intelligenceRegimeMetrics',metrics([['Retorno BTC 60m',!old&&regimeKnown&&finite(regime.return_pct)?number(regime.return_pct)+'%':'—'],['Volatilidad realizada 60m',!old&&regimeKnown&&finite(regime.realized_volatility_pct)?number(regime.realized_volatility_pct)+'%':'—'],['Cierres disponibles',number(regime.observation_count,0)],['Último cierre / disponibilidad',`${time(regime.last_market_at)} / ${time(regime.latest_available_at)}`]]));
+    html('intelligenceScopes',engines.map(id=>{
+      const scope=report.scopes.find(row=>row.id===id),fresh=scopeCurrent(scope,report,old),why=Array.isArray(scope.reasons)?scope.reasons.filter(item=>typeof item==='string').slice(0,6):[];
+      return `<article class="guardian-scope"><div class="pulse-item-head"><h3>${esc(names[id])}</h3><span class="badge neutral">${old?'HISTÓRICO':fresh?'EVIDENCIA RECIENTE':'EVIDENCIA INCOMPLETA'}</span></div><p class="platform-environment">${esc(short(scope.environment,40))} · evaluación Shadow</p><h4>${esc(mapped(riskLabels,scope.risk_state))}</h4><p class="settings-help">${esc(mapped(allocations,scope.allocation))} · sin cambio aplicado por Guardian.</p><p class="settings-help">${why.map(item=>esc(reason(item))).join(' · ')}</p><dl>${metrics([['Estado del motor reportado',short(scope.reported_engine_state,40)],['Inventario en ese corte',scope.inventory_complete===true?'Completo según la captura':'Sin completitud verificable'],['Posiciones observadas',fresh?number(scope.position_count,0):'—'],['Última revisión individual',reviewText(scope,report)]])}</dl></article>`;
+    }).join(''));
+    html('intelligenceSources',report.scopes.map(scope=>`<article class="guardian-scope"><h3>${esc(names[scope.id])}</h3><dl>${metrics([['Fuente',short(scope.source_id,40)],['Hora del dato',time(scope.source_at)],['Disponible localmente',time(scope.available_at)],['Captura de la fuente',time(scope.captured_at)],['Calidad actual',scopeCurrent(scope,report,old)?'Reciente en esta lectura':'Actualidad no verificable'],['Evidencia',hash(scope.evidence_id)?scope.evidence_id:'Sin ID válido']])}</dl></article>`).join(''));
+    const liquidity=object(regime.liquidity)?regime.liquidity:{};
+    set('intelligenceQuality',`${old?'Reporte histórico. ':''}Hipótesis ${short(report.policy.id,100)} sin calibrar. Liquidez BTC: ${old?'último estado ':''}${mapped({STRESS:'estrés observado',OBSERVED:'observación disponible',UNKNOWN:'desconocida'},liquidity.state,'desconocida')}; captura ${time(liquidity.at)}. Spread y profundidad son observaciones parciales. Captura multiledger no atómica; no certifica identidad de cuenta, inventario completo del exchange ni riesgo inclusivo. Coincidencias omitidas: ${number(report.truncation?.conflicts_omitted,0)}.`);
+    html('intelligenceConflicts',rows(report.conflicts,10).map(conflict=>`<article class="pulse-item"><strong>${esc(short(conflict.symbol,24))} · ${conflict.classification==='OPPOSING_CROSS_SCOPE_OBSERVATION'?'Direcciones opuestas observadas':'Coincidencia entre ámbitos'}</strong><p>${rows(conflict.members,8).filter(member=>engines.includes(member.engine)&&['LONG','SHORT','UNKNOWN'].includes(member.direction)).map(member=>esc(names[member.engine]+' '+member.direction)).join(' / ')}</p><p>${old?'Último registro histórico. ':''}Cobertura no verificada; capitales y entornos separados. Revisión sugerida sin montos ni acciones automáticas.</p></article>`).join('')||empty(old?'Sin coincidencias en la última proyección; situación actual desconocida.':'Sin coincidencias en esta evidencia. No demuestra diversificación ni ausencia de correlación.'));
+    html('intelligenceEvidence',metrics([['Assessment',report.assessment_id],['Corte del reporte',time(report.cutoff_at)],['Digest de la captura',report.evidence.source_digest],['Integridad disponible','Identidad publicada; la UI no vuelve a verificar el corpus'],['Completitud previa a la orden','No es captura completa previa a envío']]));
+    html('intelligenceJournal',rows(value.journal,3).filter(row=>hash(row.id)&&hash(row.report_digest)&&stamp(row.cutoff_at)&&stamp(row.committed_at)).map(row=>`<article class="pulse-item"><strong>Registro persistido${old?' · histórico':''}</strong><dl class="intelligence-evidence">${metrics([['ID',row.id],['Corte',time(row.cutoff_at)],['Asentado',time(row.committed_at)],['Digest del reporte',row.report_digest]])}</dl></article>`).join('')||empty('Sin identidad de journal incluida en esta proyección acotada. No se afirma persistencia a partir de la tarjeta.'));
+    renderAi(value.ai,report,old,value.at);
+  }
+  function resolveIntent(question='',selected='SUMMARY',selectedScope='ALL'){
+    if(typeof question!=='string'||question.length>280||!intents.includes(selected)||!['ALL',...engines].includes(selectedScope))return {state:'UNSUPPORTED',reason:'Consulta o parámetros no compatibles.'};
+    const text=question.normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
+    if(/[\x00-\x1f]|\b(?:compra|comprar|vende|vender|ejecuta|ejecutar|ordena|ordenes|cierra|cerrar|activa|activar|cambia|cambiar|aumenta|aumentar|reduce|reducir|pausa|pausar|reanuda|reanudar|transfiere|retira|sql|insert|delete|drop|python|shell|password|token|secreto|credenciales)\b|\bselect\s|sk-[a-z0-9]|api[_ -]?key/.test(text))return {state:'UNSUPPORTED',reason:'Sólo se permiten explicaciones de lectura del reporte; no órdenes, secretos, SQL ni herramientas.'};
+    const scopes=[];if(/\bspot\b/.test(text))scopes.push('SPOT');if(/future|futuro/.test(text))scopes.push('FUTURES');if(/pulse/.test(text))scopes.push('AI_MARKET_PULSE');if(/quant/.test(text))scopes.push('QUANT_ARBITRAGE');
+    const choices=[];
+    if(/sin ia|habria|evitad|contrafactual/.test(text))choices.push('COUNTERFACTUAL');
+    else if(/coincid|conflict|cobertura|hedge|correlacion/.test(text))choices.push('CONFLICTS');
+    else if(/revision|veredicto|revisor|modelo|que dijo la ia/.test(text))choices.push('ORIGINAL_REVIEW');
+    else if(/falta|fuente|fresc|antigu|calidad|datos/.test(text))choices.push('DATA_QUALITY');
+    else if(/riesgo|revisar|cautela|pausad|presupuesto/.test(text))choices.push('SCOPE_RISK');
+    else if(/mercado|regimen|volatil|tendencia/.test(text))choices.push('REGIME');
+    else if(/autoridad|puede|nivel|limite/.test(text))choices.push('LIMITATIONS');
+    else if(/resumen|observando|observa|estado general/.test(text))choices.push('SUMMARY');
+    if(text&&!choices.length)return {state:'UNSUPPORTED',reason:'No se identificó una consulta de lectura cerrada. Elige una consulta guiada o reformula.'};
+    const intent=choices[0]||selected;
+    if(scopes.length>1&&['SCOPE_RISK','ORIGINAL_REVIEW'].includes(intent))return {state:'AMBIGUOUS',reason:'Selecciona un solo motor para esta consulta.'};
+    const symbols=intent==='CONFLICTS'?[...new Set([...(question.match(/\b[A-Z0-9]{2,24}USDT\b/g)||[]),...[...question.matchAll(/\b(?:en|de|para)\s+([A-Z0-9]{2,24})\b/gi)].map(match=>match[1]).filter(value=>value===value.toUpperCase()),...(text.match(/\b(?:btc|eth|sol|bnb|xrp|ada|doge|trx|link|avax)(?:usdt)?\b/g)||[])].filter(value=>value!=='IA').map(value=>value.toUpperCase().replace(/USDT$/,'')+'USDT'))]:[];
+    if(symbols.length>1)return {state:'AMBIGUOUS',reason:'Consulta un solo activo a la vez.'};
+    return {state:'SUPPORTED',intent,scope:scopes[0]||selectedScope,symbol:symbols[0]||null};
+  }
+  function answer(question='',selected='SUMMARY',selectedScope='ALL'){
+    const resolved=resolveIntent(question,selected,selectedScope);
+    if(resolved.state!=='SUPPORTED')return {...resolved,text:resolved.reason};
+    if(!current)return {...resolved,state:'UNKNOWN',text:'Sin assessment compatible disponible. No se puede responder usando datos inventados.'};
+    const {report,wrapper}=current,old=isOld(wrapper,current.remote),selectedRows=report.scopes.filter(scope=>resolved.scope==='ALL'||scope.id===resolved.scope),regime=report.regime||{};
+    const output={...resolved,state:old?'HISTORICAL':'ANSWERED',assessment_id:report.assessment_id,cutoff_at:report.cutoff_at,record_id:rows(wrapper.journal,3).find(row=>stamp(row.cutoff_at)&&Date.parse(row.cutoff_at)===Date.parse(report.cutoff_at)&&hash(row.id)&&row.id===report.evidence.source_digest)?.id||null};
+    const texts={SUMMARY:()=>`Guardian observa cuatro ámbitos separados. ${mapped(regimeLabels,regime.state,'Régimen desconocido')}. ${selectedRows.filter(scope=>scopeCurrent(scope,report,old)).length}/${selectedRows.length} fuentes seleccionadas recientes; sin autoridad de ejecución.`,REGIME:()=>`${mapped(regimeLabels,regime.state,'Régimen desconocido')}. Proxy descriptivo BTC Spot de 60 minutos, no señal para todos los activos. ${reason(regime.reason)}.`,SCOPE_RISK:()=>selectedRows.map(scope=>`${names[scope.id]}: evaluación Shadow ${mapped(riskLabels,scope.risk_state)}. ${mapped(allocations,scope.allocation)}; no es un cambio aplicado por Guardian.`).join(' '),CONFLICTS:()=>`Coincidencias publicadas: ${rows(report.conflicts,10).length}. Son observaciones entre ámbitos separados, no una cobertura verificada. Correlación desconocida; no se calcula una cartera neta común.`,DATA_QUALITY:()=>selectedRows.map(scope=>`${names[scope.id]}: ${scopeCurrent(scope,report,old)?'fuente reciente':'actualidad desconocida'}; inventario ${scope.inventory_complete===true?'completo según esa captura':'sin completar'}; dato ${time(scope.source_at)}, disponible ${time(scope.available_at)}.`).join(' '),ORIGINAL_REVIEW:()=>selectedRows.map(scope=>`${names[scope.id]}: ${reviewText(scope,report)}`).join(' '),LIMITATIONS:()=>`LEVEL 0 · SHADOW. Sin veto, reservas, asignación, cambios de riesgo, promoción u órdenes. La revisión individual y los cierres protectores de los motores siguen independientes.`,COUNTERFACTUAL:()=>`Desconocido: no existe una cohorte contrafactual comparable validada. No se pueden estimar pérdidas evitadas ni ganancias sin IA a partir de este reporte.`};
+    output.text=(old?'Último reporte histórico; estado actual sin verificar. ':'')+texts[resolved.intent]();
+    if(resolved.intent==='CONFLICTS'&&resolved.symbol){
+      const matches=rows(report.conflicts,10).filter(row=>row.symbol===resolved.symbol);
+      output.text=(old?'Último reporte histórico. ':'')+`${resolved.symbol}: ${matches.length?matches.length+' coincidencia(s) publicadas entre '+matches.flatMap(row=>rows(row.members,8).map(member=>names[member.engine]||'Ámbito desconocido')).join(' / '):'sin coincidencias registradas en esta proyección'}. No prueba una cobertura, ausencia real de exposición ni correlación. Los registros omitidos o fuentes incompletas limitan la respuesta.`;
+      if(!matches.length)output.state='UNKNOWN';
+    }
+    if(resolved.intent==='COUNTERFACTUAL')output.state='UNKNOWN';
+    return output;
+  }
+  function init(){
+    if(initialized)return;const form=document.getElementById('intelligenceQueryForm');if(!form)return;initialized=true;
+    form.addEventListener('submit',event=>{
+      event.preventDefault();
+      const result=answer(document.getElementById('intelligenceQuestion')?.value||'',document.getElementById('intelligenceIntent')?.value||'SUMMARY',document.getElementById('intelligenceScope')?.value||'ALL');
+      answerAssessment=result.assessment_id||null;
+      const id='browser-'+(++querySerial),at=new Date().toISOString();
+      queries.unshift({id,at,intent:result.intent||result.state,assessment:result.assessment_id||null});queries.splice(6);
+      html('intelligenceAnswer',`<article class="pulse-item"><strong>Respuesta local · ${esc(mapped({ANSWERED:'EVIDENCIA DISPONIBLE',HISTORICAL:'HISTÓRICA',UNKNOWN:'DESCONOCIDO',UNSUPPORTED:'NO SOPORTADO',AMBIGUOUS:'ELEGIR ÁMBITO'},result.state))}</strong><p id="intelligenceAnswerFreshness" class="platform-note">${result.state==='HISTORICAL'?'Respuesta sobre un reporte histórico.':'Respuesta vinculada al corte citado; no se actualiza como si fuera un assessment nuevo.'}</p><p>${esc(result.text)}</p><dl class="intelligence-evidence">${metrics([['Consulta local',id],['Hora',time(at)],['Assessment',result.assessment_id||'No disponible'],['Corte',time(result.cutoff_at)],['Registro persistido vinculado',result.record_id||'No incluido en esta proyección']])}</dl>${result.assessment_id?'<a class="command-link" href="#intelligence-journal">Ver identidad de la evidencia →</a>':''}<p class="platform-note">Historial de esta pestaña; no es auditoría durable. La respuesta queda vinculada al assessment citado y no se actualiza como si fuera uno nuevo.</p></article>`);
+      html('intelligenceQueryHistory',queries.map(query=>`<p class="settings-help">${esc(query.id)} · ${esc(query.intent)} · ${esc(time(query.at))} · assessment ${esc(query.assessment||'no disponible')}</p>`).join(''));
+      // Deliberately do not store raw questions, invoke APIs, tools or model calls.
+    });
+  }
+  function disconnected(){current=null;set('intelligenceState','LECTURA NO DISPONIBLE');set('intelligenceStatus','La conexión del portal no confirma una parada de los motores. Observer y las protecciones mantienen sus mecanismos independientes.');clear('Sin lectura actual verificable; consulta de nuevo para obtener evidencia reciente.');html('intelligenceAnswer',empty('La respuesta anterior no representa el estado actual. Sin conexión verificable.'));}
+  return {render,disconnected,init,resolveIntent,answer,isOld,validWrapper};
+})();
+window.GuardianIntelligencePortal=GuardianIntelligencePortal;
+
 async function refresh() {
   try {
     const [status,positions,trades,reviews,equity,events,research,researchState,paperReport,futuresForward,marketPulse,platform] = await Promise.all([
@@ -1470,10 +1626,12 @@ async function refresh() {
     PulsePortal.render(marketPulse,status,futuresForward,positions);
     FourEnginePortal.render(platform);
     CommandCenterPortal.render({status,reviews,events,marketPulse,platform,futuresForward});
+    GuardianIntelligencePortal.render(platform);
   } catch(error) {
     PulsePortal.disconnected();
     FourEnginePortal.disconnected();
     CommandCenterPortal.disconnected();
+    GuardianIntelligencePortal.disconnected();
     const botState=document.getElementById('botState');
     botState.textContent='PORTAL SIN CONEXIÓN'; botState.classList.add('offline');
     document.getElementById('operationSummary').textContent='No se pudo consultar el motor. Comprueba la conexión con Windows antes de operar.';
@@ -1537,7 +1695,7 @@ document.getElementById('researchDetail').addEventListener('click',event=>{
 window.addEventListener('resize',()=>Promise.all([api('/api/equity'),api('/api/futures-forward')]).then(([spot,futures])=>{renderChart(spot);renderFuturesChart(futures?.equity||[]);}).catch(()=>{}));
 window.addEventListener('portal-ready',PulsePortal.onPortalReady);
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('/service-worker.js').catch(()=>{});
-window.addEventListener('DOMContentLoaded',()=>{installPortalMotion();PulsePortal.init();FourEnginePortal.init();CommandCenterPortal.init();refresh();});
+window.addEventListener('DOMContentLoaded',()=>{installPortalMotion();PulsePortal.init();FourEnginePortal.init();CommandCenterPortal.init();GuardianIntelligencePortal.init();refresh();});
 setInterval(()=>{if(!document.hidden&&!document.querySelector('.shell').hidden)refresh();},30000);
 
 document.getElementById('researchCurveChoice').addEventListener('change',renderResearchCurve);

@@ -670,6 +670,27 @@ def platform_projection(payload):
         return {}
 
 
+def guardian_intelligence_projection(config):
+    """Read only the optional observer's own journal, never a financial ledger.
+
+    Failed/missing modules or oversized evidence cannot remove four-engine data.
+    The journal reader returns public allowlisted metadata and frozen assessments.
+    """
+    try:
+        from .guardian_shadow import guardian_shadow_snapshot
+        value = guardian_shadow_snapshot(config.bot.database_path.parent)
+        if (not isinstance(value, dict) or type(value.get('schema')) is not int or value.get('schema') != 1
+                or value.get('engine') != 'GUARDIAN_INTELLIGENCE' or value.get('mode') != 'SHADOW'
+                or type(value.get('autonomy_level')) is not int or value.get('autonomy_level') != 0
+                or any(value.get(k) is not False for k in ('controls_enabled', 'can_veto',
+                    'execution_enabled', 'reservations_enabled', 'promotion_allowed'))
+                or len(json.dumps(value, ensure_ascii=True, allow_nan=False, separators=(',', ':')).encode()) > 12000):
+            return None
+        return value
+    except Exception:
+        return None
+
+
 def dashboard_snapshot(config, report_path=None):
     connection = sqlite3.connect(config.bot.database_path.resolve().as_uri()+'?mode=ro', uri=True, timeout=3)
     connection.row_factory = sqlite3.Row
@@ -771,6 +792,10 @@ def dashboard_snapshot(config, report_path=None):
             if report.get('mode') == 'RESEARCH_ONLY' and isinstance(report.get('assets'), list):
                 payload['research'] = project_report(report)
         payload.update(platform_projection({**payload, 'quant': quant_projection(config)}))
+        intelligence = guardian_intelligence_projection(config)
+        if intelligence is not None and len(json.dumps({**payload, 'guardian_intelligence': intelligence},
+                allow_nan=False).encode()) <= 480_000:
+            payload['guardian_intelligence'] = intelligence
         if len(json.dumps(payload,allow_nan=False).encode()) > 480_000:
             raise ValueError('Dashboard projection exceeds size budget')
         return payload

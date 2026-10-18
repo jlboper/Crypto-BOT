@@ -44,6 +44,71 @@ function quantDashboard(...options){
     fileURLToPath(new URL('../../tests/emit_quant_fixture.py',import.meta.url)),...options],{encoding:'utf8'}));
 }
 
+function guardianIntelligence(variant='ready'){
+  return JSON.parse(execFileSync(process.env.PYTHON||'python',[
+    fileURLToPath(new URL('../../tests/emit_guardian_intelligence_fixture.py',import.meta.url)),
+    '--variant',variant],{encoding:'utf8',timeout:20000}));
+}
+
+test('real Guardian Intelligence survives authenticated Worker storage without changing four-engine capabilities',async t=>{
+  const f=await fixture(t),dashboard=quantDashboard();
+  const original=JSON.parse(JSON.stringify(dashboard)),intelligence=guardianIntelligence();
+  delete original.guardian_intelligence;
+  dashboard.guardian_intelligence=intelligence;
+  const base={...snapshot(),paper_controls:true,operations_controls:true,quant_controls:true,dashboard};
+  assert.equal((await f.request('/v1/status',undefined,{Cookie:''})).status,401);
+  assert.equal((await f.request('/v1/device/sync',{snapshot:base,acks:[]})).status,401);
+  const accepted=await f.sync({snapshot:base,acks:[]});
+  assert.equal(accepted.status,200,JSON.stringify(accepted.body));
+  await f.login();
+  const stored=(await f.request('/v1/status')).body.snapshot;
+  assert.equal(stored.quant_controls,true);
+  assert.equal(stored.operations_controls,true);
+  assert.deepEqual(stored.dashboard.guardian_intelligence,intelligence);
+  const retained=structuredClone(stored.dashboard);delete retained.guardian_intelligence;
+  assert.deepEqual(retained,original);
+  assert.equal(stored.dashboard.guardian_intelligence.can_veto,false);
+  assert.equal((await f.request('/v1/paper-controls',{
+    action:'guardian_intelligence_execute',payload:{},request_id:'guardian-observer-no-exec-0001'})).status,400);
+  assert.equal((await f.request('/v1/paper-controls',{
+    action:'quant_arbitrage_pause',payload:{},request_id:'guardian-observer-csrf-0001'},
+    {'X-CSRF-Token':''})).status,403);
+  assert.equal(f.env.DB.sqlite.prepare('SELECT COUNT(*) AS n FROM jobs').get().n,0);
+});
+
+test('invalid optional Guardian Intelligence cannot replace the previous authenticated four-engine snapshot',async t=>{
+  const f=await fixture(t),dashboard=quantDashboard();
+  dashboard.guardian_intelligence=guardianIntelligence();
+  const base={...snapshot(),quant_controls:true,dashboard};
+  assert.equal((await f.sync({snapshot:base,acks:[]})).status,200);
+  await f.login();
+  for(const mutate of [v=>v.execution_enabled=true,v=>v.report.scopes[0].authoritative=true,
+    v=>v.report.counterfactual.losses_avoided=100,v=>v.health.api_key='synthetic-secret']){
+    const invalid=structuredClone(base);mutate(invalid.dashboard.guardian_intelligence);
+    const rejected=await f.sync({snapshot:invalid,acks:[]});
+    assert.equal(rejected.status,400,mutate.toString());
+    assert.equal(rejected.body.error,'Invalid Guardian Intelligence status');
+    assert.deepEqual((await f.request('/v1/status')).body.snapshot,JSON.parse(JSON.stringify(base)));
+  }
+  const previous=structuredClone(base);delete previous.dashboard.guardian_intelligence;
+  assert.equal((await f.sync({snapshot:previous,acks:[]})).status,200);
+  assert.deepEqual((await f.request('/v1/status')).body.snapshot,JSON.parse(JSON.stringify(previous)));
+});
+
+test('Worker accepts real absent, partial and stale Guardian observations without claiming a trading outage',async t=>{
+  const f=await fixture(t),dashboard=guardianDashboard();
+  const originalMode=dashboard.status.mode;
+  for(const variant of ['not-started','partial','stale','no-ai']){
+    const observation=guardianIntelligence(variant);
+    dashboard.guardian_intelligence=observation;
+    const accepted=await f.sync({snapshot:{...snapshot(),dashboard},acks:[]});
+    assert.equal(accepted.status,200,variant+' '+JSON.stringify(accepted.body));
+    assert.equal(dashboard.status.mode,originalMode);
+    assert.equal(dashboard.futures_forward.positions.length,1);
+    assert.equal(observation.execution_enabled,false);
+  }
+});
+
 test('actual two-leg Quant Shadow producer survives authenticated Worker and scoped Guardian projection',async t=>{
   const f=await fixture(t),dashboard=quantDashboard(),q=dashboard.quant,g=dashboard.portfolio_guardian.scopes[3];
   assert.equal(q.state,'SHADOW');assert.equal(q.initialized,true);assert.equal(q.execution_enabled,false);

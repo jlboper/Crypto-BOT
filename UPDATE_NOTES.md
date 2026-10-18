@@ -1,4 +1,46 @@
-# 0.10.41 — Intelligent Trading Command Center (en preparación)
+# 0.10.42 — Guardian Intelligence Shadow (en preparación)
+
+- F2 observacional dentro del proceso supervisado: captura explícita en sólo
+  lectura de Spot/Futures/Pulse/Quant, sin constructores ni migraciones de sus
+  ledgers. Inventarios parciales/antiguos/ausentes permanecen UNKNOWN, con tiempos
+  por fuente; no se representa una captura global atómica.
+- Informe determinista tipado ≤12 KB: proxy BTC de 60m con 61 cierres contiguos
+  disponibles al corte, métricas Pulse de liquidez cuando son válidas, conflictos,
+  límites existentes y códigos WOULD_REVIEW. Hipótesis descriptivas no calibradas;
+  sin suma de capitales, hedge supuesto, correlación inventada o pérdidas evitadas.
+- `guardian-shadow.db` independiente, evidencia congelada append-only, hashes,
+  lease/recuperación y replay causal. Límite de almacenamiento degrada observación
+  sin borrar historia financiera ni detener motores. No hay orden/veto/reserva.
+- IA explicativa opcional con presupuesto propio autorizado: máximo dos intentos
+  diarios, mínimo una hora, TTL histórico 900 s, entrada 4,096 bytes, salida 512
+  tokens, respuesta 32 KB y timeout 8 s; requiere `ai.enabled`. Claims fallidos/
+  inciertos sobreviven reinicios. Cache validada y ligada al assessment original;
+  nunca modifica estados deterministas. No sustituye IA individual o protecciones.
+- Tarifas estándar verificadas 2026-10-18 para el modelo existente gpt-6-luna:
+  $0.10 entrada/$0.01 cache/$0.125 escritura cache/$0.50 salida por millón de tokens
+  ([fuente oficial](https://developers.openai.com/api/docs/models/gpt-6-luna)).
+  Reserva diaria estimada $0.01, no garantía de factura máxima. Usage incompleto
+  deja costes desconocidos; pruebas sintéticas no acreditan una llamada real.
+- Base 0.10.41 main `022fb9135d165d5c52f12b65aa9628ab8c1436af`, PR #118,
+  publicada/firmada/instalada 178/178. CI/publicación 39134814222 y seguridad
+  39134814202 exitosas; continuidad verificada 14:16:30 UTC, sin pérdidas/cambios
+  en las filas financieras comparadas. Esa evidencia corresponde a 41.
+- Ocho consultas locales cerradas de sólo lectura: resumen, régimen, riesgo por
+  ámbito, conflictos, calidad, revisión original, límites y contrafactual UNKNOWN.
+  Responden sobre assessment/corte y journal incluido, sin APIs, SQL ni tools.
+  Historial de seis identidades sólo en la pestaña; no es auditoría durable.
+  Consulta NL general de servidor/histórico, Capital Manager y Control pendientes.
+- Suite completa: **767/767 Python offline (361.510 s), 180/180 Node (85.515 s)**,
+  lifecycle/vistas Windows PowerShell 5.1, build del portal y diff aprobados.
+  Regresiones cubren precisión UTC, metadatos numéricos y digest int/REAL sin
+  relajar causalidad. Sólo fixtures, transporte y claves sintéticos.
+- QA visual a 1366/360/768 px sin desbordamiento horizontal y un workspace Guardian;
+  consultas de contrafactual permanecen desconocidas y citan IDs de journal reales.
+  Base 41 verificada nuevamente 19:10 UTC: 178/178 hashes, motor 19240/agente 13056,
+  Spot 1/Futures 9 ARMED y cantidad desprotegida observada cero. CI de PR/main,
+  publicación/firma/instalación y operación de 42 siguen pendientes.
+
+# 0.10.41 — Intelligent Trading Command Center (registro de preparación)
 
 - Auditoría de los cuatro motores, Guardian Observer, revisión IA individual,
   reservas preparatorias, agente y flujo firmado. `COMMAND_CENTER_2_0.md` registra

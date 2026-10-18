@@ -2,6 +2,34 @@
 
 ## Current baseline and Command Center continuation
 
+Current baseline is verified 0.10.41 main
+`022fb9135d165d5c52f12b65aa9628ab8c1436af`, [PR #118](https://github.com/jlboper/Crypto-BOT/pull/118),
+published/signed/installed 178/178 after successful
+[publication 39134814222](https://github.com/jlboper/Crypto-BOT/actions/runs/39134814222)
+and [safety 39134814202](https://github.com/jlboper/Crypto-BOT/actions/runs/39134814202).
+The 14:16:30 UTC audit on 2026-10-18 retained one Spot/nine Futures protected
+positions, no observed unprotected quantity, fresh agent sync and financial rows.
+
+Candidate 0.10.42 implements Guardian Intelligence SHADOW LEVEL 0 alongside the
+existing pure Observer: strict RO acquisition, descriptive BTC regime/conflicts,
+independent frozen journal/replay and optional bounded advisory AI. The owner's
+AI request/key reuse permits its separate two-attempt/day budget under global
+AI enablement; it grants no Control/level-1 authority. No order hooks, reservations,
+capital sharing or risk changes. Eight local read-only query intents explain the
+current assessment and cite its evidence; browser query history is not durable.
+General server-side NL/journal querying, Capital Manager and Guardian Control
+remain future phases in [Command Center 2.0](COMMAND_CENTER_2_0.md).
+
+Local 42 validation passed 767/767 offline Python tests (361.510 s), 180/180 Node
+tests (85.515 s), Windows PowerShell 5.1 lifecycle/view checks, portal build and
+diff checks. Browser QA at 1366/360/768 px found no horizontal overflow and one
+Guardian workspace. PR/main CI, publication/signature, installation and actual
+model usage remain pending. A 19:10 UTC predecessor audit again verified 41's
+178/178 hashes, engine 19240/agent 13056, one Spot/nine Futures positions, native
+protections ARMED and zero observed unprotected quantity.
+
+## Historical 0.10.40 / 0.10.41 preparation context
+
 The four-engine foundation is now verified at 0.10.40 main
 `81ba4366cf587c16cae20d403974a340080c4d10`, [PR #117](https://github.com/jlboper/Crypto-BOT/pull/117),
 published/signed and installed 178/178 hashes at 2026-10-18 02:27 UTC.

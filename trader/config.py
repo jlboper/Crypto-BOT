@@ -165,6 +165,21 @@ class QuantArbitrageSettings:
 
 
 @dataclass(frozen=True)
+class GuardianIntelligenceSettings:
+    enabled: bool = True
+    mode: str = "SHADOW"
+    autonomy_level: int = 0
+    ai_max_reviews_per_day: int = 2
+
+    def __post_init__(self):
+        if (type(self.enabled) is not bool or self.mode != "SHADOW"
+                or type(self.autonomy_level) is not int or self.autonomy_level != 0
+                or type(self.ai_max_reviews_per_day) is not int
+                or not 0 <= self.ai_max_reviews_per_day <= 2):
+            raise ValueError("Guardian Intelligence supports only non-authoritative SHADOW LEVEL 0")
+
+
+@dataclass(frozen=True)
 class AppConfig:
     bot: BotSettings
     paper: PaperSettings
@@ -177,6 +192,7 @@ class AppConfig:
     source_path: Path | None = None
     market_pulse: MarketPulseSettings = MarketPulseSettings()
     quant_arbitrage: QuantArbitrageSettings = QuantArbitrageSettings()
+    guardian_intelligence: GuardianIntelligenceSettings = GuardianIntelligenceSettings()
 
 
 def _project_path(raw: str) -> Path:
@@ -200,6 +216,10 @@ def load_config(path: str | Path | None = None) -> AppConfig:
     futures_testnet = raw.get("futures_testnet", {})
     pulse = raw.get("market_pulse", {})
     quant = raw.get("quant_arbitrage", {})
+    guardian = raw.get("guardian_intelligence", {})
+    if not isinstance(guardian, dict) or set(guardian) - {'enabled', 'mode', 'autonomy_level', 'ai_max_reviews_per_day'}:
+        raise ValueError("Unknown Guardian setting; control and reservations are unavailable")
+    guardian_settings = GuardianIntelligenceSettings(**guardian)
     if (not isinstance(quant, dict) or set(quant) - {'enabled', 'mode', 'kill_switch_path'}
             or type(quant.get('enabled', True)) is not bool or quant.get('mode', 'SHADOW') != 'SHADOW'):
         raise ValueError("Quant Arbitrage supports only reviewed SHADOW settings; execution/promotion is unavailable")
@@ -310,6 +330,7 @@ def load_config(path: str | Path | None = None) -> AppConfig:
     if type(research.get("automatic", True)) is not bool:
         raise ValueError("Research automatic must be a boolean")
     return AppConfig(
+        guardian_intelligence=guardian_settings,
         quant_arbitrage=QuantArbitrageSettings(
             enabled=quant.get('enabled', True), mode='SHADOW',
             kill_switch_path=_project_path(str(quant.get('kill_switch_path', 'data/QUANT_ARBITRAGE_KILL')))),

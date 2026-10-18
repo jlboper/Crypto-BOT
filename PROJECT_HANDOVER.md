@@ -19,7 +19,59 @@ Then inspect current `main`, recent commits, open PRs/issues and CI. Documentati
 
 ## Mission
 
-### Current continuation — 0.10.41 Command Center foundation
+### Current continuation — 0.10.42 Guardian Intelligence Shadow
+
+Start from main `022fb9135d165d5c52f12b65aa9628ab8c1436af`, 0.10.41,
+[PR #118](https://github.com/jlboper/Crypto-BOT/pull/118). Its publication
+[39134814222](https://github.com/jlboper/Crypto-BOT/actions/runs/39134814222)
+and safety [39134814202](https://github.com/jlboper/Crypto-BOT/actions/runs/39134814202)
+succeeded; signature/installation matched 178/178 hashes. At 2026-10-18
+14:16:30 UTC engine PID 19240 retained one Spot/nine Futures positions, native
+protections ARMED and no observed unprotected quantity. Agent PID 9372 had fresh
+HTTPS sync and 11/11 modules. Compared existing financial rows had zero missing/
+changed rows; secrets, risk and hypotheses were preserved. This is dated 41 evidence.
+
+Candidate 42 implements observational Guardian Intelligence inside that process,
+strictly SHADOW LEVEL 0. Four read-only acquisition adapters avoid all financial
+ledger constructors/migrations; incomplete inventories stay unknown. Each source
+keeps its own timestamps, so this is not a globally atomic pre-submit snapshot.
+Pure deterministic diagnostics, a descriptive BTC 60m/61-close proxy and a
+separate append-only `guardian-shadow.db` journal/replay have no order hooks,
+capital reservations, veto or financial control. Preserve `guardian-ai.db` too.
+
+The owner requested Guardian AI and authorized existing-key reuse with a separate
+consumption limit. The optional advisory client is wired up to two attempts/day,
+one-hour minimum interval, historical 900 s cache, 4,096-byte input, 512 output
+tokens and eight-second HTTP timeout, subject to global `ai.enabled`. Its own
+durable claims remain consumed after failures/unknown outcomes. Pricing estimates
+use the existing verified model; incomplete usage stays unknown and estimated
+reserves are not hard billing caps. No actual installed 42 model request has been
+verified yet; focused checks used fake transport/credentials. This authorization
+is for observation only, not level 1/Control or capital sharing.
+
+Eight closed local browser query intents now explain summary, regime, scoped risk,
+conflicts, data quality, original review, limitations and unknown counterfactuals.
+They read the displayed assessment, cite its cutoff and included journal identity,
+and invoke no API/SQL/tool. Six browser-tab query identities are ephemeral, not
+durable audit. General server-side NL/history queries remain pending.
+
+Complete local validation passed **767/767 offline Python tests (361.510 s)**,
+**180/180 Node tests (85.515 s)**, Windows PowerShell 5.1 lifecycle/view, portal
+build and diff checks. Regressions cover UTC precision, numeric heartbeat metadata
+and canonical integer/SQLite-REAL journal hashing without relaxing causal checks.
+Browser QA at 1366/360/768 px found no horizontal overflow and exactly one Guardian
+workspace; counterfactual queries stayed UNKNOWN and cited real journal identities.
+Local logs are `python-full-v01042.log`, `node-full-v01042-final.log` and
+`windows-v01042.log` in the isolated command-center work directory.
+
+The 19:10 UTC baseline audit again verified installed 41's 178/178 hashes, engine
+19240, agent 13056, one Spot/nine Futures positions, native protections ARMED and
+zero observed unprotected quantity. See `COMMAND_CENTER_2_0.md` for typed reports
+and future phase-3 design. PR/main CI, publication/signature, installation and
+operative verification of 42 remain pending. Individual Spot/Futures AI,
+protection, budgets and signed recovery remain authoritative.
+
+### 0.10.41 Command Center foundation — historical preparation record
 
 Start from main `81ba4366cf587c16cae20d403974a340080c4d10`, 0.10.40,
 [PR #117](https://github.com/jlboper/Crypto-BOT/pull/117). Its publication

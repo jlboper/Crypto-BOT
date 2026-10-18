@@ -79,6 +79,10 @@ class DashboardServer:
                 result = {'engine_catalog': engine_catalog({'status': {'mode': self.config.bot.mode.upper()},
                                                            'quant': quant}),
                           'portfolio_guardian': guardian_unavailable(), 'quant': quant}
+            from .portal_snapshot import guardian_intelligence_projection
+            intelligence = guardian_intelligence_projection(self.config)
+            if intelligence is not None:
+                result['guardian_intelligence'] = intelligence
             self._platform_cache = result
             self._platform_cached_at = time.monotonic()
             return result

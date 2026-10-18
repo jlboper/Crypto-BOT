@@ -2,22 +2,36 @@
 
 ## Baseline and scope
 
-Foundation candidate **0.10.41**, prepared from current main
-`81ba4366cf587c16cae20d403974a340080c4d10` (0.10.40),
-[PR #117](https://github.com/jlboper/Crypto-BOT/pull/117).
-The predecessor's [publication](https://github.com/jlboper/Crypto-BOT/actions/runs/39089416208)
-and [Linux/Windows safety checks](https://github.com/jlboper/Crypto-BOT/actions/runs/39089416215)
-succeeded. The release operator verified its signature, Windows installation and
-178/178 package hashes at **2026-10-18 02:27 UTC**. That evidence belongs to
-0.10.40. Source, CI, publication, signature, installation and current operation
-of 0.10.41 require their own checkpoints.
+Candidate **0.10.42 — Guardian Intelligence Shadow**, prepared from current main
+`022fb9135d165d5c52f12b65aa9628ab8c1436af` (0.10.41),
+[PR #118](https://github.com/jlboper/Crypto-BOT/pull/118).
+The predecessor's [publication](https://github.com/jlboper/Crypto-BOT/actions/runs/39134814222)
+and [Linux/Windows safety checks](https://github.com/jlboper/Crypto-BOT/actions/runs/39134814202)
+succeeded; signature and Windows installation matched **178/178 hashes**.
+The 2026-10-18 **14:16:30 UTC** continuity audit observed one existing engine PID
+19240, one Spot and nine Futures positions with native protections ARMED and no
+observed unprotected quantity. Independent agent PID 9372 had recent HTTPS sync and 11/11
+modules. Existing sampled financial rows had zero missing/changed rows; secrets,
+risk settings and hypotheses were unchanged. This is dated predecessor evidence,
+not proof of 0.10.42 installation or future liveness.
 
-This document records the phase-0 audit and the interfaces for later phases.
-Phase 1 reorganizes the shared portal and Windows presentation using existing
-observations. It creates no financial service, reservation, trading veto,
-allocation, new model call or execution permission. Guardian Intelligence,
-Central Risk & Capital Management and Guardian Control are separate future
-components. A visible card is not proof that its proposed service exists.
+Phase 1's seven shared-web views and coherent Windows presentation are installed
+in 0.10.41. Candidate 42 implements phase-2 observational intelligence, with
+read-only acquisition, deterministic reports and its own frozen journal. Optional
+AI explains observations with a separate bounded budget; it does not alter a
+report or any trade. Eight closed local query intents explain the displayed
+assessment without APIs, SQL or tools. Full local validation passed: **767/767
+offline Python tests (361.510 s), 180/180 Node tests (85.515 s), Windows PowerShell
+5.1 lifecycle/view checks, portal build and `git diff --check`**. Browser QA at
+1366, 360 and 768 px showed no horizontal overflow and one Guardian workspace.
+PR/main CI, publication, signature, installation and operative verification of 42
+remain pending. Central Risk & Capital Management, Guardian Control, a general
+server-side natural-language/journal query service and shared-account enforcement
+remain future work. A card or Shadow review never confers execution authority.
+
+A later predecessor audit at **19:10 UTC** again verified 178/178 installed hashes,
+engine PID 19240, agent PID 13056 and one Spot/nine Futures positions with native
+protections ARMED and zero observed unprotected quantity. This is still 41 evidence.
 
 Evidence priority: authenticated current runtime and immutable journals;
 installed signed inventory; actual source; executed CI/tests; documentation.
@@ -31,7 +45,7 @@ separate Testnet, Demo and Shadow architecture.
 ## Phase-0 architecture audit
 
 One supervised Windows trading process owns Spot, the Futures forward test and
-the optional Pulse/Quant services. The outbound independent agent reports bounded
+the optional Pulse/Quant/Guardian observation services. The outbound independent agent reports bounded
 credential-free projections and dispatches existing allowlisted controls; it is
 not another trading engine. Local and remote portals use the same `web/` source.
 
@@ -47,6 +61,9 @@ flowchart TB
         Data[(Separate SQLite ledgers and journals)]
         Projection[Bounded read-only snapshots]
         Observer[Portfolio Guardian Observer — pure diagnostics]
+        CaptureRO[Guardian capture — four explicit read-only ledgers]
+        GI[Guardian Intelligence — Shadow Level 0 daemon]
+        GData[(Independent frozen Guardian journal)]
         Spot --> AI
         Fut --> AI
         Spot --> Exit
@@ -57,6 +74,10 @@ flowchart TB
         Exit --> Data
         Data --> Projection
         Projection --> Observer
+        Data --> CaptureRO
+        CaptureRO --> GI
+        GI --> GData
+        GData --> Projection
     end
     Supervisor[Signed Windows supervisor — activation and rollback] --> Host
     Projection --> Local[Shared web portal — localhost]
@@ -65,14 +86,12 @@ flowchart TB
     Observer --> Agent
     Agent --> Worker[Existing Cloudflare Worker and D1]
     Worker --> Remote[Same shared web portal — mobile and desktop]
-    subgraph Planned[Designed future services — no phase-1 authority]
-        GI[Guardian Intelligence — Shadow interpretation and journal]
+    subgraph Planned[Future services — no current execution authority]
         CM[Central Risk and Capital Manager — Shadow reservations]
         GC[Guardian Control — future expressly authorized Testnet gate]
-        GI -. recommendations .-> CM
         CM -. validated constraints .-> GC
     end
-    Projection -. future immutable evidence .-> GI
+    GI -. recommendations .-> CM
 ```
 
 | Component | Existing and reusable | Refactor or new work required | Principal risk / boundary |
@@ -83,12 +102,12 @@ flowchart TB
 | Market Pulse | Ten dated eligible assets, five RSS sources, independent Shadow ledger and six-attempt/day AI cap | Later research/admission adapters, separately reviewed | Untrusted news, stale data and speculative claims; no exchange executor |
 | Quant | Independent virtual ledger, Funding Carry, closed-minute evidence, replay and protective simulation | Independent calibration/OOS and richer execution stress | StatArb entry remains blocked; historical bars received now are not forward evidence |
 | Guardian Observer | Pure `portfolio_guardian.py`, four scoped ledgers, overlaps, bounded alerts | Reuse evidence builder; do not insert it into trading cycles | No broker/E/S, reservations, veto, correlation model or cross-scope financial total |
-| Guardian Intelligence | No model-backed Guardian service exists | New isolated Shadow analyzer, journal, replay and read-only query layer | Prompt injection, unsupported claims, stale recommendations, API cost |
+| Guardian Intelligence | Candidate 42: deterministic builder, isolated Shadow service, frozen journal/replay, optional bounded advisory client and eight local read-only query intents; complete local validation passed | PR/main CI and operating observation; general server-side journal/NL queries remain pending | No veto/order hooks; descriptive hypotheses, stale context and model costs remain explicit |
 | Capital Manager | `exposure_coordinator.py` prototype and synthetic tests | New durable state machine, reconciler and adapters for every participant | Prototype is not integrated; sharing account funds remains blocked |
 | Guardian Control | No common control admission path exists | Future deterministic enforcement after explicit authority and validation | Never increase ceilings, reopen manual kills, delay exits or infer LIVE permission |
-| Portal / Windows | Shared assets, authenticated snapshots, existing narrow controls | Phase-1 seven views and coherent labels, mobile navigation | Presentation must not claim stale/missing data or future authority is current |
+| Portal / Windows | Installed 41: seven shared views, mobile navigation, coherent labels and existing authenticated controls | Candidate 42 projects actual Guardian intelligence and freshness | Presentation must not claim stale/missing data or future authority is current |
 | Agent / Cloudflare | Auth, CSRF validation, bounded optional contracts and compatibility fallback | Future typed additions must evolve producer, Worker and bridge together | Lost remote sync is not engine failure; independent import closure must survive |
-| Snapshot acquisition | Spot opens SQLite with `mode=ro`; bounded existing financial projections are reusable evidence | Phase 2 needs an explicit read-only Futures adapter with ≤1 s timeout, without ledger construction | Existing Futures snapshot paths instantiate a ledger whose constructor can create/migrate tables and set WAL; do not call them a strict read-only service |
+| Snapshot acquisition | Candidate 42 uses explicit `mode=ro`/query-only readers for four ledgers, 0.25 s connection timeout, bounded inventories | Validate schemas/source timestamps per ledger; unavailable/overflow stays unknown | Legacy dashboard construction can initialize Futures; Guardian does not call that path |
 | Research | Frozen cohorts, immutable reports, OOS/forward methodology | Compare original and Guardian Shadow recommendations prospectively | Selection bias; no counterfactual profit or automatic strategy promotion |
 | Signed updater | Main-only OIDC, Ed25519, anti-downgrade, activation barrier | Preserve procedure and each release checkpoint | Candidate must not mutate financial state before activation; code rollback preserves committed journals |
 
@@ -102,9 +121,11 @@ gaps and funding. Opposite positions in different environments are not a hedge.
 Acquisition is a separate concern from the pure Guardian function. Current
 `portal_snapshot.dashboard_snapshot` and the local Futures view construct
 `FuturesTestnetLedger`; its constructor creates directories, sets WAL and runs
-schema initialization/migrations. Phase 1 does not alter that financial code.
-Before phase-2 frequent supervision, add an explicit `mode=ro`/query-only Futures
-reader with bounded ≤1 s timeout and no constructor/migration effects. Current
+schema initialization/migrations. Phase 1 did not alter that financial code.
+Candidate 42 resolves the Guardian acquisition blocker with a separate explicit
+`mode=ro`/query-only reader, 0.25 s connection timeout and no ledger constructor/
+migration effects. Its daemon does not call the old dashboard helper. Legacy
+dashboard behavior is not silently redefined. Current
 multi-ledger snapshots are not one atomic global transaction: retain per-source
 timestamps and quality, and never portray the capture as exact synchronous
 pre-submit knowledge across engines.
@@ -117,7 +138,7 @@ exchange plan. Futures sizes and reviews the exact proposed direction/notional,
 then refreshes filters/budgets before submission. Existing protective and recovery
 paths run independently of new-entry review. Foundation 2.0 changes none of this.
 
-## Target admission pipeline — future, not wired in phase 1
+## Target admission pipeline — future, not wired in phases 1/2
 
 ```mermaid
 flowchart LR
@@ -132,8 +153,10 @@ flowchart LR
     P[Protective closes and recovery] --> X
 ```
 
-In phases 2/3, this pipeline runs alongside original decisions as Shadow evidence;
-its output cannot change the original order, sizing or timing. The applicable
+Phase 2 records contemporaneous observations alongside original decisions; it
+cannot claim a complete pre-submit pipeline when those records do not exist.
+Phase 3 will evaluate complete proposals in simulation. Their output cannot
+change the original order, sizing or timing. The applicable
 individual review cannot be skipped. Quant and Pulse retain their existing
 deterministic/interpretation paths; no new mandatory AI call is invented for them.
 The final executable quantity can only stay equal or decrease relative to the
@@ -144,7 +167,8 @@ bypasses entry gates and remains available during pauses and Guardian failure.
 
 ## Proposed typed contracts
 
-These are **design contracts**, not new phase-1 HTTP endpoints or Python APIs.
+The admission/reservation records below remain **design contracts**. Candidate
+42 implements a bounded observational report rather than that execution pipeline.
 Use strict schemas, bounded arrays/strings, finite numbers, UTC timestamps with
 explicit units, versioned policy/model identities and no arbitrary tool names,
 URLs, Python expressions, SQL or embedded instructions. External text is evidence.
@@ -205,8 +229,10 @@ Proposed risk states, scoped to the applicable account and policy:
 | `ENTRY_HALTED` | Block new entries; preserve existing protection and reconciliation |
 | `RECOVERY_REQUIRED` | Block entries until identity, orders, balances and journals reconcile |
 
-These are not current global runtime states. Spot/Futures retain their present
-risk policies and manual kills. Foundation does not retune them. Future Guardian
+Candidate 42 uses these names only for per-scope **WOULD_REVIEW** diagnostics,
+never authoritative admission states. Incomplete account/order/inclusive-risk
+evidence cannot certify NORMAL. Spot/Futures retain their present risk policies
+and manual kills; neither phase retunes them. Future Guardian
 failure cannot stop protective exits; an enabled admission mode must have a
 preapproved deterministic conservative fallback, never silently fall back to
 unrestricted entries or claim lost evidence is zero risk.
@@ -218,24 +244,48 @@ model-service charges**. It adds no model selector, paid infrastructure or provi
 subscription. Existing Spot/Futures/Pulse model settings and separate budgets
 remain. Quant and current Guardian Observer use deterministic computation.
 
-Before phase 2 calls any model, define its independent durable daily attempt and
-cost caps, input/output-token bounds, timeouts, concurrency/backoff, cache keys
-including policy/evidence version, TTL/expiry and visible usage accounting.
-Claim budget before requests, count failed attempts conservatively and never
-reuse an expired recommendation for admission. Depleted budget means UNKNOWN /
-deterministic fallback under that phase's approved policy. Verify model access,
-current documentation/pricing and credential scope before adding spend; current
-source model names do not prove API availability. No model change is authorized
-by this architecture document. Guardian cannot consume the Pulse-only cap.
+For phase 2 the owner has requested Guardian AI and already authorized reuse of
+the existing project key with its own consumption limit. Candidate 42 explicitly
+wires up to **two attempts/day**, subject to global `ai.enabled`, key availability
+and verified model pricing; setting the Guardian cap to zero disables requests.
+The standalone client retains a safe default of zero. This service authorization
+does not authorize level 1, capital sharing or any financial control.
 
-Future natural-language questions read validated snapshots/journals only: why
-Spot/Futures did not enter, latest individual review, engine health, BTC exposure,
-observed conflicts and research results. Correlation clusters require an explicit
-fresh deterministic model. “Best strategy”, “without AI” and “losses avoided” are
-UNKNOWN unless a preregistered comparable evaluation supports them. Summing later
-losses of rejected trades is not a valid counterfactual. Query text, news or model
-output cannot invoke orders, settings, risk changes, pauses, credentials or tools.
-This read-only query service is pending; a phase-1 Guardian card does not supply it.
+Claims are durable before requests. Failed/unknown outcomes consume their claim
+after restart; at least one hour separates attempts. Input is ≤4,096 bytes,
+output ≤512 tokens, response ≤32,768 bytes and HTTP timeout eight seconds, with
+redirects refused. The 900 s cache remains explicitly historical and pinned to
+the original assessment/evidence IDs; it is never reassigned to the current
+portfolio. Cache identity includes model/policy/schema/pricing and cached payloads
+are revalidated. No automatic retries, tools or individual/Pulse budget reuse.
+
+The existing `gpt-6-luna` standard short-context rates were checked on 2026-10-18:
+input **$0.10**, cached input **$0.01**, cache writes **$0.125**, output **$0.50**
+per million tokens. [Official model/pricing source](https://developers.openai.com/api/docs/models/gpt-6-luna).
+An estimated admission reserve of $0.01/day complements the attempt cap; it is
+**not a hard billing guarantee**. Actual access, invoice/tier and operating calls
+require separate evidence. Missing usage/cached-token details leave the cost
+estimate unknown; partial known costs do not imply complete costs. No new model,
+subscription or paid infrastructure is introduced. A real request in the installed
+42 runtime has not yet been verified; all executed model tests used fake transport/keys.
+
+Candidate 42 implements eight **closed local read-only intents** in the shared
+browser: `SUMMARY`, `REGIME`, `SCOPE_RISK`, `CONFLICTS`, `DATA_QUALITY`,
+`ORIGINAL_REVIEW`, `LIMITATIONS` and `COUNTERFACTUAL`. Guided choices and a bounded
+local text resolver read only the currently displayed validated assessment.
+Answers cite its assessment/cutoff and the matching persisted journal identity
+when included in the projection. Historical evidence is labeled; missing evidence
+remains unknown. The last six query identities exist only in browser-tab memory;
+raw questions are not stored and this history is **not durable audit**. Queries
+make no API/model request and cannot run SQL, tools, commands or settings changes.
+
+A general server-side natural-language service, historical SQL/journal searches
+and complete explanations of individual pre-submit decisions remain pending.
+Correlation clusters require an explicit fresh deterministic model. “Best
+strategy”, “without AI” and “losses avoided” remain UNKNOWN unless a preregistered
+comparable evaluation supports them. Summing later losses of rejected trades is
+not a valid counterfactual. Query text, news or model output cannot invoke orders,
+risk changes, pauses, credentials or tools.
 
 | Autonomy level | Design authority | Activation condition |
 | --- | --- | --- |
@@ -250,26 +300,41 @@ bump or successful backtest is not an authorization.
 
 ## Next implementation slices — phase 2 and phase 3
 
-### Phase 2 minimum functional Guardian Intelligence
+### Phase 2 candidate implementation — Guardian Intelligence Shadow
 
-Create an optional `GuardianService` inside the existing process, started only
-after signed activation. One daemon evaluates at most once per 60 seconds after
-completion; failure is isolated from other services. After implementing the
-strict read-only acquisition adapter identified above, it reads credential-free
-evidence and writes only its own additive SQLite journal. It must not directly
-reuse a snapshot path that constructs/migrates the operational Futures ledger.
-Snapshot/HTTP reads never initialize the service or write financial state.
-Use bounded retained evidence/digests, append-only assessments and separate
-operational metadata; initialize no exchange client and import no broker.
+`guardian_capture.py` acquires four existing ledgers with explicit read-only
+transactions, source timestamps, real capture receipts and completeness checks.
+It imports no engine/ledger constructor and performs no exchange/model request.
+Missing/corrupt/busy/oversized inventories are UNKNOWN, not truncated zero
+portfolios. The four transactions are not globally atomic. A historical cutoff
+cannot backdate a new read; historical replay consumes previously frozen captures.
 
-The first useful end-to-end slice is: capture scoped/fresh evidence → deterministic
-conflict/concentration and evidence-quality assessment → frozen Shadow journal →
-bounded Guardian projection → portal explanation with source/time references.
-Regime may be UNKNOWN: source market returns without sufficient reproducible
-history do not establish a regime model. Candidate advice is limited to observed
-proposals/reviews, with “post-decision observation” explicit where necessary;
-it is not a pre-submit veto or a replay of facts absent at the original decision.
-Implement read-only questions over these records with deterministic answers first.
+`guardian_intelligence.py` builds a pure typed report, ≤12 KB, with four separate
+scopes, conflict evidence and deterministic risk/allocation review codes. It
+cannot reserve, veto, change limits, create orders or sum different environments.
+Liveness is separate from source age. Original AI-review metadata is an observed
+record, not a complete immutable pre-submit opportunity.
+
+The BTC regime proxy uses 61 contiguous, closed 1m prices over 60 minutes, selected
+from at most 121 existing Quant bars with market/receipt/first-known times no later
+than cutoff and latest close ≤90 s old. Missing/gapped/stale evidence is
+INSUFFICIENT_DATA. Initial uncalibrated descriptive thresholds are ±1% return,
+1.5% realized 60m volatility and, when fresh complete Pulse BTC metrics exist,
+20 bps spread / 10,000 USDT partial depth / −50% liquidity change. Labels are
+BULLISH, BEARISH, SIDEWAYS, HIGH_VOLATILITY or LIQUIDITY_STRESS; none is a trading
+signal, optimal weight, correlation estimate or independently validated regime.
+
+`guardian_shadow.py` runs as one optional daemon inside the existing supervised
+process after signed activation, scheduling 60 s after completed evaluation.
+It owns separate `data/guardian-shadow.db`: append-only captures/reports,
+canonical digests, a chain of record references and causal replay. Lease ownership,
+heartbeats, bounded waits/storage and isolated failures protect existing engines.
+Retention exhaustion degrades observation rather than deleting financial evidence
+or stopping trading. Snapshot/HTTP reads do not initialize the service.
+`guardian-ai.db` separately retains advisory attempts, usage and historical cache.
+Model annotations are separate from deterministic reports and have no authority.
+Service integration and final tests are ongoing; read-only general NL questions
+and counterfactual effectiveness evaluation are not implemented in this slice.
 
 Current snapshots supply engine identity, environment, ledger positions/marks,
 freshness, available scoped capital/limits, native-protection status, overlaps,
@@ -280,13 +345,11 @@ complete exchange pending-order inventory, synchronized validated correlation
 history and causal counterfactual cohorts. Mark them UNKNOWN; do not reconstruct
 them from a later fill, latest model review or another environment's balance.
 
-AI is optional and initially disabled: own durable default **0 attempts/day**.
-A proposed future hard ceiling is **2/day**, separately approved and metered; it
-must not reuse individual/Pulse budgets or silently add spend. Use a strict
-read-only output schema, bounded input/output/response bytes, timeout, cache TTL,
-failure accounting and no tools. Model selection/access/pricing and credential
-authorization must be verified before enabling it. No AI is required for the
-deterministic first slice or allowed in protection/recovery.
+Optional AI is advisory only under the authorized two-attempt/day service budget
+described above. The global AI switch still governs requests. No AI is required
+for deterministic observation or allowed in protection/recovery. A model refusal,
+incomplete response, unknown evidence ID or malformed cache fails unavailable;
+it cannot change risk states or trigger an order.
 
 Acceptance: synthetic stale/partial/poisoned evidence, prompt injection, bounded
 CPU/RAM/SQLite growth, duplicate events, single-owner service, restart recovery,
@@ -342,9 +405,9 @@ equals failure”; an empty market/decision view can be legitimate observation.
 
 | Phase | Scope and current status | Exit evidence |
 | --- | --- | --- |
-| 0 — Audit | Designed/documented in candidate 0.10.41; source, contracts and predecessor CI reviewed | Component map, gaps, invariants and versioned plan reviewed |
-| 1 — Command Center | Seven shared views and Windows naming in implementation; no financial effect | Existing contracts/controls, mobile/local/remote, auth, Python/Node/Windows/Linux; its own signed install and fresh runtime evidence |
-| 2 — Guardian Intelligence | Designed; not implemented/tested/published/installed | Shadow journal, deterministic/AI separation, prompt-injection/cost/freshness tests; original-vs-recommendation prospective comparison |
+| 0 — Audit | Implemented/documented in 0.10.41, published/signed/installed/verified | Component map and predecessor source/CI/inventory reviewed |
+| 1 — Command Center | Seven views and Windows naming implemented/tested; 0.10.41 published/signed/installed 178/178 and continuity verified | New presentation does not change financial execution |
+| 2 — Guardian Intelligence | Candidate 0.10.42 implemented and locally tested: 767 Python, 180 Node, Windows lifecycle/view, build and responsive QA pass; eight local query intents; PR/main CI/publication/signature/install/runtime pending | Frozen causal replay, isolated service and actual post-install advisory usage/health evidence; no implied control authority |
 | 3 — Risk & Capital Shadow | Designed; prototype alone is insufficient | Concurrent/idempotent virtual reservations, unknown-order recovery, multi-leg accounting and restart evidence; no trading side effect |
 | 4 — Quant research | Existing 0.10.40 Shadow foundation installed/verified; additional calibration pending | Historical/OOS/forward and net-cost/stress evidence; StatArb remains blocked |
 | 5 — Guardian Control Testnet | Pending; not authorized by phase 1 or this roadmap | Explicit future owner authorization, common admission/reconciliation, safety and rollback validation |
@@ -356,7 +419,8 @@ Use a compact desktop sidebar/mobile navigation, consistent four-engine cards,
 existing interactive charts and filters, folds/details, explicit timestamps,
 freshness/unknown states and current authentication/CSRF behavior. Portfolio &
 Capital uses existing scoped Guardian evidence; it is not an operational allocator.
-Guardian AI clearly identifies current Observer and pending Intelligence/Control.
+Guardian AI identifies Observer and candidate Shadow Intelligence, with Control
+still pending. Installed availability follows the actual signed version and data.
 Existing narrow pause/update controls retain their authorization and meaning;
 the new views cannot change risk or enable execution. Windows remains coherent
 with the shared portal and must not launch a second engine to refresh its look.

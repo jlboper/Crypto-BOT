@@ -10,26 +10,46 @@ Ver [Market Pulse](MARKET_PULSE.md) para la selección fechada, fuentes, hipóte
 limitaciones. La expansión progresiva a Quant Arbitrage y Portfolio Guardian está
 documentada en [cuatro motores](FOUR_ENGINE_EXPANSION.md).
 
-La base **0.10.40**, main `81ba4366cf587c16cae20d403974a340080c4d10`,
-[PR #117](https://github.com/jlboper/Crypto-BOT/pull/117), se verificó publicada,
-firmada e instalada con **178/178 hashes** el 18 de octubre a las 02:27 UTC.
-[Publicación](https://github.com/jlboper/Crypto-BOT/actions/runs/39089416208)
-y [CI Linux/Windows](https://github.com/jlboper/Crypto-BOT/actions/runs/39089416215)
-exitosas. Conserva cuatro motores: Spot Testnet, Futures Demo y dos ledgers
+La base **0.10.41**, main `022fb9135d165d5c52f12b65aa9628ab8c1436af`,
+[PR #118](https://github.com/jlboper/Crypto-BOT/pull/118), está publicada,
+firmada e instalada con **178/178 hashes**.
+[Publicación](https://github.com/jlboper/Crypto-BOT/actions/runs/39134814222)
+y [CI Linux/Windows](https://github.com/jlboper/Crypto-BOT/actions/runs/39134814202)
+exitosas. La auditoría del 18 de octubre a las 14:16:30 UTC verificó continuidad
+del motor/agente y las posiciones Spot/Futures con protección nativa ARMED,
+sin cantidad desprotegida observada ni cambios en las filas financieras comparadas.
+Conserva cuatro motores: Spot Testnet, Futures Demo y dos ledgers
 hipotéticos independientes, Market Pulse y Quant SHADOW. Funding Carry simula
 pares tras sus barreras; StatArb usa hasta 500 cierres Spot 1m con recepción real
 y replay, pero sigue sin entradas. Estos datos retrospectivos no acreditan OOS.
 Guardian continúa **Observer**, sin veto ni reservas compartidas.
 
-La candidata **0.10.41** inicia el **Intelligent Trading Command Center**:
+La 0.10.41 incorpora el **Intelligent Trading Command Center**:
 auditoría de arquitectura y siete vistas compartidas para Command Center,
 Portfolio & Capital, Trading Engines, Guardian AI, Operations & Decisions,
 Research Lab y System & Settings, con presentación Windows coherente.
-Capital muestra evidencia por entorno; no reparte fondos. Guardian Intelligence,
-Capital Manager y Guardian Control son fases futuras, sin nuevas llamadas/coste IA
-en esta entrega. Ver [arquitectura, contratos y fases](COMMAND_CENTER_2_0.md).
-Su implementación/pruebas, CI, publicación/firma e instalación se verifican
-por separado; la instalación de 0.10.40 no demuestra la de 0.10.41.
+Capital muestra evidencia por entorno; no reparte fondos.
+
+La candidata **0.10.42** añade **Guardian Intelligence SHADOW, nivel 0**:
+captura explícita de los cuatro ledgers en sólo lectura, régimen BTC descriptivo,
+conflictos y códigos de revisión, journal independiente y replay causal.
+No veta, reserva capital ni altera órdenes, riesgos o revisiones IA individuales.
+La explicación IA opcional usa un presupuesto propio autorizado de hasta dos
+intentos/día, intervalo de una hora y caché histórica de 900 s; requiere además
+`ai.enabled`. Pruebas con transporte/claves sintéticos; no se afirma todavía una
+llamada real instalada. Ocho consultas locales de sólo lectura explican resumen,
+régimen, riesgo por ámbito, conflictos, calidad, revisión original, límites y
+contrafactual desconocido, con assessment/corte e identidad de journal disponible.
+Su historial existe sólo en la pestaña; no es auditoría durable. La consulta NL
+general de servidor, Capital Manager y Guardian Control siguen pendientes.
+Ver [arquitectura, límites y fases](COMMAND_CENTER_2_0.md).
+
+Validación local de 42: **767/767 Python offline, 180/180 Node**, ciclo/vistas
+Windows PowerShell 5.1, build del portal y diff aprobados. QA a 1366/360/768 px sin
+desbordamiento horizontal y con un único workspace Guardian. CI de PR/main,
+publicación/firma e instalación de 42 aún no verificadas. La revisión de 41 a las
+19:10 UTC volvió a verificar 178/178 hashes, motor 19240/agente 13056 y posiciones
+Spot 1/Futures 9 con protecciones ARMED y cantidad desprotegida observada cero.
 
 Plataforma supervisada de swing trading con Spot Testnet y un forward test LONG/SHORT de Futures Demo, con cuentas, ledgers, pausas y protecciones separados. PAPER se conserva como respaldo técnico/CI. Market Pulse observa eventos en Shadow; Quant añade investigación y simulación de pares. Consume datos reales de referencia y conserva costes y entornos explícitos. Binance LIVE sigue sin implementación.
 
