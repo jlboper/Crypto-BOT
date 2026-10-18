@@ -134,3 +134,24 @@ pending for this candidate. Prepared is not published or installed.
 Stage 4 independent historical/OOS calibration, matched net benchmarks and longer
 forward evidence remain pending. Guardian Control and new Testnet execution still
 require separate validation and explicit owner authorization; LIVE remains absent.
+
+## Stage 4 groundwork — 0.10.40 closed-minute diagnostic candidate
+
+Observed snapshot totals concealed gaps and insufficient contiguous StatArb
+history. The candidate reads up to 500 officially closed Spot 1m bars for each
+BTC/ETH/SOL from the fixed public allowlist, preserving them in a separate
+append-only store. First local receipt, market-close time and decision cutoff
+have distinct meanings: a prior close never proves the bot knew the bar then.
+Replay excludes evidence first received after its decision, and forming/future
+bars remain ineligible. Original snapshot gaps and journals are not interpolated
+or silently rewritten. This is retrospective closed-bar diagnosis, not forward
+OOS evidence, a validated backtest or independently calibrated cointegration.
+StatArb hypothetical entries remain blocked regardless of a favorable screen.
+
+Batch public premium-index reads make room for the closed-bar requests under
+the existing 15-request/minute cap: planned 14 startup and 10 steady refresh
+calls. No credentials, execution mode, risk, capital or Guardian authority change.
+Based on signed/installed 0.10.39 main `2328f2959dc9b4fb939e889519b59a19e5a58423`,
+verified 176/176 hashes after successful publication 39070205949 and safety 39070205944.
+The 0.10.40 full suites, Linux/Windows CI,
+publication/signature and installed runtime evidence must be checked separately.

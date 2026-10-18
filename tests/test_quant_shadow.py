@@ -517,21 +517,28 @@ class ReferenceTransportTests(unittest.TestCase):
         if path.endswith("depth"):
             return {"bids": [["99.99", "1000"]], "asks": [["100.01", "1000"]], "E": self.clock()*1000}
         if path.endswith("premiumIndex"):
-            return {"symbol": params["symbol"], "markPrice": "100", "lastFundingRate": ".0001",
-                    "nextFundingTime": (self.clock()+3600)*1000, "time": self.clock()*1000}
+            self.assertEqual(params, {})
+            return [{"symbol": symbol, "markPrice": "100", "lastFundingRate": ".0001",
+                     "nextFundingTime": (self.clock()+3600)*1000, "time": self.clock()*1000}
+                    for symbol in ("BTCUSDT", "ETHUSDT", "SOLUSDT")]
+        if path.endswith("klines"):
+            latest = int((self.clock()-5)//60)*60
+            return [[(end-60)*1000, "100", "100", "100", "100", "10",
+                     end*1000-1, "1000", 20, "5", "500", "0"]
+                    for end in range(latest-(params['limit']-1)*60, latest+1, 60)]
         return [{"symbol": params["symbol"], "fundingTime": (self.clock()-25200-i*28800)*1000,
                  "fundingRate": ".0001", "markPrice": "100"} for i in range(8)]
     def test_fixed_public_feed_caches_history_and_stays_inside_call_budget(self):
         feed = QuantPublicFeed(request=self.request, clock=self.clock)
         first = feed()
-        self.assertEqual(len(self.calls), 13)
+        self.assertEqual(len(self.calls), 14)
         self.assertEqual(len(first["markets"]), 3)
         self.assertTrue(all(row["futures"]["funding_interval_seconds"] == 28800 for row in first["markets"]))
         feed()
-        self.assertEqual(len(self.calls), 13)
+        self.assertEqual(len(self.calls), 14)
         self.clock.now += 60
         feed()
-        self.assertEqual(len(self.calls), 22)
+        self.assertEqual(len(self.calls), 24)
         self.assertEqual(sum(path.endswith("fundingRate") for _,path,_ in self.calls), 3)
     def test_rate_limit_stops_subsequent_calls_and_retries_after_bound(self):
         def limited(*args):
