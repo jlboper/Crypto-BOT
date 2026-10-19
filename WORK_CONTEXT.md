@@ -1,6 +1,49 @@
 # Work Context — Crypto AI Trader
 
-## Continuación actual — 0.10.43 correctiva del lector Guardian
+## Continuación actual — 0.10.44 Capital Protocol Lab, en preparación
+
+Base main **0.10.43** `e61dd2a6f617cd39e8bd1c69728dc6f63b800401`,
+[PR #120](https://github.com/jlboper/Crypto-BOT/pull/120), publicada y firmada tras
+[publicación 39254593562](https://github.com/jlboper/Crypto-BOT/actions/runs/39254593562)
+y [seguridad 39254593565](https://github.com/jlboper/Crypto-BOT/actions/runs/39254593565),
+Linux/Windows SUCCESS. Instalada a 2026-10-19 12:53:08 UTC: Ed25519 y **188/188
+hashes**, motor 21084, agente 21344 sincronizado. Spot 2/Futures 4 ARMED, cantidad
+desprotegida cero. Cinco assets web y 11/11 módulos del agente coincidentes.
+
+Auditoría Guardian43 12:54:49 UTC: OBSERVING, cuatro fuentes FRESH/completas,
+tres assessments distintos y **3/3 replays MATCH** con causalidad válida, errores 0,
+LEVEL 0 y toda autoridad false. Régimen entonces INSUFFICIENT_DATA por ventana
+cerrada obsoleta; no inferir tendencia. Dos intentos IA legacy FAILED, causa y
+coste desconocidos, cuota diaria 2/2 conservada. No resetear claims para probar.
+Exportador firmado a las 12:55:01 UTC incluye GI 7407 bytes en payload 417045 bytes; sin nuevas
+llamadas de proveedor durante esas auditorías. Datos previos comparados: ausentes 0 y
+cambiados 0; claves, riesgo, configuración Futures e hipótesis intactos; prefijo de
+721 registros Guardian y dos intentos también preservados. Son cortes fechados.
+
+Rama44 `feature/capital-protocol-lab-v01044` integra un laboratorio sintético
+cerrado de siete recetas con CLI explícito y JSON RO en Research Lab. Detalle en
+[CAPITAL_PROTOCOL_LAB.md](CAPITAL_PROTOCOL_LAB.md). No usa cuentas actuales,
+propuestas reales, ejecución, IA ni reservas de los motores. Guardian continúa
+NOT_INTEGRATED para capital. No declarar F3 runtime completa. Prototipos 61 tests
+y 64 tests core/Lab/CLI integrados PASS son evidencia enfocada previa. Full local
+final 44: **850/850 Python (181.531 s, TEST_RESULTS 13:19:52.904728 UTC), 202/202
+Node (69.325 s)**, 84 pruebas UI enfocadas (13.643 s), PS5.1 lifecycle/vistas, build
+y diff PASS. QA visual
+bloqueada: CUA sin navegador, aprobación Edge agotada y solicitud de acceso del
+dueño/IAB pendientes. No afirmar QA visual, CI, publicación o instalación 44;
+PR draft todavía por crear.
+
+Auditoría RO **13:18:23 UTC**: todas las filas del backup Spot 43, trades 80/80 y
+receipts 48/48, ausentes 0/cambiadas 0; SHA del backup intacto. Informe
+`append-only-backup43-verification.json`. Updater 43 respaldó sólo Spot. Los
+prefijos muestreados Futures/Pulse/Quant previamente comparados siguen válidos,
+pero no son comparación exhaustiva pre-43; no hubo backup 43 multiledger.
+Pulse readiness parcial (10 fresh/1 complete a las 12:46 UTC) queda como entrega separada,
+sin cambiar compuertas; no confundir WARMING_UP con caída.
+
+## Registro histórico de preparación43
+
+## Preparación histórica — 0.10.43 correctiva del lector Guardian
 
 Base instalada 42 main `b1e065b1c4934eef80cf4a6d39c52bafa1abb5de`, PR #119.
 Publicación 39181606398 y seguridad 39181606401 SUCCESS. Auditoría 2026-10-19

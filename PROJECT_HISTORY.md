@@ -1,5 +1,35 @@
 # Project History and Decision Log
 
+## 2026-10-19 — Guardian acquisition verified; synthetic capital protocol separated
+
+43 main `e61dd2a6f617cd39e8bd1c69728dc6f63b800401`,
+[PR #120](https://github.com/jlboper/Crypto-BOT/pull/120), passed Linux and Windows,
+was [published/signed](https://github.com/jlboper/Crypto-BOT/actions/runs/39254593562)
+and installed **188/188** at 12:53:08 UTC. At 12:54:49 UTC Guardian observed all
+four ledgers FRESH/complete; three frozen
+replays matched and no authority was enabled. Historical financial rows and
+existing Guardian records/two legacy AI attempts remained intact in a 721-record
+prefix. Unknown costs and failed AI causes stay unknown; daily 2/2 claims were
+preserved, never reset.
+
+44 prepares Capital Protocol Lab as closed synthetic research, separately from
+Capital Manager on actual proposals. It uses new SIM cohorts, integer micro-USDT,
+transactional reservations and an explicit CLI. GET/sync reads bounded JSON only.
+Independent review caught terminal orders reviving after UNKNOWN, balances older
+than a financial mutation, and an extra-check parser escape. Prototype fixes have
+regressions. This is not global market risk, account reconciliation, financial
+authorization or F3 runtime. See [CAPITAL_PROTOCOL_LAB.md](CAPITAL_PROTOCOL_LAB.md).
+Final local 44 checks passed 850/850 offline Python (181.531 s in TEST_RESULTS,
+2026-10-19 13:19:52.904728 UTC), 202/202 Node (69.325 s), 84 focused UI tests
+(13.643 s), PS5.1 lifecycle/view, build and diff. Browser access blocked visual QA;
+no visual PASS or PR/CI/release/install 44 is asserted. Draft PR remains to be created.
+
+The RO preservation audit at 13:18:23 UTC compared all 80 Spot trade rows and 48
+receipt rows from the verified 43 backup: zero missing/changed, backup SHA intact
+(`append-only-backup43-verification.json`). That updater backed up Spot only.
+Prior Futures/Pulse/Quant sampled-prefix matches do not establish preservation of
+every pre-43 row; no 43 multiledger backup exists for those sources.
+
 ## 2026-10-19 — installed Guardian exposes an idle-WAL acquisition assumption
 
 PR #119 merged as main `b1e065b1c4934eef80cf4a6d39c52bafa1abb5de`.

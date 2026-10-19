@@ -691,6 +691,24 @@ def guardian_intelligence_projection(config):
         return None
 
 
+def capital_lab_projection(config):
+    """Optional JSON-only synthetic research; never run recipes or open wallets."""
+    try:
+        from .capital_protocol_lab import capital_protocol_lab_snapshot
+        value = capital_protocol_lab_snapshot(config.bot.database_path.parent/'research'/'capital-lab')
+        if (not isinstance(value, dict) or type(value.get('schema')) is not int or value['schema'] != 1
+                or value.get('engine') != 'CAPITAL_PROTOCOL_LAB' or value.get('mode') != 'RESEARCH_ONLY'
+                or value.get('synthetic') is not True or value.get('execution_enabled') is not False
+                or value.get('real_account_adapter') is not False
+                or type(value.get('autonomy_level')) is not int or value['autonomy_level'] != 0
+                or len(json.dumps(value, ensure_ascii=True, allow_nan=False, separators=(',', ':')).encode()) > 8000):
+            return None
+        return value
+    except Exception:
+        # Older independent agents need not import the optional lab modules.
+        return None
+
+
 def dashboard_snapshot(config, report_path=None):
     connection = sqlite3.connect(config.bot.database_path.resolve().as_uri()+'?mode=ro', uri=True, timeout=3)
     connection.row_factory = sqlite3.Row
@@ -796,6 +814,10 @@ def dashboard_snapshot(config, report_path=None):
         if intelligence is not None and len(json.dumps({**payload, 'guardian_intelligence': intelligence},
                 allow_nan=False).encode()) <= 480_000:
             payload['guardian_intelligence'] = intelligence
+        capital_lab = capital_lab_projection(config)
+        if capital_lab is not None and len(json.dumps({**payload, 'capital_lab': capital_lab},
+                allow_nan=False).encode()) <= 480_000:
+            payload['capital_lab'] = capital_lab
         if len(json.dumps(payload,allow_nan=False).encode()) > 480_000:
             raise ValueError('Dashboard projection exceeds size budget')
         return payload

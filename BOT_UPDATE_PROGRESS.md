@@ -1,4 +1,34 @@
-# Candidate — 0.10.43 Guardian RO WAL corrective
+# Candidate — 0.10.44 Capital Protocol Lab (synthetic only)
+
+Base main 43 `e61dd2a6f617cd39e8bd1c69728dc6f63b800401`,
+[PR #120](https://github.com/jlboper/Crypto-BOT/pull/120),
+[publication 39254593562](https://github.com/jlboper/Crypto-BOT/actions/runs/39254593562)
+and [safety 39254593565](https://github.com/jlboper/Crypto-BOT/actions/runs/39254593565)
+SUCCESS on Linux/Windows. Ed25519 and installed **188/188** verified at
+2026-10-19 12:53:08 UTC. Engine 21084, Spot 2/Futures 4 ARMED with zero observed
+unprotected quantity; agent 21344 healthy with 11/11 modules. Guardian at 12:54:49
+UTC: four FRESH/complete sources, three distinct captures/three replays MATCH,
+zero errors, LEVEL 0/no authority. Two legacy FAILED AI claims retain unknown
+causes/costs and daily 2/2 consumption. Compared financial/settings and Guardian
+prefixes were preserved unchanged.
+
+44 is a synthetic CLI/research lab, not F3 real-proposal runtime. See
+[CAPITAL_PROTOCOL_LAB.md](CAPITAL_PROTOCOL_LAB.md). Prior focused checks passed
+61 prototype tests and 64 integrated core/Lab/CLI tests. Final full local 44
+validation passed **850/850 Python** (181.531 s in TEST_RESULTS at
+2026-10-19 13:19:52.904728 UTC), **202/202 Node** (69.325 s), 84 focused UI tests
+(13.643 s), PS5.1 lifecycle/view, build and diff. Visual QA remains blocked by
+browser access. Draft PR is not yet created; no visual PASS or 44 CI/publication/
+signature/install/runtime success is claimed.
+
+RO audit at 13:18:23 UTC verified **80/80 Spot trade rows and 48/48 receipt rows**
+from the 43 backup, zero missing/changed and unchanged backup SHA. Report:
+`append-only-backup43-verification.json`. The 43 updater backed up Spot only;
+valid prior sampled-prefix comparisons of Futures/Pulse/Quant do not establish
+exhaustive pre-43 preservation and there is no 43 multiledger backup for them.
+No new financial authorization is inferred from those tests or a PASSED recipe.
+
+# Historical candidate43 — Guardian RO WAL corrective
 
 Installed baseline: 42 main `b1e065b1c4934eef80cf4a6d39c52bafa1abb5de`,
 [PR #119](https://github.com/jlboper/Crypto-BOT/pull/119).

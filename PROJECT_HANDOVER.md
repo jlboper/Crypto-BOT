@@ -2,6 +2,42 @@
 
 This is the durable context entry point for a future engineer or AI model taking over this repository.
 
+### Current checkpoint: installed 43 / Capital Protocol Lab 44 in preparation
+
+Main 43 `e61dd2a6f617cd39e8bd1c69728dc6f63b800401`,
+[PR #120](https://github.com/jlboper/Crypto-BOT/pull/120),
+[publication 39254593562](https://github.com/jlboper/Crypto-BOT/actions/runs/39254593562)
+and [safety 39254593565](https://github.com/jlboper/Crypto-BOT/actions/runs/39254593565)
+succeeded on Linux/Windows. Signed installation **188/188** was verified at
+2026-10-19 12:53:08 UTC: engine 21084, Spot 2/Futures 4 native ARMED, zero observed
+unprotected quantity; agent 21344 synchronized with 11/11 modules. Guardian at
+12:54:49 UTC: OBSERVING, four FRESH/complete sources, three distinct assessments
+with **3/3 causal replays MATCH**, zero errors and LEVEL 0/all authority false.
+Regime was insufficient at that cut. Two legacy FAILED AI attempts have unknown
+causes/costs and consume the daily 2/2 budget; never reset them for testing.
+Compared financial prefixes/settings and the prefix of 721 existing Guardian
+records/two attempts were preserved.
+
+44 adds only the synthetic [Capital Protocol Lab](CAPITAL_PROTOCOL_LAB.md): closed
+recipes, new SIM accounts, CLI, bounded RO JSON and shared Research Lab display.
+No existing capital, engine candidate hooks, trading or Guardian Control. F3
+runtime/common proposal/account adapters remain work, not authorization gates for
+routine simulation development. Activating financial control still requires its
+separate owner authorization. Final local checks passed **850/850 Python**
+(181.531 s in `TEST_RESULTS.json`, 2026-10-19 13:19:52.904728 UTC; no failures/errors/
+skips, external network blocked, no bot started), **202/202 Node** (69.325 s),
+focused UI hardening 84 tests (13.643 s), Windows PowerShell 5.1 lifecycle/view,
+portal build and diff. Visual QA is blocked: CUA has no browser,
+Edge launch approval timed out and the owner access request/IAB are pending.
+No visual PASS or 44 PR/CI/publication/signature/install/runtime success is claimed;
+the draft PR has not yet been created.
+
+At 13:18:23 UTC a RO audit verified all **80/80 trade rows and 48/48 receipt rows**
+from the signed-43 Spot backup, with zero missing/changed rows and unchanged backup
+SHA. See `append-only-backup43-verification.json`. The 43 updater backed up Spot
+only; Futures/Pulse/Quant have no corresponding 43 multiledger backup. Earlier
+sampled-prefix comparisons remain valid but are not exhaustive pre-43 row checks.
+
 ## Read first
 
 Read, in this order:
@@ -19,7 +55,7 @@ Then inspect current `main`, recent commits, open PRs/issues and CI. Documentati
 
 ## Mission
 
-### Current continuation — 0.10.43 Guardian RO WAL corrective
+### Historical preparation — 0.10.43 Guardian RO WAL corrective
 
 Start from installed main 42 `b1e065b1c4934eef80cf4a6d39c52bafa1abb5de`,
 [PR #119](https://github.com/jlboper/Crypto-BOT/pull/119).

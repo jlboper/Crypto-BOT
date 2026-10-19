@@ -50,6 +50,41 @@ function guardianIntelligence(variant='ready'){
     '--variant',variant],{encoding:'utf8',timeout:20000}));
 }
 
+function capitalLab(variant='ready'){
+  return JSON.parse(execFileSync(process.env.PYTHON||'python',[
+    fileURLToPath(new URL('../../tests/emit_capital_lab_fixture.py',import.meta.url)),
+    '--variant',variant],{encoding:'utf8',timeout:20000}));
+}
+
+test('real synthetic Capital Lab roundtrips authenticated Worker and preserves all engine/Guardian capabilities',async t=>{
+  const f=await fixture(t),dashboard=quantDashboard();dashboard.guardian_intelligence=guardianIntelligence();
+  const original=JSON.parse(JSON.stringify(dashboard)),lab=capitalLab();delete original.capital_lab;dashboard.capital_lab=lab;
+  const base={...snapshot(),quant_controls:true,operations_controls:true,paper_controls:true,dashboard};
+  assert.equal((await f.request('/v1/device/sync',{snapshot:base,acks:[]})).status,401);
+  assert.equal((await f.sync({snapshot:base,acks:[]})).status,200);
+  await f.login();
+  const stored=(await f.request('/v1/status')).body.snapshot;
+  assert.deepEqual(stored.dashboard.capital_lab,lab);assert.equal(stored.quant_controls,true);
+  const retained=structuredClone(stored.dashboard);delete retained.capital_lab;assert.deepEqual(retained,original);
+  assert.equal((await f.request('/v1/paper-controls',{action:'capital_lab_run',payload:{},request_id:'synthetic-lab-no-control-0001'})).status,400);
+  assert.equal((await f.request('/v1/paper-controls',{action:'quant_arbitrage_pause',payload:{},request_id:'synthetic-lab-csrf-0001'}, {'X-CSRF-Token':''})).status,403);
+  const invalid=structuredClone(base);invalid.dashboard.capital_lab.execution_enabled=true;
+  const rejected=await f.sync({snapshot:invalid,acks:[]});assert.equal(rejected.status,400);assert.equal(rejected.body.error,'Invalid Capital Protocol Lab status');
+  assert.deepEqual((await f.request('/v1/status')).body.snapshot,JSON.parse(JSON.stringify(base)));
+});
+
+test('Worker accepts real failed, missing and corrupt Capital Lab without changing prior financial projections',async t=>{
+  const f=await fixture(t),dashboard=guardianDashboard();
+  for(const variant of ['failed','not-run','corrupt']){
+    dashboard.capital_lab=capitalLab(variant);
+    const accepted=await f.sync({snapshot:{...snapshot(),dashboard},acks:[]});
+    assert.equal(accepted.status,200,variant+' '+JSON.stringify(accepted.body));
+    assert.equal(dashboard.portfolio_guardian.reservations.state,'NOT_INTEGRATED');
+  }
+  delete dashboard.capital_lab;
+  assert.equal((await f.sync({snapshot:{...snapshot(),dashboard},acks:[]})).status,200);
+});
+
 test('real Guardian Intelligence survives authenticated Worker storage without changing four-engine capabilities',async t=>{
   const f=await fixture(t),dashboard=quantDashboard();
   const original=JSON.parse(JSON.stringify(dashboard)),intelligence=guardianIntelligence();

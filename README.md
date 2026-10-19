@@ -1,5 +1,30 @@
 # Crypto AI Trader — CRYPTO-BOT 2.0
 
+**Estado 2026-10-19, 12:54 UTC:** 0.10.43 instalada y firmada, **188/188 hashes**,
+main `e61dd2a6f617cd39e8bd1c69728dc6f63b800401`,
+[PR #120](https://github.com/jlboper/Crypto-BOT/pull/120) y
+[publicación verificada](https://github.com/jlboper/Crypto-BOT/actions/runs/39254593562).
+Guardian lee cuatro fuentes FRESH/completas; tres replays causales MATCH. Spot 2 y
+Futures 4 mantienen protecciones ARMED, sin cantidad desprotegida observada.
+Guardian LEVEL 0; Pulse/Quant SHADOW. Dos intentos IA históricos FAILED siguen
+con causa/coste desconocidos y cuota diaria 2/2 consumida.
+
+En preparación 44: [Capital Protocol Lab](CAPITAL_PROTOCOL_LAB.md), siete escenarios
+sintéticos con CLI explícito y Research Lab de sólo lectura. No administra los
+fondos actuales ni activa reservas, órdenes o estrategias. Validación local final:
+**850/850 Python offline (181.531 s), 202/202 Node (69.325 s)**, 84 pruebas UI
+enfocadas (13.643 s), Windows PowerShell 5.1 lifecycle/vistas, build y diff aprobados.
+QA visual bloqueada por acceso al navegador. PR de 44 todavía por crear como draft;
+CI, publicación/firma e instalación aún no verificadas. No completa
+Capital Manager sobre propuestas reales ni la Fase 3 operativa.
+
+Auditoría RO de conservación a las **13:18:23 UTC**: las 80 filas trades y 48
+receipts del backup Spot 43 permanecen sin ausencias ni cambios; SHA del backup
+intacto. El updater 43 sólo respaldó Spot. En Futures/Pulse/Quant se verificaron
+prefijos de referencia muestreados; no equivalen a comparar todo el historial
+pre-43 ni a un backup multiledger. Informe: `append-only-backup43-verification.json`.
+Los estados anteriores que siguen son registros históricos fechados.
+
 > Copia de desarrollo aislada de la instalación Windows. El repositorio no contiene credenciales ni datos de la instancia operativa. No inicies un segundo motor. Consulta `BOT_UPDATE_PROGRESS.md` para distinguir versión preparada, publicada e instalada.
 
 **Estado 2026-10-19 00:42:33 UTC:** 0.10.42 publicada, firmada e instalada,

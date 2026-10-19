@@ -781,6 +781,7 @@ const CommandCenterPortal = (() => {
     'portfolio-guardian':'guardian-ai','guardian-exposure':'guardian-ai','guardian-overlaps':'guardian-ai','guardian-quality':'guardian-ai',
     'guardian-intelligence':'guardian-ai','intelligence-scopes':'guardian-ai','intelligence-sources':'guardian-ai','intelligence-ai':'guardian-ai','intelligence-conflicts':'guardian-ai','intelligence-journal':'guardian-ai','intelligence-queries':'guardian-ai',
     'comparison-details':'portfolio-capital','spot-finance':'portfolio-capital','futures-finance':'portfolio-capital',
+    'capital-lab':'research-lab',
     'activity-section':'operations-decisions','historyPanel':'operations-decisions',
     'modelSettingsPanel':'system-settings','diagnosticsPanel':'system-settings','observation-details':'system-settings',
     'updates':'system-settings','updatePanel':'system-settings','password':'system-settings','passwordPanel':'system-settings'
@@ -900,7 +901,7 @@ window.CommandCenterPortal=CommandCenterPortal;
 /* Shared supervised engine view. External event text is always escaped, never executable. */
 const PulsePortal = (() => {
   let pendingControl=null;
-  const foldIds=new Set(['spot-analysis','futures-analysis','pulse-live','pulse-news','pulse-scanner','pulse-decisions','pulse-finance','pulse-health','guardian-exposure','guardian-overlaps','guardian-quality','intelligence-scopes','intelligence-sources','intelligence-ai','intelligence-conflicts','intelligence-journal','intelligence-queries','quant-funding','quant-statistical','quant-positions','quant-decisions','quant-finance','quant-health','observation-details','comparison-details','spot-limits','futures-limits','spot-positions','futures-positions','spot-finance','futures-finance','diagnosticsPanel','research-lab']);
+  const foldIds=new Set(['spot-analysis','futures-analysis','pulse-live','pulse-news','pulse-scanner','pulse-decisions','pulse-finance','pulse-health','guardian-exposure','guardian-overlaps','guardian-quality','intelligence-scopes','intelligence-sources','intelligence-ai','intelligence-conflicts','intelligence-journal','intelligence-queries','quant-funding','quant-statistical','quant-positions','quant-decisions','quant-finance','quant-health','observation-details','comparison-details','spot-limits','futures-limits','spot-positions','futures-positions','spot-finance','futures-finance','diagnosticsPanel','research-lab','capital-lab']);
   const navIds=new Set(['platform-overview','spot-bot','futures-bot','market-pulse','portfolio-guardian','quant-arbitrage','activity-section','modelSettingsPanel',...foldIds]);
   const foldStorageKey='crypto-ai-trader.ui.folds.v1';
   let redrawQueued=false;
@@ -1426,6 +1427,123 @@ const GuardianIntelligencePortal = (() => {
 })();
 window.GuardianIntelligencePortal=GuardianIntelligencePortal;
 
+/* Research-only protocol evidence. No account, order, query or control API. */
+const CapitalLabPortal = (() => {
+  const recipes=[
+    ['SIM_ATOMIC_PAIR','Reserva atómica de dos patas','RESERVED',['TWO_LEGS_ATOMIC','TWO_LEGS_PRESENT']],
+    ['SIM_ACCOUNT_CONFLICT','Conflicto de activo en una cuenta simulada','RESERVED',['SAME_ACCOUNT_ASSET_REJECTED','ONE_RESERVATION']],
+    ['SIM_CONCURRENT_BUDGET','Dos participantes compiten por el mismo presupuesto','RESERVED',['ONE_PARENT_BUDGET_WINNER','NO_DOUBLE_ALLOCATION']],
+    ['SIM_RESTART_UNKNOWN_TTL','Reinicio y TTL conservan una intención incierta','UNKNOWN',['TTL_RELEASES_NOTHING','INTENTION_UNKNOWN']],
+    ['SIM_PARTIAL_CANCEL','Cancelación parcial conserva principal y costes','RECOVERY_REQUIRED',['ONLY_UNUSED_PRINCIPAL_RELEASED','OPEN_COMMITMENT_PRESERVED','EXIT_COST_BUFFER_RETAINED']],
+    ['SIM_MULTILEG_UNWIND','Fallo de una pata exige cierre simulado explícito','CLOSED',['RESIDUAL_REQUIRES_UNWIND','EXPLICIT_CLOSE_RELEASES_CAPITAL','BOTH_COSTS_BOOKED']],
+    ['SIM_LOSS_SHORTFALL','Fees y pérdida confirmada no ocultan déficit','RECOVERY_REQUIRED',['NEGATIVE_EQUITY_NOT_HIDDEN','SHORTFALL_VISIBLE']]
+  ];
+  const checks={
+    TWO_LEGS_ATOMIC:['Reserva del conjunto','money',204000000],TWO_LEGS_PRESENT:['Piernas presentes','count',2],
+    SAME_ACCOUNT_ASSET_REJECTED:['Conflicto detectado','code','ACCOUNT_ASSET_ALREADY_RESERVED'],ONE_RESERVATION:['Reserva única','money',102000000],
+    ONE_PARENT_BUDGET_WINNER:['Participantes aceptados','count',1],NO_DOUBLE_ALLOCATION:['Reserva sin doble asignación','money',402000000],
+    TTL_RELEASES_NOTHING:['Recursos retenidos al vencer TTL','money',102000000],INTENTION_UNKNOWN:['Intención persistida','code','UNKNOWN'],
+    ONLY_UNUSED_PRINCIPAL_RELEASED:['Principal no usado liberado','money',60000000],OPEN_COMMITMENT_PRESERVED:['Compromiso abierto retenido','money',40000000],
+    EXIT_COST_BUFFER_RETAINED:['Buffer de salida retenido','money',1600000],RESIDUAL_REQUIRES_UNWIND:['Compromiso antes del cierre','money',100000000],
+    EXPLICIT_CLOSE_RELEASES_CAPITAL:['Compromiso tras cierre explícito','money',0],BOTH_COSTS_BOOKED:['Costes registrados','money',1500000],
+    NEGATIVE_EQUITY_NOT_HIDDEN:['Valor contable con pérdida','money',-204000000],SHORTFALL_VISIBLE:['Déficit registrado','money',204000000]
+  };
+  const books={book_equity_units:'Valor contable sintético',reserved_units:'Reservado simulado',committed_units:'Comprometido simulado',free_units_signed:'Libre con signo',available_units:'Disponible para reservas simuladas',shortfall_units:'Déficit',fees_paid_units:'Comisiones pagadas simuladas',realized_pnl_units:'P&L realizado simulado'};
+  const expectedBooks=[
+    [1000000000,204000000,0,796000000,796000000,0,0,0],
+    [1000000000,102000000,0,898000000,898000000,0,0,0],
+    [1000000000,402000000,0,598000000,598000000,0,0,0],
+    [1000000000,102000000,0,898000000,898000000,0,0,0],
+    [999600000,1600000,40000000,958000000,958000000,0,400000,0],
+    [998000000,0,0,998000000,998000000,0,1500000,-500000],
+    [-204000000,0,0,-204000000,0,204000000,4000000,-1200000000]
+  ];
+  const limitations=['SYNTHETIC_PROTOCOL_SCENARIOS_ONLY','NO_EXISTING_FUNDS_OR_ACCOUNT_READ','NO_ENGINE_CANDIDATE_OR_ORDER_HOOK','NOT_OWNER_FINANCIAL_AUTHORIZATION','BOOK_CAPITAL_NOT_MARKET_EQUITY_OR_GROSS_NOTIONAL','SCENARIO_VALIDATION_NOT_JOURNAL_REPLAY','NO_STATISTICAL_EDGE_OR_PROMOTION'];
+  const expectedPolicy={policy_id:'SIM_CAPITAL_LAB_POLICY_V1',approved_actor:'SIM_RECIPE_AUTHOR',approved_at:1792281600,funding_source:'EXPLICIT_NEW_SIMULATION_COHORT',initial_balance_units:1000000000,total_allocated_limit_units:600000000,reserved_limit_units:600000000,committed_limit_units:600000000,stop_risk_limit_units:20000000,strategy_limits:[['SIM_SPOT',600000000,20000000],['SIM_PULSE',600000000,20000000]],balance_max_age_seconds:120,max_active_requests:10};
+  const states={RESERVED:'Reservado',SUBMITTING:'Envío simulado pendiente',PARTIAL:'Parcial',FILLED:'Completado simulado',UNKNOWN:'Desconocido',CANCEL_PENDING:'Cancelación pendiente',CANCELLED:'Cancelado',CLOSED:'Cerrado',RECOVERY_REQUIRED:'Recuperación requerida',SCENARIO_ERROR:'Ensayo interrumpido'};
+  const wrapperKeys=['schema','engine','mode','synthetic','execution_enabled','autonomy_level','real_account_adapter','state','at','report_id','report_digest','source_version','policy_id','policy','unit','units_per_usdt','scenarios','limitations'];
+  const object=v=>v!==null&&typeof v==='object'&&!Array.isArray(v);
+  const exact=(v,keys)=>object(v)&&Object.keys(v).length===keys.length&&keys.every(key=>Object.hasOwn(v,key));
+  const hash=v=>typeof v==='string'&&/^[a-f0-9]{64}$/.test(v);
+  const sim=v=>typeof v==='string'&&/^SIM_[A-Za-z0-9_-]{1,80}$/.test(v);
+  const equal=(a,b)=>typeof a===typeof b&&a===b;
+  const money=v=>typeof v==='number'&&Number.isSafeInteger(v)&&Math.abs(v)<=9000000000000000;
+  const instant=v=>typeof v==='string'&&v.length<=40&&/(Z|[+-]\d\d:\d\d)$/.test(v)&&Number.isFinite(Date.parse(v));
+  const time=v=>instant(v)?new Date(v).toLocaleString('es-MX',{dateStyle:'short',timeStyle:'medium'}):'Hora desconocida';
+  const set=(id,value)=>{const node=document.getElementById(id);if(node)node.textContent=value;};
+  const html=(id,value)=>{const node=document.getElementById(id);if(node)node.innerHTML=value;};
+  const metrics=values=>values.map(([key,value])=>`<div><dt>${esc(key)}</dt><dd>${esc(value)}</dd></div>`).join('');
+  let lastReport=null;
+  function formatUnits(value){
+    if(value===null||value===undefined)return '— · desconocido';
+    if(!money(value))return 'Contrato incompatible';
+    const units=BigInt(value),absolute=units<0n?-units:units;
+    return (units<0n?'−':'')+new Intl.NumberFormat('en-US').format(absolute/1000000n)+'.'+String(absolute%1000000n).padStart(6,'0')+' USDT · LAB SIM';
+  }
+  function checkValue(value,kind){
+    if(value==='NOT_EVALUATED')return 'No evaluado';
+    if(kind==='money')return formatUnits(value);
+    if(kind==='count')return typeof value==='number'&&Number.isSafeInteger(value)&&value>=0?String(value)+' · contador simulado':'Desconocido';
+    return value==='ACCOUNT_ASSET_ALREADY_RESERVED'?'Activo ya reservado en la cuenta simulada':value==='UNKNOWN'?'Desconocido':'Código sin evidencia';
+  }
+  function conserved(book){
+    if(!exact(book,Object.keys(books))||!Object.values(book).every(money)||['reserved_units','committed_units','available_units','shortfall_units','fees_paid_units'].some(key=>book[key]<0))return false;
+    // Validate the producer's identities exactly; never apply new fills or
+    // infer a wallet. Intermediate sums must not use binary Number rounding.
+    const n=key=>BigInt(book[key]),free=n('free_units_signed');
+    return n('book_equity_units')===1000000000n+n('realized_pnl_units')-n('fees_paid_units')&&n('book_equity_units')===free+n('reserved_units')+n('committed_units')&&n('available_units')===(free>0n?free:0n)&&n('shortfall_units')===(free<0n?-free:0n);
+  }
+  function validWrapper(value){
+    try{
+      if(!exact(value,wrapperKeys)||value.schema!==1||value.engine!=='CAPITAL_PROTOCOL_LAB'||value.mode!=='RESEARCH_ONLY'||value.synthetic!==true||value.autonomy_level!==0||value.execution_enabled!==false||value.real_account_adapter!==false||value.unit!=='MICRO_USDT'||value.units_per_usdt!==1000000||value.policy_id!=='SIM_CAPITAL_LAB_POLICY_V1'||!instant(value.at)||Date.parse(value.at)>Date.now()+5000||!Array.isArray(value.scenarios)||JSON.stringify(value.limitations)!==JSON.stringify(limitations))return false;
+      if(JSON.stringify(value).replace(/[\u007f-\uffff]/g,c=>'\\u'+c.charCodeAt(0).toString(16).padStart(4,'0')).length>8000)return false;
+      if(['NOT_RUN','UNAVAILABLE'].includes(value.state))return value.scenarios.length===0&&['report_id','report_digest','source_version','policy'].every(key=>value[key]===null);
+      if(!['PASSED','FAILED'].includes(value.state)||!/^SIM_[a-f0-9]{32}$/.test(value.report_id)||!hash(value.report_digest)||value.scenarios.length!==7)return false;
+      const source=value.source_version;
+      if(!exact(source,['protocol','protocol_sha256','lab_sha256','recipe_version','recipe_sha256'])||source.protocol!=='CAPITAL_MANAGER_SHADOW_SIMULATION_V1'||source.recipe_version!=='capital-protocol-lab-v1'||source.recipe_sha256!=='794994c2035a4813c6985970d04ef2d1d308565af752acf74e546157de7aacc4'||!['protocol_sha256','lab_sha256','recipe_sha256'].every(key=>hash(source[key])))return false;
+      const policy=value.policy;
+      if(!exact(policy,Object.keys(expectedPolicy))||!Object.entries(expectedPolicy).every(([key,expected])=>key==='strategy_limits'?JSON.stringify(policy[key])===JSON.stringify(expected):equal(policy[key],expected)))return false;
+      return value.scenarios.every((row,index)=>{
+        const recipe=recipes[index];
+        if(!exact(row,['id','label','scope','state','actual_state','expected_state','matches','conservation_matches','book','checks','record_id','record_digest'])||row.id!==recipe[0]||row.label!==recipe[1]||row.expected_state!==recipe[2]||!Object.hasOwn(states,row.actual_state)||!['PASSED','FAILED'].includes(row.state)||typeof row.matches!=='boolean'||typeof row.conservation_matches!=='boolean'||!exact(row.scope,['scenario_environment','simulated_account_id','currency'])||row.scope.scenario_environment!=='SHADOW'||row.scope.simulated_account_id!==row.id||row.scope.currency!=='USDT'||!Array.isArray(row.checks)||row.checks.length!==recipe[3].length)return false;
+        if(!row.checks.every((check,i)=>exact(check,['code','actual','expected','matches'])&&check.code===recipe[3][i]&&equal(check.expected,checks[check.code][2])&&(['string','boolean'].includes(typeof check.actual)||money(check.actual))&&String(check.actual).length<=100&&typeof check.matches==='boolean'&&check.matches===equal(check.actual,check.expected)))return false;
+        const conservation=conserved(row.book);
+        if(row.book!==null&&!conservation||row.conservation_matches!==conservation)return false;
+        const matches=row.actual_state===row.expected_state&&row.checks.every(check=>check.matches)&&row.book!==null&&Object.keys(books).every((key,i)=>row.book[key]===expectedBooks[index][i]);
+        if(row.matches!==matches||(row.state==='PASSED')!==(matches&&conservation))return false;
+        return row.book===null?row.actual_state==='SCENARIO_ERROR'&&row.record_id===null&&row.record_digest===null:sim(row.record_id)&&hash(row.record_digest);
+      })&&(value.state==='PASSED')===value.scenarios.every(row=>row.state==='PASSED');
+    }catch{return false;}
+  }
+  function unavailable(state,note){
+    lastReport=null;set('capitalLabState',state);set('capitalLabStatus',note);html('capitalLabEvidence','');html('capitalLabCases','<p class="empty">Sin libro sintético verificable. Los importes son desconocidos; no se construye una wallet ni se consulta una cuenta.</p>');
+  }
+  function render(platform){
+    const value=platform?.capital_lab;
+    if(value===null||value===undefined){unavailable('SIN REPORTE','Laboratorio sin escenario publicado o sin proyección compatible de esta versión.');return;}
+    if(!validWrapper(value)){unavailable('NO DISPONIBLE','Reporte del laboratorio incompatible. No modifica el estado de los motores ni las reservas de Guardian.');return;}
+    if(value.state==='NOT_RUN'){unavailable('SIN EJECUTAR','No existe un reporte de recetas. Abrir esta sección no ejecuta el laboratorio ni crea fondos.');return;}
+    if(value.state==='UNAVAILABLE'){unavailable('NO DISPONIBLE','No se puede verificar el reporte guardado del laboratorio. Los importes siguen desconocidos.');return;}
+    lastReport=value;
+    const historical=platform?.remote_sync_stale===true;
+    set('capitalLabState',value.state==='PASSED'?'ENSAYOS CONFORMES':'ENSAYOS CON FALLOS');
+    set('capitalLabStatus',`${historical?'Último reporte recibido · sincronización antigua; no se sabe si existe uno posterior. ':''}Reporte fechado ${time(value.at)}. Siete escenarios sintéticos; no es evidencia de rentabilidad, ejecución en mercado ni capital integrado.`);
+    html('capitalLabEvidence',metrics([['Reporte LAB SIM',value.report_id],['Ejecutado el',time(value.at)],['Recetas',value.source_version.recipe_version],['Política sintética',value.policy_id],['Financiación','Nueva cohorte sintética explícita; sin fondos existentes'],['Actor de la receta · sin autorización real',value.policy.approved_actor],['Digest del reporte',value.report_digest],['Fuente de protocolo',value.source_version.protocol_sha256],['Fuente del laboratorio',value.source_version.lab_sha256],['Digest de recetas',value.source_version.recipe_sha256]]));
+    const open=new Set(recipes.filter(([id])=>document.getElementById('capital-case-'+id)?.open===true).map(([id])=>id));
+    html('capitalLabCases',value.scenarios.map((row,index)=>{
+      const recipe=recipes[index],state=row.state==='PASSED'?'CONFORME':'FALLO DEL ENSAYO';
+      const book=row.book?`<dl class="capital-lab-book">${metrics(Object.entries(books).map(([key,label])=>[label,formatUnits(row.book[key])]))}</dl>`:'<p class="empty">Libro desconocido: el ensayo se interrumpió. No se infiere saldo cero.</p>';
+      return `<article class="capital-lab-case"><div class="capital-lab-case-head"><h3>${esc(recipe[1])}</h3><span class="badge neutral">LAB SIM</span></div><p class="capital-lab-result">${esc(state)} · ${historical?'último reporte recibido':'ensayo fechado'}</p><p class="platform-note">${esc(row.scope.simulated_account_id)} · SHADOW sintético · USDT</p><dl class="capital-lab-protocol">${metrics([['Estado observado · simulado',states[row.actual_state]],['Estado esperado · simulado',states[row.expected_state]]])}</dl><details id="capital-case-${row.id}" class="capital-lab-detail" ${open.has(row.id)?'open':''}><summary>Libro y comprobaciones · LAB SIM</summary>${book}<div class="capital-lab-checks">${row.checks.map(check=>`<div><strong>${esc(checks[check.code][0])}</strong><span>${check.actual==='NOT_EVALUATED'?'NO EVALUADO':check.matches?'CONFORME':'NO COINCIDE'}</span><p>Observado: ${esc(checkValue(check.actual,checks[check.code][1]))}</p><p>Esperado: ${esc(checkValue(check.expected,checks[check.code][1]))}</p></div>`).join('')}</div><dl class="capital-lab-evidence">${metrics([['Registro del escenario',row.record_id||'Sin registro verificable'],['Digest del registro',row.record_digest||'Desconocido']])}</dl><p class="platform-note">Comprobaciones del protocolo sobre una receta. No es replay del journal ni conciliación de una cuenta. TTL o una intención incierta no autorizan liberar fondos.</p></details></article>`;
+    }).join(''));
+  }
+  function disconnected(){
+    if(lastReport){render({capital_lab:lastReport,remote_sync_stale:true});set('capitalLabStatus','Portal sin conexión · último ensayo recibido. No se sabe si existe un reporte posterior. Todos los fondos y órdenes mostrados son sintéticos.');}
+    else unavailable('SIN CONEXIÓN','Sin reporte verificable recibido. La conexión del laboratorio no determina el estado de los motores.');
+  }
+  return {render,disconnected,validWrapper,formatUnits};
+})();
+window.CapitalLabPortal=CapitalLabPortal;
+
 async function refresh() {
   try {
     const [status,positions,trades,reviews,equity,events,research,researchState,paperReport,futuresForward,marketPulse,platform] = await Promise.all([
@@ -1627,11 +1745,13 @@ async function refresh() {
     FourEnginePortal.render(platform);
     CommandCenterPortal.render({status,reviews,events,marketPulse,platform,futuresForward});
     GuardianIntelligencePortal.render(platform);
+    CapitalLabPortal.render(platform);
   } catch(error) {
     PulsePortal.disconnected();
     FourEnginePortal.disconnected();
     CommandCenterPortal.disconnected();
     GuardianIntelligencePortal.disconnected();
+    CapitalLabPortal.disconnected();
     const botState=document.getElementById('botState');
     botState.textContent='PORTAL SIN CONEXIÓN'; botState.classList.add('offline');
     document.getElementById('operationSummary').textContent='No se pudo consultar el motor. Comprueba la conexión con Windows antes de operar.';

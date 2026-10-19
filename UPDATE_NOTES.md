@@ -1,4 +1,34 @@
-# 0.10.43 — Guardian RO WAL y prefiltrado IA (en preparación)
+# 0.10.44 — Capital Protocol Lab (en preparación)
+
+- Base 43 main `e61dd2a6f617cd39e8bd1c69728dc6f63b800401`,
+  [PR #120](https://github.com/jlboper/Crypto-BOT/pull/120), publicación 39254593562
+  y seguridad 39254593565 SUCCESS. Firma e instalación **188/188** verificadas el
+  2026-10-19 a las 12:53:08 UTC; Guardian con cuatro fuentes FRESH y tres replays
+  MATCH a las 12:54:49 UTC. Datos/límites previos preservados, Spot 2/Futures 4
+  ARMED, cantidad desprotegida cero y agente 11/11.
+- Siete recetas SIM cerradas prueban reservas transaccionales, concurrencia,
+  incertidumbre/reinicio, cancelación parcial, múltiples patas y déficit visible.
+  CLI explícito, nuevos UUID/cuentas simuladas y libro entero micro-USDT separado.
+- Research Lab compartido muestra JSON RO ≤8000 bytes. GET/sync no ejecuta recetas,
+  crea wallets ni abre SQLite del laboratorio. Sin controles de capital o trading.
+  Guardian continúa NOT_INTEGRATED; las cifras no se suman a cuentas de motores.
+- Revisión corrigió terminal→UNKNOWN que revivía capital, balances anteriores a
+  mutaciones y campos extra en checks. No se modifican motores, riesgo o updater.
+  No es F3 runtime/common candidate adapter ni Global Risk Engine completo.
+- Core/Lab/CLI integrados: 64 tests PASS (9.895 s); prototipos: 61 tests previos.
+  Full local final 44: **850/850 Python offline (181.531 s en TEST_RESULTS,
+  2026-10-19 13:19:52.904728 UTC), 202/202 Node (69.325 s)**, 84 pruebas UI enfocadas
+  (13.643 s), PS5.1 lifecycle/vistas, build y diff PASS. QA visual bloqueada por
+  acceso al navegador; sin afirmar PASS visual. PR draft por crear; CI, publicación,
+  firma e instalación de 44 todavía pendientes.
+- Auditoría RO 13:18:23 UTC: trades Spot del backup 43 80/80 y receipts 48/48 sin
+  ausencias/cambios; SHA del backup intacto (`append-only-backup43-verification.json`).
+  Updater 43 sólo respaldó Spot. Comparaciones anteriores de prefijos muestreados
+  Futures/Pulse/Quant siguen válidas, pero no demuestran todas las filas pre-43;
+  no existe backup 43 multiledger para esos motores.
+  Véase CAPITAL_PROTOCOL_LAB.md para ejecución, límites y conservación de cohortes.
+
+# 0.10.43 — Guardian RO WAL y prefiltrado IA (registro de preparación)
 
 - Base main 42 `b1e065b1c4934eef80cf4a6d39c52bafa1abb5de`, PR #119.
   [Publicación 39181606398](https://github.com/jlboper/Crypto-BOT/actions/runs/39181606398)

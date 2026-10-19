@@ -19,6 +19,7 @@ test('real workerd + local D1: browser session -> command -> Windows sync -> ack
   const mf=new Miniflare(convertV4MiniflareOptions({modules:[
     {type:'ESModule',path:fileURLToPath(new URL('../src/worker.mjs',import.meta.url))},
     {type:'ESModule',path:fileURLToPath(new URL('../src/guardian-intelligence.mjs',import.meta.url))},
+    {type:'ESModule',path:fileURLToPath(new URL('../src/capital-lab.mjs',import.meta.url))},
     {type:'ESModule',path:fileURLToPath(new URL('../src/github-updates.mjs',import.meta.url))},
     {type:'ESModule',path:fileURLToPath(new URL('../src/password.mjs',import.meta.url))},
     {type:'ESModule',path:fileURLToPath(new URL('../src/bot-releases.mjs',import.meta.url))}],
