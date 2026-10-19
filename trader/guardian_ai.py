@@ -39,6 +39,63 @@ SCHEMA = {"type": "object", "additionalProperties": False,
         "cautions": {"type": "array", "items": {"type": "string"}},
         "evidence_ids": {"type": "array", "items": {"type": "string"}}},
     "required": ["summary", "posture", "cautions", "evidence_ids"]}
+FAILURE_CODES = frozenset({
+    "AI_AUTH_FAILED", "AI_ACCESS_DENIED", "AI_REQUEST_INVALID", "AI_QUOTA_EXHAUSTED",
+    "AI_RATE_LIMITED", "AI_RATE_LIMIT_UNKNOWN", "AI_SERVER_ERROR", "AI_HTTP_ERROR",
+    "AI_TRANSPORT_FAILED", "AI_RESPONSE_TOO_LARGE", "AI_RESPONSE_INVALID",
+    "AI_RESPONSE_INCOMPLETE", "AI_RESPONSE_REFUSED", "AI_COMMENTARY_INVALID", "AI_FAILED",
+})
+
+
+class _AIResponseFailure(ValueError):
+    def __init__(self, code):
+        self.code = code if code in FAILURE_CODES else "AI_FAILED"
+        super().__init__(self.code)
+
+
+def _failure_code(exc):
+    """Return only a fixed diagnostic; never retain provider text or exception messages."""
+    if isinstance(exc, _AIResponseFailure):
+        return exc.code
+    if isinstance(exc, urllib.error.HTTPError):
+        try:
+            status = exc.code
+            if type(status) is not int:
+                return "AI_HTTP_ERROR"
+            if status == 429:
+                # Only the two documented codes affect classification. The bounded body,
+                # including any message, credentials or unknown code, is discarded.
+                try:
+                    value = json.loads(exc.read(2048))
+                    error = value.get("error") if isinstance(value, dict) else None
+                    code = error.get("code") if isinstance(error, dict) else None
+                except Exception:
+                    code = None
+                return {"insufficient_quota": "AI_QUOTA_EXHAUSTED",
+                        "rate_limit_exceeded": "AI_RATE_LIMITED"}.get(code, "AI_RATE_LIMIT_UNKNOWN") if isinstance(code, str) else "AI_RATE_LIMIT_UNKNOWN"
+            if status in (400, 401, 403):
+                return {400: "AI_REQUEST_INVALID", 401: "AI_AUTH_FAILED", 403: "AI_ACCESS_DENIED"}[status]
+            return "AI_SERVER_ERROR" if 500 <= status <= 599 else "AI_HTTP_ERROR"
+        finally:
+            try:
+                exc.close()
+            except Exception:
+                pass
+    if isinstance(exc, (urllib.error.URLError, TimeoutError, ConnectionError)):
+        return "AI_TRANSPORT_FAILED"
+    return "AI_FAILED"
+
+
+def _usage(response):
+    usage = response.get("usage") if isinstance(response.get("usage"), dict) else {}
+    tokens = [usage.get(k) for k in ("input_tokens", "output_tokens")]
+    tokens = [n if type(n) is int and 0 <= n <= 100000 else None for n in tokens]
+    details = usage.get("input_tokens_details")
+    cached = details.get("cached_tokens") if isinstance(details, dict) else None
+    cached = cached if type(cached) is int and tokens[0] is not None and 0 <= cached <= tokens[0] else None
+    estimate = ((tokens[0]-cached)*PRICE["input_per_million_usd"]
+        +cached*PRICE["cached_input_per_million_usd"]+tokens[1]*PRICE["output_per_million_usd"])/1_000_000 if None not in tokens and cached is not None else None
+    return tokens, cached, estimate
 
 
 class _NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -97,6 +154,12 @@ class GuardianAIReviewer:
                 cached_tokens INTEGER,estimated_cost_usd REAL,result TEXT);
                 CREATE INDEX IF NOT EXISTS guardian_ai_day ON guardian_ai_attempts(day);
                 CREATE INDEX IF NOT EXISTS guardian_ai_fingerprint ON guardian_ai_attempts(fingerprint,at);""")
+            # Upgrade only this advisory journal, retaining every historical attempt.
+            # The lock also makes simultaneous reviewer initialization safe.
+            db.execute("BEGIN IMMEDIATE")
+            columns = {row[1] for row in db.execute("PRAGMA table_info(guardian_ai_attempts)")}
+            if "failure_code" not in columns:
+                db.execute("ALTER TABLE guardian_ai_attempts ADD COLUMN failure_code TEXT")
 
     def _connect(self):
         return sqlite3.connect(self.path, timeout=.25)
@@ -160,6 +223,7 @@ class GuardianAIReviewer:
         if self.model != PRICE["model"]:
             return self._unavailable("MODEL_PRICING_NOT_VERIFIED")
         claim = None
+        tokens, cached_tokens, estimate = [None, None], None, None
         try:
             context, data, fingerprint = self._context(report)
             now = self.clock()
@@ -219,25 +283,34 @@ class GuardianAIReviewer:
             with self.opener(request, timeout=8) as response:
                 raw = response.read(self.MAX_RESPONSE_BYTES+1)
             if len(raw) > self.MAX_RESPONSE_BYTES:
-                raise ValueError("Oversized response")
-            response = json.loads(raw)
-            if not isinstance(response,dict) or response.get("status") != "completed":
-                raise ValueError("Incomplete or refused response")
-            if any(c.get("type") == "refusal" for item in response.get("output", [])
-                   for c in item.get("content", [])):
-                raise ValueError("Refused response")
-            output = response.get("output_text") or "".join(c.get("text","") for item in response.get("output",[]) for c in item.get("content",[]) if c.get("type")=="output_text")
-            result = _validate_commentary(json.loads(output), context["evidence_ids"])
-            if self.api_key in _json(result):
-                raise ValueError("Private material in commentary")
-            usage = response.get("usage") if isinstance(response.get("usage"),dict) else {}
-            tokens = [usage.get(k) for k in ("input_tokens","output_tokens")]
-            tokens = [n if type(n) is int and 0 <= n <= 100000 else None for n in tokens]
-            details = usage.get("input_tokens_details")
-            cached_tokens = details.get("cached_tokens") if isinstance(details, dict) else None
-            cached_tokens = cached_tokens if type(cached_tokens) is int and tokens[0] is not None and 0 <= cached_tokens <= tokens[0] else None
-            estimate = ((tokens[0]-(cached_tokens or 0))*PRICE["input_per_million_usd"]
-                +(cached_tokens or 0)*PRICE["cached_input_per_million_usd"]+tokens[1]*PRICE["output_per_million_usd"])/1_000_000 if None not in tokens and cached_tokens is not None else None
+                raise _AIResponseFailure("AI_RESPONSE_TOO_LARGE")
+            try:
+                response = json.loads(raw)
+            except (ValueError, UnicodeError):
+                raise _AIResponseFailure("AI_RESPONSE_INVALID") from None
+            if not isinstance(response, dict):
+                raise _AIResponseFailure("AI_RESPONSE_INVALID")
+            # The provider may bill an incomplete/refused answer. Record validated
+            # usage before interpreting status or commentary, without storing its body.
+            tokens, cached_tokens, estimate = _usage(response)
+            if response.get("status") == "incomplete":
+                raise _AIResponseFailure("AI_RESPONSE_INCOMPLETE")
+            if response.get("status") != "completed":
+                raise _AIResponseFailure("AI_RESPONSE_INVALID")
+            output = response.get("output", [])
+            if (not isinstance(output, list) or any(not isinstance(item, dict)
+                    or not isinstance(item.get("content", []), list)
+                    or any(not isinstance(c, dict) for c in item.get("content", [])) for item in output)):
+                raise _AIResponseFailure("AI_RESPONSE_INVALID")
+            if any(c.get("type") == "refusal" for item in output for c in item.get("content", [])):
+                raise _AIResponseFailure("AI_RESPONSE_REFUSED")
+            try:
+                text = response.get("output_text") or "".join(c.get("text", "") for item in output for c in item.get("content", []) if c.get("type") == "output_text")
+                result = _validate_commentary(json.loads(text), context["evidence_ids"])
+                if self.api_key in _json(result):
+                    raise ValueError("Private material in commentary")
+            except (ValueError, TypeError):
+                raise _AIResponseFailure("AI_COMMENTARY_INVALID") from None
             record = {"state":"COMPLETED","at":datetime.fromtimestamp(now,UTC).isoformat(),
                 "assessment_id":context["assessment_id"],"model":self.model,"advisory_only":True,
                 "execution_enabled":False,"controls_enabled":False,"commentary":result,
@@ -249,13 +322,15 @@ class GuardianAIReviewer:
             return record
         except Exception as exc:
             # Unknown HTTP outcomes consume the durable claim. No automatic retry.
+            failure = _failure_code(exc)
             if claim is not None:
                 try:
                     with closing(self._connect()) as db,db:
-                        db.execute("UPDATE guardian_ai_attempts SET outcome='FAILED' WHERE id=? AND outcome='CLAIMED'",(claim,))
+                        db.execute("UPDATE guardian_ai_attempts SET outcome='FAILED',failure_code=?,input_tokens=?,output_tokens=?,cached_tokens=?,estimated_cost_usd=? WHERE id=? AND outcome='CLAIMED'",
+                            (failure,*tokens,cached_tokens,estimate,claim))
                 except sqlite3.Error:
                     pass
-            return self._unavailable("AI_FAILED_"+type(exc).__name__)
+            return self._unavailable(failure)
 
     def health(self):
         day = datetime.fromtimestamp(self.clock(),UTC).date().isoformat()

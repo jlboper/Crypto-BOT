@@ -1,6 +1,55 @@
 # CRYPTO-BOT 2.0 — Intelligent Trading Command Center
 
-## Baseline and scope
+## Current checkpoint — installed 42 / corrective candidate 43
+
+**0.10.42 is published, signed and installed**, main
+`b1e065b1c4934eef80cf4a6d39c52bafa1abb5de`, [PR #119](https://github.com/jlboper/Crypto-BOT/pull/119).
+[Publication 39181606398](https://github.com/jlboper/Crypto-BOT/actions/runs/39181606398)
+and [safety 39181606401](https://github.com/jlboper/Crypto-BOT/actions/runs/39181606401)
+succeeded. At **2026-10-19 00:42:33 UTC**, Ed25519, **188/188 installed hashes**
+and five shared-web assets matched. Engine PID 3680 retained one Spot/five Futures
+positions, native protections ARMED and zero observed unprotected quantity.
+The independent agent initially had 9/11 current modules at that cut. Signed
+auto-refresh was verified at **00:54:20 UTC**: agent PID 21344, **11/11 modules**,
+`sync_ok`, and two fresh healthy heartbeats. Engine PID 3680 was unchanged;
+Spot 1/Futures 5 remained native ARMED with zero observed unprotected quantity.
+
+Guardian is **not fully operatively verified**: its first real record replays MATCH,
+but report state is PARTIAL with **0/4 valid sources**, all UNKNOWN for
+`WAL_SIDECARS_UNAVAILABLE`. Idle WAL databases may normally have no persistent
+WAL/SHM sidecars. Rejecting them prevents valid observation; publication and passing
+synthetic tests did not establish operating source acquisition. One real advisory
+attempt is FAILED with unknown usage/cause; do not infer exhausted quota or credits.
+
+Candidate **0.10.43**, branch `fix/guardian-readonly-wal-v01043`, is a narrow
+correction: normal SQLite `mode=ro`/`query_only` reads may use transient WAL/SHM
+metadata without financial DML, constructors, migrations, immutable copies or
+stale snapshots. Preserve source timestamps, inventories, freshness and causal
+checks. A deterministic prefilter must suppress model calls when every source is
+UNKNOWN; bounded error diagnostics must expose safe codes, never response bodies
+or secrets. Financial balances/positions/journals and current risk stay unchanged.
+43 full offline Python passed **777/777**, no failures/errors/skips, **238.609 s**
+in `TEST_RESULTS.json` at 00:55:17 UTC; external network blocked, no bot started.
+PR/main CI, publication, signature, installation and runtime verification remain
+pending. Existing 42 test counts below are
+historical evidence, not 43 results.
+
+Candidate evidence at **00:47:04 UTC**: standard SQLite RO backups of the four
+operating schemas into temporary copies yielded four FRESH/complete captures
+(Spot 1/Futures 5/Pulse 1/Quant 0) and descriptive BTC SIDEWAYS. No engine,
+provider or credential loader ran; temporary copies were removed. This validates
+43's reader against actual schemas, **not installed 43 operation**. Focused
+capture/service tests: 87 PASS; isolated all-UNKNOWN no-AI regression: 1 PASS.
+Additional local 43 validation: **35 AI tests PASS (6.961 s)**, **180/180 Node
+PASS (106.485 s)**, Windows PowerShell 5.1 lifecycle/view checks, portal build and
+diff PASS. Full Python 777/777 PASS is recorded above; rollout remains pending.
+
+Capital Protocol Lab remains an external **synthetic** prototype, excluded from
+this corrective release. It is not Capital Manager observing real engine proposals;
+common immutable candidate/account adapters, Capital Manager runtime and Guardian
+Control remain pending without financial authorization or automatic promotion.
+
+## Historical 0.10.42 preparation checkpoint
 
 Candidate **0.10.42 — Guardian Intelligence Shadow**, prepared from current main
 `022fb9135d165d5c52f12b65aa9628ab8c1436af` (0.10.41),
@@ -102,7 +151,7 @@ flowchart TB
 | Market Pulse | Ten dated eligible assets, five RSS sources, independent Shadow ledger and six-attempt/day AI cap | Later research/admission adapters, separately reviewed | Untrusted news, stale data and speculative claims; no exchange executor |
 | Quant | Independent virtual ledger, Funding Carry, closed-minute evidence, replay and protective simulation | Independent calibration/OOS and richer execution stress | StatArb entry remains blocked; historical bars received now are not forward evidence |
 | Guardian Observer | Pure `portfolio_guardian.py`, four scoped ledgers, overlaps, bounded alerts | Reuse evidence builder; do not insert it into trading cycles | No broker/E/S, reservations, veto, correlation model or cross-scope financial total |
-| Guardian Intelligence | Candidate 42: deterministic builder, isolated Shadow service, frozen journal/replay, optional bounded advisory client and eight local read-only query intents; complete local validation passed | PR/main CI and operating observation; general server-side journal/NL queries remain pending | No veto/order hooks; descriptive hypotheses, stale context and model costs remain explicit |
+| Guardian Intelligence | Installed 42: isolated Shadow service, journal/replay and eight local queries; first real record MATCH but four sources UNKNOWN | Corrective 43 WAL/SHM reader, all-UNKNOWN deterministic AI prefilter and safe diagnostics; local 777 Python/180 Node passed, rollout/runtime pending | No veto/order hooks; model attempt FAILED with unknown cause/usage; no claim of complete operating acquisition |
 | Capital Manager | `exposure_coordinator.py` prototype and synthetic tests | New durable state machine, reconciler and adapters for every participant | Prototype is not integrated; sharing account funds remains blocked |
 | Guardian Control | No common control admission path exists | Future deterministic enforcement after explicit authority and validation | Never increase ceilings, reopen manual kills, delay exits or infer LIVE permission |
 | Portal / Windows | Installed 41: seven shared views, mobile navigation, coherent labels and existing authenticated controls | Candidate 42 projects actual Guardian intelligence and freshness | Presentation must not claim stale/missing data or future authority is current |
@@ -267,7 +316,9 @@ An estimated admission reserve of $0.01/day complements the attempt cap; it is
 require separate evidence. Missing usage/cached-token details leave the cost
 estimate unknown; partial known costs do not imply complete costs. No new model,
 subscription or paid infrastructure is introduced. A real request in the installed
-42 runtime has not yet been verified; all executed model tests used fake transport/keys.
+42 runtime has one FAILED advisory attempt with unknown usage/cause. Synthetic
+tests do not diagnose that failure; corrective 43 must skip requests for an
+all-UNKNOWN capture and retain safe error classifications without bodies/secrets.
 
 Candidate 42 implements eight **closed local read-only intents** in the shared
 browser: `SUMMARY`, `REGIME`, `SCOPE_RISK`, `CONFLICTS`, `DATA_QUALITY`,
@@ -333,7 +384,8 @@ Retention exhaustion degrades observation rather than deleting financial evidenc
 or stopping trading. Snapshot/HTTP reads do not initialize the service.
 `guardian-ai.db` separately retains advisory attempts, usage and historical cache.
 Model annotations are separate from deterministic reports and have no authority.
-Service integration and final tests are ongoing; read-only general NL questions
+42 is installed with the acquisition incident described above; corrective 43
+tests and operating validation remain pending. Read-only general NL questions
 and counterfactual effectiveness evaluation are not implemented in this slice.
 
 Current snapshots supply engine identity, environment, ledger positions/marks,
@@ -407,7 +459,7 @@ equals failure”; an empty market/decision view can be legitimate observation.
 | --- | --- | --- |
 | 0 — Audit | Implemented/documented in 0.10.41, published/signed/installed/verified | Component map and predecessor source/CI/inventory reviewed |
 | 1 — Command Center | Seven views and Windows naming implemented/tested; 0.10.41 published/signed/installed 178/178 and continuity verified | New presentation does not change financial execution |
-| 2 — Guardian Intelligence | Candidate 0.10.42 implemented and locally tested: 767 Python, 180 Node, Windows lifecycle/view, build and responsive QA pass; eight local query intents; PR/main CI/publication/signature/install/runtime pending | Frozen causal replay, isolated service and actual post-install advisory usage/health evidence; no implied control authority |
+| 2 — Guardian Intelligence | 42 implemented/tested/published/signed/installed 188/188; actual journal replay MATCH but 0/4 sources UNKNOWN and one AI attempt FAILED; corrective 43 local 777 Python/180 Node/Windows/build PASS, PR/CI/rollout pending | Normal WAL lifecycle acquisition, all-UNKNOWN prefilter and fresh operating evidence; no implied control authority |
 | 3 — Risk & Capital Shadow | Designed; prototype alone is insufficient | Concurrent/idempotent virtual reservations, unknown-order recovery, multi-leg accounting and restart evidence; no trading side effect |
 | 4 — Quant research | Existing 0.10.40 Shadow foundation installed/verified; additional calibration pending | Historical/OOS/forward and net-cost/stress evidence; StatArb remains blocked |
 | 5 — Guardian Control Testnet | Pending; not authorized by phase 1 or this roadmap | Explicit future owner authorization, common admission/reconciliation, safety and rollback validation |

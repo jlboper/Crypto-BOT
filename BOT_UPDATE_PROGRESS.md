@@ -1,4 +1,40 @@
-# Candidate — 0.10.42 Guardian Intelligence Shadow
+# Candidate — 0.10.43 Guardian RO WAL corrective
+
+Installed baseline: 42 main `b1e065b1c4934eef80cf4a6d39c52bafa1abb5de`,
+[PR #119](https://github.com/jlboper/Crypto-BOT/pull/119).
+[Publication 39181606398](https://github.com/jlboper/Crypto-BOT/actions/runs/39181606398)
+and [safety 39181606401](https://github.com/jlboper/Crypto-BOT/actions/runs/39181606401)
+SUCCESS. At 2026-10-19 00:42:33 UTC Ed25519, 188/188 installed hashes and five
+web assets matched. Engine 3680: Spot 1/Futures 5 native ARMED, zero unprotected
+quantity observed. Agent inventory was 9/11 then. At **00:54:20 UTC** signed
+auto-refresh was verified: agent 21344, **11/11 modules**, sync_ok and two fresh
+healthy heartbeats. Engine 3680 unchanged, Spot 1/Futures 5 ARMED and zero observed
+unprotected quantity.
+
+42 is installed but Guardian acquisition is not fully verified: PARTIAL with 0/4
+valid sources, all UNKNOWN/WAL_SIDECARS_UNAVAILABLE. The first actual journal
+record replays MATCH. One real AI attempt FAILED with unknown usage/cause; no
+quota or credit diagnosis is substantiated.
+
+43 permits normal SQLite RO/query-only reads with transient WAL/SHM metadata,
+without financial DML or requiring persistent sidecars. Preserve current commits,
+source freshness, causal checks, data and protections; no immutable-copy shortcut.
+A deterministic all-UNKNOWN filter precedes AI; safe codes replace opaque errors
+without exposing provider bodies/secrets. PR/main CI/publication/signature/
+installation/runtime 43 remain pending. Capital Protocol Lab stays an external
+synthetic prototype and is excluded from this corrective release.
+
+00:47:04 UTC candidate43 actual-schema check used standard SQLite RO backups
+into temporary copies: all four FRESH/complete, positions 1/5/1/0, descriptive
+SIDEWAYS, no engine/provider/credential loader. Copies removed; not installed 43
+proof. Focused capture/service 87 and isolated no-AI 1 tests PASS. Additional local
+43 checks PASS: AI 35 (6.961 s), Node 180/180 (106.485 s), Windows PowerShell 5.1
+lifecycle/view, portal build and diff. Full offline Python **777/777 PASS,
+238.609 s**, no failures/errors/skips, external network blocked and no bot started
+(`TEST_RESULTS.json`, 00:55:17 UTC). PR/main CI/publication/signature/install/runtime
+remain pending.
+
+# 0.10.42 Guardian Intelligence Shadow — historical preparation record
 
 Prepared from main `022fb9135d165d5c52f12b65aa9628ab8c1436af`, 0.10.41,
 [PR #118](https://github.com/jlboper/Crypto-BOT/pull/118), published/signed and

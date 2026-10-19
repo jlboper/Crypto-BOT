@@ -19,7 +19,49 @@ Then inspect current `main`, recent commits, open PRs/issues and CI. Documentati
 
 ## Mission
 
-### Current continuation — 0.10.42 Guardian Intelligence Shadow
+### Current continuation — 0.10.43 Guardian RO WAL corrective
+
+Start from installed main 42 `b1e065b1c4934eef80cf4a6d39c52bafa1abb5de`,
+[PR #119](https://github.com/jlboper/Crypto-BOT/pull/119).
+[Publication 39181606398](https://github.com/jlboper/Crypto-BOT/actions/runs/39181606398)
+and [safety 39181606401](https://github.com/jlboper/Crypto-BOT/actions/runs/39181606401)
+succeeded. Audit 2026-10-19 00:42:33 UTC verified Ed25519, 188/188 installed hashes
+and five web assets. Engine 3680: Spot 1/Futures 5, native ARMED, zero observed
+unprotected quantity. Agent inventory was 9/11 at that cut. Signed refresh at
+**00:54:20 UTC** verified agent 21344, **11/11 modules**, sync_ok and two fresh
+healthy heartbeats; engine 3680 unchanged, Spot 1/Futures 5 ARMED, zero unprotected
+quantity observed.
+
+42 Guardian actual status: PARTIAL, 0/4 sources valid, all UNKNOWN with
+WAL_SIDECARS_UNAVAILABLE. One real journal record replays MATCH. A real AI attempt
+FAILED without known usage or classified cause. Do not infer quota/credit issues
+or claim full acquisition success from installation, replay or synthetic tests.
+
+Corrective branch `fix/guardian-readonly-wal-v01043` must allow normal SQLite
+mode=ro/query_only observation when WAL/SHM sidecars have been normally cleaned.
+Transient WAL/SHM metadata is allowed; financial DML, constructors, migrations,
+immutable copies, stale snapshots and relaxed causal/freshness checks are not.
+Test quiet DB/WAL financial preservation and current commits under concurrent
+writers. Add a deterministic all-UNKNOWN prefilter before any AI call and safe
+bounded error classifications, never provider bodies/headers/secrets. 43 full
+Python passed; PR/main CI/publication/signature/install/runtime are pending. 42 test
+counts remain historical.
+
+At 00:47:04 UTC, candidate43 read standard SQLite RO backups of all four actual
+schemas from temporary copies: FRESH/complete, Spot 1/Futures 5/Pulse 1/Quant 0 and
+descriptive SIDEWAYS. No engine/provider/credential loader ran. Copies were removed;
+this is actual-schema candidate proof, not installed 43. Focused capture/service
+87 PASS and isolated all-UNKNOWN no-AI 1 PASS. Additional 43 results: AI 35 PASS
+(6.961 s), Node 180/180 PASS (106.485 s), Windows PowerShell 5.1 lifecycle/view,
+portal build and diff PASS. Full offline Python **777/777 PASS**, no failures/
+errors/skips, **238.609 s** (`TEST_RESULTS.json`, 00:55:17 UTC), external network
+blocked and no bot started. These local results do not establish installed 43.
+
+Keep the four financial ledgers, controls and protections intact. Capital Protocol
+Lab remains an external synthetic prototype, excluded from 43. It does not observe
+common immutable engine proposals, reserve existing funds or complete phase 3.
+
+### 0.10.42 Guardian Intelligence Shadow — historical preparation record
 
 Start from main `022fb9135d165d5c52f12b65aa9628ab8c1436af`, 0.10.41,
 [PR #118](https://github.com/jlboper/Crypto-BOT/pull/118). Its publication

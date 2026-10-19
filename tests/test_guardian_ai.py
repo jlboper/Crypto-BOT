@@ -7,6 +7,7 @@ import copy
 from contextlib import closing
 from datetime import UTC, datetime
 import hashlib
+import io
 import json
 import os
 from pathlib import Path
@@ -80,6 +81,15 @@ class FakeOpener:
         result = Response(raw)
         self.responses.append(result)
         return result
+
+
+class ErrorBody(io.BytesIO):
+    def __init__(self, raw):
+        super().__init__(raw)
+        self.read_limits = []
+    def read(self, limit=-1):
+        self.read_limits.append(limit)
+        return super().read(limit)
 
 
 class GuardianAITests(unittest.TestCase):
@@ -167,8 +177,7 @@ class GuardianAITests(unittest.TestCase):
             return value
         cases = [lambda request: b"{", lambda request: [],
                  lambda request: {"status": "incomplete", "output_text": "{}"},
-                 lambda request: {"status": "completed", "output": [{"type": "message", "content": [{"type": "refusal", "refusal": "Synthetic"}]}]},
-                 mixed]
+                 lambda request: {"status": "completed", "output": [{"type": "message", "content": [{"type": "refusal", "refusal": "Synthetic"}]}]}]
         for behavior in cases:
             opener = FakeOpener(behavior)
             reviewer = self.reviewer(opener=opener)
@@ -181,6 +190,10 @@ class GuardianAITests(unittest.TestCase):
                 self.assertGreater(rows[0]["reserved_estimate_usd"], 0)
                 self.assertIsNone(rows[0]["estimated_cost_usd"])
                 self.assertFalse(reviewer.health()["costs_complete"])
+        reviewer = self.reviewer(opener=FakeOpener(mixed))
+        self.assertEqual(reviewer(report())["reason"], "AI_RESPONSE_REFUSED")
+        self.assertIsNotNone(self.rows(reviewer)[0]["estimated_cost_usd"])
+        self.assertTrue(reviewer.health()["costs_complete"])
 
     def test_commentary_schema_lengths_types_extra_fields_and_evidence_are_validated(self):
         transforms = [lambda value: value.update(summary=""), lambda value: value.update(summary="x"*281),
@@ -268,11 +281,13 @@ class GuardianAITests(unittest.TestCase):
     def test_durable_failed_and_unknown_claims_are_not_released_or_retried_after_restart(self):
         opener = FakeOpener(lambda request: TimeoutError("synthetic request may have reached provider"))
         first = self.reviewer(opener=opener, cap=1, folder="restart")
-        self.assertEqual(first(report())["state"], "UNAVAILABLE")
+        self.assertEqual(first(report())["reason"], "AI_TRANSPORT_FAILED")
+        self.assertEqual(self.rows(first)[0]["failure_code"], "AI_TRANSPORT_FAILED")
         self.clock.now += 3601
         restarted = self.reviewer(opener=opener, cap=1, folder="restart")
         self.assertEqual(restarted(report(at=self.clock(), identity="new"))["reason"], "AI_BUDGET_OR_INTERVAL")
         self.assertEqual(len(opener.calls), 1)
+        self.assertEqual(self.rows(restarted)[0]["failure_code"], "AI_TRANSPORT_FAILED")
         unknown = self.reviewer(opener=opener, cap=1)
         self.write_attempt(unknown, outcome="CLAIMED")
         self.assertEqual(unknown(report(at=self.clock()))["reason"], "AI_BUDGET_OR_INTERVAL")
@@ -412,6 +427,171 @@ class GuardianAITests(unittest.TestCase):
             self.assertEqual(result["state"], "UNAVAILABLE")
             self.assertNotIn(FAKE_KEY, json.dumps(result))
             self.assertNotIn(FAKE_KEY, reviewer.path.read_bytes().decode("latin1"))
+
+    def test_additive_migration_preserves_old_attempts_and_unknown_historical_failure(self):
+        directory = self.root/"legacy"
+        directory.mkdir()
+        path = directory/"guardian-ai.db"
+        with closing(sqlite3.connect(path)) as db, db:
+            db.execute("""CREATE TABLE guardian_ai_attempts(
+                id INTEGER PRIMARY KEY,at REAL NOT NULL,day TEXT NOT NULL,fingerprint TEXT NOT NULL,
+                assessment_id TEXT NOT NULL,model TEXT NOT NULL,outcome TEXT NOT NULL,
+                reserved_estimate_usd REAL NOT NULL,input_tokens INTEGER,output_tokens INTEGER,
+                cached_tokens INTEGER,estimated_cost_usd REAL,result TEXT)""")
+            db.execute("INSERT INTO guardian_ai_attempts VALUES(17,?,?,?,?,?,?,?,?,?,?,?,?)",
+                       (NOW, datetime.fromtimestamp(NOW, UTC).date().isoformat(), "legacy-fingerprint",
+                        "a"*64, "gpt-6-luna", "FAILED", .001, 120, 40, 20, .00003, None))
+            db.row_factory = sqlite3.Row
+            before = dict(db.execute("SELECT * FROM guardian_ai_attempts").fetchone())
+        opener = FakeOpener()
+        reviewer = self.reviewer(folder="legacy", opener=opener, cap=1)
+        after = self.rows(reviewer)[0]
+        self.assertEqual({k: after[k] for k in before}, before)
+        self.assertIsNone(after["failure_code"])
+        self.assertEqual(reviewer(report())["reason"], "AI_BUDGET_OR_INTERVAL")
+        restarted = self.reviewer(folder="legacy", opener=opener, cap=1)
+        self.assertEqual(self.rows(restarted), [after])
+        self.assertEqual(opener.calls, [])
+        self.assertEqual([p.name for p in directory.iterdir()], ["guardian-ai.db"])
+
+    def test_http_status_diagnostics_are_fixed_durable_and_never_read_other_error_bodies(self):
+        for status, expected in ((400, "AI_REQUEST_INVALID"), (401, "AI_AUTH_FAILED"),
+                                 (403, "AI_ACCESS_DENIED"), (500, "AI_SERVER_ERROR"),
+                                 (503, "AI_SERVER_ERROR"), (599, "AI_SERVER_ERROR"),
+                                 (302, "AI_HTTP_ERROR"), (404, "AI_HTTP_ERROR")):
+            body = ErrorBody(("private-body "+FAKE_KEY).encode())
+            def error(request, status=status, body=body):
+                return HTTPError(request.full_url, status, FAKE_KEY, {"X-Request-Id": FAKE_KEY}, body)
+            with self.subTest(status=status):
+                opener = FakeOpener(error)
+                reviewer = self.reviewer(opener=opener)
+                result = reviewer(report())
+                row = self.rows(reviewer)[0]
+                self.assertEqual(result["reason"], expected)
+                self.assertEqual(row["failure_code"], expected)
+                self.assertEqual(row["outcome"], "FAILED")
+                self.assertIsNone(row["result"])
+                self.assertIsNone(row["estimated_cost_usd"])
+                self.assertIs(result["advisory_only"], True)
+                self.assertIs(result["execution_enabled"], False)
+                self.assertIs(result["controls_enabled"], False)
+                self.assertEqual(body.read_limits, [])
+                self.assertTrue(body.closed)
+                self.assertEqual(len(opener.calls), 1)
+                self.assertNotIn(FAKE_KEY, json.dumps(result)+json.dumps(row)+json.dumps(reviewer.health()))
+                self.assertNotIn(FAKE_KEY, reviewer.path.read_bytes().decode("latin1"))
+
+    def test_429_reads_at_most_2k_and_uses_only_allowlisted_error_code(self):
+        cases = [({"error": {"code": "insufficient_quota", "message": FAKE_KEY}}, "AI_QUOTA_EXHAUSTED"),
+                 ({"error": {"code": "rate_limit_exceeded", "message": FAKE_KEY}}, "AI_RATE_LIMITED"),
+                 ({"error": {"code": FAKE_KEY, "message": "insufficient_quota"}}, "AI_RATE_LIMIT_UNKNOWN"),
+                 ({"error": {"code": ["insufficient_quota"]}}, "AI_RATE_LIMIT_UNKNOWN"),
+                 ({"error": "rate_limit_exceeded"}, "AI_RATE_LIMIT_UNKNOWN"),
+                 ({"code": "insufficient_quota"}, "AI_RATE_LIMIT_UNKNOWN"),
+                 (b"invalid "+FAKE_KEY.encode(), "AI_RATE_LIMIT_UNKNOWN"),
+                 (("{\"error\":{\"message\":\""+"x"*3000+"\",\"code\":\"insufficient_quota\"}}").encode(), "AI_RATE_LIMIT_UNKNOWN")]
+        for index, (value, expected) in enumerate(cases):
+            body = ErrorBody(value if isinstance(value, bytes) else json.dumps(value).encode())
+            def error(request, body=body):
+                return HTTPError(request.full_url, 429, FAKE_KEY, {}, body)
+            with self.subTest(case=index):
+                reviewer = self.reviewer(opener=FakeOpener(error))
+                result = reviewer(report())
+                row = self.rows(reviewer)[0]
+                self.assertEqual(result["reason"], expected)
+                self.assertEqual(row["failure_code"], expected)
+                self.assertEqual(body.read_limits, [2048])
+                self.assertTrue(body.closed)
+                self.assertIsNone(row["input_tokens"])
+                self.assertIsNone(row["estimated_cost_usd"])
+                self.assertNotIn(FAKE_KEY, json.dumps(result)+json.dumps(row))
+                self.assertNotIn(FAKE_KEY, reviewer.path.read_bytes().decode("latin1"))
+
+    def test_transport_and_internal_failures_do_not_leak_dynamic_exception_names(self):
+        dynamic = type("Private_"+FAKE_KEY, (Exception,), {})
+        for error, expected in ((URLError("dns "+FAKE_KEY), "AI_TRANSPORT_FAILED"),
+                                (TimeoutError(FAKE_KEY), "AI_TRANSPORT_FAILED"),
+                                (ConnectionResetError(FAKE_KEY), "AI_TRANSPORT_FAILED"),
+                                (dynamic(FAKE_KEY), "AI_FAILED")):
+            with self.subTest(expected=expected, kind=type(error).__base__.__name__):
+                reviewer = self.reviewer(opener=FakeOpener(lambda request, error=error: error))
+                result = reviewer(report())
+                row = self.rows(reviewer)[0]
+                self.assertEqual(result["reason"], expected)
+                self.assertEqual(row["failure_code"], expected)
+                self.assertNotIn(FAKE_KEY, json.dumps(result)+json.dumps(row))
+                self.assertIsNone(row["estimated_cost_usd"])
+                self.assertFalse(reviewer.health()["costs_complete"])
+
+    def test_response_failure_codes_are_exact_and_bounded(self):
+        def refused(request):
+            value = response_body(request)
+            value["output"] = [{"content": [{"type": "refusal", "refusal": FAKE_KEY}]}]
+            return value
+        def invalid_commentary(request):
+            value = response_body(request)
+            value["output_text"] = "private invalid commentary "+FAKE_KEY
+            return value
+        cases = [(lambda request: b"x"*(ai.GuardianAIReviewer.MAX_RESPONSE_BYTES+1), "AI_RESPONSE_TOO_LARGE"),
+                 (lambda request: b"{", "AI_RESPONSE_INVALID"),
+                 (lambda request: [], "AI_RESPONSE_INVALID"),
+                 (lambda request: {"status": "unknown", "error": FAKE_KEY}, "AI_RESPONSE_INVALID"),
+                 (lambda request: {"status": "completed", "output": [None]}, "AI_RESPONSE_INVALID"),
+                 (lambda request: {"status": "incomplete"}, "AI_RESPONSE_INCOMPLETE"),
+                 (refused, "AI_RESPONSE_REFUSED"), (invalid_commentary, "AI_COMMENTARY_INVALID")]
+        for behavior, expected in cases:
+            with self.subTest(expected=expected):
+                reviewer = self.reviewer(opener=FakeOpener(behavior))
+                result = reviewer(report())
+                row = self.rows(reviewer)[0]
+                self.assertEqual(result["reason"], expected)
+                self.assertEqual(row["failure_code"], expected)
+                self.assertIn(result["reason"], ai.FAILURE_CODES)
+                self.assertNotIn(FAKE_KEY, json.dumps(result)+json.dumps(row))
+                self.assertNotIn(FAKE_KEY, reviewer.path.read_bytes().decode("latin1"))
+
+    def test_incomplete_refused_or_invalid_commentary_preserves_valid_billed_usage(self):
+        for kind, expected in (("incomplete", "AI_RESPONSE_INCOMPLETE"),
+                               ("refused", "AI_RESPONSE_REFUSED"),
+                               ("commentary", "AI_COMMENTARY_INVALID")):
+            def body(request, kind=kind):
+                value = response_body(request)
+                if kind == "incomplete":
+                    value["status"] = "incomplete"
+                    value["incomplete_details"] = {"reason": "max_output_tokens", "private": FAKE_KEY}
+                elif kind == "refused":
+                    value["output"] = [{"content": [{"type": "refusal", "refusal": FAKE_KEY}]}]
+                else:
+                    value["output_text"] = "invalid "+FAKE_KEY
+                return value
+            with self.subTest(kind=kind):
+                reviewer = self.reviewer(opener=FakeOpener(body))
+                self.assertEqual(reviewer(report())["reason"], expected)
+                row = self.rows(reviewer)[0]
+                self.assertEqual((row["input_tokens"], row["output_tokens"], row["cached_tokens"]), (120, 40, 20))
+                self.assertAlmostEqual(row["estimated_cost_usd"], (100*.10+20*.01+40*.50)/1_000_000)
+                self.assertIsNone(row["result"])
+                self.assertTrue(reviewer.health()["costs_complete"])
+
+    def test_incomplete_partial_usage_retains_only_valid_tokens_without_zero_cost(self):
+        for usage, expected in (({"input_tokens": 120, "output_tokens": 40}, (120, 40, None)),
+                                ({"input_tokens": True, "output_tokens": 40}, (None, 40, None)),
+                                ({"input_tokens": 120, "output_tokens": "40", "input_tokens_details": {"cached_tokens": 20}}, (120, None, 20)),
+                                ({}, (None, None, None))):
+            reviewer = self.reviewer(opener=FakeOpener(lambda request, usage=usage: {"status": "incomplete", "usage": usage}))
+            self.assertEqual(reviewer(report())["reason"], "AI_RESPONSE_INCOMPLETE")
+            row = self.rows(reviewer)[0]
+            self.assertEqual((row["input_tokens"], row["output_tokens"], row["cached_tokens"]), expected)
+            self.assertIsNone(row["estimated_cost_usd"])
+            self.assertIsNone(reviewer.health()["known_estimated_cost_usd"])
+            self.assertFalse(reviewer.health()["costs_complete"])
+
+    def test_success_has_no_failure_code_and_diagnostic_enum_has_only_fixed_values(self):
+        reviewer = self.reviewer()
+        self.assertEqual(reviewer(report())["state"], "COMPLETED")
+        self.assertIsNone(self.rows(reviewer)[0]["failure_code"])
+        self.assertEqual(len(ai.FAILURE_CODES), 15)
+        self.assertTrue(all(ai._code(value) == value for value in ai.FAILURE_CODES))
 
     def test_reflected_credential_in_valid_commentary_is_not_persisted_or_exposed(self):
         def body(request):
