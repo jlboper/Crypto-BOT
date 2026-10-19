@@ -354,15 +354,55 @@ class CaptureTests(unittest.TestCase):
         finally:
             writer.close()
 
-    def test_wal_missing_sidecars_does_not_create_them(self):
+    def test_idle_wal_without_sidecars_keeps_all_four_sources_readable_and_financial_bytes_unchanged(self):
+        paths=list(self.root.glob("*.db"))
+        schema={}
+        for path in paths:
+            with fixture_db(path) as db:
+                self.assertEqual(db.execute("PRAGMA journal_mode=WAL").fetchone()[0],"wal")
+                schema[path.name]=db.execute("SELECT type,name,sql FROM sqlite_master ORDER BY type,name").fetchall()
+            # Closing the last writer normally removes these coordination files,
+            # while the database header correctly retains WAL mode.
+            self.assertEqual(path.read_bytes()[18:20],b"\x02\x02")
+            self.assertFalse(Path(str(path)+"-wal").exists())
+            self.assertFalse(Path(str(path)+"-shm").exists())
+        before={path.name:hashlib.sha256(path.read_bytes()).hexdigest() for path in paths}
+        result=self.read()
+        self.assertEqual({row["state"] for row in result["source_metadata"].values()},{"FRESH"})
+        self.assertEqual(result["dashboard"]["positions"][0]["quantity"],.001)
+        self.assertEqual(result["dashboard"]["futures_forward"]["positions"][0]["quantity"],.1)
+        self.assertEqual(len(result["btc_closed_bars"]),121)
+        self.assertEqual(before,{path.name:hashlib.sha256(path.read_bytes()).hexdigest() for path in paths})
+        # Read-only SQLite is allowed to create/clean WAL coordination metadata,
+        # but cannot introduce any file other than the four known sidecar pairs.
+        allowed={path.name for path in paths}|{path.name+suffix for path in paths for suffix in ("-wal","-shm")}
+        self.assertLessEqual(set(fingerprint(self.root)),allowed)
+        for path in paths:
+            with capture._read_only(path) as db:
+                self.assertEqual(db.execute("PRAGMA query_only").fetchone()[0],1)
+                self.assertEqual(schema[path.name],[tuple(row) for row in db.execute("SELECT type,name,sql FROM sqlite_master ORDER BY type,name")])
+                with self.assertRaises(sqlite3.OperationalError):
+                    db.execute("CREATE TABLE forbidden(id)")
+
+    def test_idle_wal_reader_sees_new_commit_after_writer_reopens(self):
         path=self.config.bot.database_path
         with fixture_db(path) as db:
             db.execute("PRAGMA journal_mode=WAL")
-        # A closed WAL DB has the header set but no active sidecars.
+        self.assertFalse(Path(str(path)+"-wal").exists())
+        with capture._read_only(path) as reader:
+            self.assertEqual(reader.execute("SELECT quantity FROM positions").fetchone()[0],.001)
+            # A writer can still append while this RO snapshot is alive.
+            with fixture_db(path) as writer:
+                writer.execute("UPDATE positions SET quantity=.002")
+            self.assertEqual(reader.execute("SELECT quantity FROM positions").fetchone()[0],.001)
         before=fingerprint(self.root)
         result=self.read()
-        self.assertEqual(result["source_metadata"]["spot"]["reason"],"WAL_SIDECARS_UNAVAILABLE")
-        self.assertEqual(before,fingerprint(self.root))
+        self.assertEqual(result["source_metadata"]["spot"]["state"],"FRESH")
+        self.assertEqual(result["dashboard"]["positions"][0]["quantity"],.002)
+        after=fingerprint(self.root)
+        # No stale immutable snapshot and no checkpoint/write by this reader.
+        self.assertEqual({k:v for k,v in before.items() if not k.endswith('-shm')},
+                         {k:v for k,v in after.items() if not k.endswith('-shm')})
 
     def test_malformed_json_nan_deep_and_large_are_unknown(self):
         path=self.config.bot.database_path

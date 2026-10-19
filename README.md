@@ -2,6 +2,39 @@
 
 > Copia de desarrollo aislada de la instalación Windows. El repositorio no contiene credenciales ni datos de la instancia operativa. No inicies un segundo motor. Consulta `BOT_UPDATE_PROGRESS.md` para distinguir versión preparada, publicada e instalada.
 
+**Estado 2026-10-19 00:42:33 UTC:** 0.10.42 publicada, firmada e instalada,
+main `b1e065b1c4934eef80cf4a6d39c52bafa1abb5de`, [PR #119](https://github.com/jlboper/Crypto-BOT/pull/119).
+[Publicación](https://github.com/jlboper/Crypto-BOT/actions/runs/39181606398)
+y [seguridad](https://github.com/jlboper/Crypto-BOT/actions/runs/39181606401)
+aprobadas, Ed25519 verificado, **188/188 hashes** y cinco assets web coincidentes.
+Motor 3680: Spot 1/Futures 5 con protecciones ARMED y cantidad desprotegida cero.
+El agente tenía 9/11 módulos en ese corte. El refresco firmado quedó verificado a
+las **00:54:20 UTC**: agente 21344, **11/11 módulos**, sync_ok y dos heartbeats
+recientes correctos. Motor 3680 sin cambio; Spot 1/Futures 5 ARMED y sin cantidad
+desprotegida observada.
+
+Guardian todavía no queda plenamente verificado: PARTIAL, 0/4 fuentes válidas
+por `WAL_SIDECARS_UNAVAILABLE`, aunque el primer journal real reproduce MATCH.
+Un intento IA real terminó FAILED; uso/causa desconocidos, sin diagnóstico de cuota.
+La correctiva **0.10.43 está en preparación**, con pruebas locales aprobadas: lectura
+SQLite normal en sólo lectura sin exigir sidecars permanentes, metadata WAL/SHM
+transitoria sin DML financiero, filtro determinista que evita IA con todas las
+fuentes UNKNOWN y diagnósticos seguros. No modifica capital, órdenes ni riesgo.
+Capital Protocol Lab sigue como prototipo sintético externo, sin integración.
+
+Prueba candidata43 a las 00:47:04 UTC: copias temporales mediante backup SQLite RO
+de los cuatro esquemas reales dieron fuentes FRESH/completas (posiciones 1/5/1/0),
+sin motor, proveedores ni credenciales. No acredita 43 instalada. Pruebas enfocadas
+87 de captura/servicio y una de no-llamada IA con todo UNKNOWN aprobadas; además
+35 IA PASS (6.961 s), **180/180 Node PASS (106.485 s)**, lifecycle/vistas Windows
+PowerShell 5.1, build y diff PASS. **777/777 Python offline PASS (238.609 s)**,
+sin fallos, errores ni skips, red externa bloqueada y sin iniciar el bot
+(`TEST_RESULTS.json`, 00:55:17 UTC). PR/CI, publicación/firma/instalación de 43
+siguen pendientes.
+
+Los apartados de preparación de 41/42 siguientes conservan contexto histórico;
+este estado operativo fechado prevalece sobre sus checkpoints entonces pendientes.
+
 Desde 0.10.34, AI Market Pulse observa en SHADOW diez activos elegibles por
 capitalización y cinco fuentes públicas primarias/regulatorias. Conserva wallet
 hipotético separado, tres posiciones máximas y cuota IA propia. El portal compartido

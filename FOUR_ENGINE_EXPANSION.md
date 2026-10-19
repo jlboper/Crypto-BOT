@@ -2,6 +2,37 @@
 
 ## Current baseline and Command Center continuation
 
+**Current: installed 0.10.42, corrective 0.10.43 pending.** Main
+`b1e065b1c4934eef80cf4a6d39c52bafa1abb5de`, [PR #119](https://github.com/jlboper/Crypto-BOT/pull/119),
+[publication 39181606398](https://github.com/jlboper/Crypto-BOT/actions/runs/39181606398)
+and [safety 39181606401](https://github.com/jlboper/Crypto-BOT/actions/runs/39181606401)
+succeeded. At 2026-10-19 00:42:33 UTC: Ed25519 verified, 188/188 hashes, five web
+assets matching, engine 3680, Spot 1/Futures 5 ARMED and zero unprotected quantity.
+Independent agent inventory was 9/11 at that cut. At **00:54:20 UTC**, signed
+refresh completed: agent 21344, **11/11**, sync_ok and two fresh healthy heartbeats;
+engine 3680 unchanged, Spot 1/Futures 5 ARMED and zero unprotected quantity.
+
+Guardian is PARTIAL with 0/4 sources valid: all UNKNOWN due to
+WAL_SIDECARS_UNAVAILABLE; its first real record replays MATCH. One real AI attempt
+FAILED with unknown usage/cause. Do not call this complete operating success.
+43 corrects normal `mode=ro`/query-only WAL reads without requiring persistent
+sidecars, permits only transient SQLite metadata without financial DML, and
+prefilters all-UNKNOWN captures before AI with safe diagnostics. PR/main CI/
+publication/signature/install remain pending; data/risk/protections are preserved.
+The synthetic Capital Protocol Lab stays outside this release and is not a
+four-engine capital runtime or authorization to share funds.
+
+43 candidate check 00:47:04 UTC read temporary standard RO backups of all four
+actual schemas: FRESH/complete, positions 1/5/1/0 and descriptive SIDEWAYS. No
+engine/providers/credentials loaded. This is candidate evidence, not installed
+43; focused capture/service 87 PASS and all-UNKNOWN no-AI 1 PASS. Additional 43
+checks: AI 35 PASS (6.961 s), Node 180/180 PASS (106.485 s), Windows PowerShell 5.1
+lifecycle/view, portal build and diff PASS. Full offline Python **777/777 PASS**,
+no failures/errors/skips, **238.609 s** (`TEST_RESULTS.json`, 00:55:17 UTC), external
+network blocked and no bot started. PR/CI/publication/signature/install 43 pending.
+
+### Historical 42 preparation record
+
 Current baseline is verified 0.10.41 main
 `022fb9135d165d5c52f12b65aa9628ab8c1436af`, [PR #118](https://github.com/jlboper/Crypto-BOT/pull/118),
 published/signed/installed 178/178 after successful

@@ -1,4 +1,37 @@
-# 0.10.42 — Guardian Intelligence Shadow (en preparación)
+# 0.10.43 — Guardian RO WAL y prefiltrado IA (en preparación)
+
+- Base main 42 `b1e065b1c4934eef80cf4a6d39c52bafa1abb5de`, PR #119.
+  [Publicación 39181606398](https://github.com/jlboper/Crypto-BOT/actions/runs/39181606398)
+  y [seguridad 39181606401](https://github.com/jlboper/Crypto-BOT/actions/runs/39181606401)
+  SUCCESS. Ed25519, 188/188 hashes y cinco assets web verificados a 2026-10-19
+  00:42:33 UTC; motor 3680, Spot 1/Futures 5 ARMED, cantidad desprotegida cero.
+  Agente entonces 9/11. Refresco firmado verificado **00:54:20 UTC**: agente 21344,
+  **11/11 módulos**, sync_ok y dos heartbeats recientes correctos; motor 3680 sin
+  cambio, Spot 1/Futures 5 ARMED y cantidad desprotegida observada cero.
+- Incidencia real de 42: Guardian PARTIAL, 0/4 fuentes válidas, todas UNKNOWN por
+  WAL_SIDECARS_UNAVAILABLE. Journal real 1/replay MATCH. Un intento IA FAILED con
+  usage/causa desconocidos; no se diagnostican cuota/créditos sin evidencia.
+- Corrección prevista: SQLite mode=ro/query_only normal permite metadata WAL/SHM
+  transitoria sin exigir sidecars permanentes ni efectuar DML financiero. Conserva
+  frescura y causalidad; sin constructores, migraciones ni copia immutable antigua.
+- Prefiltro determinista evita IA con todas las fuentes UNKNOWN. Diagnósticos
+  seguros y acotados sin cuerpo del proveedor, headers arbitrarios o secretos.
+  No cambia presupuestos IA, riesgos, capital, ejecución, stops ni conciliación.
+- Pruebas previstas: DB/WAL financiero sin cambios, escritores concurrentes,
+  retorno de fuentes reales y no-llamada IA sin evidencia suficiente. PR/main CI
+  y publicación/firma/instalación 43 pendientes. El laboratorio Capital Protocol Lab
+  sigue como prototipo sintético externo y no forma parte de este correctivo.
+- Evidencia candidata43 00:47:04 UTC: backups SQLite RO temporales de cuatro
+  esquemas reales leídos FRESH/completos, posiciones 1/5/1/0 y SIDEWAYS descriptivo,
+  sin motor/proveedores/credenciales. Copias retiradas; no demuestra 43 instalada.
+  Pruebas enfocadas captura/servicio 87 y no-IA con todas UNKNOWN 1 PASS.
+- Validación local 43 adicional: **IA 35 PASS (6.961 s), Node 180/180 PASS
+  (106.485 s)**, lifecycle/vistas Windows PowerShell 5.1, build y diff PASS.
+  **777/777 Python offline PASS (238.609 s)**, sin fallos/errores/skips, red externa
+  bloqueada y sin iniciar bot (`TEST_RESULTS.json`, 00:55:17 UTC). PR/CI/rollout
+  siguen pendientes; pruebas locales no equivalen a instalación de 43.
+
+# 0.10.42 — Guardian Intelligence Shadow (registro de preparación)
 
 - F2 observacional dentro del proceso supervisado: captura explícita en sólo
   lectura de Spot/Futures/Pulse/Quant, sin constructores ni migraciones de sus

@@ -41,7 +41,11 @@ _ERROR_CODES = frozenset(("RETENTION_FULL","JOURNAL_STORAGE_FULL","GUARDIAN_COHO
     "GUARDIAN_OBSERVATION_FAILED","GUARDIAN_OBSERVER_LOOP_FAILED"))
 _AI_REASONS = frozenset(("AI_DISABLED_OR_UNAVAILABLE","MODEL_PRICING_NOT_VERIFIED","ASSESSMENT_STALE_OR_FUTURE",
     "AI_BUDGET_OR_INTERVAL","AI_FAILED","AI_CONTEXT_TIMEOUT","AI_PRIOR_CONTEXT_RUNNING","AI_OBSERVER_STOPPED",
-    "AI_CONTEXT_INVALID","AI_HEALTH_UNAVAILABLE","AI_BUDGET_CONFIGURATION"))
+    "AI_CONTEXT_INVALID","AI_HEALTH_UNAVAILABLE","AI_BUDGET_CONFIGURATION","INSUFFICIENT_VERIFIED_CONTEXT",
+    "AI_AUTH_FAILED","AI_ACCESS_DENIED","AI_REQUEST_INVALID","AI_QUOTA_EXHAUSTED","AI_RATE_LIMITED",
+    "AI_RATE_LIMIT_UNKNOWN","AI_SERVER_ERROR","AI_HTTP_ERROR","AI_TRANSPORT_FAILED",
+    "AI_RESPONSE_TOO_LARGE","AI_RESPONSE_INVALID","AI_RESPONSE_INCOMPLETE","AI_RESPONSE_REFUSED",
+    "AI_COMMENTARY_INVALID"))
 
 
 @dataclass(frozen=True)
@@ -335,6 +339,11 @@ class GuardianShadowService:
     def _context(self,report):
         if self.context_hook is None or self.config.context_max_calls_per_day==0:
             return _ai_unavailable("AI_DISABLED_OR_UNAVAILABLE")
+        if (not any(scope.get('data_state') == 'FRESH' for scope in report.get('scopes', []))
+                and report.get('regime', {}).get('state') == 'INSUFFICIENT_DATA'):
+            # No source to interpret: persist the deterministic unknowns rather
+            # than spending a request on an empty context.
+            return _ai_unavailable('INSUFFICIENT_VERIFIED_CONTEXT')
         if self._context_thread is not None and self._context_thread.is_alive():
             return _ai_unavailable("AI_PRIOR_CONTEXT_RUNNING")
         has_health=callable(getattr(self.context_hook,"health",None))

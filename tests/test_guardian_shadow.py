@@ -416,6 +416,27 @@ class GuardianShadowTests(unittest.TestCase):
         self.assertEqual(snapshot["health"]["ai_calls_today"],0)
         observer.stop()
 
+    def test_no_model_call_or_budget_claim_without_verified_context(self):
+        capture = copy.deepcopy(self.capture)
+        capture.update(dashboard={}, btc_closed_bars=[])
+        for source in capture['source_metadata'].values():
+            source.update(state='UNKNOWN', inventory_complete=False,
+                positions_seen=None, positions_returned=0, available_at=None)
+        calls = []
+        observer = self.make_service(
+            config=replace(shadow.GuardianShadowConfig(), context_max_calls_per_day=2),
+            capture_fn=lambda _:copy.deepcopy(capture),
+            context_hook=lambda payload:calls.append(payload))
+        try:
+            self.assertEqual(observer.tick()['state'], 'RECORDED')
+            self.assertEqual(calls, [])
+            value = shadow.guardian_shadow_snapshot(self.journal, now=self.clock())
+            self.assertEqual(value['ai']['reason'], 'INSUFFICIENT_VERIFIED_CONTEXT')
+            self.assertEqual(value['health']['ai_calls_today'], 0)
+            self.assertEqual(value['report']['state'], 'PARTIAL')
+        finally:
+            observer.stop()
+
     def test_optional_context_budget_frozen_separately_never_changes_assessment(self):
         calls=[]
         def hook(payload):

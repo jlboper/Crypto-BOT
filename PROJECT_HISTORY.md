@@ -1,6 +1,42 @@
 # Project History and Decision Log
 
-## 2026-10-18 — Guardian observation gains memory without financial authority
+## 2026-10-19 — installed Guardian exposes an idle-WAL acquisition assumption
+
+PR #119 merged as main `b1e065b1c4934eef80cf4a6d39c52bafa1abb5de`.
+[Publication 39181606398](https://github.com/jlboper/Crypto-BOT/actions/runs/39181606398)
+and [safety 39181606401](https://github.com/jlboper/Crypto-BOT/actions/runs/39181606401)
+succeeded. At 00:42:33 UTC, 42 had Ed25519 verification, 188/188 installed hashes,
+five matching web assets and engine PID 3680 retaining protected Spot 1/Futures 5,
+with zero observed unprotected quantity. Agent inventory 9/11 then awaited signed
+refresh. At **00:54:20 UTC**, signed refresh was verified: agent 21344, **11/11**,
+sync_ok and two fresh healthy heartbeats; engine 3680 unchanged and Spot 1/Futures
+5 remained native ARMED with zero observed unprotected quantity.
+
+Guardian's first real record replays MATCH, but report acquisition is PARTIAL:
+all four sources UNKNOWN/WAL_SIDECARS_UNAVAILABLE. Requiring pre-existing WAL/SHM
+files was too strict for normal idle SQLite cleanup. No filled-in zero balances
+or full operating success is claimed. One actual AI attempt FAILED with unknown
+usage/cause; synthetic tests and an unknown error do not diagnose exhausted quota.
+
+Corrective candidate 43 keeps normal mode=ro/query_only transactions, permits
+SQLite transient sidecar metadata without financial DML, and rejects immutable
+copies or stale snapshot workarounds. Preserve financial data/causal gates and
+test concurrent writers. An all-UNKNOWN deterministic gate must avoid unjustified
+model calls; diagnostics expose only safe bounded codes. PR/main CI/publication/
+installation of 43 are pending. External Capital Protocol Lab work remains
+synthetic and separate; it grants no shared-capital or execution authority.
+
+At 00:47:04 UTC a separate candidate43 check read temporary standard SQLite RO
+backups of the four operating schemas: all FRESH/complete (Spot 1/Futures 5/Pulse 1/
+Quant 0), descriptive SIDEWAYS, without engine/provider/credential initialization.
+Temporary copies were removed. Focused capture/service 87 and isolated no-AI 1
+tests passed. Additional candidate 43 validation passed AI 35 (6.961 s), Node
+180/180 (106.485 s), Windows PowerShell 5.1 lifecycle/view, build and diff. Full
+offline Python subsequently passed **777/777, 238.609 s**, without failures/errors/
+skips, with external network blocked and no bot started (`TEST_RESULTS.json`,
+00:55:17 UTC). These checks do not prove installed 43 acquisition or release.
+
+## 2026-10-18 — Guardian observation gains memory without financial authority (preparation)
 
 The verified 0.10.41 main `022fb9135d165d5c52f12b65aa9628ab8c1436af`
 (PR #118) is published/signed/installed 178/178 after successful publication

@@ -1,6 +1,37 @@
 # Work Context — Crypto AI Trader
 
-## Continuación actual — 0.10.42 Guardian Intelligence Shadow
+## Continuación actual — 0.10.43 correctiva del lector Guardian
+
+Base instalada 42 main `b1e065b1c4934eef80cf4a6d39c52bafa1abb5de`, PR #119.
+Publicación 39181606398 y seguridad 39181606401 SUCCESS. Auditoría 2026-10-19
+00:42:33 UTC: Ed25519, 188/188 hashes y cinco assets web verificados; motor 3680,
+Spot 1/Futures 5 ARMED, cantidad desprotegida cero. Agente entonces 9/11; refresco
+firmado verificado **00:54:20 UTC**: agente 21344, **11/11**, sync_ok y dos heartbeats
+recientes correctos. Motor 3680 sin cambio y mismas posiciones/protecciones.
+
+Guardian real PARTIAL, 0/4 fuentes válidas, todas UNKNOWN por
+WAL_SIDECARS_UNAVAILABLE; journal real 1, replay MATCH. IA: un intento FAILED,
+usage y causa desconocidos. No afirmar servicio completo ni fallo de cuota/créditos.
+
+Rama `fix/guardian-readonly-wal-v01043`: permitir SQLite mode=ro/query_only normal
+con sidecars ausentes tras limpieza habitual y metadata WAL/SHM transitoria, sin
+DML financiero, constructor, migración, copias immutable ni pérdida de frescura.
+Prefiltro determinista de todas las fuentes UNKNOWN antes de IA; diagnósticos
+acotados seguros sin cuerpos/headers arbitrarios ni secretos. Pruebas de archivos
+financieros sin cambios y escritores concurrentes; PR/CI/rollout 43 pendientes.
+No usar los 767/180 de 42 como resultado de 43. Capital Protocol Lab continúa
+fuera de Git, sintético, sin conectar motores ni completar F3 runtime.
+
+00:47:04 UTC: candidata43 leyó backups SQLite RO temporales de los cuatro esquemas
+reales, todos FRESH/completos, posiciones Spot 1/Fut 5/Pulse 1/Quant 0 y SIDEWAYS
+descriptivo. Sin motor/proveedores/credenciales; copias retiradas. No es 43 instalada.
+87 pruebas enfocadas captura/servicio y 1 no-IA con todo UNKNOWN PASS; IA 35 PASS
+(6.961 s), Node 180/180 PASS (106.485 s), lifecycle/vistas PS5.1, build y diff PASS.
+Python offline completo **777/777 PASS, 238.609 s**, sin fallos/errores/skips,
+red externa bloqueada y sin iniciar bot (`TEST_RESULTS.json`, 00:55:17 UTC).
+PR/CI/publicación/firma/instalación 43 pendientes; no se afirma operación instalada.
+
+## 0.10.42 Guardian Intelligence Shadow — preparación histórica
 
 Base main 0.10.41 `022fb9135d165d5c52f12b65aa9628ab8c1436af`, PR #118,
 publicada/firmada e instalada 178/178 hashes. Publicación 39134814222 y seguridad

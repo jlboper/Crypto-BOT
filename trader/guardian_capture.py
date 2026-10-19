@@ -4,6 +4,8 @@ No engine, ledger constructor, model, transport or network imports. Each databas
 has its own read transaction; the four observations are NOT globally atomic.
 The supervised Guardian service schedules and persists this evidence. This module has
 no controls, reservations, order hooks, schema initialization or journal writes.
+SQLite may create/update WAL shared-memory coordination files for a read-only
+connection; financial rows, schema and existing DB/WAL content remain read-only.
 """
 from __future__ import annotations
 
@@ -124,14 +126,15 @@ def _read_only(path):
     path = Path(path)
     if not path.is_file():
         raise EvidenceError("MISSING_DATABASE")
-    # A RO SQLite WAL connection may otherwise create absent -wal/-shm files.
-    # Refuse that exceptional state instead of reading an immutable/stale DB.
     with path.open("rb") as handle:
         header = handle.read(100)
     if len(header) < 100 or not header.startswith(b"SQLite format 3\0"):
         raise EvidenceError("INVALID_DATABASE")
-    if header[18:20] == b"\x02\x02" and not all(Path(str(path)+suffix).is_file() for suffix in ("-wal", "-shm")):
-        raise EvidenceError("WAL_SIDECARS_UNAVAILABLE")
+    # A normally closed WAL database retains its WAL-mode header after SQLite
+    # removes its sidecars. Let mode=ro use SQLite's normal WAL coordination,
+    # including creation of absent -wal/-shm files when directory permissions
+    # allow it. Never use immutable here: an active writer's committed WAL must
+    # remain visible, and each short BEGIN must keep its consistent read view.
     db = sqlite3.connect(path.resolve().as_uri()+"?mode=ro", uri=True, timeout=TIMEOUT_SECONDS)
     try:
         db.row_factory = sqlite3.Row
