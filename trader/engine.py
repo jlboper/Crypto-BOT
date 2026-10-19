@@ -505,6 +505,7 @@ class TradingEngine:
         # Market Pulse observes in this owned process; it never owns an order client.
         pulse = None
         quant = None
+        guardian = None
         if not should_stop() and self.config.market_pulse.enabled:
             try:
                 pulse = self._create_market_pulse()
@@ -529,9 +530,26 @@ class TradingEngine:
                     except Exception as cleanup_error:
                         self.db.event("WARN", "Quant startup cleanup: " + type(cleanup_error).__name__)
                 quant = None
+        if not should_stop() and self.config.guardian_intelligence.enabled:
+            try:
+                guardian = self._create_guardian_shadow()
+                guardian.start()
+            except Exception as exc:
+                self.db.event("WARN", "Guardian Shadow unavailable: " + type(exc).__name__)
+                if guardian is not None:
+                    try:
+                        guardian.stop()
+                    except Exception:
+                        pass
+                guardian = None
         try:
             self._run_supervised_loop(should_stop)
         finally:
+            if guardian is not None:
+                try:
+                    guardian.stop()
+                except Exception as exc:
+                    self.db.event("WARN", "Guardian shutdown: " + type(exc).__name__)
             if quant is not None:
                 try:
                     quant.stop()
@@ -542,6 +560,17 @@ class TradingEngine:
                     pulse.stop()
                 except Exception as exc:
                     self.db.event("WARN", "Market Pulse shutdown: " + type(exc).__name__)
+
+    def _create_guardian_shadow(self):
+        from .guardian_shadow import GuardianShadowService, GuardianShadowConfig
+        from .guardian_ai import GuardianAIReviewer
+        settings = self.config.guardian_intelligence
+        data_dir = self.config.bot.database_path.parent
+        reviewer = GuardianAIReviewer(data_dir, model=self.config.ai.model,
+            daily_cap=settings.ai_max_reviews_per_day if self.config.ai.enabled else 0)
+        return GuardianShadowService(data_dir, app_config=self.config, context_hook=reviewer,
+            config=GuardianShadowConfig(context_max_calls_per_day=2,
+                context_timeout_seconds=10.))
 
     def _create_quant_shadow(self):
         from .quant_shadow import QuantConfig, QuantShadowService

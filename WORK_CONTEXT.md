@@ -1,6 +1,45 @@
 # Work Context — Crypto AI Trader
 
-## Continuación actual — 0.10.41 Command Center
+## Continuación actual — 0.10.42 Guardian Intelligence Shadow
+
+Base main 0.10.41 `022fb9135d165d5c52f12b65aa9628ab8c1436af`, PR #118,
+publicada/firmada e instalada 178/178 hashes. Publicación 39134814222 y seguridad
+Linux/Windows 39134814202 exitosas. Auditoría 2026-10-18 14:16:30 UTC: motor
+19240, Spot 1/Futures 9, protecciones nativas ARMED sin cantidad desprotegida;
+agente 9372 con sync reciente y módulos 11/11. Filas previas comparadas: cero
+ausentes/cambiadas; secretos, riesgo e hipótesis conservados. Es evidencia de 41.
+
+42 implementa F2 dentro del único proceso, siempre SHADOW LEVEL 0: lectura
+explícita de cuatro ledgers sin constructores financieros, cantidades incompletas
+UNKNOWN, régimen BTC descriptivo de 61 cierres/60m y revisión de conflictos/límites.
+Journal propio `guardian-shadow.db`, capturas congeladas, leases y replay causal;
+no es vista global atómica ni propuesta completa previa a una orden. No veta,
+reserva, ejecuta ni sustituye revisión individual o protecciones.
+
+Guardian IA observacional está autorizado con reutilización de clave y límite
+propio: hasta dos intentos/día, mínimo una hora, TTL histórico 900 s, entrada
+4,096 bytes/salida 512 tokens/timeout 8 s, condicionado a `ai.enabled`. No consume
+cuotas Spot/Futures/Pulse. Costes estimados con tarifa verificada, nunca tope duro
+de factura; usage incompleto queda desconocido. Pruebas usan claves/transporte
+sintéticos: llamadas reales instaladas aún sin verificar. Ya hay ocho intents
+locales de lectura (resumen, régimen, riesgo, conflictos, calidad, revisión original,
+límites y contrafactual UNKNOWN), vinculados al assessment/corte/journal disponible.
+Su historial de seis identidades vive sólo en la pestaña, sin auditoría durable ni
+llamadas API/SQL/tools. Capital Manager, NL general de servidor y Control Testnet
+siguen pendientes; no se autoriza nivel 1 ni LIVE.
+
+42 pasó 767/767 Python offline (361.510 s), 180/180 Node (85.515 s), lifecycle/vistas
+Windows PowerShell 5.1, build del portal y diff. Regresiones de precisión UTC,
+metadatos numéricos y hashes int/REAL no relajan cortes causales. QA 1366/360/768 px:
+sin desbordamiento horizontal, un workspace Guardian, contrafactual desconocido e
+IDs de evidencia reales. Logs locales `python-full-v01042.log`,
+`node-full-v01042-final.log`, `windows-v01042.log`.
+Auditoría base 41 19:10 UTC: 178/178 hashes, motor 19240/agente 13056, Spot 1/Futures
+9, protecciones ARMED y cantidad desprotegida observada cero. CI de PR/main,
+firma/publicación/instalación/operación de 42 aún pendientes. Conservar todos los
+ledgers/journals y políticas; no hubo cambio en los motores financieros.
+
+## 0.10.41 Command Center — registro histórico de preparación
 
 Base main 0.10.40 `81ba4366cf587c16cae20d403974a340080c4d10`, PR #117,
 publicada/firmada e instalada 178/178 hashes, verificada 2026-10-18 02:27 UTC.

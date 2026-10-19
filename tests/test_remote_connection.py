@@ -263,6 +263,66 @@ class RemoteConnectionTests(unittest.TestCase):
         self.assertEqual(set(final), {'status', 'futures_forward', 'market_pulse'})
         self.assertEqual(self.agent.last_error, 'DASHBOARD_REJECTED:Unknown dashboard field')
 
+    def test_four_engine_worker_downgrade_omits_only_guardian_intelligence_once(self):
+        Database(self.config.bot.database_path)
+        self.config.bot.kill_switch_path.write_text('manual retained kill\n')
+        before = self.config.bot.database_path.read_bytes()
+        original = {'status': {'mode': 'PAPER'}, 'positions': [],
+            'futures_forward': {'killed': False}, 'market_pulse': {'mode': 'SHADOW'},
+            'portfolio_guardian': {'mode': 'OBSERVER'}, 'quant': {'mode': 'SHADOW'},
+            'engine_catalog': [{'id': 'QUANT_ARBITRAGE'}],
+            'guardian_intelligence': {'mode': 'SHADOW', 'execution_enabled': False}}
+        for label in ('Unknown dashboard field', 'Invalid Guardian Intelligence status'):
+            with self.subTest(label=label):
+                self.agent.dashboard_provider = lambda: json.loads(json.dumps(original))
+                self.agent.paper_controls = Mock(available=True, quant_available=True)
+                self.agent.paper_controls.results.return_value = []
+                self.agent.update_provider = lambda: {'version': '0.10.42', 'enabled': True}
+                self.agent.jobs = Mock()
+                self.agent.jobs.results.return_value = [{'id': 7, 'status': 'completed'}]
+                job = {'id': 8, 'action': 'update_install', 'release_id': 'a'*64}
+                requests, auth = [], []
+                def send(request, timeout):
+                    requests.append(json.loads(request.data))
+                    auth.append(request.get_header('Authorization'))
+                    if len(requests) == 1:
+                        raise urllib.error.HTTPError(request.full_url, 400, 'Bad Request', {},
+                            io.BytesIO(json.dumps({'error': label}).encode()))
+                    return io.BytesIO(json.dumps({'commands': [], 'jobs': [job]}).encode())
+                with patch.object(self.agent.opener, 'open', side_effect=send):
+                    self.agent.sync()
+                self.assertEqual(len(requests), 2)
+                expected = {key: value for key, value in original.items() if key != 'guardian_intelligence'}
+                self.assertEqual(requests[1]['snapshot']['dashboard'], expected)
+                self.assertIn('guardian_intelligence', requests[0]['snapshot']['dashboard'])
+                self.assertIs(requests[1]['snapshot']['quant_controls'], True)
+                self.assertIs(requests[1]['snapshot']['operations_controls'], True)
+                self.assertEqual(requests[1]['snapshot']['bot_update']['version'], '0.10.42')
+                self.assertEqual(requests[1]['job_results'], [{'id': 7, 'status': 'completed'}])
+                self.assertEqual(auth, ['Bearer '+'x'*43]*2)
+                self.agent.jobs.accept.assert_called_once_with(job)
+                self.assertEqual(self.agent.last_error, 'DASHBOARD_REJECTED:'+label)
+        self.assertEqual(self.config.bot.kill_switch_path.read_text(), 'manual retained kill\n')
+        self.assertEqual(self.config.bot.database_path.read_bytes(), before)
+
+    def test_guardian_incompatible_retry_is_bounded_and_private_rejection_is_redacted(self):
+        Database(self.config.bot.database_path)
+        self.agent.dashboard_provider = lambda: {'status': {'mode': 'PAPER'},
+            'quant': {'state': 'SHADOW'}, 'guardian_intelligence': {'mode': 'SHADOW'}}
+        requests = []
+        def send(request, timeout):
+            requests.append(json.loads(request.data))
+            reason = 'Invalid Guardian Intelligence status' if len(requests) == 1 else 'private sk-synthetic-secret body'
+            raise urllib.error.HTTPError(request.full_url, 400, 'Bad Request', {},
+                io.BytesIO(json.dumps({'error': reason}).encode()))
+        with patch.object(self.agent.opener, 'open', side_effect=send), self.assertRaises(urllib.error.HTTPError):
+            self.agent.sync()
+        self.assertEqual(len(requests), 2)
+        self.assertEqual(requests[1]['snapshot']['dashboard'],
+                         {'status': {'mode': 'PAPER'}, 'quant': {'state': 'SHADOW'}})
+        self.assertEqual(self.agent.last_error, 'HTTPError:400')
+        self.assertNotIn('private', self.agent.last_error)
+
     def test_remote_paper_control_executes_after_authenticated_device_sync_and_reports_result(self):
         Database(self.config.bot.database_path)
         self.agent.paper_controls = Mock(available=True)

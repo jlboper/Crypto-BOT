@@ -1,4 +1,39 @@
-# Candidate — 0.10.41 Command Center foundation
+# Candidate — 0.10.42 Guardian Intelligence Shadow
+
+Prepared from main `022fb9135d165d5c52f12b65aa9628ab8c1436af`, 0.10.41,
+[PR #118](https://github.com/jlboper/Crypto-BOT/pull/118), published/signed and
+installed 178/178 hashes. [Publication 39134814222](https://github.com/jlboper/Crypto-BOT/actions/runs/39134814222)
+and [Linux/Windows safety 39134814202](https://github.com/jlboper/Crypto-BOT/actions/runs/39134814202)
+succeeded. At 2026-10-18 14:16:30 UTC engine PID 19240 retained one Spot/nine
+Futures native-protected positions with no observed unprotected quantity;
+independent agent PID 9372 had fresh sync and 11/11 modules. Compared previous
+financial rows had zero missing/changed rows; secrets/risk/hypotheses remained.
+
+Candidate 42 implements Shadow Level-0 observation only: bounded RO capture of
+four ledgers, pure descriptive diagnostics, independent append-only Guardian
+journal, lease/recovery and frozen causal replay. Optional authorized advisory
+AI has its own two-attempt/day cap, hour interval and historical cache, gated by
+global AI configuration; no order, veto, reservation or admission hook exists.
+No actual installed-42 model request is verified. Estimates are not billing caps.
+
+Eight local closed read-only query intents now explain the displayed assessment
+with cutoff/journal evidence; six browser-tab query identities are not durable
+audit. General server-side NL/journal querying remains pending.
+
+Complete local validation passed **767/767 offline Python tests (361.510 s)**,
+**180/180 Node tests (85.515 s)**, Windows PowerShell 5.1 lifecycle/view checks,
+portal build and diff checks. UTC precision, numeric heartbeat and int/SQLite-REAL
+digest regressions are covered without relaxing causal checks. QA at 1366/360/768 px
+found no horizontal overflow and one Guardian workspace. Logs:
+`python-full-v01042.log`, `node-full-v01042-final.log`, `windows-v01042.log`.
+At 19:10 UTC installed 41 again matched 178/178 hashes, engine 19240/agent 13056,
+Spot 1/Futures 9 native-protected positions and zero observed unprotected quantity.
+42's PR/main CI, protected publication, signature, installed inventory and
+operative verification remain pending.
+Preserve current financial data, individual controls, protections and signed flow.
+See `COMMAND_CENTER_2_0.md`; Capital Manager and Guardian Control remain future.
+
+# Candidate — 0.10.41 Command Center foundation (historical preparation record)
 
 Prepared from current main `81ba4366cf587c16cae20d403974a340080c4d10`,
 0.10.40, [PR #117](https://github.com/jlboper/Crypto-BOT/pull/117). Predecessor

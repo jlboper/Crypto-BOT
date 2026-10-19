@@ -2,6 +2,7 @@ import { timingSafeEqual } from 'node:crypto';
 import { githubUpdates, UpdateError } from './github-updates.mjs';
 import { passwordDigest, validPassword, PASSWORD_ITERATIONS } from './password.mjs';
 import { signRelease, releaseFailureCode } from './bot-releases.mjs';
+import { validGuardianIntelligence } from './guardian-intelligence.mjs';
 
 const encoder = new TextEncoder();
 const TOKEN = /^[A-Za-z0-9_-]{43}$/;
@@ -478,7 +479,8 @@ function validateSnapshot(snapshot) {
         &&object(c.reasons)&&Object.entries(c.reasons).every(([k,v])=>codes.includes(k)&&Number.isInteger(v)&&v>0&&v<=10000)
         &&JSON.stringify(c).length<2400,'Invalid Spot cycle diagnostic');
     }
-    assert(Object.keys(d).every(k=>['status','positions','equity','trades','reviews','events','risk','research','research_state','testnet','testnet_execution','updates','paper_scorecard','futures_forward','market_pulse','portfolio_guardian','quant','engine_catalog'].includes(k)), 'Unknown dashboard field');
+    assert(Object.keys(d).every(k=>['status','positions','equity','trades','reviews','events','risk','research','research_state','testnet','testnet_execution','updates','paper_scorecard','futures_forward','market_pulse','portfolio_guardian','quant','engine_catalog','guardian_intelligence'].includes(k)), 'Unknown dashboard field');
+    if(d.guardian_intelligence!==undefined)assert(validGuardianIntelligence(d.guardian_intelligence),'Invalid Guardian Intelligence status');
     if(d.market_pulse!==undefined)validateMarketPulse(d.market_pulse);
     if(d.quant!==undefined)validateQuantArbitrage(d.quant);
     if(d.portfolio_guardian!==undefined)validatePortfolioGuardian(d.portfolio_guardian,d.quant);

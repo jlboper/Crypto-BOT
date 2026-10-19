@@ -1,5 +1,42 @@
 # Project History and Decision Log
 
+## 2026-10-18 — Guardian observation gains memory without financial authority
+
+The verified 0.10.41 main `022fb9135d165d5c52f12b65aa9628ab8c1436af`
+(PR #118) is published/signed/installed 178/178 after successful publication
+39134814222 and Linux/Windows safety 39134814202. Its 14:16:30 UTC continuity
+audit retained native-protected Spot/Futures positions, fresh independent-agent
+sync and compared financial rows without missing/changed records.
+
+Candidate 0.10.42 implements a separate Shadow Level-0 Guardian service. Reusing
+the old dashboard helper would instantiate/migrate the Futures ledger, so the
+new observer instead uses explicit bounded read-only adapters for all four
+sources. First availability, source timestamps and frozen causal evidence remain
+distinct; several ledger transactions never become one exact pre-submit view.
+Deterministic BTC regime/conflict/risk diagnostics use uncalibrated descriptive
+hypotheses and cannot admit orders, allocate capital or certify a complete account.
+
+The owner's Guardian-AI request plus authorized existing-key reuse permits its
+own bounded observational budget (up to two attempts/day, also gated by global
+AI enablement). Failed/unknown requests keep durable claims; historical cache
+annotations remain tied to their original evidence and never alter reports.
+This closes the earlier future service-budget checkpoint, not a financial
+autonomy transition. Eight closed browser intents now explain the displayed
+assessment with cutoff/journal evidence: summary, regime, scoped risk, conflicts,
+quality, original review, limitations and unknown counterfactuals. Their six-entry
+tab history is ephemeral, not durable audit; no API, SQL or tool is invoked.
+General server-side NL/journal queries, Capital Manager and Guardian Control
+remain separate phases. No model upgrade, new paid service, LIVE or promotion.
+
+Complete local validation passed 767/767 offline Python tests (361.510 s), 180/180
+Node tests (85.515 s), Windows PowerShell 5.1 lifecycle/view checks, portal build
+and diff checks. Integration exposed UTC rounding, numeric heartbeat parsing and
+integer/SQLite-REAL digest edge cases, now covered without weakening causal checks.
+Browser QA at 1366/360/768 px found no horizontal overflow and one Guardian workspace.
+The 19:10 UTC predecessor audit again verified 178/178 hashes, engine 19240/agent
+13056 and native-protected Spot 1/Futures 9 with zero unprotected quantity observed.
+42's PR/main CI, publication/signature and actual installation/usage remain pending.
+
 ## 2026-10-17 — Command Center separates intelligence from execution authority
 
 The owner requested CRYPTO-BOT 2.0 with four engines, Guardian Intelligence,

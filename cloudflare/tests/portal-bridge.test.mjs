@@ -82,18 +82,21 @@ test('remote Market Pulse reads its optional bounded dashboard projection',async
 
 test('platform observer reads authenticated optional snapshots and reports remote freshness separately',async()=>{
   const platform={engine_catalog:[{id:'SPOT'}],portfolio_guardian:{mode:'OBSERVER',state:'PARTIAL'},
+    guardian_intelligence:{schema:1,engine:'GUARDIAN_INTELLIGENCE',mode:'SHADOW',autonomy_level:0},
     quant:{mode:'SHADOW',state:'NOT_STARTED'}};
   const instance=bridge('paper.example.workers.dev',[{status:200,body:state({stale:true,snapshot:{dashboard:platform}})}]);
   const result=await instance.api('/api/platform');
   assert.deepEqual(result.engine_catalog,platform.engine_catalog);
   assert.equal(result.portfolio_guardian.mode,'OBSERVER');
   assert.equal(result.quant.state,'NOT_STARTED');
+  assert.deepEqual(result.guardian_intelligence,platform.guardian_intelligence);
   assert.equal(result.remote_sync_stale,true);
   assert.equal(instance.calls[0].path,'/v1/status');
   assert.equal(instance.calls[0].options.credentials,'same-origin');
   const legacy=bridge('paper.example.workers.dev',[{status:200,body:state()}]);
   const missing=await legacy.api('/api/platform');
   assert.equal(missing.portfolio_guardian,null);assert.equal(missing.quant,null);assert.equal(missing.engine_catalog,null);
+  assert.equal(missing.guardian_intelligence,null);
 });
 
 test('platform observer has no remote command or promotion route',async()=>{
