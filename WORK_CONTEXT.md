@@ -337,3 +337,24 @@ inventa. Sin cambios de riesgo, ledgers, lifecycle o actualizador. Verificar CI,
 firma, instalación y recarga real del indicador por separado. Quant Shadow y
 evaluación estadística siguen pendientes de desarrollo; ejecución Testnet requiere
 autorización posterior y Guardian Control permanece deshabilitado.
+
+
+### Continuación20Oct20:42UTC — PR123 sin integrar
+
+Main45 sigue5d08ca7, Windows45 RUNNING/COMMITTED, PID12020. PR123 inicial5199e23
+pasó39456257911 Linux/Windows;39456257900 falló sólo Windows en el deadline3s
+para drenar45transacciones SQLite del test de64KiB. No hubo merge ni publicación46.
+Se corrige la sincronización del test, conservando límites de producto y assertions.
+Observer45 produjo cuatro registros auténticos Spot/Pulse,4/4digests válidos y
+UNKNOWN, sin errores/descartes; tres latidos FRESH. Futures/Quant NOT_CAPTURED
+al corte20:41:58. No se forzó actividad ni se invocó IA desde la auditoría.
+
+
+Validación final46 tras sincronizar el ensayo SQLite: **959/959 Python offline**
+PASS en135.735s,20Oct2026 20:45:40.100180UTC, cero fallos/errores/skips, red externa
+bloqueada y bot no iniciado. Producto y timeout global no se modificaron. Fixture
+finito de capacidad separado de dos handoffs con barreras, comprobando ingreso de
+otro motor mientras el consumidor está retenido, FULL/integridad y evidencia previa.
+Foco97/97 PASS5.022s; misma demora controlada80ms/evento falla antes y pasa después.
+Node223/223 PASS44.546s conserva validez: Worker/UI sin cambios posteriores.
+La CI del nuevo head debe validarse antes del merge; no reutilizar el head5199e23.

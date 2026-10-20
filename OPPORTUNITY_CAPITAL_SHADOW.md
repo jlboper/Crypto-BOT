@@ -171,3 +171,22 @@ Validación local46: **959/959 Python offline** (157.844s TEST_RESULTS,
 20Oct2026 16:16:56.557358UTC; runner157.846s), **223/223 Node** (44.546s),
 build/diff PASS, sin fallos/errores/skips; red externa bloqueada, bot no iniciado.
 Regresión de recursos falló401 antes del fix y pasó después. CI/rollout46 pendientes.
+
+
+Forward45 a20:41:58UTC: cuatro registros auténticos de rutas Spot/Pulse
+(intención y resultado de cada uno),4/4hashes de payload coincidentes, todas
+las hipótesis UNKNOWN/admisiónNOT_EVALUABLE/cuentaUNKNOWN, cero errores y
+observaciones descartadas. Tres latidos FRESH. Futures/Quant no registraron
+entradas al corte; no simularlas en la instalación para completar cobertura.
+PR123 inicial5199e23 tuvo1fallo Windows en deadline del ensayo de45transacciones
+SQLite/64KiB; no se integró. La sincronización se corrige sin relajar límites.
+
+
+Validación final46 tras sincronizar el ensayo SQLite: **959/959 Python offline**
+PASS en135.735s,20Oct2026 20:45:40.100180UTC, cero fallos/errores/skips, red externa
+bloqueada y bot no iniciado. Producto y timeout global no se modificaron. Fixture
+finito de capacidad separado de dos handoffs con barreras, comprobando ingreso de
+otro motor mientras el consumidor está retenido, FULL/integridad y evidencia previa.
+Foco97/97 PASS5.022s; misma demora controlada80ms/evento falla antes y pasa después.
+Node223/223 PASS44.546s conserva validez: Worker/UI sin cambios posteriores.
+La CI del nuevo head debe validarse antes del merge; no reutilizar el head5199e23.

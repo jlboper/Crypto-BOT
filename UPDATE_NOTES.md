@@ -1,5 +1,12 @@
 # 0.10.46 — Recursos remotos de Opportunity Shadow (en preparación)
 
+- [PR123](https://github.com/jlboper/Crypto-BOT/pull/123) inicial5199e23: CI de
+  publicación39456257911 pasó, pero seguridad39456257900 falló en Windows por
+  el deadline3s de un ensayo de45 transacciones SQLite,959 tests/1failure.
+  No se integró ni se atribuye esa CI a correcciones posteriores.
+- Observación auténtica45 a20:41:58UTC: cuatro registros nuevos (Spot y Pulse:
+  intención+resultado), digests4/4válidos, hipótesis UNKNOWN, cero errores/descartes
+  y tres latidos distintos. Futures/Quant aún sin entrada capturada al corte.
 - Base instalada45, main5d08ca7/PR122, publicación39453869690 SUCCESS Linux/Windows;
   firma y207/207hashes verificados20Oct16:10UTC. Observer IDLE/FRESH, tres latidos,
   sin errores o entradas forzadas. Motores/protecciones preservados.
@@ -1120,3 +1127,13 @@ La versión 0.5.0 incorpora un canal estable en línea. El Centro de Control avi
 - Android360px preview showed four cards,21 collapsed detail groups and no
   horizontal overflow. Full suites/CI/publication/install must be verified for
   this exact revision; visual draft tests alone are not installation evidence.
+
+
+Validación final46 tras sincronizar el ensayo SQLite: **959/959 Python offline**
+PASS en135.735s,20Oct2026 20:45:40.100180UTC, cero fallos/errores/skips, red externa
+bloqueada y bot no iniciado. Producto y timeout global no se modificaron. Fixture
+finito de capacidad separado de dos handoffs con barreras, comprobando ingreso de
+otro motor mientras el consumidor está retenido, FULL/integridad y evidencia previa.
+Foco97/97 PASS5.022s; misma demora controlada80ms/evento falla antes y pasa después.
+Node223/223 PASS44.546s conserva validez: Worker/UI sin cambios posteriores.
+La CI del nuevo head debe validarse antes del merge; no reutilizar el head5199e23.
