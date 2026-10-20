@@ -782,6 +782,7 @@ const CommandCenterPortal = (() => {
     'guardian-intelligence':'guardian-ai','intelligence-scopes':'guardian-ai','intelligence-sources':'guardian-ai','intelligence-ai':'guardian-ai','intelligence-conflicts':'guardian-ai','intelligence-journal':'guardian-ai','intelligence-queries':'guardian-ai',
     'comparison-details':'portfolio-capital','spot-finance':'portfolio-capital','futures-finance':'portfolio-capital',
     'capital-lab':'research-lab','capital-lab-audit':'research-lab',
+    'opportunity-shadow':'guardian-ai','opportunity-capital':'guardian-ai','opportunity-decisions':'guardian-ai',
     'activity-section':'operations-decisions','historyPanel':'operations-decisions',
     'modelSettingsPanel':'system-settings','diagnosticsPanel':'system-settings','observation-details':'system-settings',
     'updates':'system-settings','updatePanel':'system-settings','password':'system-settings','passwordPanel':'system-settings'
@@ -901,7 +902,7 @@ window.CommandCenterPortal=CommandCenterPortal;
 /* Shared supervised engine view. External event text is always escaped, never executable. */
 const PulsePortal = (() => {
   let pendingControl=null;
-  const foldIds=new Set(['spot-analysis','futures-analysis','pulse-live','pulse-news','pulse-scanner','pulse-decisions','pulse-finance','pulse-health','guardian-exposure','guardian-overlaps','guardian-quality','intelligence-scopes','intelligence-sources','intelligence-ai','intelligence-conflicts','intelligence-journal','intelligence-queries','quant-funding','quant-statistical','quant-positions','quant-decisions','quant-finance','quant-health','observation-details','comparison-details','spot-limits','futures-limits','spot-positions','futures-positions','spot-finance','futures-finance','diagnosticsPanel','research-lab','capital-lab','capital-lab-audit']);
+  const foldIds=new Set(['spot-analysis','futures-analysis','pulse-live','pulse-news','pulse-scanner','pulse-decisions','pulse-finance','pulse-health','guardian-exposure','guardian-overlaps','guardian-quality','intelligence-scopes','intelligence-sources','intelligence-ai','intelligence-conflicts','intelligence-journal','intelligence-queries','quant-funding','quant-statistical','quant-positions','quant-decisions','quant-finance','quant-health','observation-details','comparison-details','spot-limits','futures-limits','spot-positions','futures-positions','spot-finance','futures-finance','diagnosticsPanel','research-lab','capital-lab','capital-lab-audit','opportunity-shadow','opportunity-capital','opportunity-decisions']);
   const navIds=new Set(['platform-overview','spot-bot','futures-bot','market-pulse','portfolio-guardian','quant-arbitrage','activity-section','modelSettingsPanel',...foldIds]);
   const foldStorageKey='crypto-ai-trader.ui.folds.v1';
   let redrawQueued=false;
@@ -1746,12 +1747,14 @@ async function refresh() {
     CommandCenterPortal.render({status,reviews,events,marketPulse,platform,futuresForward});
     GuardianIntelligencePortal.render(platform);
     CapitalLabPortal.render(platform);
+    window.OpportunityShadowPortal?.render(platform);
   } catch(error) {
     PulsePortal.disconnected();
     FourEnginePortal.disconnected();
     CommandCenterPortal.disconnected();
     GuardianIntelligencePortal.disconnected();
     CapitalLabPortal.disconnected();
+    window.OpportunityShadowPortal?.disconnected();
     const botState=document.getElementById('botState');
     botState.textContent='PORTAL SIN CONEXIÓN'; botState.classList.add('offline');
     document.getElementById('operationSummary').textContent='No se pudo consultar el motor. Comprueba la conexión con Windows antes de operar.';

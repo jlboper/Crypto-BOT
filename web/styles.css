@@ -118,3 +118,13 @@ details[open]>*:not(summary){animation:portalDetailsOpen .28s var(--motion-ease)
 .capital-lab-checks p{margin:7px 0 0;font-size:.73rem;line-height:1.5}
 @media(max-width:760px){.capital-lab-grid{grid-template-columns:minmax(0,1fr)}}
 @media(max-width:420px){.capital-lab-evidence{grid-template-columns:minmax(0,1fr)}.capital-lab-case{padding:12px}.capital-lab .state{max-width:100%;white-space:normal}}
+
+.opportunity-shadow { margin-block:1rem; }
+.opportunity-shadow .guardian-scope-grid article { min-width:0; }
+.opportunity-shadow .pulse-metrics { min-width:0; }
+.opportunity-shadow dd,.opportunity-record { overflow-wrap:anywhere; min-width:0; }
+.opportunity-record>details { margin-top:.6rem; }
+.opportunity-legs { padding-inline-start:1.2rem; }
+.opportunity-legs>li { margin-block:.8rem; }
+.opportunity-shadow summary .panel-title { margin:0; }
+@media(max-width:600px) { .opportunity-shadow .panel-title { align-items:flex-start;flex-wrap:wrap; } .opportunity-shadow .pulse-metrics { grid-template-columns:1fr; } }

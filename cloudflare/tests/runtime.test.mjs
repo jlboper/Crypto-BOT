@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { createHash,pbkdf2Sync,generateKeyPairSync,sign,verify } from 'node:crypto';
 import {canonical} from '../src/bot-releases.mjs';
@@ -16,10 +17,12 @@ test('real workerd + local D1: browser session -> command -> Windows sync -> ack
   const hash=v=>createHash('sha256').update(v).digest('hex');
   const publisher=generateKeyPairSync('rsa',{modulusLength:2048}), signer=generateKeyPairSync('ed25519');
   let currentMain='d'.repeat(40);
-  const mf=new Miniflare(convertV4MiniflareOptions({modules:[
+  const mf=new Miniflare(convertV4MiniflareOptions({modulesRoot:fileURLToPath(new URL('../../',import.meta.url)),modules:[
     {type:'ESModule',path:fileURLToPath(new URL('../src/worker.mjs',import.meta.url))},
     {type:'ESModule',path:fileURLToPath(new URL('../src/guardian-intelligence.mjs',import.meta.url))},
     {type:'ESModule',path:fileURLToPath(new URL('../src/capital-lab.mjs',import.meta.url))},
+    {type:'ESModule',path:fileURLToPath(new URL('../src/opportunity-shadow.mjs',import.meta.url))},
+    {type:'ESModule',path:fileURLToPath(new URL('../../web/opportunity-contract.js',import.meta.url))},
     {type:'ESModule',path:fileURLToPath(new URL('../src/github-updates.mjs',import.meta.url))},
     {type:'ESModule',path:fileURLToPath(new URL('../src/password.mjs',import.meta.url))},
     {type:'ESModule',path:fileURLToPath(new URL('../src/bot-releases.mjs',import.meta.url))}],
@@ -58,6 +61,16 @@ test('real workerd + local D1: browser session -> command -> Windows sync -> ack
   const acked=await call('/v1/device/sync',{snapshot:{...snapshot,killed:true},acks:[cmd.body.id]},{Authorization:`Bearer ${device}`});
   assert.equal(acked.status,200);assert.deepEqual(acked.body.commands,[]);
   const status=await call('/v1/status');assert.equal(status.body.commands[0].status,'applied');assert.equal(status.body.snapshot.killed,true);
+  const opportunity=JSON.parse(execFileSync(process.env.PYTHON||'python',[
+    '-B',fileURLToPath(new URL('../../tests/emit_opportunity_fixture.py',import.meta.url))],{encoding:'utf8',timeout:15000}));
+  const observed={...snapshot,killed:true,dashboard:{status:{mode:'PAPER'},positions:[],equity:[],trades:[],reviews:[],events:[],research:{assets:[]},opportunity_shadow:opportunity}};
+  const captured=await call('/v1/device/sync',{snapshot:observed,acks:[]},{Authorization:`Bearer ${device}`});
+  assert.equal(captured.status,200,JSON.stringify(captured.body));
+  assert.deepEqual((await call('/v1/status')).body.snapshot.dashboard.opportunity_shadow,opportunity);
+  const invalidObservation=structuredClone(observed);invalidObservation.dashboard.opportunity_shadow.can_veto=true;
+  const rejectedObservation=await call('/v1/device/sync',{snapshot:invalidObservation,acks:[]},{Authorization:`Bearer ${device}`});
+  assert.equal(rejectedObservation.status,400);assert.equal(rejectedObservation.body.error,'Invalid Opportunity Shadow status');
+  assert.deepEqual((await call('/v1/status')).body.snapshot,observed);
   const capable={...snapshot,killed:true,paper_controls:true};
   assert.equal((await call('/v1/device/sync',{snapshot:capable,acks:[]},{Authorization:`Bearer ${device}`})).status,200);
   const control=await call('/v1/paper-controls',{action:'risk_profile',request_id:'runtime-paper-risk-0001',payload:{profile:'prudente'}});

@@ -10,6 +10,7 @@ from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation, ROUND_CEILING, ROUND_DOWN
 import math
 import secrets
+import time
 
 from .futures_testnet_ledger import FuturesTestnetLedger
 from .futures_testnet_transport import (
@@ -504,6 +505,8 @@ class FuturesTestnetLab:
             "client_order_id": client_id,
         }
         self.ledger.set_setting("forward_pending_order", pending)
+        if not reduce_only:
+            self._observe_forward_entry(pending, plan)
         fields = {
             "symbol": symbol,
             "side": side,
@@ -514,15 +517,59 @@ class FuturesTestnetLab:
         }
         if reduce_only:
             fields["reduceOnly"] = "true"
-        result = signed_request("POST", "/fapi/v1/order", fields)
+        try:
+            result = signed_request("POST", "/fapi/v1/order", fields)
+        except Exception:
+            if not reduce_only:
+                self._observe_forward_response(pending, {})
+            raise
         if not isinstance(result, dict) or result.get("clientOrderId") != client_id:
             raise FuturesTestnetExecutionError("Futures forward order identity mismatch")
+        if not reduce_only:
+            self._observe_forward_response(pending, result)
         if result.get("status") != "FILLED":
             raise FuturesTestnetExecutionError("Futures forward MARKET order requires reconciliation")
         # The caller clears the journal only after the corresponding local
         # position/trade commit. This closes the power-loss window between a
         # confirmed Binance fill and durable local accounting.
         return result
+
+    def _observe_forward_entry(self, pending: dict, plan: dict) -> None:
+        try:
+            from .opportunity_observer import observe_entry_intent
+            context = getattr(self, "_opportunity_context", None) or {}
+            final_at = time.time()
+            evidence = dict(context.get("evidence", {"checks": ("NATIVE_FORWARD_CONFIGURATION_PASSED",)}))
+            evidence.update(decision_at=final_at, known_at=final_at)
+            leg = {"symbol": pending["symbol"], "venue": "FUTURES_DEMO",
+                   "direction": "LONG" if pending["side"] == "BUY" else "SHORT",
+                   "quantity": pending["quantity"], "reference_price": context.get("reference_price")}
+            for key in ("stop_price", "take_profit"):
+                if key in context:
+                    leg[key] = context[key]
+            observe_entry_intent(engine="FUTURES", environment="FUTURES_DEMO",
+                origin_ref=pending["client_order_id"], strategy_version="futures-final-entry-v1", at=final_at,
+                legs=[leg], capital=context.get("capital"), limits=None, evidence=evidence)
+        except Exception:
+            pass
+
+    @staticmethod
+    def _observe_forward_response(pending: dict, response: dict) -> None:
+        try:
+            from .opportunity_observer import observe_entry_outcome
+            evidence = {}
+            if "executedQty" in response:
+                evidence["quantity"] = response["executedQty"]
+            status = response.get("status")
+            state = {"PARTIALLY_FILLED": "PARTIAL", "CANCELED": "CANCELLED",
+                     "EXPIRED": "CANCELLED", "EXPIRED_IN_MATCH": "CANCELLED"}.get(status, status)
+            observe_entry_outcome(engine="FUTURES", environment="FUTURES_DEMO",
+                origin_ref=pending["client_order_id"], at=time.time(), stage="EXCHANGE_RESPONSE",
+                state=state if state in {"FILLED", "PARTIAL", "CANCELLED", "REJECTED"} else "UNKNOWN",
+                complete=status in {"FILLED", "CANCELED", "EXPIRED", "EXPIRED_IN_MATCH", "REJECTED"},
+                evidence=evidence)
+        except Exception:
+            pass
 
     def reconcile_forward_pending(self) -> dict | None:
         pending = self.ledger.setting("forward_pending_order")

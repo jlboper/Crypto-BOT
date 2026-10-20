@@ -678,12 +678,40 @@ class QuantShadowService:
                     "hedge_atomic": False, "environment": "SHADOW", "decision_id": decision_id,
                     "funding_anchor": books[1].get("next_funding_at"),
                     "funding_interval_seconds": books[1].get("funding_interval_seconds")}
+        self._observe_entry(position, books, balance-reserved, now)
         db.execute("INSERT INTO quant_positions VALUES(?,?,?,?)", (decision_id, strategy, now, _json(position)))
         _set(db, "wallet_balance", balance-fees)
         _set(db, "fees_usdt", float(_get(db, "fees_usdt"))+fees)
         _set(db, "slippage_usdt", float(_get(db, "slippage_usdt"))+slippage)
         _journal(db, now, "PAIR_OPENED_SIMULATION", position, "opened-"+decision_id)
         return None
+
+    def _observe_entry(self, position, books, available, now):
+        try:
+            from .opportunity_observer import observe_entry_intent
+            observe_entry_intent(engine="QUANT_ARBITRAGE", environment="SHADOW", origin_ref=position["id"],
+                strategy_version=RULE_VERSION+":"+position["strategy"], at=self.clock(),
+                legs=[{"symbol": leg["symbol"], "venue": leg["venue"], "direction": leg["direction"],
+                    "quantity": leg["quantity"], "reference_price": leg["entry_reference"],
+                    "fee_rate": self.config.fee_bps/10000, "slippage_rate": self.config.slippage_bps/10000,
+                    "margin": leg["quantity"]*leg["entry_price"]} for leg in position["legs"]],
+                capital={"available": available, "at": now}, limits=None,
+                evidence={"decision_at": now, "market_at": min(book["at"] for book in books),
+                    "received_at": max(book["received_at"] for book in books), "known_at": now,
+                    "source_digest": hashlib.sha256(_json(books).encode()).hexdigest(),
+                    "policy_digest": hashlib.sha256(_json(asdict(self.config)).encode()).hexdigest(),
+                    "checks": ("SHADOW_COST_RISK_GATES_PASSED", "SHADOW_LIQUIDITY_GATES_PASSED")})
+        except Exception:
+            pass
+
+    @staticmethod
+    def _observe_entry_commit(identity, now):
+        try:
+            from .opportunity_observer import observe_entry_outcome
+            observe_entry_outcome(engine="QUANT_ARBITRAGE", environment="SHADOW", origin_ref=identity,
+                at=now, stage="LEDGER_COMMIT", state="OPENED", complete=True)
+        except Exception:
+            pass
 
     def _risk_halt(self, db, now, equity):
         instant = datetime.fromtimestamp(now, UTC)
@@ -726,6 +754,7 @@ class QuantShadowService:
             return False
         source = self.source(self.clock())  # Network runs only on this optional thread.
         now = self.clock()
+        observed_openings = []
         with self._lock, _connect(self.path) as db:
             db.execute("BEGIN IMMEDIATE")
             if not self._owned(db, now) or self._stop.is_set():
@@ -805,6 +834,7 @@ class QuantShadowService:
                         action = "REJECT"
                     else:
                         action, reason = "OPEN_SHADOW", "ACCEPTED_HYPOTHETICAL_PAIR"
+                        observed_openings.append(identity)
                 decision = {"id": identity, "strategy": strategy, "instrument": instrument, "at": _iso(now),
                             "action": action, "reason": str(reason)[:120], "model": result,
                             "model_assumptions": {**hypotheses, **({"symbol_a": instrument.split("/")[0],
@@ -836,6 +866,8 @@ class QuantShadowService:
             if not self._owned(db, self.clock()) or self._stop.is_set():
                 db.rollback()
                 return False
+        for identity in observed_openings:
+            self._observe_entry_commit(identity, self.clock())
         return True
 
     def snapshot(self, *, now=None):

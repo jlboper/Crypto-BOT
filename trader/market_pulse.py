@@ -746,6 +746,7 @@ class MarketPulseService:
     def evaluate(self, now: float | None = None, *, project: bool = True) -> dict | None:
         now = self.clock() if now is None else now
         with self._lock:
+            observed_openings = []
             self._last_tick = now
             markets = [window.metrics(now) for window in self.windows.values()]
             btc = next((market for market in markets if market["symbol"] == "BTCUSDT"), None)
@@ -821,7 +822,9 @@ class MarketPulseService:
                                         "entry_value": entry_value, "entry_fee": entry_fee,
                                         "entry_slippage": quantity * (price - window.ask), "environment": "SHADOW",
                                         "estimated_risk": quantity * loss_per_unit}
+                            self._observe_entry(position, window, market, event, cash, equity, now)
                             db.execute("INSERT INTO pulse_positions VALUES(?,?)", (symbol, _json(position)))
+                            observed_openings.append(identity)
                             cash -= entry_value + entry_fee
                             exposure += entry_value
                             _set(db, "cash", cash)
@@ -863,7 +866,44 @@ class MarketPulseService:
                 _set(db, "sources", _json(self._sources))
                 if callable(getattr(self.news_fetcher, "health", None)):
                     _set(db, "news_providers", _json(self.news_fetcher.health()))
+            # Exiting the SQLite context above is the successful COMMIT boundary.
+            # An intent alone is never reported as an opened hypothetical trade.
+            for identity in observed_openings:
+                self._observe_entry_commit(identity, self.clock())
             return self.snapshot(now=now) if project else None
+
+    def _observe_entry(self, position, window, market, event, cash, equity, now):
+        try:
+            from .opportunity_observer import observe_entry_intent
+            evidence = {"decision_at": now, "known_at": now,
+                "checks": ("SHADOW_COST_RISK_GATES_PASSED", "SHADOW_LIQUIDITY_GATES_PASSED"),
+                "policy_digest": hashlib.sha256(_json(asdict(self.config)).encode()).hexdigest(),
+                "source_digest": hashlib.sha256(_json({"market": market,
+                    "event_id": event["id"] if event else None}).encode()).hexdigest()}
+            if window.last_trade_at is not None:
+                evidence["market_at"] = window.last_trade_at
+            if window.last_received_at is not None:
+                evidence["received_at"] = window.last_received_at
+            observe_entry_intent(engine="AI_MARKET_PULSE", environment="SHADOW", origin_ref=position["id"],
+                strategy_version=RULE_VERSION, at=self.clock(),
+                legs=[{"symbol": position["symbol"], "venue": "SPOT_REFERENCE", "direction": "LONG",
+                       "quantity": position["quantity"], "reference_price": window.ask,
+                       "stop_price": position["stop"], "take_profit": position["target"],
+                       "fee_rate": self.config.fee_bps/10000, "slippage_rate": self.config.slippage_bps/10000}],
+                capital={"cash": cash, "equity": equity, "available": cash, "at": now},
+                # Existing virtual positions are not a frozen observer baseline.
+                limits=None, evidence=evidence)
+        except Exception:
+            pass
+
+    @staticmethod
+    def _observe_entry_commit(identity, now):
+        try:
+            from .opportunity_observer import observe_entry_outcome
+            observe_entry_outcome(engine="AI_MARKET_PULSE", environment="SHADOW", origin_ref=identity,
+                at=now, stage="LEDGER_COMMIT", state="OPENED", complete=True)
+        except Exception:
+            pass
 
     def snapshot(self, *, now: float | None = None) -> dict:
         return market_pulse_snapshot(self.data_dir, now=self.clock() if now is None else now,

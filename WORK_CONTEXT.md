@@ -1,53 +1,53 @@
 # Work Context — Crypto AI Trader
 
-## Continuación actual — 0.10.44 Capital Protocol Lab, en preparación
+## Estado verificado — 0.10.44 instalada; candidata 0.10.45 en desarrollo
 
-Base main **0.10.43** `e61dd2a6f617cd39e8bd1c69728dc6f63b800401`,
-[PR #120](https://github.com/jlboper/Crypto-BOT/pull/120), publicada y firmada tras
-[publicación 39254593562](https://github.com/jlboper/Crypto-BOT/actions/runs/39254593562)
-y [seguridad 39254593565](https://github.com/jlboper/Crypto-BOT/actions/runs/39254593565),
-Linux/Windows SUCCESS. Instalada a 2026-10-19 12:53:08 UTC: Ed25519 y **188/188
-hashes**, motor 21084, agente 21344 sincronizado. Spot 2/Futures 4 ARMED, cantidad
-desprotegida cero. Cinco assets web y 11/11 módulos del agente coincidentes.
+Main **0.10.44** `f79578360f7870321d29cb842966bac2a250dba5`,
+[PR #121](https://github.com/jlboper/Crypto-BOT/pull/121),
+[publicación 39407655253](https://github.com/jlboper/Crypto-BOT/actions/runs/39407655253)
+y [seguridad 39407655107](https://github.com/jlboper/Crypto-BOT/actions/runs/39407655107)
+SUCCESS en Linux/Windows. El 20Oct2026 a10:31–10:34 UTC se verificaron Ed25519,
+**195/195 hashes**, journal COMMITTED, runtime RUNNING y un único motor13968.
+Agente13292: **11/11 módulos** y dos sincronizaciones HTTPS distintas correctas.
+Cinco assets web remotos coincidieron con Git. La publicación no se usó como
+prueba de instalación; ambas se verificaron por separado.
 
-Auditoría Guardian43 12:54:49 UTC: OBSERVING, cuatro fuentes FRESH/completas,
-tres assessments distintos y **3/3 replays MATCH** con causalidad válida, errores 0,
-LEVEL 0 y toda autoridad false. Régimen entonces INSUFFICIENT_DATA por ventana
-cerrada obsoleta; no inferir tendencia. Dos intentos IA legacy FAILED, causa y
-coste desconocidos, cuota diaria 2/2 conservada. No resetear claims para probar.
-Exportador firmado a las 12:55:01 UTC incluye GI 7407 bytes en payload 417045 bytes; sin nuevas
-llamadas de proveedor durante esas auditorías. Datos previos comparados: ausentes 0 y
-cambiados 0; claves, riesgo, configuración Futures e hipótesis intactos; prefijo de
-721 registros Guardian y dos intentos también preservados. Son cortes fechados.
+Capital Protocol Lab instalado se ejecutó exactamente una vez: siete casos
+PASSED/siete SQLite SIM nuevas, lecturas posteriores sin mutaciones. Research
+Lab compartido y 47 plegables comprobados. Guardian LEVEL0: cuatro fuentes
+FRESH/completas, tres replays causales MATCH, cero errores y autoridad false.
+Corte operativo posterior **12:23:44 UTC**: Spot1/Futures8, protecciones nativas
+ARMED y cantidad desprotegida observada cero; Pulse/Quant SHADOW/FRESH, Pulse
+WARMING_UP. Son cortes fechados, no conteos permanentes.
 
-Rama44 `feature/capital-protocol-lab-v01044` integra un laboratorio sintético
-cerrado de siete recetas con CLI explícito y JSON RO en Research Lab. Detalle en
-[CAPITAL_PROTOCOL_LAB.md](CAPITAL_PROTOCOL_LAB.md). No usa cuentas actuales,
-propuestas reales, ejecución, IA ni reservas de los motores. Guardian continúa
-NOT_INTEGRATED para capital. No declarar F3 runtime completa. Prototipos 61 tests
-y 64 tests core/Lab/CLI integrados PASS son evidencia enfocada previa. Antes de
-compactar UI: **850/850 Python (181.531 s, TEST_RESULTS 13:19:52.904728 UTC), 202/202
-Node (69.325 s)**, 84 pruebas UI enfocadas (13.643 s), PS5.1 lifecycle/vistas, build
-y diff PASS. [PR #121](https://github.com/jlboper/Crypto-BOT/pull/121) ya existe en
-draft, head `5138e51a1f37001629ac1420e3b0d7e48a439170`, CI 39259777367/39259777360
-PASS para ese head. Compactación local posterior: 47 plegables, auditoría cerrada
-y detalles por caso; LAB SIM/fecha/resultado visibles. Foco UI 84/84 (7.046 s) y
-diff PASS. QA visual PASS en preview sintético local a 360/768/1366px: sin overflow,
-siete casos, detalle independiente/Enter/auditoría y pérdidas con signo correctos.
-Ver `capital-lab44-visual-qa.json` y CAPITAL_PROTOCOL_LAB.md. Full final tras
-compactar: **850/850 Python** (171.844 s en TEST_RESULTS, 2026-10-19
-17:56:01.749748 UTC; runner 171.835 s), **202/202 Node** (37.430 s), build/diff PASS,
-sin fallos/errores/skips. Nuevo head/CI final pendientes; la CI anterior no
-acredita cambios posteriores. Sin merge,
-publicación/firma ni instalación44; preview no es evidencia de instalación.
+Conservación44: las **129773 filas** de diez tablas históricas seleccionadas al
+corte10:20:21–10:20:34 UTC permanecieron sin ausencias/cambios; configuración,
+credenciales y settings congelados conservaron hashes. Backup restaurable44
+sólo Spot:83trades/51receipts íntegros. Los otros hashes son referencias RO,
+no backups SQLite ni captura atómica de todo el sistema.
 
-Auditoría RO **13:18:23 UTC**: todas las filas del backup Spot 43, trades 80/80 y
-receipts 48/48, ausentes 0/cambiadas 0; SHA del backup intacto. Informe
-`append-only-backup43-verification.json`. Updater 43 respaldó sólo Spot. Los
-prefijos muestreados Futures/Pulse/Quant previamente comparados siguen válidos,
-pero no son comparación exhaustiva pre-43; no hubo backup 43 multiledger.
-Pulse readiness parcial (10 fresh/1 complete a las 12:46 UTC) queda como entrega separada,
-sin cambiar compuertas; no confundir WARMING_UP con caída.
+Candidata45 en rama `feature/opportunity-capital-shadow-v01045`: contrato IA
+Guardian acotado, intenciones finales de cuatro motores, consumidor asíncrono
+persistente y aritmética hipotética; paneles compartidos RO. Véase
+[OPPORTUNITY_CAPITAL_SHADOW.md](OPPORTUNITY_CAPITAL_SHADOW.md). Guardian continúa
+LEVEL0: sin veto, ejecución, reservas efectivas o promoción. Sin cambio de riesgo,
+modelo/presupuesto IA, revisión individual, stops ni reconciliación nativa.
+No declarar Fase3 operativa completa: cuentas/baselines no verificados, cierres
+observacionales pendientes y límites globales incompletos conservan UNKNOWN.
+
+IA instalada44: dos fallos20Oct `AI_COMMENTARY_INVALID` consumen2/2; no resetear
+claims ni forzar llamadas. Uso conocido1166input/526output, estimación cliente
+USD0.0003796, excluye dos fallos anteriores de causa/uso desconocidos. No hay
+respuesta cruda para atribuir causa.45 corrige una discrepancia reproducible del
+contrato; la aceptación real por el API y su utilidad siguen pendientes de
+observación normal con cuota disponible. No confundir tests sintéticos con IA real.
+
+Validación local45:959 Python offline/220 Node PASS, PS5.1 lifecycle/vistas,
+build/diff; foco final contrato+UI32 PASS después de ajustes menores. QA de
+preview sintético a360/768/1366px sin overflow. CI/rollout45 pendientes.
+
+Las secciones siguientes son registros históricos; el checkpoint anterior y la
+evidencia autenticada más reciente prevalecen sobre estados de preparación antiguos.
 
 ## Registro histórico de preparación43
 

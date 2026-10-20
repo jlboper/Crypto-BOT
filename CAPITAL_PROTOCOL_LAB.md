@@ -124,3 +124,14 @@ trades 80/80 y receipts 48/48, sin ausencias/cambios y con SHA del backup intact
 Futures/Pulse/Quant tienen comparaciones de prefijos muestreados, sin backup 43
 multiledger ni prueba exhaustiva de todas las filas previas. Esta limitación no
 se elimina por ejecutar las recetas sintéticas del Lab.
+
+
+## Verificación posterior44 y transición45 (20Oct2026)
+
+44 fue publicada, firmada e instalada: main f79578360f7870321d29cb842966bac2a250dba5,
+PR121, publicación39407655253 SUCCESS Linux/Windows,195/195 hashes. El CLI firmado
+se ejecutó exactamente una vez: siete casos PASSED/siete SQLite nuevas; lecturas
+posteriores sin cambios. Exportación real414020bytes/Lab7489bytes y dos HTTPS
+aceptados. Esta evidencia posterior prevalece sobre los estados de preparación
+anteriores. No completa capital operativo.45 agrega observación independiente de
+intenciones; no reutiliza wallets SIM ni cambia los resultados del Lab44.

@@ -709,6 +709,23 @@ def capital_lab_projection(config):
         return None
 
 
+def opportunity_shadow_projection(config):
+    """Read the optional entry observer journal; never admit or reserve live funds."""
+    try:
+        from .opportunity_observer import opportunity_snapshot
+        value = opportunity_snapshot(config.bot.database_path.parent)
+        if (not isinstance(value, dict) or type(value.get('schema')) is not int or value['schema'] != 1
+                or value.get('engine') != 'OPPORTUNITY_SHADOW' or value.get('mode') != 'SHADOW'
+                or type(value.get('autonomy_level')) is not int or value['autonomy_level'] != 0
+                or any(value.get(k) is not False for k in ('controls_enabled', 'can_veto',
+                    'execution_enabled', 'reservations_enabled', 'promotion_allowed'))
+                or len(json.dumps(value, ensure_ascii=True, allow_nan=False, separators=(',', ':')).encode()) > 12000):
+            return None
+        return value
+    except Exception:
+        return None
+
+
 def dashboard_snapshot(config, report_path=None):
     connection = sqlite3.connect(config.bot.database_path.resolve().as_uri()+'?mode=ro', uri=True, timeout=3)
     connection.row_factory = sqlite3.Row
@@ -818,6 +835,10 @@ def dashboard_snapshot(config, report_path=None):
         if capital_lab is not None and len(json.dumps({**payload, 'capital_lab': capital_lab},
                 allow_nan=False).encode()) <= 480_000:
             payload['capital_lab'] = capital_lab
+        opportunities = opportunity_shadow_projection(config)
+        if opportunities is not None and len(json.dumps({**payload, 'opportunity_shadow': opportunities},
+                allow_nan=False).encode()) <= 480_000:
+            payload['opportunity_shadow'] = opportunities
         if len(json.dumps(payload,allow_nan=False).encode()) > 480_000:
             raise ValueError('Dashboard projection exceeds size budget')
         return payload

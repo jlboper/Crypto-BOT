@@ -177,3 +177,17 @@ A capable Windows agent reports `installed_version` and `update_state=signed_rol
 The Windows supervisor still verifies Ed25519, sequence monotonicity, package hashes, running-engine ownership and post-install health. A failed install is not automatically retried in a loop. If the PC was offline, no job is created until its next sync, so the five-minute job lease is always fresh when the device returns.
 
 The first 0.8.5 installation is the transition to this behavior: install it using the existing signed updater and refresh the independent agent once. Subsequent signed releases roll out automatically.
+
+
+## Checkpoint20Oct2026: signed44 and candidate45
+
+44 main f79578360f7870321d29cb842966bac2a250dba5/PR121 was independently
+verified published/signed/installed,195/195 hashes, runtime RUNNING,11/11 outgoing
+agent modules and two distinct accepted HTTPS syncs. Publication39407655253 and
+safety39407655107 succeeded on Linux/Windows. These facts do not prove45 rollout.
+Candidate45 adds optional observation modules and shared JS, not supervisor
+imports/MODULES or an updater change. Preserve the same signed flow and verify
+all installed hashes plus agent inventory/HTTPS after the new deployment.
+The optional opportunity-shadow.db is historical evidence; do not reset or delete
+it during upgrades. Current configured updater backup remains Spot only, not a
+multiledger or observation-journal backup. See OPPORTUNITY_CAPITAL_SHADOW.md.

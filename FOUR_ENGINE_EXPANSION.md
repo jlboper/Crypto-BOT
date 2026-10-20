@@ -1,37 +1,53 @@
 # Four engines and Portfolio Guardian — approved staged continuation
 
-## Installed 43 / synthetic capital foundation 44
+## Estado verificado — 0.10.44 instalada; candidata 0.10.45 en desarrollo
 
-43 main `e61dd2a6f617cd39e8bd1c69728dc6f63b800401`,
-[PR #120](https://github.com/jlboper/Crypto-BOT/pull/120), is published, signed
-and installed **188/188** (2026-10-19 12:53:08 UTC); runs 39254593562/39254593565
-succeeded. Spot 2/Futures 4 remain native ARMED, zero observed unprotected quantity.
-Guardian had four FRESH/complete sources and three causal replays MATCH at
-12:54:49 UTC, all authority false. Its two legacy AI failures retain unknown
-causes/costs and daily 2/2 consumption is preserved.
+Main **0.10.44** `f79578360f7870321d29cb842966bac2a250dba5`,
+[PR #121](https://github.com/jlboper/Crypto-BOT/pull/121),
+[publicación 39407655253](https://github.com/jlboper/Crypto-BOT/actions/runs/39407655253)
+y [seguridad 39407655107](https://github.com/jlboper/Crypto-BOT/actions/runs/39407655107)
+SUCCESS en Linux/Windows. El 20Oct2026 a10:31–10:34 UTC se verificaron Ed25519,
+**195/195 hashes**, journal COMMITTED, runtime RUNNING y un único motor13968.
+Agente13292: **11/11 módulos** y dos sincronizaciones HTTPS distintas correctas.
+Cinco assets web remotos coincidieron con Git. La publicación no se usó como
+prueba de instalación; ambas se verificaron por separado.
 
-44 prepares [Capital Protocol Lab](CAPITAL_PROTOCOL_LAB.md), seven closed synthetic
-recipes and RO Research Lab projection. No real funds, engine proposal hooks,
-shared-account activation or Guardian Control. It is not full F3 runtime.
-Before mobile compacting, full local checks passed **850 Python (181.531 s), 202 Node (69.325 s)**,
-84 focused UI tests (13.643 s), PS5.1 lifecycle/view, build and diff.
-[PR #121](https://github.com/jlboper/Crypto-BOT/pull/121) is draft at head
-`5138e51a1f37001629ac1420e3b0d7e48a439170`; CI 39259777367/39259777360 PASS.
-The later local UI has 47 folds: closed audit and compact cases, essential
-synthetic context visible. Focused tests 84/84 (7.046 s) and diff passed. Visual
-QA passed in the isolated synthetic preview at 360/768/1366px, no overflow and
-seven cases with working audit/details/keyboard. Final local suites passed
-850/850 Python (171.844 s TEST_RESULTS at 2026-10-19 17:56:01.749748 UTC;
-runner 171.835 s), 202/202 Node (37.430 s), build and diff; no failures/errors/skips.
-New head/CI remain pending.
-Earlier CI applies to its exact head, not subsequent changes. No merge,
-publication/signature/install44 is asserted; keep stages distinct.
+Capital Protocol Lab instalado se ejecutó exactamente una vez: siete casos
+PASSED/siete SQLite SIM nuevas, lecturas posteriores sin mutaciones. Research
+Lab compartido y 47 plegables comprobados. Guardian LEVEL0: cuatro fuentes
+FRESH/completas, tres replays causales MATCH, cero errores y autoridad false.
+Corte operativo posterior **12:23:44 UTC**: Spot1/Futures8, protecciones nativas
+ARMED y cantidad desprotegida observada cero; Pulse/Quant SHADOW/FRESH, Pulse
+WARMING_UP. Son cortes fechados, no conteos permanentes.
 
-The 13:18:23 UTC RO audit verified all Spot backup-43 trade rows 80/80 and receipt
-rows 48/48, zero missing/changed and backup SHA intact. Report:
-`append-only-backup43-verification.json`. Only Spot had a 43 updater backup;
-Futures/Pulse/Quant preservation evidence is limited to the previously compared
-sampled prefixes, not every pre-43 row or a complete multiledger backup.
+Conservación44: las **129773 filas** de diez tablas históricas seleccionadas al
+corte10:20:21–10:20:34 UTC permanecieron sin ausencias/cambios; configuración,
+credenciales y settings congelados conservaron hashes. Backup restaurable44
+sólo Spot:83trades/51receipts íntegros. Los otros hashes son referencias RO,
+no backups SQLite ni captura atómica de todo el sistema.
+
+Candidata45 en rama `feature/opportunity-capital-shadow-v01045`: contrato IA
+Guardian acotado, intenciones finales de cuatro motores, consumidor asíncrono
+persistente y aritmética hipotética; paneles compartidos RO. Véase
+[OPPORTUNITY_CAPITAL_SHADOW.md](OPPORTUNITY_CAPITAL_SHADOW.md). Guardian continúa
+LEVEL0: sin veto, ejecución, reservas efectivas o promoción. Sin cambio de riesgo,
+modelo/presupuesto IA, revisión individual, stops ni reconciliación nativa.
+No declarar Fase3 operativa completa: cuentas/baselines no verificados, cierres
+observacionales pendientes y límites globales incompletos conservan UNKNOWN.
+
+IA instalada44: dos fallos20Oct `AI_COMMENTARY_INVALID` consumen2/2; no resetear
+claims ni forzar llamadas. Uso conocido1166input/526output, estimación cliente
+USD0.0003796, excluye dos fallos anteriores de causa/uso desconocidos. No hay
+respuesta cruda para atribuir causa.45 corrige una discrepancia reproducible del
+contrato; la aceptación real por el API y su utilidad siguen pendientes de
+observación normal con cuota disponible. No confundir tests sintéticos con IA real.
+
+Validación local45:959 Python offline/220 Node PASS, PS5.1 lifecycle/vistas,
+build/diff; foco final contrato+UI32 PASS después de ajustes menores. QA de
+preview sintético a360/768/1366px sin overflow. CI/rollout45 pendientes.
+
+Las secciones siguientes son registros históricos; el checkpoint anterior y la
+evidencia autenticada más reciente prevalecen sobre estados de preparación antiguos.
 
 ## Historical baseline and Command Center continuation
 
