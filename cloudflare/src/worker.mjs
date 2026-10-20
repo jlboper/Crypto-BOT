@@ -700,7 +700,7 @@ export async function handle(request, env, now = Math.floor(Date.now() / 1000)) 
     await statement(env.DB,'SELECT id FROM jobs LIMIT 1').all();
     return json({status:'ok',commit:/^[a-f0-9]{40}$/.test(env.PORTAL_COMMIT||'')?env.PORTAL_COMMIT:null});
   }
-  if (method === 'GET' && ['/', '/app.js', '/style.css','/styles.css','/monitoring.css','/portal-bridge.js','/portal.css','/crypto-ai-trader-icon.png','/manifest.webmanifest','/service-worker.js'].includes(path)) {
+  if (method === 'GET' && ['/', '/app.js', '/style.css','/styles.css','/monitoring.css','/portal-bridge.js','/opportunity-contract.js','/opportunity-ui.js','/portal.css','/crypto-ai-trader-icon.png','/manifest.webmanifest','/service-worker.js'].includes(path)) {
     const asset = await env.ASSETS.fetch(request);
     const headers = new Headers(asset.headers);
     for (const [name, value] of Object.entries(security)) headers.set(name, value);

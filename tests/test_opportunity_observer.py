@@ -220,16 +220,56 @@ class OpportunityObserverTests(unittest.TestCase):
             self.assertEqual(db.execute('SELECT type,name,sql FROM sqlite_master ORDER BY name').fetchall(),schema)
 
     def test_actual_sqlite_size_limit_stops_only_observation(self):
-        service=self.service(max_bytes=65536);self.assertTrue(service.start())
-        self.wait(lambda:service._last_heartbeat==NOW)
-        for i in range(45):observe_entry_intent(**intent_fields(origin_ref='limited-'+str(i)))
-        self.wait(lambda:service._queue.unfinished_tasks==0)
+        service=self.initialized(max_bytes=65536)
+        # Filling a real SQLite file is a finite storage test, not a throughput
+        # benchmark for 45 fsync-heavy transactions on a shared Windows runner.
+        for i in range(45):
+            fields=intent_fields(origin_ref='limited-'+str(i))
+            try:
+                if service._consume(build_intent(**fields))=='RETENTION_FULL':break
+            except sqlite3.Error as error:
+                self.assertEqual(getattr(error,'sqlite_errorcode',None),sqlite3.SQLITE_FULL)
+                break
+        else:self.fail('bounded fixture did not reach the real SQLite capacity limit')
+        with closing(sqlite3.connect(service.path)) as db:
+            preserved=db.execute('SELECT id,data,assessment FROM opportunity_records ORDER BY sequence').fetchall()
+
+        entered=threading.Event();release=threading.Event();attempted=threading.Event();finished=threading.Event()
+        consume=service._consume;flush=service._flush_health
+        def blocked_consume(event):
+            entered.set()
+            if not release.wait(3):raise AssertionError('test did not release the observer consumer')
+            try:return consume(event)
+            finally:attempted.set()
+        def flushed_health(**kwargs):
+            flush(**kwargs)
+            # Completion includes task_done AND persisted health, rather than
+            # racing the worker's finally block after unfinished_tasks hits 0.
+            if attempted.is_set() and service._queue.unfinished_tasks==0:finished.set()
+        with patch.object(service,'_consume',side_effect=blocked_consume), \
+                patch.object(service,'_flush_health',side_effect=flushed_health):
+            try:
+                self.assertTrue(service.start())
+                self.assertTrue(observe_entry_intent(**fields))
+                self.assertTrue(entered.wait(3),'observer did not start the bounded handoff')
+                # A separate engine returns from ingress while the consumer is
+                # deliberately blocked. No financial path waits for this disk.
+                self.assertTrue(observe_entry_intent(**intent_fields(engine='FUTURES',
+                    environment='FUTURES_DEMO',origin_ref='other-engine-at-capacity')))
+                self.assertFalse(release.is_set());self.assertFalse(finished.is_set())
+                release.set()
+                self.assertTrue(finished.wait(3),'observer did not finish the two bounded handoffs')
+            finally:release.set()
         value=service.snapshot();self.assertEqual(value['health']['capacity_state'],'FULL')
+        self.assertIn(value['health']['last_error'],('RETENTION_FULL','JOURNAL_FULL'))
+        self.assertGreater(value['health']['errors']+value['health']['dropped'],0)
         self.assertEqual(value['state'],'PARTIAL');self.assertGreater(value['health']['records'],0)
         self.assertLess(value['health']['records'],45);self.assertLessEqual(service.path.stat().st_size,65536)
         self.assertTrue(service._thread.is_alive())
         with closing(sqlite3.connect(service.path)) as db:
             self.assertEqual(db.execute('PRAGMA integrity_check').fetchone()[0],'ok')
+            self.assertEqual(db.execute('SELECT id,data,assessment FROM opportunity_records ORDER BY sequence LIMIT ?',
+                (len(preserved),)).fetchall(),preserved)
 
     def test_held_scenario_totals_keep_exact_decimal_precision(self):
         service=self.initialized();fields=intent_fields()

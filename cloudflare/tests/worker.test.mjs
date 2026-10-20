@@ -1044,6 +1044,34 @@ test('static shell has strict security headers and missing provisioning fails cl
   assert.equal((await worker.fetch(new Request(origin+'/'),f.env)).status,503);
 });
 
+test('opportunity scripts use the explicit GET asset route without opening private APIs or POST',async t=>{
+  const f=await fixture(t),served=[];
+  f.env.ASSETS={fetch:async request=>{
+    const path=new URL(request.url).pathname;
+    served.push(path);
+    return new Response('/* '+path+' */',{headers:{'content-type':'application/javascript','cache-control':'public, max-age=86400','content-security-policy':"default-src *"}});
+  }};
+  assert.equal((await f.request('/v1/status')).status,401);
+  const paths=['/opportunity-contract.js','/opportunity-ui.js'];
+  for(const path of paths){
+    const response=await worker.fetch(new Request(origin+path),f.env);
+    assert.equal(response.status,200);
+    assert.equal(await response.text(),'/* '+path+' */');
+    assert.equal(response.headers.get('content-type'),'application/javascript');
+    assert.equal(response.headers.get('cache-control'),'no-store, max-age=0');
+    assert.equal(response.headers.get('pragma'),'no-cache');
+    assert.equal(response.headers.get('x-content-type-options'),'nosniff');
+    assert.match(response.headers.get('content-security-policy')||'',/script-src 'self'/);
+    assert.match(response.headers.get('content-security-policy')||'',/frame-ancestors 'none'/);
+    assert.equal((await f.request(path,{})).status,401);
+  }
+  assert.deepEqual(served,paths);
+  assert.equal((await f.request('/v1/status')).status,401);
+  await f.login();
+  for(const path of paths)assert.equal((await f.request(path,{})).status,404);
+  assert.deepEqual(served,paths);
+});
+
 test('health checks the migrated database and reports only an immutable deployment revision',async t=>{
   const f=await fixture(t);f.env.PORTAL_COMMIT='d'.repeat(40);
   const healthy=await f.request('/v1/health');

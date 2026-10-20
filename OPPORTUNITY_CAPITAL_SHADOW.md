@@ -146,3 +146,47 @@ visibles guardadas. El preview no prueba instalación.
 CI del head exacto, main CI, publicación,
 firma, instalación Windows y observación operativa son verificaciones separadas.
 No atribuir resultados44 a candidata45 ni afirmar escenarios probados por inspección.
+
+
+## Verificación instalada45 y correctiva remota46
+
+45 se publicó e instaló (PR122/main5d08ca7, publicación39453869690, Ed25519,
+207/207hashes). Observer45 IDLE/FRESH con tres latidos distintos y cero errores;
+aún sin entradas observadas al corte16:10:37UTC. No se fuerza actividad.
+El exportador incluye el DTO de1035bytes dentro de414068bytes y mantiene el Lab44.
+Guardian Intelligence fue PARTIAL por Futures STALE_OR_UNPRICED_SOURCE, con
+servicio/lease activos y protecciones nativas confirmadas; no se relaja el criterio.
+
+GET remotos de ambos JS devolvieron401: faltaban en la allowlist estática del
+Worker.46 corrige exactamente esas dos rutas y prueba que las APIs conservan su
+autenticación/CSRF. No se considera el panel45 verificado remotamente; completar
+GET200/hash de ambos scripts tras despliegue46. Esto no amplía autoridad financiera.
+
+Auditoría45 posterior16:11:31UTC: Guardian OBSERVING, cuatro fuentes FRESH y
+tres replays causales MATCH; cero errores, LEVEL0, cuota2/2 intacta. No se
+relajó frescura. Seguridad main39453845081 SUCCESS; ejecución duplicada39453869860
+cancelada. Publicación39453869690 SUCCESS en el mismo main45.
+
+Validación local46: **959/959 Python offline** (157.844s TEST_RESULTS,
+20Oct2026 16:16:56.557358UTC; runner157.846s), **223/223 Node** (44.546s),
+build/diff PASS, sin fallos/errores/skips; red externa bloqueada, bot no iniciado.
+Regresión de recursos falló401 antes del fix y pasó después. CI/rollout46 pendientes.
+
+
+Forward45 a20:41:58UTC: cuatro registros auténticos de rutas Spot/Pulse
+(intención y resultado de cada uno),4/4hashes de payload coincidentes, todas
+las hipótesis UNKNOWN/admisiónNOT_EVALUABLE/cuentaUNKNOWN, cero errores y
+observaciones descartadas. Tres latidos FRESH. Futures/Quant no registraron
+entradas al corte; no simularlas en la instalación para completar cobertura.
+PR123 inicial5199e23 tuvo1fallo Windows en deadline del ensayo de45transacciones
+SQLite/64KiB; no se integró. La sincronización se corrige sin relajar límites.
+
+
+Validación final46 tras sincronizar el ensayo SQLite: **959/959 Python offline**
+PASS en135.735s,20Oct2026 20:45:40.100180UTC, cero fallos/errores/skips, red externa
+bloqueada y bot no iniciado. Producto y timeout global no se modificaron. Fixture
+finito de capacidad separado de dos handoffs con barreras, comprobando ingreso de
+otro motor mientras el consumidor está retenido, FULL/integridad y evidencia previa.
+Foco97/97 PASS5.022s; misma demora controlada80ms/evento falla antes y pasa después.
+Node223/223 PASS44.546s conserva validez: Worker/UI sin cambios posteriores.
+La CI del nuevo head debe validarse antes del merge; no reutilizar el head5199e23.

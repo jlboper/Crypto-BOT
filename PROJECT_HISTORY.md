@@ -537,3 +537,13 @@ Guardian permanece LEVEL0. La corrección del schema de comentarios no prueba
 la causa de respuestas reales fallidas ni autoriza consumir cuota adicional,
 resetear claims, cambiar modelo o flexibilizar el validador local. No se publica
 contenido crudo de respuestas ni valores de credenciales.
+
+
+## 2026-10-20 — Los nuevos scripts necesitan contrato de entrega estática
+
+La instalación45 validó207hashes y observer local saludable, pero una auditoría
+remota encontró401 para sus dos scripts: build+import no basta cuando Worker
+permite sólo rutas estáticas explícitas.46 conserva la lista cerrada y agrega
+exactamente ambos recursos de código con CSP/no-store; APIs/CSRF no cambian.
+Verificar GET remoto de cada dependencia nueva además del build, payload y CI.
+Nunca inferir experiencia remota completa de un exportador o heartbeat aceptado.

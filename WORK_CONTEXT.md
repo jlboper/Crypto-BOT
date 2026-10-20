@@ -1,6 +1,41 @@
 # Work Context — Crypto AI Trader
 
-## Estado verificado — 0.10.44 instalada; candidata 0.10.45 en desarrollo
+## Estado verificado — 0.10.45 instalada; correctiva remota46 en preparación
+
+Main45 **`5d08ca7f78731236386212c2c88983b3e21dd281`**, [PR122](https://github.com/jlboper/Crypto-BOT/pull/122).
+[Publicación39453869690](https://github.com/jlboper/Crypto-BOT/actions/runs/39453869690)
+aprobó validate/validate-windows/publish. A20Oct2026 16:10:01UTC: Ed25519,
+**207/207 hashes**, journal COMMITTED, runtime RUNNING, único motor12020 y PID13968
+anterior salido. Agente23592 autorrefrescado, **11/11 módulos**. Spot3/Futures7
+ARMED y cantidad desprotegida observada cero; Pulse/Quant SHADOW/FRESH.
+
+Observer45 verificado con tres latidos distintos, IDLE/FRESH, cero errores,
+descartes y registros; no se forzaron entradas. Todos los permisos false/LEVEL0.
+Cuatro adaptadores probados sintéticamente, aún sin entradas nuevas observadas
+al corte. Exportador instalado414068bytes incluye observer1035bytes, Guardian,
+cuatro motores y mismo Capital Lab44. Guardian Intelligence PARTIAL por Futures
+STALE_OR_UNPRICED_SOURCE, no caída del motor: fuente desconocida conservada sin
+relajar frescura. A16:11:31UTC volvió OBSERVING: cuatro fuentes FRESH/completas,
+tres assessments/tres replays causales MATCH, cero errores; IA conserva2/2. Preservación de referencia15:59:45–50UTC: diez tablas,
+**138702 filas** sin ausencias/cambios; configuración/credenciales/settings hashes
+intactos. Backup updater45 sólo Spot85trades/53receipts íntegros, no backup global.
+
+Auditoría remota detectó **401** para los dos JS nuevos: se copiaron al build,
+pero faltaban en la lista de recursos estáticos del Worker; incluso con sesión
+habrían terminado404. El resto del portal y trading permanecen disponibles.
+46 agrega exactamente esas dos rutas de código estático, manteniendo CSP,
+no-store y autenticación/CSRF de APIs. No cambia controles ni módulos financieros.
+No declarar45 completamente funcional remotamente ni46 publicada/instalada
+antes de validar su propio CI, firma, rollout y ambos GET200 de recursos.
+
+Validación local46: **959/959 Python offline** (157.844s TEST_RESULTS,
+20Oct2026 16:16:56.557358UTC; runner157.846s), **223/223 Node** (44.546s),
+build/diff PASS, sin fallos/errores/skips; red externa bloqueada, bot no iniciado.
+Regresión de recursos falló401 antes del fix y pasó después. CI/rollout46 pendientes.
+
+Los registros siguientes conservan los cortes anteriores de preparación45/base44.
+
+## Registro histórico — preparación45 desde44
 
 Main **0.10.44** `f79578360f7870321d29cb842966bac2a250dba5`,
 [PR #121](https://github.com/jlboper/Crypto-BOT/pull/121),
@@ -302,3 +337,24 @@ inventa. Sin cambios de riesgo, ledgers, lifecycle o actualizador. Verificar CI,
 firma, instalación y recarga real del indicador por separado. Quant Shadow y
 evaluación estadística siguen pendientes de desarrollo; ejecución Testnet requiere
 autorización posterior y Guardian Control permanece deshabilitado.
+
+
+### Continuación20Oct20:42UTC — PR123 sin integrar
+
+Main45 sigue5d08ca7, Windows45 RUNNING/COMMITTED, PID12020. PR123 inicial5199e23
+pasó39456257911 Linux/Windows;39456257900 falló sólo Windows en el deadline3s
+para drenar45transacciones SQLite del test de64KiB. No hubo merge ni publicación46.
+Se corrige la sincronización del test, conservando límites de producto y assertions.
+Observer45 produjo cuatro registros auténticos Spot/Pulse,4/4digests válidos y
+UNKNOWN, sin errores/descartes; tres latidos FRESH. Futures/Quant NOT_CAPTURED
+al corte20:41:58. No se forzó actividad ni se invocó IA desde la auditoría.
+
+
+Validación final46 tras sincronizar el ensayo SQLite: **959/959 Python offline**
+PASS en135.735s,20Oct2026 20:45:40.100180UTC, cero fallos/errores/skips, red externa
+bloqueada y bot no iniciado. Producto y timeout global no se modificaron. Fixture
+finito de capacidad separado de dos handoffs con barreras, comprobando ingreso de
+otro motor mientras el consumidor está retenido, FULL/integridad y evidencia previa.
+Foco97/97 PASS5.022s; misma demora controlada80ms/evento falla antes y pasa después.
+Node223/223 PASS44.546s conserva validez: Worker/UI sin cambios posteriores.
+La CI del nuevo head debe validarse antes del merge; no reutilizar el head5199e23.
