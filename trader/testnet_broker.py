@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
+import hashlib
 import json
 import math
 import secrets
@@ -153,24 +154,85 @@ class BinanceTestnetBroker(PaperBroker):
         self._save_pending(None)
         return True
 
-    def _submit_market(self, pending: dict, fields: dict) -> dict:
+    def _observe_entry(self, pending: dict, opportunity: dict | None) -> None:
+        """Copy final BUY evidence to the fixed, non-blocking observer ingress."""
+        if pending.get("side") != "BUY":
+            return
+        try:
+            from .opportunity_observer import observe_entry_intent
+            signal = pending.get("signal") or {}
+            final_at = time.time()
+            evidence = {"checks": ("NATIVE_QUANTITATIVE_CHECKS_PASSED",),
+                "decision_at": final_at, "known_at": final_at,
+                "source_digest": hashlib.sha256(json.dumps({key: signal.get(key) for key in
+                    ("created_at", "price", "stop_price", "take_profit", "observed_price",
+                     "observed_stop_price", "observed_take_profit")},
+                    sort_keys=True, separators=(",", ":")).encode()).hexdigest(),
+                "policy_digest": hashlib.sha256(json.dumps((self.risk.max_positions,
+                    self.risk.max_total_exposure_pct, self.risk.max_position_pct,
+                    self.risk.risk_per_trade_pct), separators=(",", ":")).encode()).hexdigest()}
+            original = getattr(self, "_opportunity_review", None)
+            if original:
+                review, model, reviewed_at = original
+                evidence["review_digest"] = hashlib.sha256(json.dumps((model, review.verdict,
+                    review.confidence, review.risk_multiplier, reviewed_at), separators=(",", ":")).encode()).hexdigest()
+                evidence["checks"] += ("INDIVIDUAL_AI_REVIEW_ACCEPTED",)
+            observe_entry_intent(engine="SPOT", environment="SPOT_TESTNET",
+                origin_ref=pending["client_order_id"], strategy_version="spot-final-entry-v1", at=final_at,
+                legs=[{"symbol": pending["symbol"], "venue": "SPOT_TESTNET", "direction": "LONG",
+                       "quantity": pending["planned_qty"], "reference_price": signal.get("price"),
+                       "stop_price": signal.get("stop_price"), "take_profit": signal.get("take_profit"),
+                       "fee_rate": self.settings.fee_rate, "slippage_rate": self.settings.slippage_rate}],
+                # Native limits include positions predating this observer; no
+                # frozen global baseline exists for a reservation budget yet.
+                capital=(opportunity or {}).get("capital"), limits=None,
+                evidence=evidence)
+        except Exception:
+            # Optional observation can lose evidence, never change a broker write.
+            pass
+
+    @staticmethod
+    def _observe_response(pending: dict) -> None:
+        if pending.get("side") != "BUY":
+            return
+        try:
+            from .opportunity_observer import observe_entry_outcome
+            status = pending["status"]
+            state = {"PARTIALLY_FILLED": "PARTIAL", "CANCELED": "CANCELLED",
+                     "EXPIRED": "CANCELLED", "EXPIRED_IN_MATCH": "CANCELLED"}.get(status, status)
+            evidence = {}
+            if "executed_qty" in pending:
+                evidence["quantity"] = pending["executed_qty"]
+            if "commission_quote" in pending and not pending.get("commission_other") and not Decimal(pending.get("commission_base", "0")):
+                evidence["fees"] = pending["commission_quote"]
+            observe_entry_outcome(engine="SPOT", environment="SPOT_TESTNET",
+                origin_ref=pending["client_order_id"], at=time.time(), stage="EXCHANGE_RESPONSE",
+                state=state if state in {"FILLED", "PARTIAL", "CANCELLED", "REJECTED"} else "UNKNOWN",
+                complete=status in TERMINAL, evidence=evidence)
+        except Exception:
+            pass
+
+    def _submit_market(self, pending: dict, fields: dict, *, opportunity: dict | None = None) -> dict:
         if self._pending():
             raise TestnetExecutionError("Unresolved unified Testnet order")
         self._save_pending(pending)  # durable receipt before the only POST
+        self._observe_entry(pending, opportunity)
         try:
             response = signed_request("POST", "/api/v3/order", fields)
         except Exception:
             # Never retry a write. The next cycle/read-only reconciliation decides.
+            self._observe_response(pending)
             raise
         pending.update(self._normalize_fill_with_trades(response, pending))
         self._save_pending(pending)
+        self._observe_response(pending)
         if pending["status"] in TERMINAL:
             if Decimal(str(pending.get("executed_qty", "0"))) > 0:
                 self._apply_terminal_fill(pending)
             self._save_pending(None)
         return pending
 
-    def _validate_buy(self, signal: Signal, quantity: float) -> None:
+    def _validate_buy(self, signal: Signal, quantity: float) -> dict:
         if signal.action != "BUY" or any(
             type(v) not in (int, float) or not math.isfinite(v) or v <= 0
             for v in (quantity, signal.price, signal.stop_price, signal.take_profit, signal.atr)
@@ -200,6 +262,8 @@ class BinanceTestnetBroker(PaperBroker):
             raise ValueError("per-trade risk limit")
         if gross * (1 + self.settings.fee_rate) > cash + 1e-8:
             raise ValueError("insufficient Testnet allocation")
+        # Values already used by native admission, copied only for observation.
+        return {"equity": equity, "cash": cash}
 
     def buy(self, signal: Signal, quantity: float, reason: str) -> Position:
         self._validate_buy(signal, quantity)
@@ -217,13 +281,15 @@ class BinanceTestnetBroker(PaperBroker):
         if not (observed_stop < reference < observed_take and signal.stop_price < reference < signal.take_profit):
             raise TestnetExecutionError("Spot Testnet price moved outside signal protection range")
         execution_signal = signal.at_entry_price(reference)
-        self._validate_buy(execution_signal, quantity)
+        admitted_values = self._validate_buy(execution_signal, quantity)
         self.native.preflight_with_client(client, info, execution_signal.stop_price, execution_signal.take_profit)
         plan = plan_order(signal.symbol, "BUY", reference, info, quantity=quantity)
         if plan.status != "READY_FOR_MANUAL_REVIEW":
             raise TestnetExecutionError("Testnet filters reject engine quantity")
         quote_estimate = Decimal(plan.estimated_notional)
-        if self._account_balance("USDT") < quote_estimate:
+        available_usdt = self._account_balance("USDT")
+        balance_observed_at = time.time()
+        if available_usdt < quote_estimate:
             raise TestnetExecutionError("Insufficient Spot Testnet USDT")
         client_id = "cait-auto-" + secrets.token_hex(10)
         pending = {
@@ -254,6 +320,8 @@ class BinanceTestnetBroker(PaperBroker):
                 "newClientOrderId": client_id,
                 "newOrderRespType": "FULL",
             },
+            opportunity={"capital": {"available": str(available_usdt),
+                "cash": admitted_values["cash"], "equity": admitted_values["equity"], "at": balance_observed_at}},
         )
         if result["status"] != "FILLED":
             raise TestnetExecutionError("Testnet BUY awaits reconciliation")

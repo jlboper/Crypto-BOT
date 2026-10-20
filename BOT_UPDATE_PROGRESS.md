@@ -1,45 +1,51 @@
-# Candidate — 0.10.44 Capital Protocol Lab (synthetic only)
+## Estado verificado — 0.10.44 instalada; candidata 0.10.45 en desarrollo
 
-Base main 43 `e61dd2a6f617cd39e8bd1c69728dc6f63b800401`,
-[PR #120](https://github.com/jlboper/Crypto-BOT/pull/120),
-[publication 39254593562](https://github.com/jlboper/Crypto-BOT/actions/runs/39254593562)
-and [safety 39254593565](https://github.com/jlboper/Crypto-BOT/actions/runs/39254593565)
-SUCCESS on Linux/Windows. Ed25519 and installed **188/188** verified at
-2026-10-19 12:53:08 UTC. Engine 21084, Spot 2/Futures 4 ARMED with zero observed
-unprotected quantity; agent 21344 healthy with 11/11 modules. Guardian at 12:54:49
-UTC: four FRESH/complete sources, three distinct captures/three replays MATCH,
-zero errors, LEVEL 0/no authority. Two legacy FAILED AI claims retain unknown
-causes/costs and daily 2/2 consumption. Compared financial/settings and Guardian
-prefixes were preserved unchanged.
+Main **0.10.44** `f79578360f7870321d29cb842966bac2a250dba5`,
+[PR #121](https://github.com/jlboper/Crypto-BOT/pull/121),
+[publicación 39407655253](https://github.com/jlboper/Crypto-BOT/actions/runs/39407655253)
+y [seguridad 39407655107](https://github.com/jlboper/Crypto-BOT/actions/runs/39407655107)
+SUCCESS en Linux/Windows. El 20Oct2026 a10:31–10:34 UTC se verificaron Ed25519,
+**195/195 hashes**, journal COMMITTED, runtime RUNNING y un único motor13968.
+Agente13292: **11/11 módulos** y dos sincronizaciones HTTPS distintas correctas.
+Cinco assets web remotos coincidieron con Git. La publicación no se usó como
+prueba de instalación; ambas se verificaron por separado.
 
-44 is a synthetic CLI/research lab, not F3 real-proposal runtime. See
-[CAPITAL_PROTOCOL_LAB.md](CAPITAL_PROTOCOL_LAB.md). Prior focused checks passed
-61 prototype tests and 64 integrated core/Lab/CLI tests. Before mobile compacting,
-validation passed **850/850 Python** (181.531 s in TEST_RESULTS at
-2026-10-19 13:19:52.904728 UTC), **202/202 Node** (69.325 s), 84 focused UI tests
-(13.643 s), PS5.1 lifecycle/view, build and diff.
-[Draft PR #121](https://github.com/jlboper/Crypto-BOT/pull/121) exists, head
-`5138e51a1f37001629ac1420e3b0d7e48a439170`, with
-[CI 39259777367](https://github.com/jlboper/Crypto-BOT/actions/runs/39259777367) and
-[CI 39259777360](https://github.com/jlboper/Crypto-BOT/actions/runs/39259777360) PASS.
-Later local compacting keeps 47 folds, closed audit and compact case details,
-with LAB SIM/date/result visible; focused UI 84/84 (7.046 s) and diff passed.
-Visual QA passed on the isolated synthetic preview at 360/768/1366px: widths
-345/345, 753/753, 1351/1351 client/scroll, seven cases, keyboard/audit/details and
-signed loss/shortfall verified. Collapsed audit 42.53px vs 815.9px; first case
-about 534px vs 1215px. Artifacts: `capital-lab44-visual-qa.json` and three screenshots.
-Final local revalidation after compacting passed **850/850 Python** (171.844 s
-TEST_RESULTS at 2026-10-19 17:56:01.749748 UTC; unittest runner 171.835 s),
-**202/202 Node** (37.430 s), build and diff; no failures/errors/skips.
-New head/CI remain pending. Prior CI applies to its exact head;
-preview QA does not prove merge/main CI/publication/signature/install/runtime44.
+Capital Protocol Lab instalado se ejecutó exactamente una vez: siete casos
+PASSED/siete SQLite SIM nuevas, lecturas posteriores sin mutaciones. Research
+Lab compartido y 47 plegables comprobados. Guardian LEVEL0: cuatro fuentes
+FRESH/completas, tres replays causales MATCH, cero errores y autoridad false.
+Corte operativo posterior **12:23:44 UTC**: Spot1/Futures8, protecciones nativas
+ARMED y cantidad desprotegida observada cero; Pulse/Quant SHADOW/FRESH, Pulse
+WARMING_UP. Son cortes fechados, no conteos permanentes.
 
-RO audit at 13:18:23 UTC verified **80/80 Spot trade rows and 48/48 receipt rows**
-from the 43 backup, zero missing/changed and unchanged backup SHA. Report:
-`append-only-backup43-verification.json`. The 43 updater backed up Spot only;
-valid prior sampled-prefix comparisons of Futures/Pulse/Quant do not establish
-exhaustive pre-43 preservation and there is no 43 multiledger backup for them.
-No new financial authorization is inferred from those tests or a PASSED recipe.
+Conservación44: las **129773 filas** de diez tablas históricas seleccionadas al
+corte10:20:21–10:20:34 UTC permanecieron sin ausencias/cambios; configuración,
+credenciales y settings congelados conservaron hashes. Backup restaurable44
+sólo Spot:83trades/51receipts íntegros. Los otros hashes son referencias RO,
+no backups SQLite ni captura atómica de todo el sistema.
+
+Candidata45 en rama `feature/opportunity-capital-shadow-v01045`: contrato IA
+Guardian acotado, intenciones finales de cuatro motores, consumidor asíncrono
+persistente y aritmética hipotética; paneles compartidos RO. Véase
+[OPPORTUNITY_CAPITAL_SHADOW.md](OPPORTUNITY_CAPITAL_SHADOW.md). Guardian continúa
+LEVEL0: sin veto, ejecución, reservas efectivas o promoción. Sin cambio de riesgo,
+modelo/presupuesto IA, revisión individual, stops ni reconciliación nativa.
+No declarar Fase3 operativa completa: cuentas/baselines no verificados, cierres
+observacionales pendientes y límites globales incompletos conservan UNKNOWN.
+
+IA instalada44: dos fallos20Oct `AI_COMMENTARY_INVALID` consumen2/2; no resetear
+claims ni forzar llamadas. Uso conocido1166input/526output, estimación cliente
+USD0.0003796, excluye dos fallos anteriores de causa/uso desconocidos. No hay
+respuesta cruda para atribuir causa.45 corrige una discrepancia reproducible del
+contrato; la aceptación real por el API y su utilidad siguen pendientes de
+observación normal con cuota disponible. No confundir tests sintéticos con IA real.
+
+Validación local45:959 Python offline/220 Node PASS, PS5.1 lifecycle/vistas,
+build/diff; foco final contrato+UI32 PASS después de ajustes menores. QA de
+preview sintético a360/768/1366px sin overflow. CI/rollout45 pendientes.
+
+Las secciones siguientes son registros históricos; el checkpoint anterior y la
+evidencia autenticada más reciente prevalecen sobre estados de preparación antiguos.
 
 # Historical candidate43 — Guardian RO WAL corrective
 

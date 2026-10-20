@@ -111,7 +111,7 @@
     </section>
 <section id="portfolio-capital" class="command-workspace" data-workspace="portfolio-capital" aria-labelledby="portfolio-capital-heading" hidden>
       <div class="workspace-heading"><div><p class="eyebrow">CRYPTO-BOT 2.0 / PORTFOLIO &amp; CAPITAL</p><h2 id="portfolio-capital-heading" tabindex="-1">Portfolio &amp; Capital</h2><p>Capital y exposición con su entorno, procedencia y calidad.</p></div></div>
-      <section class="panel capital-console"><div class="panel-title"><h2>Capital por entorno</h2><span class="badge neutral">LEDGER_ONLY</span></div><p id="capitalStatus" class="platform-note" role="status">Esperando evidencia de los ledgers.</p><div id="capitalScopes" class="guardian-scope-grid"></div><p class="platform-note">Inventario observado en ledgers independientes. No acredita conciliación completa de la cuenta. No se suman Spot Testnet, Futures Demo y los dos capitales Shadow como una cartera real.</p><div class="capital-reservations"><h3>Reservas compartidas</h3><strong id="capitalReservations">NO INTEGRADAS · importe desconocido</strong><p>Capital Manager es una fase futura: sin asignación automática, transferencias ni presupuesto global ejecutable.</p><a class="command-link" href="#capital-lab">Capital Lab · ensayos con fondos sintéticos →</a></div></section><details class="portal-fold panel dual-observation" aria-label="Comparación financiera de los motores observados" id="comparison-details" data-remember-fold>
+      <section class="panel capital-console"><div class="panel-title"><h2>Capital por entorno</h2><span class="badge neutral">LEDGER_ONLY</span></div><p id="capitalStatus" class="platform-note" role="status">Esperando evidencia de los ledgers.</p><div id="capitalScopes" class="guardian-scope-grid"></div><p class="platform-note">Inventario observado en ledgers independientes. No acredita conciliación completa de la cuenta. No se suman Spot Testnet, Futures Demo y los dos capitales Shadow como una cartera real.</p><div class="capital-reservations"><h3>Reservas compartidas</h3><strong id="capitalReservations">NO INTEGRADAS · importe desconocido</strong><p>Capital Manager observa hipótesis en Shadow. Las reservas efectivas siguen sin integrar: sin transferencias ni presupuesto global ejecutable.</p><a class="command-link" href="#opportunity-shadow">Oportunidades observadas · Shadow →</a><a class="command-link" href="#capital-lab">Capital Lab · ensayos con fondos sintéticos →</a></div></section><details class="portal-fold panel dual-observation" aria-label="Comparación financiera de los motores observados" id="comparison-details" data-remember-fold>
       <summary><div class="panel-title">
         <div><p class="eyebrow">FORWARD TEST · SEGUIMIENTO</p><h2>Comparación de los cuatro motores</h2></div>
         <span id="dualEvidenceState" class="state neutral">ACUMULANDO DATOS</span>
@@ -366,7 +366,21 @@
       <details id="guardian-exposure" class="portal-fold" data-remember-fold><summary>Exposición y presupuestos por entorno</summary><div class="fold-body"><div id="guardianScopes" class="guardian-scope-grid"></div><p class="platform-note">Cada ledger se muestra por separado. No se suman capitales Testnet, Demo y Shadow. El riesgo nominal hasta stop excluye costes, gaps y funding.</p></div></details>
       <details id="guardian-overlaps" class="portal-fold" data-remember-fold><summary>Coincidencias de activos y alertas</summary><div class="fold-body"><div id="guardianOverlaps" class="pulse-feed"></div><div id="guardianAlerts" class="pulse-feed"></div></div></details>
       <details id="guardian-quality" class="portal-fold" data-remember-fold><summary>Calidad y límites de la observación</summary><div class="fold-body"><dl id="guardianQuality" class="pulse-metrics"></dl><p id="guardianLimitations" class="platform-note"></p></div></details>
-    </section><section class="panel guardian-roadmap"><div class="panel-title"><h2>Autoridad actual</h2><span class="badge neutral">LEVEL 0</span></div><p>Lectura y diagnóstico de exposición, calidad y coincidencias entre ledgers. Los motores conservan sus controles y protecciones independientes.</p><p class="settings-help">Intelligence interpreta evidencia en Shadow cuando existe un reporte compatible. Capital Manager y Guardian Control siguen sin activar: no hay veto de entradas, asignación de capital, cambios de riesgo ni órdenes desde esta consola.</p></section>
+    </section>
+    <details id="opportunity-shadow" class="portal-fold panel opportunity-shadow" data-remember-fold>
+      <summary><div class="panel-title"><h2>Oportunidades y capital · Shadow</h2><span id="opportunityState" class="state neutral">SIN EVIDENCIA</span></div></summary>
+      <div class="fold-body">
+        <p class="eyebrow">PROPUESTAS AUTÉNTICAS · SUPERVISIÓN LEVEL 0</p>
+        <p id="opportunityStatus" class="platform-note" role="status">Esperando evidencia del observador de entradas.</p>
+        <p class="platform-note">La intención de abrir no acredita una ejecución. Las reservas mostradas son hipótesis por motor y entorno, con identidad de cuenta sin verificar; no bloquean ni asignan fondos de los bots.</p>
+        <p id="opportunityHealth" class="platform-note">Salud del observador aún desconocida.</p>
+        <div id="opportunityMetrics"></div>
+        <div id="opportunityCoverage" class="guardian-scope-grid"></div>
+        <details id="opportunity-capital" class="portal-fold" data-remember-fold><summary>Reservas hipotéticas por ámbito</summary><div class="fold-body"><div id="opportunityScopes" class="guardian-scope-grid"></div><p class="platform-note">Sin total consolidado. Una respuesta FILLED no prueba conciliación local ni protección nativa. La incertidumbre no se resuelve por el paso del tiempo.</p></div></details>
+        <details id="opportunity-decisions" class="portal-fold" data-remember-fold><summary>Intenciones, resultados y evidencia</summary><div class="fold-body"><div id="opportunityRecords" class="pulse-feed"><p class="empty">Sin propuestas recibidas; la inactividad no implica un fallo.</p></div><p class="platform-note">El registro asíncrono puede ser posterior al envío o perder observaciones ante una interrupción. No certifica cobertura íntegra ni auditoría durable anterior al POST.</p></div></details>
+      </div>
+    </details>
+    <section class="panel guardian-roadmap"><div class="panel-title"><h2>Autoridad actual</h2><span class="badge neutral">LEVEL 0</span></div><p>Lectura y diagnóstico de exposición, calidad y coincidencias entre ledgers. Los motores conservan sus controles y protecciones independientes.</p><p class="settings-help">Intelligence interpreta evidencia en Shadow cuando existe un reporte compatible. El observador registra propuestas y calcula hipótesis en Shadow. Guardian Control y las reservas efectivas siguen sin activar: no hay veto de entradas, asignación de capital, cambios de riesgo ni órdenes desde esta consola.</p></section>
     </section>
 <section id="operations-decisions" class="command-workspace" data-workspace="operations-decisions" aria-labelledby="operations-decisions-heading" hidden>
       <div class="workspace-heading"><div><p class="eyebrow">CRYPTO-BOT 2.0 / OPERATIONS &amp; DECISIONS</p><h2 id="operations-decisions-heading" tabindex="-1">Operations &amp; Decisions</h2><p>Operaciones, revisiones IA y eventos con sus registros originales.</p></div></div>
@@ -595,6 +609,8 @@
     </div>
     </div>
   </main>
+  <script src="/opportunity-contract.js"></script>
+  <script src="/opportunity-ui.js"></script>
   <script src="/app.js"></script>
 </body>
 </html>

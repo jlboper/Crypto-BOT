@@ -1,3 +1,35 @@
+# 0.10.45 — Opportunity & Capital Shadow (en preparación)
+
+- Base instalada/publicada44: main `f79578360f7870321d29cb842966bac2a250dba5`,
+  PR121, publicación39407655253 y seguridad39407655107 SUCCESS Linux/Windows.
+  Ed25519/195hashes/11módulos/dos HTTPS verificados20Oct; datos previos preservados.
+- Captura acotada de intención final Spot/Futures y entrada hipotética Pulse/Quant,
+  más resultados exchange/commit separados. IDs nativos sólo persistidos como digest.
+  Sin cambio de órdenes, filtros, sizing, AI Advisor individual o protecciones.
+- Consumidor dentro del motor supervisado: cola64 sin espera, eventos≤4096bytes,
+  SQLite separado append-only≤16MiB/100000registros, idempotencia, reinicio,
+  divergencias latched, heartbeat y degradación sin bloquear motores.
+- Aritmética Decimal: bruto sin netear patas, costes y riesgo nominal diferenciados,
+  reservas exclusivamente hipotéticas. Datos/cuenta/baselines/límites incompletos
+  mantienen UNKNOWN. FILLED no prueba commit ni protección; sin liberación por TTL.
+  Cierres existentes aún sin hooks: no declarar reservas fieles a la cartera.
+- Portal local/remoto/Windows compartido: tres nuevos plegables Guardian (50total),
+  cobertura por motor, ámbitos separados y evidencia/tiempos/digests. Validador único
+  Worker/navegador, opcional≤12000bytes, fallback acotado para Worker anterior.
+  No rutas, botones financieros ni privilegios nuevos.
+- Guardian IA: schema por assessment con enum de evidencias y límites de arrays;
+  instrucciones de longitud coherentes con validador local intacto. Modelo, cuotas,
+  cache/claims y diagnósticos sin cambios. Sin llamadas reales de desarrollo ni
+  reset del2/2 de20Oct; aceptación real y causa de fallos históricos pendientes.
+- Validación local:959 Python offline PASS (157.391s TEST_RESULTS),220 Node PASS
+  (45.607s); foco posterior contrato+UI32 PASS (4.568s), PS5.1 lifecycle/vistas,
+  build y diff PASS. QA sintética360/768/1366px sin overflow; no prueba instalación.
+- Ver alcance, límites, conservación y validaciones actuales en
+  [OPPORTUNITY_CAPITAL_SHADOW.md](OPPORTUNITY_CAPITAL_SHADOW.md).
+  PR/main CI/publicación/firma/instalación45 no se infieren de pruebas locales.
+
+# Registro histórico de preparación44 (la verificación posterior está en el handover)
+
 # 0.10.44 — Capital Protocol Lab (en preparación)
 
 - Base 43 main `e61dd2a6f617cd39e8bd1c69728dc6f63b800401`,

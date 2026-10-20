@@ -366,6 +366,46 @@ class RemoteConnectionTests(unittest.TestCase):
         self.assertEqual(calls[1]['snapshot']['dashboard'],{'status':{'mode':'PAPER'},'guardian_intelligence':{}})
         self.assertEqual(self.agent.last_error,'HTTPError:400')
 
+    def test_opportunity_downgrade_keeps_all_previous_projections_and_capabilities(self):
+        Database(self.config.bot.database_path)
+        original={'status':{'mode':'PAPER'},'positions':[],'futures_forward':{},
+            'market_pulse':{},'quant':{},'portfolio_guardian':{},'engine_catalog':[],
+            'guardian_intelligence':{},'capital_lab':{},'opportunity_shadow':{}}
+        for label in ('Unknown dashboard field','Invalid Opportunity Shadow status'):
+            with self.subTest(label=label):
+                self.agent.dashboard_provider=lambda:json.loads(json.dumps(original))
+                self.agent.paper_controls=Mock(available=True,quant_available=True)
+                self.agent.paper_controls.results.return_value=[]
+                self.agent.jobs=Mock();self.agent.jobs.results.return_value=[]
+                self.agent.update_provider=lambda:{'version':'0.10.45','enabled':True}
+                calls=[]
+                def send(request,timeout):
+                    calls.append(json.loads(request.data))
+                    if len(calls)==1:
+                        raise urllib.error.HTTPError(request.full_url,400,'Bad Request',{},
+                            io.BytesIO(json.dumps({'error':label}).encode()))
+                    return io.BytesIO(b'{"commands":[],"jobs":[]}')
+                with patch.object(self.agent.opener,'open',side_effect=send):self.agent.sync()
+                self.assertEqual(len(calls),2)
+                self.assertEqual(calls[1]['snapshot']['dashboard'],
+                                 {k:v for k,v in original.items() if k!='opportunity_shadow'})
+                self.assertTrue(calls[1]['snapshot']['quant_controls'])
+                self.assertEqual(calls[1]['snapshot']['bot_update']['version'],'0.10.45')
+                self.assertEqual(self.agent.last_error,'DASHBOARD_REJECTED:'+label)
+
+    def test_opportunity_retry_is_bounded_and_suppresses_arbitrary_provider_error(self):
+        Database(self.config.bot.database_path)
+        self.agent.dashboard_provider=lambda:{'status':{'mode':'PAPER'},'capital_lab':{},'opportunity_shadow':{}}
+        calls=[]
+        def send(request,timeout):
+            calls.append(json.loads(request.data))
+            reason='Invalid Opportunity Shadow status' if len(calls)==1 else 'private synthetic detail'
+            raise urllib.error.HTTPError(request.full_url,400,'Bad Request',{},io.BytesIO(json.dumps({'error':reason}).encode()))
+        with patch.object(self.agent.opener,'open',side_effect=send),self.assertRaises(urllib.error.HTTPError):self.agent.sync()
+        self.assertEqual(len(calls),2)
+        self.assertEqual(calls[1]['snapshot']['dashboard'],{'status':{'mode':'PAPER'},'capital_lab':{}})
+        self.assertEqual(self.agent.last_error,'HTTPError:400')
+
     def test_remote_paper_control_executes_after_authenticated_device_sync_and_reports_result(self):
         Database(self.config.bot.database_path)
         self.agent.paper_controls = Mock(available=True)

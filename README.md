@@ -1,39 +1,53 @@
 # Crypto AI Trader — CRYPTO-BOT 2.0
 
-**Estado 2026-10-19, 12:54 UTC:** 0.10.43 instalada y firmada, **188/188 hashes**,
-main `e61dd2a6f617cd39e8bd1c69728dc6f63b800401`,
-[PR #120](https://github.com/jlboper/Crypto-BOT/pull/120) y
-[publicación verificada](https://github.com/jlboper/Crypto-BOT/actions/runs/39254593562).
-Guardian lee cuatro fuentes FRESH/completas; tres replays causales MATCH. Spot 2 y
-Futures 4 mantienen protecciones ARMED, sin cantidad desprotegida observada.
-Guardian LEVEL 0; Pulse/Quant SHADOW. Dos intentos IA históricos FAILED siguen
-con causa/coste desconocidos y cuota diaria 2/2 consumida.
+## Estado verificado — 0.10.44 instalada; candidata 0.10.45 en desarrollo
 
-En preparación 44: [Capital Protocol Lab](CAPITAL_PROTOCOL_LAB.md), siete escenarios
-sintéticos con CLI explícito y Research Lab de sólo lectura. No administra los
-fondos actuales ni activa reservas, órdenes o estrategias. [PR #121](https://github.com/jlboper/Crypto-BOT/pull/121)
-está en draft, head `5138e51a1f37001629ac1420e3b0d7e48a439170`, con
-[CI 39259777367](https://github.com/jlboper/Crypto-BOT/actions/runs/39259777367) y
-[CI 39259777360](https://github.com/jlboper/Crypto-BOT/actions/runs/39259777360) PASS.
-La compactación local posterior deja 47 plegables: auditoría cerrada y casos
-compactos, con LAB SIM/fecha/resultado visibles. Pasaron 84 pruebas UI de foco
-(7.046 s) y diff. QA visual PASS en preview sintético local a 360/768/1366px,
-sin desbordamiento; auditoría plegada 42.53px frente a 815.9px y primer caso
-aproximadamente a 534px frente a 1215px. Validación final tras compactar:
-**850/850 Python** (171.844 s en TEST_RESULTS, 17:56:01.749748 UTC;
-runner 171.835 s), **202/202 Node** (37.430 s), build y diff PASS, sin fallos/skips.
-Las validaciones previas a compactar fueron **850/850 Python offline (181.531 s,
-13:19:52 UTC), 202/202 Node (69.325 s)**, PS5.1 lifecycle/vistas y build; no se
-atribuyen a la revisión posterior. Nuevo head/CI final, merge, publicación/firma
-e instalación44 siguen pendientes.
-No completa Capital Manager sobre propuestas reales ni la Fase 3 operativa.
+Main **0.10.44** `f79578360f7870321d29cb842966bac2a250dba5`,
+[PR #121](https://github.com/jlboper/Crypto-BOT/pull/121),
+[publicación 39407655253](https://github.com/jlboper/Crypto-BOT/actions/runs/39407655253)
+y [seguridad 39407655107](https://github.com/jlboper/Crypto-BOT/actions/runs/39407655107)
+SUCCESS en Linux/Windows. El 20Oct2026 a10:31–10:34 UTC se verificaron Ed25519,
+**195/195 hashes**, journal COMMITTED, runtime RUNNING y un único motor13968.
+Agente13292: **11/11 módulos** y dos sincronizaciones HTTPS distintas correctas.
+Cinco assets web remotos coincidieron con Git. La publicación no se usó como
+prueba de instalación; ambas se verificaron por separado.
 
-Auditoría RO de conservación a las **13:18:23 UTC**: las 80 filas trades y 48
-receipts del backup Spot 43 permanecen sin ausencias ni cambios; SHA del backup
-intacto. El updater 43 sólo respaldó Spot. En Futures/Pulse/Quant se verificaron
-prefijos de referencia muestreados; no equivalen a comparar todo el historial
-pre-43 ni a un backup multiledger. Informe: `append-only-backup43-verification.json`.
-Los estados anteriores que siguen son registros históricos fechados.
+Capital Protocol Lab instalado se ejecutó exactamente una vez: siete casos
+PASSED/siete SQLite SIM nuevas, lecturas posteriores sin mutaciones. Research
+Lab compartido y 47 plegables comprobados. Guardian LEVEL0: cuatro fuentes
+FRESH/completas, tres replays causales MATCH, cero errores y autoridad false.
+Corte operativo posterior **12:23:44 UTC**: Spot1/Futures8, protecciones nativas
+ARMED y cantidad desprotegida observada cero; Pulse/Quant SHADOW/FRESH, Pulse
+WARMING_UP. Son cortes fechados, no conteos permanentes.
+
+Conservación44: las **129773 filas** de diez tablas históricas seleccionadas al
+corte10:20:21–10:20:34 UTC permanecieron sin ausencias/cambios; configuración,
+credenciales y settings congelados conservaron hashes. Backup restaurable44
+sólo Spot:83trades/51receipts íntegros. Los otros hashes son referencias RO,
+no backups SQLite ni captura atómica de todo el sistema.
+
+Candidata45 en rama `feature/opportunity-capital-shadow-v01045`: contrato IA
+Guardian acotado, intenciones finales de cuatro motores, consumidor asíncrono
+persistente y aritmética hipotética; paneles compartidos RO. Véase
+[OPPORTUNITY_CAPITAL_SHADOW.md](OPPORTUNITY_CAPITAL_SHADOW.md). Guardian continúa
+LEVEL0: sin veto, ejecución, reservas efectivas o promoción. Sin cambio de riesgo,
+modelo/presupuesto IA, revisión individual, stops ni reconciliación nativa.
+No declarar Fase3 operativa completa: cuentas/baselines no verificados, cierres
+observacionales pendientes y límites globales incompletos conservan UNKNOWN.
+
+IA instalada44: dos fallos20Oct `AI_COMMENTARY_INVALID` consumen2/2; no resetear
+claims ni forzar llamadas. Uso conocido1166input/526output, estimación cliente
+USD0.0003796, excluye dos fallos anteriores de causa/uso desconocidos. No hay
+respuesta cruda para atribuir causa.45 corrige una discrepancia reproducible del
+contrato; la aceptación real por el API y su utilidad siguen pendientes de
+observación normal con cuota disponible. No confundir tests sintéticos con IA real.
+
+Validación local45:959 Python offline/220 Node PASS, PS5.1 lifecycle/vistas,
+build/diff; foco final contrato+UI32 PASS después de ajustes menores. QA de
+preview sintético a360/768/1366px sin overflow. CI/rollout45 pendientes.
+
+Las secciones siguientes son registros históricos; el checkpoint anterior y la
+evidencia autenticada más reciente prevalecen sobre estados de preparación antiguos.
 
 > Copia de desarrollo aislada de la instalación Windows. El repositorio no contiene credenciales ni datos de la instancia operativa. No inicies un segundo motor. Consulta `BOT_UPDATE_PROGRESS.md` para distinguir versión preparada, publicada e instalada.
 

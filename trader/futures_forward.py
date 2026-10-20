@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+import hashlib
+import json
 import math
 
 from .domain import Candle
@@ -619,7 +621,11 @@ class FuturesForwardEngine:
         if self.killed():
             self.ledger.set_setting("forward_open_plan",None)
             return {"symbol":symbol,"status":"KILLED","signal":signal}
-        order=self.lab.forward_submit(symbol=symbol,side=side,quantity=quantity,reduce_only=False)
+        self._set_opportunity_context(signal, review, reference, distance, account, portfolio)
+        try:
+            order=self.lab.forward_submit(symbol=symbol,side=side,quantity=quantity,reduce_only=False)
+        finally:
+            self.lab._opportunity_context = None
         rows=self._actual_rows(symbol)
         if len(rows)!=1: raise FuturesTestnetExecutionError(f"Futures forward open position not found: {symbol}")
         row=self.lab.ensure_forward_position_configuration(symbol, rows[0], leverage)
@@ -636,6 +642,33 @@ class FuturesForwardEngine:
         self.native.ensure(position)
         self.portfolio_budget()
         return {"symbol":symbol,"status":"OPENED","position":position,"signal":signal,"ai_review":review}
+
+    def _set_opportunity_context(self, signal, review, reference, distance, account, portfolio):
+        """Freeze existing numeric evidence without more exchange/model reads."""
+        self.lab._opportunity_context = None
+        try:
+            sign = 1 if signal["direction"] == "LONG" else -1
+            reference_value = float(reference)
+            digest = hashlib.sha256(json.dumps({key: review[key] for key in
+                ("model", "verdict", "confidence", "direction", "score", "at")},
+                sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+            self.lab._opportunity_context = {
+                "reference_price": reference, "stop_price": reference_value-sign*distance,
+                "take_profit": reference_value+sign*self.settings.forward_reward_to_risk*distance,
+                "capital": {"available": account["available_balance"],
+                            "equity": account["wallet_balance"]+account["unrealized_pnl"]},
+                "evidence": {
+                    "source_digest": hashlib.sha256(json.dumps({key: signal.get(key) for key in
+                        ("candle_close_utc", "reviewed_at_utc", "proposed_reference_price", "proposed_quantity",
+                         "proposed_notional_usdt", "proposed_stop_distance", "estimated_stop_loss_usdt")},
+                        sort_keys=True, separators=(",", ":")).encode()).hexdigest(),
+                    "policy_digest": hashlib.sha256(json.dumps((portfolio["notional_limit_usdt"],
+                        portfolio["stop_loss_limit_usdt"], self.settings.forward_max_positions),
+                        separators=(",", ":")).encode()).hexdigest(),
+                    "review_digest": digest, "checks": ("NATIVE_QUANTITATIVE_CHECKS_PASSED",
+                        "INDIVIDUAL_AI_REVIEW_ACCEPTED", "NATIVE_FORWARD_CONFIGURATION_PASSED")}}
+        except Exception:
+            pass
 
     def cycle(self,candle_map:dict[str,list[Candle]])->dict:
         if not self.settings.forward_enabled:return {"enabled":False,"status":"OFF"}

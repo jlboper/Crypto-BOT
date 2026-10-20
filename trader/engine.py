@@ -175,6 +175,7 @@ class TradingEngine:
                     "open_positions": float(len(positions)),
                 }
                 review = self.ai.review(signal, btc_bullish, context)
+                review_observed_at = time.time()
                 reviews += 1
                 diagnostic["reviews"] = reviews
                 self.db.record_ai_review(signal.symbol, review)
@@ -214,9 +215,15 @@ class TradingEngine:
                     self.db.event("INFO", f"{signal.symbol} entry skipped [EXCHANGE_FILTER_PREFLIGHT]")
                     self._spot_cycle_reason(diagnostic, "EXCHANGE_FILTER_PREFLIGHT")
                     continue
-                if not self._buy_or_skip_guardrail(
-                    signal, quantity, f"score={signal.score}; AI={review.verdict}: {review.reason}", diagnostic
-                ):
+                # The frozen original review is evidence only; it is not another
+                # admission callback. Direct broker callers retain UNKNOWN review.
+                self.broker._opportunity_review = (review, self.config.ai.model, review_observed_at)
+                try:
+                    bought = self._buy_or_skip_guardrail(
+                        signal, quantity, f"score={signal.score}; AI={review.verdict}: {review.reason}", diagnostic)
+                finally:
+                    self.broker._opportunity_review = None
+                if not bought:
                     continue
                 opened.append(signal.symbol)
                 diagnostic["opened"] = len(opened)
@@ -506,6 +513,21 @@ class TradingEngine:
         pulse = None
         quant = None
         guardian = None
+        opportunity_observer = None
+        if not should_stop() and self.config.guardian_intelligence.enabled:
+            try:
+                from .opportunity_observer import register_observer
+                opportunity_observer = self._create_opportunity_observer()
+                if opportunity_observer.start() is False or register_observer(opportunity_observer) is False:
+                    raise RuntimeError("Opportunity observer did not register")
+            except Exception as exc:
+                self.db.event("WARN", "Opportunity observation unavailable: " + type(exc).__name__)
+                if opportunity_observer is not None:
+                    try:
+                        opportunity_observer.stop()
+                    except Exception:
+                        pass
+                opportunity_observer = None
         if not should_stop() and self.config.market_pulse.enabled:
             try:
                 pulse = self._create_market_pulse()
@@ -560,6 +582,20 @@ class TradingEngine:
                     pulse.stop()
                 except Exception as exc:
                     self.db.event("WARN", "Market Pulse shutdown: " + type(exc).__name__)
+            if opportunity_observer is not None:
+                try:
+                    from .opportunity_observer import unregister_observer
+                    unregister_observer(opportunity_observer)
+                except Exception:
+                    pass
+                try:
+                    opportunity_observer.stop()
+                except Exception as exc:
+                    self.db.event("WARN", "Opportunity observation shutdown: " + type(exc).__name__)
+
+    def _create_opportunity_observer(self):
+        from .opportunity_observer import OpportunityObserverService
+        return OpportunityObserverService(self.config.bot.database_path.parent)
 
     def _create_guardian_shadow(self):
         from .guardian_shadow import GuardianShadowService, GuardianShadowConfig

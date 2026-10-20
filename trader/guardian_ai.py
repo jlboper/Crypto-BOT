@@ -31,13 +31,19 @@ INSTRUCTIONS = (
     "Do not claim an account is reconciled, a hedge is effective, a strategy is profitable, "
     "or losses were avoided. Missing evidence stays unknown. Your commentary is advisory "
     "and cannot change the supplied risk states. Cite only supplied evidence IDs. "
-    "Return the exact JSON schema, with a concise explanation and cautions."
+    "Return the exact JSON schema. Summary: 1 to 280 Unicode characters. "
+    "Cautions: zero to four strings, each at most 120 Unicode characters. "
+    "Evidence IDs: one to four exact IDs copied from evidence_ids; never invent IDs. "
+    "Keep the explanation concise and leave unknown evidence unknown."
 )
 SCHEMA = {"type": "object", "additionalProperties": False,
-    "properties": {"summary": {"type": "string"},
+    "properties": {"summary": {"type": "string",
+            "description": "Between 1 and 280 Unicode code points; local validation is authoritative."},
         "posture": {"type": "string", "enum": ["OBSERVE", "REVIEW_DATA", "REVIEW_CONCENTRATION", "REVIEW_PROTECTION"]},
-        "cautions": {"type": "array", "items": {"type": "string"}},
-        "evidence_ids": {"type": "array", "items": {"type": "string"}}},
+        "cautions": {"type": "array", "maxItems": 4,
+            "items": {"type": "string", "description": "At most 120 Unicode code points."}},
+        "evidence_ids": {"type": "array", "minItems": 1, "maxItems": 4,
+            "items": {"type": "string"}}},
     "required": ["summary", "posture", "cautions", "evidence_ids"]}
 FAILURE_CODES = frozenset({
     "AI_AUTH_FAILED", "AI_ACCESS_DENIED", "AI_REQUEST_INVALID", "AI_QUOTA_EXHAUSTED",
@@ -105,6 +111,17 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
 
 def _json(value):
     return json.dumps(value, sort_keys=True, ensure_ascii=True, allow_nan=False, separators=(",", ":"))
+
+
+def _request_schema(identities):
+    """Bind citations to this assessment without changing the historical cache identity."""
+    if (not isinstance(identities, list) or not 1 <= len(identities) <= 4
+            or any(not isinstance(value, str) or not re.fullmatch(r"[a-f0-9]{64}", value) for value in identities)
+            or len(set(identities)) != len(identities)):
+        raise ValueError("Invalid request evidence identities")
+    schema = json.loads(_json(SCHEMA))
+    schema["properties"]["evidence_ids"]["items"]["enum"] = list(identities)
+    return schema
 
 
 def _code(value):
@@ -234,7 +251,7 @@ class GuardianAIReviewer:
                 return self._unavailable("ASSESSMENT_STALE_OR_FUTURE")
             payload = {"model":self.model,"store":False,"max_output_tokens":self.MAX_OUTPUT_TOKENS,
                 "reasoning":{"effort":"low"},"instructions":INSTRUCTIONS,"input":data,
-                "text":{"format":{"type":"json_schema","name":"guardian_advisory_v1","strict":True,"schema":SCHEMA}}}
+                "text":{"format":{"type":"json_schema","name":"guardian_advisory_v1","strict":True,"schema":_request_schema(context["evidence_ids"])}}}
             body = _json(payload).encode()
             # Overestimate token count with UTF-8 bytes, including schema and instructions;
             # use the higher verified cache-write input rate. No tool or Fast charges.

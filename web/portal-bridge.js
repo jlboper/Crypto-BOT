@@ -192,6 +192,7 @@ window.portalApi=async(path,options={})=>{
     portfolio_guardian:structuredClone(data.portfolio_guardian??null),
     guardian_intelligence:structuredClone(data.guardian_intelligence??null),
     capital_lab:structuredClone(data.capital_lab??null),
+    opportunity_shadow:structuredClone(data.opportunity_shadow??null),
     quant:structuredClone(data.quant??null),remote_sync_stale:state.stale===true};
   if(!portalRoute[path])throw new Error('Ruta no disponible');
   const result=structuredClone(data[portalRoute[path]]??{});

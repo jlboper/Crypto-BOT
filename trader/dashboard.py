@@ -79,13 +79,16 @@ class DashboardServer:
                 result = {'engine_catalog': engine_catalog({'status': {'mode': self.config.bot.mode.upper()},
                                                            'quant': quant}),
                           'portfolio_guardian': guardian_unavailable(), 'quant': quant}
-            from .portal_snapshot import guardian_intelligence_projection, capital_lab_projection
+            from .portal_snapshot import guardian_intelligence_projection, capital_lab_projection, opportunity_shadow_projection
             intelligence = guardian_intelligence_projection(self.config)
             if intelligence is not None:
                 result['guardian_intelligence'] = intelligence
             capital_lab = capital_lab_projection(self.config)
             if capital_lab is not None:
                 result['capital_lab'] = capital_lab
+            opportunities = opportunity_shadow_projection(self.config)
+            if opportunities is not None:
+                result['opportunity_shadow'] = opportunities
             self._platform_cache = result
             self._platform_cached_at = time.monotonic()
             return result

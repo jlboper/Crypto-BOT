@@ -515,3 +515,25 @@ Quant has a NOT_STARTED identity, with no fake wallet/performance and no executi
 Follow FOUR_ENGINE_EXPANSION.md for the separate UI, Quant Shadow and evaluation
 stages. Signed rollout, anti-downgrade/recovery and existing financial state remain
 mandatory; authorization does not extend to new Testnet execution or LIVE.
+
+
+## 2026-10-20 — Intenciones observadas antes de autoridad de capital
+
+Tras verificar44 firmada/instalada, el propietario pidió ejecutar conjuntamente
+contrato IA, captura de oportunidades y simulación de riesgo/capital.45 observa
+la intención final con los datos ya utilizados por cada motor, sin nuevas lecturas
+exchange ni callback de admisión. Cola acotada sin espera y consumidor separado
+persisten evidencia inmutable; fallar la observación no cambia la operación nativa.
+
+La identidad de cuenta y el inventario completo no se deducen de compartir USDT,
+entorno o credenciales. No completar presupuestos globales usando riesgo por
+operación. Riesgo nominal, costes estimados y riesgo total difieren; patas opuestas
+no se compensan automáticamente. Estado desconocido/commit nativo y protección
+requieren evidencias distintas. Sin hooks de cierre aún, mantener reservas
+hipotéticas retenidas y mostrar la limitación, sin liberación temporal automática.
+Un contrato futuro común con baseline y conciliación verificadas sigue pendiente.
+
+Guardian permanece LEVEL0. La corrección del schema de comentarios no prueba
+la causa de respuestas reales fallidas ni autoriza consumir cuota adicional,
+resetear claims, cambiar modelo o flexibilizar el validador local. No se publica
+contenido crudo de respuestas ni valores de credenciales.
