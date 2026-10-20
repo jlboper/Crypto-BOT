@@ -1,5 +1,47 @@
 # Project History and Decision Log
 
+## 2026-10-19 — Guardian acquisition verified; synthetic capital protocol separated
+
+43 main `e61dd2a6f617cd39e8bd1c69728dc6f63b800401`,
+[PR #120](https://github.com/jlboper/Crypto-BOT/pull/120), passed Linux and Windows,
+was [published/signed](https://github.com/jlboper/Crypto-BOT/actions/runs/39254593562)
+and installed **188/188** at 12:53:08 UTC. At 12:54:49 UTC Guardian observed all
+four ledgers FRESH/complete; three frozen
+replays matched and no authority was enabled. Historical financial rows and
+existing Guardian records/two legacy AI attempts remained intact in a 721-record
+prefix. Unknown costs and failed AI causes stay unknown; daily 2/2 claims were
+preserved, never reset.
+
+44 prepares Capital Protocol Lab as closed synthetic research, separately from
+Capital Manager on actual proposals. It uses new SIM cohorts, integer micro-USDT,
+transactional reservations and an explicit CLI. GET/sync reads bounded JSON only.
+Independent review caught terminal orders reviving after UNKNOWN, balances older
+than a financial mutation, and an extra-check parser escape. Prototype fixes have
+regressions. This is not global market risk, account reconciliation, financial
+authorization or F3 runtime. See [CAPITAL_PROTOCOL_LAB.md](CAPITAL_PROTOCOL_LAB.md).
+Before the later mobile compacting change, local44 checks passed 850/850 offline Python (181.531 s in TEST_RESULTS,
+2026-10-19 13:19:52.904728 UTC), 202/202 Node (69.325 s), 84 focused UI tests
+(13.643 s), PS5.1 lifecycle/view, build and diff. Draft
+[PR #121](https://github.com/jlboper/Crypto-BOT/pull/121), head
+`5138e51a1f37001629ac1420e3b0d7e48a439170`, passed CI 39259777367/39259777360.
+Initial IAB mobile inspection prompted a later local compacting change: 47 folds,
+audit initially closed and per-case details folded, with synthetic identity,
+date and result still visible. Focused UI 84/84 (7.046 s) and diff passed for
+that change. Visual QA passed on the isolated synthetic preview at 360/768/1366px
+with seven cases, no overflow and working keyboard/details/audit. Audit collapsed
+height fell from 815.9px to 42.53px, bringing the first case from about 1215px to
+534px. Final local checks after compacting passed 850/850 Python
+(171.844 s TEST_RESULTS at 2026-10-19 17:56:01.749748 UTC; runner 171.835 s),
+202/202 Node (37.430 s), build and diff, without failures/errors/skips.
+New head/CI remain pending. Earlier CI is not evidence for subsequent
+changes, nor preview QA for merge/publication/signature/install44.
+
+The RO preservation audit at 13:18:23 UTC compared all 80 Spot trade rows and 48
+receipt rows from the verified 43 backup: zero missing/changed, backup SHA intact
+(`append-only-backup43-verification.json`). That updater backed up Spot only.
+Prior Futures/Pulse/Quant sampled-prefix matches do not establish preservation of
+every pre-43 row; no 43 multiledger backup exists for those sources.
+
 ## 2026-10-19 — installed Guardian exposes an idle-WAL acquisition assumption
 
 PR #119 merged as main `b1e065b1c4934eef80cf4a6d39c52bafa1abb5de`.

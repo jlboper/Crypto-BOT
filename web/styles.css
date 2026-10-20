@@ -89,3 +89,32 @@ details[open]>*:not(summary){animation:portalDetailsOpen .28s var(--motion-ease)
 #researchCurve{width:100%;height:190px;margin-top:12px}
 .research-extra{margin-top:20px}.research-extra>summary{cursor:pointer;font-weight:600;margin-bottom:12px}
 #researchCurveChoice{margin:8px 12px;padding:8px;max-width:100%}
+
+/* A bounded synthetic research report, separate from all operating capital. */
+.capital-lab{margin-top:20px;min-width:0}
+.capital-lab>summary{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.capital-lab>summary>span:first-child{min-width:0}
+.capital-lab .panel-title{flex-wrap:wrap;gap:10px}
+.capital-lab-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:18px}
+.capital-lab-case{min-width:0;padding:16px;border:1px solid var(--line);border-radius:12px;background:var(--panel2)}
+.capital-lab-case-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.capital-lab-case h3{font-size:.95rem;line-height:1.5;margin:0;min-width:0}
+.capital-lab-case .badge{flex-shrink:0}
+.capital-lab-result{font-size:.76rem;font-weight:750;color:var(--muted);line-height:1.5}
+.capital-lab-evidence,.capital-lab-book,.capital-lab-protocol{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:14px 0}
+.capital-lab-evidence>div,.capital-lab-book>div,.capital-lab-protocol>div{min-width:0;padding:10px;border-radius:8px;background:rgba(8,13,24,.45)}
+.capital-lab dt{color:var(--muted);font-size:.72rem;line-height:1.5}
+.capital-lab dd{margin:5px 0 0;font-size:.79rem;line-height:1.6;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+.capital-lab .platform-note,.capital-lab-checks p{overflow-wrap:anywhere}
+.capital-lab-detail{margin-top:14px;border-top:1px solid var(--line);padding-top:12px}
+.capital-lab-detail>summary{cursor:pointer;font-size:.8rem;line-height:1.5;font-weight:700}
+.capital-lab-audit{margin:14px 0;padding:11px 12px;border:1px solid var(--line);border-radius:9px;min-width:0}
+.capital-lab-audit>summary{cursor:pointer;font-size:.8rem;line-height:1.5;font-weight:700}
+.capital-lab-audit>.capital-lab-evidence{margin-bottom:10px}
+.capital-lab-checks{display:grid;gap:9px;margin-top:14px}
+.capital-lab-checks>div{min-width:0;padding:10px;border:1px solid var(--line);border-radius:8px}
+.capital-lab-checks strong,.capital-lab-checks span{display:block;font-size:.75rem;line-height:1.5}
+.capital-lab-checks span{margin-top:4px;color:var(--muted);font-size:.67rem}
+.capital-lab-checks p{margin:7px 0 0;font-size:.73rem;line-height:1.5}
+@media(max-width:760px){.capital-lab-grid{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:420px){.capital-lab-evidence{grid-template-columns:minmax(0,1fr)}.capital-lab-case{padding:12px}.capital-lab .state{max-width:100%;white-space:normal}}

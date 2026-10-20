@@ -1,6 +1,39 @@
 # Four engines and Portfolio Guardian — approved staged continuation
 
-## Current baseline and Command Center continuation
+## Installed 43 / synthetic capital foundation 44
+
+43 main `e61dd2a6f617cd39e8bd1c69728dc6f63b800401`,
+[PR #120](https://github.com/jlboper/Crypto-BOT/pull/120), is published, signed
+and installed **188/188** (2026-10-19 12:53:08 UTC); runs 39254593562/39254593565
+succeeded. Spot 2/Futures 4 remain native ARMED, zero observed unprotected quantity.
+Guardian had four FRESH/complete sources and three causal replays MATCH at
+12:54:49 UTC, all authority false. Its two legacy AI failures retain unknown
+causes/costs and daily 2/2 consumption is preserved.
+
+44 prepares [Capital Protocol Lab](CAPITAL_PROTOCOL_LAB.md), seven closed synthetic
+recipes and RO Research Lab projection. No real funds, engine proposal hooks,
+shared-account activation or Guardian Control. It is not full F3 runtime.
+Before mobile compacting, full local checks passed **850 Python (181.531 s), 202 Node (69.325 s)**,
+84 focused UI tests (13.643 s), PS5.1 lifecycle/view, build and diff.
+[PR #121](https://github.com/jlboper/Crypto-BOT/pull/121) is draft at head
+`5138e51a1f37001629ac1420e3b0d7e48a439170`; CI 39259777367/39259777360 PASS.
+The later local UI has 47 folds: closed audit and compact cases, essential
+synthetic context visible. Focused tests 84/84 (7.046 s) and diff passed. Visual
+QA passed in the isolated synthetic preview at 360/768/1366px, no overflow and
+seven cases with working audit/details/keyboard. Final local suites passed
+850/850 Python (171.844 s TEST_RESULTS at 2026-10-19 17:56:01.749748 UTC;
+runner 171.835 s), 202/202 Node (37.430 s), build and diff; no failures/errors/skips.
+New head/CI remain pending.
+Earlier CI applies to its exact head, not subsequent changes. No merge,
+publication/signature/install44 is asserted; keep stages distinct.
+
+The 13:18:23 UTC RO audit verified all Spot backup-43 trade rows 80/80 and receipt
+rows 48/48, zero missing/changed and backup SHA intact. Report:
+`append-only-backup43-verification.json`. Only Spot had a 43 updater backup;
+Futures/Pulse/Quant preservation evidence is limited to the previously compared
+sampled prefixes, not every pre-43 row or a complete multiledger backup.
+
+## Historical baseline and Command Center continuation
 
 **Current: installed 0.10.42, corrective 0.10.43 pending.** Main
 `b1e065b1c4934eef80cf4a6d39c52bafa1abb5de`, [PR #119](https://github.com/jlboper/Crypto-BOT/pull/119),

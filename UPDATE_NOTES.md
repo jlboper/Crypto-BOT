@@ -1,4 +1,44 @@
-# 0.10.43 — Guardian RO WAL y prefiltrado IA (en preparación)
+# 0.10.44 — Capital Protocol Lab (en preparación)
+
+- Base 43 main `e61dd2a6f617cd39e8bd1c69728dc6f63b800401`,
+  [PR #120](https://github.com/jlboper/Crypto-BOT/pull/120), publicación 39254593562
+  y seguridad 39254593565 SUCCESS. Firma e instalación **188/188** verificadas el
+  2026-10-19 a las 12:53:08 UTC; Guardian con cuatro fuentes FRESH y tres replays
+  MATCH a las 12:54:49 UTC. Datos/límites previos preservados, Spot 2/Futures 4
+  ARMED, cantidad desprotegida cero y agente 11/11.
+- Siete recetas SIM cerradas prueban reservas transaccionales, concurrencia,
+  incertidumbre/reinicio, cancelación parcial, múltiples patas y déficit visible.
+  CLI explícito, nuevos UUID/cuentas simuladas y libro entero micro-USDT separado.
+- Research Lab compartido muestra JSON RO ≤8000 bytes. GET/sync no ejecuta recetas,
+  crea wallets ni abre SQLite del laboratorio. Sin controles de capital o trading.
+  Guardian continúa NOT_INTEGRATED; las cifras no se suman a cuentas de motores.
+- Revisión corrigió terminal→UNKNOWN que revivía capital, balances anteriores a
+  mutaciones y campos extra en checks. No se modifican motores, riesgo o updater.
+  No es F3 runtime/common candidate adapter ni Global Risk Engine completo.
+- Core/Lab/CLI integrados: 64 tests PASS (9.895 s); prototipos: 61 tests previos.
+  Antes de compactar la UI: **850/850 Python offline (181.531 s en TEST_RESULTS,
+  2026-10-19 13:19:52.904728 UTC), 202/202 Node (69.325 s)**, 84 pruebas UI enfocadas
+  (13.643 s), PS5.1 lifecycle/vistas, build y diff PASS.
+- [PR #121](https://github.com/jlboper/Crypto-BOT/pull/121) en draft, head
+  `5138e51a1f37001629ac1420e3b0d7e48a439170`: CI 39259777367/39259777360 PASS.
+  Compactación local posterior: 47 plegables, auditoría cerrada y ámbito/estados
+  dentro del detalle de cada caso; fecha, LAB SIM y resultado visibles. Pruebas
+  UI 84/84 (7.046 s) y diff PASS. QA visual PASS en preview sintético local a
+  360/768/1366px, sin overflow, siete casos y detalles/teclado/auditoría correctos.
+  Auditoría cerrada 42.53px frente a 815.9px; primer caso ~534px frente a 1215px.
+  Full final tras compactar: **850/850 Python** (171.844 s en TEST_RESULTS,
+  2026-10-19 17:56:01.749748 UTC; runner 171.835 s), **202/202 Node** (37.430 s),
+  build y diff PASS, sin fallos/errores/skips. Nuevo head/CI final pendientes;
+  no atribuir CI anterior a cambios nuevos ni QA de preview a instalación.
+  Sin merge, publicación/firma ni instalación44.
+- Auditoría RO 13:18:23 UTC: trades Spot del backup 43 80/80 y receipts 48/48 sin
+  ausencias/cambios; SHA del backup intacto (`append-only-backup43-verification.json`).
+  Updater 43 sólo respaldó Spot. Comparaciones anteriores de prefijos muestreados
+  Futures/Pulse/Quant siguen válidas, pero no demuestran todas las filas pre-43;
+  no existe backup 43 multiledger para esos motores.
+  Véase CAPITAL_PROTOCOL_LAB.md para ejecución, límites y conservación de cohortes.
+
+# 0.10.43 — Guardian RO WAL y prefiltrado IA (registro de preparación)
 
 - Base main 42 `b1e065b1c4934eef80cf4a6d39c52bafa1abb5de`, PR #119.
   [Publicación 39181606398](https://github.com/jlboper/Crypto-BOT/actions/runs/39181606398)

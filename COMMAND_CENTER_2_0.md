@@ -1,6 +1,52 @@
 # CRYPTO-BOT 2.0 — Intelligent Trading Command Center
 
-## Current checkpoint — installed 42 / corrective candidate 43
+## Current checkpoint — installed 43 / synthetic Capital Lab 44 candidate
+
+43 main `e61dd2a6f617cd39e8bd1c69728dc6f63b800401`,
+[PR #120](https://github.com/jlboper/Crypto-BOT/pull/120), passed Linux/Windows
+checks, [publication 39254593562](https://github.com/jlboper/Crypto-BOT/actions/runs/39254593562)
+and [safety 39254593565](https://github.com/jlboper/Crypto-BOT/actions/runs/39254593565).
+Signed installation **188/188** was verified on **2026-10-19 at 12:53:08 UTC**:
+engine 21084, Spot 2/Futures 4, native protections ARMED and zero observed
+unprotected quantity; agent 21344 was healthy with 11/11 modules. At 12:54:49 UTC,
+Guardian observed four FRESH/complete ledgers and three distinct frozen assessments
+replayed **3/3 MATCH**, without control authority. BTC regime was INSUFFICIENT_DATA
+at that cut. Two legacy FAILED AI attempts retained unknown causes/costs and
+consumed the daily 2/2 budget. Compared financial prefixes/settings and the prefix
+of 721 existing Guardian records/two claims survived unchanged.
+
+44 prepares the closed synthetic [Capital Protocol Lab](CAPITAL_PROTOCOL_LAB.md).
+Explicit CLI creates new SIM cohorts; portal/sync reads only bounded completed
+JSON. Research Lab shows seven protocol scenarios, never strategy returns or
+capital consolidated with engines. Guardian reserves stay NOT_INTEGRATED.
+This is part of F3 foundations, not its runtime completion or financial admission.
+Before the mobile compacting change, local validation passed **850/850 offline Python tests**
+(181.531 s in `TEST_RESULTS.json`, 2026-10-19 13:19:52.904728 UTC; no failures/errors/
+skips, external network blocked and no bot started), **202/202 Node tests**
+(69.325 s), focused UI hardening 84 tests (13.643 s), Windows PowerShell 5.1
+lifecycle/view checks, portal build and diff checks.
+[Draft PR #121](https://github.com/jlboper/Crypto-BOT/pull/121), head
+`5138e51a1f37001629ac1420e3b0d7e48a439170`, passed CI 39259777367/39259777360.
+The later local compacting change keeps 47 folds, with audit closed initially
+and individual case scope/book details folded; LAB SIM, date and outcome remain
+visible. Its focused UI suite passed 84 tests (7.046 s), plus diff checks.
+Visual QA passed in the isolated synthetic preview at 360/768/1366px, without
+horizontal overflow; seven cases, independent details, keyboard and audit fold
+worked. See CAPITAL_PROTOCOL_LAB.md for measurements/artifacts. Final local suites
+after compacting passed 850/850 Python (171.844 s TEST_RESULTS at
+2026-10-19 17:56:01.749748 UTC; unittest 171.835 s), 202/202 Node (37.430 s),
+build and diff, no failures/errors/skips. New head/CI remain pending; earlier
+CI does not validate later changes. Merge/main CI, publication, signature, installation and runtime44
+remain pending. No new infrastructure or AI calls.
+
+Preservation scope, **13:18:23 UTC RO audit**: all 80 Spot trade rows and 48 receipt
+rows in the verified 43 backup survived with zero missing/changed rows; the backup
+SHA was unchanged. Report: `append-only-backup43-verification.json`. The 43 updater
+backed up Spot only. Futures/Pulse/Quant comparisons against sampled baseline
+prefixes remain valid, but are not exhaustive pre-43 comparisons; there was no
+43 multiledger backup for those sources.
+
+## Historical checkpoint — installed 42 / corrective candidate 43
 
 **0.10.42 is published, signed and installed**, main
 `b1e065b1c4934eef80cf4a6d39c52bafa1abb5de`, [PR #119](https://github.com/jlboper/Crypto-BOT/pull/119).
@@ -460,7 +506,7 @@ equals failure”; an empty market/decision view can be legitimate observation.
 | 0 — Audit | Implemented/documented in 0.10.41, published/signed/installed/verified | Component map and predecessor source/CI/inventory reviewed |
 | 1 — Command Center | Seven views and Windows naming implemented/tested; 0.10.41 published/signed/installed 178/178 and continuity verified | New presentation does not change financial execution |
 | 2 — Guardian Intelligence | 42 implemented/tested/published/signed/installed 188/188; actual journal replay MATCH but 0/4 sources UNKNOWN and one AI attempt FAILED; corrective 43 local 777 Python/180 Node/Windows/build PASS, PR/CI/rollout pending | Normal WAL lifecycle acquisition, all-UNKNOWN prefilter and fresh operating evidence; no implied control authority |
-| 3 — Risk & Capital Shadow | Designed; prototype alone is insufficient | Concurrent/idempotent virtual reservations, unknown-order recovery, multi-leg accounting and restart evidence; no trading side effect |
+| 3 — Risk & Capital Shadow | Candidate 44 implements the synthetic Capital Protocol Lab; initial full local validation passed, final Node/visual QA/CI/rollout pending. Runtime on genuine engine proposals is not implemented | Common immutable proposal/account adapters and prospective evidence remain prerequisites for the runtime; simulated recipes grant no financial authority |
 | 4 — Quant research | Existing 0.10.40 Shadow foundation installed/verified; additional calibration pending | Historical/OOS/forward and net-cost/stress evidence; StatArb remains blocked |
 | 5 — Guardian Control Testnet | Pending; not authorized by phase 1 or this roadmap | Explicit future owner authorization, common admission/reconciliation, safety and rollback validation |
 | 6 — Comparative evaluation | Methodology design; no causal Guardian effectiveness claimed | Comparable cohorts, periods, environments, net costs and uncertainty; no automatic risk increase |

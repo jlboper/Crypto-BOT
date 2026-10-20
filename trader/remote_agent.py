@@ -159,7 +159,7 @@ class RemoteAgent:
                               'Invalid Futures cycle diagnostic', 'Invalid Futures latest signals',
                               'Invalid financial scorecard', 'Invalid Market Pulse status',
                               'Invalid Portfolio Guardian status', 'Invalid Quant Arbitrage status',
-                              'Invalid engine catalog', 'Invalid Guardian Intelligence status'} or ('dashboard' not in payload['snapshot']
+                              'Invalid engine catalog', 'Invalid Guardian Intelligence status', 'Invalid Capital Protocol Lab status'} or ('dashboard' not in payload['snapshot']
                                                            and reason != 'Unknown snapshot field'):
                 self.last_error = f'HTTPError:{error.code}' + (f':{reason}' if reason else '')
                 raise
@@ -170,9 +170,15 @@ class RemoteAgent:
                 'Invalid Portfolio Guardian status': 'portfolio_guardian',
                 'Invalid Quant Arbitrage status': 'quant',
                 'Invalid Guardian Intelligence status': 'guardian_intelligence',
+                'Invalid Capital Protocol Lab status': 'capital_lab',
                 'Invalid engine catalog': 'engine_catalog'}.get(reason)
             new_fields = ('portfolio_guardian', 'quant', 'engine_catalog')
             if (reason == 'Unknown dashboard field' and isinstance(dashboard, dict)
+                    and 'capital_lab' in dashboard):
+                # Previous Worker already supports Guardian and all four engines.
+                # Drop only the new synthetic report before one bounded retry.
+                dashboard.pop('capital_lab')
+            elif (reason == 'Unknown dashboard field' and isinstance(dashboard, dict)
                     and 'guardian_intelligence' in dashboard):
                 # Rolling downgrade to the four-engine Worker: omit only this
                 # optional observer; retain all engine views and capabilities.
@@ -271,7 +277,7 @@ class RemoteAgent:
                    'Invalid Futures forward status', 'Invalid Futures pause diagnostics',
                    'Invalid Spot cycle diagnostic', 'Invalid Futures cycle diagnostic',
                    'Invalid Futures latest signals', 'Invalid financial scorecard', 'Invalid Market Pulse status',
-                   'Invalid Portfolio Guardian status', 'Invalid Quant Arbitrage status', 'Invalid engine catalog', 'Invalid Guardian Intelligence status',
+                   'Invalid Portfolio Guardian status', 'Invalid Quant Arbitrage status', 'Invalid engine catalog', 'Invalid Guardian Intelligence status', 'Invalid Capital Protocol Lab status',
                    'Invalid balance', 'Invalid position', 'Invalid position value',
                    'Invalid bot release', 'Invalid restore offer',
                    'Invalid model', 'Invalid cycle time', 'Invalid acknowledgements',

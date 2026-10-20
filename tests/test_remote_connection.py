@@ -323,6 +323,49 @@ class RemoteConnectionTests(unittest.TestCase):
         self.assertEqual(self.agent.last_error, 'HTTPError:400')
         self.assertNotIn('private', self.agent.last_error)
 
+    def test_capital_lab_downgrade_removes_only_synthetic_report_and_keeps_guardian_engines_and_jobs(self):
+        Database(self.config.bot.database_path)
+        original={'status':{'mode':'PAPER'},'positions':[], 'futures_forward':{},'market_pulse':{},
+            'quant':{'mode':'SHADOW'},'engine_catalog':[],'portfolio_guardian':{},
+            'guardian_intelligence':{'mode':'SHADOW'},'capital_lab':{'mode':'RESEARCH_ONLY'}}
+        for label in ('Unknown dashboard field','Invalid Capital Protocol Lab status'):
+            with self.subTest(label=label):
+                self.agent.dashboard_provider=lambda:json.loads(json.dumps(original))
+                self.agent.paper_controls=Mock(available=True,quant_available=True)
+                self.agent.paper_controls.results.return_value=[]
+                self.agent.jobs=Mock();self.agent.jobs.results.return_value=[{'id':7,'status':'completed'}]
+                self.agent.update_provider=lambda:{'version':'0.10.44','enabled':True}
+                calls=[]
+                def send(request,timeout):
+                    calls.append(json.loads(request.data))
+                    self.assertEqual(request.get_header('Authorization'),'Bearer '+'x'*43)
+                    if len(calls)==1:
+                        raise urllib.error.HTTPError(request.full_url,400,'Bad Request',{},
+                            io.BytesIO(json.dumps({'error':label}).encode()))
+                    return io.BytesIO(b'{"commands":[],"jobs":[]}')
+                with patch.object(self.agent.opener,'open',side_effect=send):self.agent.sync()
+                self.assertEqual(len(calls),2)
+                expected={k:v for k,v in original.items() if k!='capital_lab'}
+                self.assertEqual(calls[1]['snapshot']['dashboard'],expected)
+                self.assertIs(calls[1]['snapshot']['quant_controls'],True)
+                self.assertIs(calls[1]['snapshot']['operations_controls'],True)
+                self.assertEqual(calls[1]['snapshot']['bot_update']['version'],'0.10.44')
+                self.assertEqual(calls[1]['job_results'],[{'id':7,'status':'completed'}])
+                self.assertEqual(self.agent.last_error,'DASHBOARD_REJECTED:'+label)
+
+    def test_capital_lab_second_rejection_never_retries_again_or_leaks_private_response(self):
+        Database(self.config.bot.database_path)
+        self.agent.dashboard_provider=lambda:{'status':{'mode':'PAPER'},'guardian_intelligence':{},'capital_lab':{}}
+        calls=[]
+        def send(request,timeout):
+            calls.append(json.loads(request.data))
+            reason='Invalid Capital Protocol Lab status' if len(calls)==1 else 'private synthetic token'
+            raise urllib.error.HTTPError(request.full_url,400,'Bad Request',{},io.BytesIO(json.dumps({'error':reason}).encode()))
+        with patch.object(self.agent.opener,'open',side_effect=send),self.assertRaises(urllib.error.HTTPError):self.agent.sync()
+        self.assertEqual(len(calls),2)
+        self.assertEqual(calls[1]['snapshot']['dashboard'],{'status':{'mode':'PAPER'},'guardian_intelligence':{}})
+        self.assertEqual(self.agent.last_error,'HTTPError:400')
+
     def test_remote_paper_control_executes_after_authenticated_device_sync_and_reports_result(self):
         Database(self.config.bot.database_path)
         self.agent.paper_controls = Mock(available=True)

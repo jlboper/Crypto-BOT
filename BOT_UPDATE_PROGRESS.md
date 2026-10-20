@@ -1,4 +1,47 @@
-# Candidate — 0.10.43 Guardian RO WAL corrective
+# Candidate — 0.10.44 Capital Protocol Lab (synthetic only)
+
+Base main 43 `e61dd2a6f617cd39e8bd1c69728dc6f63b800401`,
+[PR #120](https://github.com/jlboper/Crypto-BOT/pull/120),
+[publication 39254593562](https://github.com/jlboper/Crypto-BOT/actions/runs/39254593562)
+and [safety 39254593565](https://github.com/jlboper/Crypto-BOT/actions/runs/39254593565)
+SUCCESS on Linux/Windows. Ed25519 and installed **188/188** verified at
+2026-10-19 12:53:08 UTC. Engine 21084, Spot 2/Futures 4 ARMED with zero observed
+unprotected quantity; agent 21344 healthy with 11/11 modules. Guardian at 12:54:49
+UTC: four FRESH/complete sources, three distinct captures/three replays MATCH,
+zero errors, LEVEL 0/no authority. Two legacy FAILED AI claims retain unknown
+causes/costs and daily 2/2 consumption. Compared financial/settings and Guardian
+prefixes were preserved unchanged.
+
+44 is a synthetic CLI/research lab, not F3 real-proposal runtime. See
+[CAPITAL_PROTOCOL_LAB.md](CAPITAL_PROTOCOL_LAB.md). Prior focused checks passed
+61 prototype tests and 64 integrated core/Lab/CLI tests. Before mobile compacting,
+validation passed **850/850 Python** (181.531 s in TEST_RESULTS at
+2026-10-19 13:19:52.904728 UTC), **202/202 Node** (69.325 s), 84 focused UI tests
+(13.643 s), PS5.1 lifecycle/view, build and diff.
+[Draft PR #121](https://github.com/jlboper/Crypto-BOT/pull/121) exists, head
+`5138e51a1f37001629ac1420e3b0d7e48a439170`, with
+[CI 39259777367](https://github.com/jlboper/Crypto-BOT/actions/runs/39259777367) and
+[CI 39259777360](https://github.com/jlboper/Crypto-BOT/actions/runs/39259777360) PASS.
+Later local compacting keeps 47 folds, closed audit and compact case details,
+with LAB SIM/date/result visible; focused UI 84/84 (7.046 s) and diff passed.
+Visual QA passed on the isolated synthetic preview at 360/768/1366px: widths
+345/345, 753/753, 1351/1351 client/scroll, seven cases, keyboard/audit/details and
+signed loss/shortfall verified. Collapsed audit 42.53px vs 815.9px; first case
+about 534px vs 1215px. Artifacts: `capital-lab44-visual-qa.json` and three screenshots.
+Final local revalidation after compacting passed **850/850 Python** (171.844 s
+TEST_RESULTS at 2026-10-19 17:56:01.749748 UTC; unittest runner 171.835 s),
+**202/202 Node** (37.430 s), build and diff; no failures/errors/skips.
+New head/CI remain pending. Prior CI applies to its exact head;
+preview QA does not prove merge/main CI/publication/signature/install/runtime44.
+
+RO audit at 13:18:23 UTC verified **80/80 Spot trade rows and 48/48 receipt rows**
+from the 43 backup, zero missing/changed and unchanged backup SHA. Report:
+`append-only-backup43-verification.json`. The 43 updater backed up Spot only;
+valid prior sampled-prefix comparisons of Futures/Pulse/Quant do not establish
+exhaustive pre-43 preservation and there is no 43 multiledger backup for them.
+No new financial authorization is inferred from those tests or a PASSED recipe.
+
+# Historical candidate43 — Guardian RO WAL corrective
 
 Installed baseline: 42 main `b1e065b1c4934eef80cf4a6d39c52bafa1abb5de`,
 [PR #119](https://github.com/jlboper/Crypto-BOT/pull/119).

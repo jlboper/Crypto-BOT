@@ -1,5 +1,40 @@
 # Crypto AI Trader — CRYPTO-BOT 2.0
 
+**Estado 2026-10-19, 12:54 UTC:** 0.10.43 instalada y firmada, **188/188 hashes**,
+main `e61dd2a6f617cd39e8bd1c69728dc6f63b800401`,
+[PR #120](https://github.com/jlboper/Crypto-BOT/pull/120) y
+[publicación verificada](https://github.com/jlboper/Crypto-BOT/actions/runs/39254593562).
+Guardian lee cuatro fuentes FRESH/completas; tres replays causales MATCH. Spot 2 y
+Futures 4 mantienen protecciones ARMED, sin cantidad desprotegida observada.
+Guardian LEVEL 0; Pulse/Quant SHADOW. Dos intentos IA históricos FAILED siguen
+con causa/coste desconocidos y cuota diaria 2/2 consumida.
+
+En preparación 44: [Capital Protocol Lab](CAPITAL_PROTOCOL_LAB.md), siete escenarios
+sintéticos con CLI explícito y Research Lab de sólo lectura. No administra los
+fondos actuales ni activa reservas, órdenes o estrategias. [PR #121](https://github.com/jlboper/Crypto-BOT/pull/121)
+está en draft, head `5138e51a1f37001629ac1420e3b0d7e48a439170`, con
+[CI 39259777367](https://github.com/jlboper/Crypto-BOT/actions/runs/39259777367) y
+[CI 39259777360](https://github.com/jlboper/Crypto-BOT/actions/runs/39259777360) PASS.
+La compactación local posterior deja 47 plegables: auditoría cerrada y casos
+compactos, con LAB SIM/fecha/resultado visibles. Pasaron 84 pruebas UI de foco
+(7.046 s) y diff. QA visual PASS en preview sintético local a 360/768/1366px,
+sin desbordamiento; auditoría plegada 42.53px frente a 815.9px y primer caso
+aproximadamente a 534px frente a 1215px. Validación final tras compactar:
+**850/850 Python** (171.844 s en TEST_RESULTS, 17:56:01.749748 UTC;
+runner 171.835 s), **202/202 Node** (37.430 s), build y diff PASS, sin fallos/skips.
+Las validaciones previas a compactar fueron **850/850 Python offline (181.531 s,
+13:19:52 UTC), 202/202 Node (69.325 s)**, PS5.1 lifecycle/vistas y build; no se
+atribuyen a la revisión posterior. Nuevo head/CI final, merge, publicación/firma
+e instalación44 siguen pendientes.
+No completa Capital Manager sobre propuestas reales ni la Fase 3 operativa.
+
+Auditoría RO de conservación a las **13:18:23 UTC**: las 80 filas trades y 48
+receipts del backup Spot 43 permanecen sin ausencias ni cambios; SHA del backup
+intacto. El updater 43 sólo respaldó Spot. En Futures/Pulse/Quant se verificaron
+prefijos de referencia muestreados; no equivalen a comparar todo el historial
+pre-43 ni a un backup multiledger. Informe: `append-only-backup43-verification.json`.
+Los estados anteriores que siguen son registros históricos fechados.
+
 > Copia de desarrollo aislada de la instalación Windows. El repositorio no contiene credenciales ni datos de la instancia operativa. No inicies un segundo motor. Consulta `BOT_UPDATE_PROGRESS.md` para distinguir versión preparada, publicada e instalada.
 
 **Estado 2026-10-19 00:42:33 UTC:** 0.10.42 publicada, firmada e instalada,
