@@ -25,13 +25,21 @@ cerrado de siete recetas con CLI explícito y JSON RO en Research Lab. Detalle e
 [CAPITAL_PROTOCOL_LAB.md](CAPITAL_PROTOCOL_LAB.md). No usa cuentas actuales,
 propuestas reales, ejecución, IA ni reservas de los motores. Guardian continúa
 NOT_INTEGRATED para capital. No declarar F3 runtime completa. Prototipos 61 tests
-y 64 tests core/Lab/CLI integrados PASS son evidencia enfocada previa. Full local
-final 44: **850/850 Python (181.531 s, TEST_RESULTS 13:19:52.904728 UTC), 202/202
+y 64 tests core/Lab/CLI integrados PASS son evidencia enfocada previa. Antes de
+compactar UI: **850/850 Python (181.531 s, TEST_RESULTS 13:19:52.904728 UTC), 202/202
 Node (69.325 s)**, 84 pruebas UI enfocadas (13.643 s), PS5.1 lifecycle/vistas, build
-y diff PASS. QA visual
-bloqueada: CUA sin navegador, aprobación Edge agotada y solicitud de acceso del
-dueño/IAB pendientes. No afirmar QA visual, CI, publicación o instalación 44;
-PR draft todavía por crear.
+y diff PASS. [PR #121](https://github.com/jlboper/Crypto-BOT/pull/121) ya existe en
+draft, head `5138e51a1f37001629ac1420e3b0d7e48a439170`, CI 39259777367/39259777360
+PASS para ese head. Compactación local posterior: 47 plegables, auditoría cerrada
+y detalles por caso; LAB SIM/fecha/resultado visibles. Foco UI 84/84 (7.046 s) y
+diff PASS. QA visual PASS en preview sintético local a 360/768/1366px: sin overflow,
+siete casos, detalle independiente/Enter/auditoría y pérdidas con signo correctos.
+Ver `capital-lab44-visual-qa.json` y CAPITAL_PROTOCOL_LAB.md. Full final tras
+compactar: **850/850 Python** (171.844 s en TEST_RESULTS, 2026-10-19
+17:56:01.749748 UTC; runner 171.835 s), **202/202 Node** (37.430 s), build/diff PASS,
+sin fallos/errores/skips. Nuevo head/CI final pendientes; la CI anterior no
+acredita cambios posteriores. Sin merge,
+publicación/firma ni instalación44; preview no es evidencia de instalación.
 
 Auditoría RO **13:18:23 UTC**: todas las filas del backup Spot 43, trades 80/80 y
 receipts 48/48, ausentes 0/cambiadas 0; SHA del backup intacto. Informe

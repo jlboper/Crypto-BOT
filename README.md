@@ -11,12 +11,22 @@ con causa/coste desconocidos y cuota diaria 2/2 consumida.
 
 En preparación 44: [Capital Protocol Lab](CAPITAL_PROTOCOL_LAB.md), siete escenarios
 sintéticos con CLI explícito y Research Lab de sólo lectura. No administra los
-fondos actuales ni activa reservas, órdenes o estrategias. Validación local final:
-**850/850 Python offline (181.531 s), 202/202 Node (69.325 s)**, 84 pruebas UI
-enfocadas (13.643 s), Windows PowerShell 5.1 lifecycle/vistas, build y diff aprobados.
-QA visual bloqueada por acceso al navegador. PR de 44 todavía por crear como draft;
-CI, publicación/firma e instalación aún no verificadas. No completa
-Capital Manager sobre propuestas reales ni la Fase 3 operativa.
+fondos actuales ni activa reservas, órdenes o estrategias. [PR #121](https://github.com/jlboper/Crypto-BOT/pull/121)
+está en draft, head `5138e51a1f37001629ac1420e3b0d7e48a439170`, con
+[CI 39259777367](https://github.com/jlboper/Crypto-BOT/actions/runs/39259777367) y
+[CI 39259777360](https://github.com/jlboper/Crypto-BOT/actions/runs/39259777360) PASS.
+La compactación local posterior deja 47 plegables: auditoría cerrada y casos
+compactos, con LAB SIM/fecha/resultado visibles. Pasaron 84 pruebas UI de foco
+(7.046 s) y diff. QA visual PASS en preview sintético local a 360/768/1366px,
+sin desbordamiento; auditoría plegada 42.53px frente a 815.9px y primer caso
+aproximadamente a 534px frente a 1215px. Validación final tras compactar:
+**850/850 Python** (171.844 s en TEST_RESULTS, 17:56:01.749748 UTC;
+runner 171.835 s), **202/202 Node** (37.430 s), build y diff PASS, sin fallos/skips.
+Las validaciones previas a compactar fueron **850/850 Python offline (181.531 s,
+13:19:52 UTC), 202/202 Node (69.325 s)**, PS5.1 lifecycle/vistas y build; no se
+atribuyen a la revisión posterior. Nuevo head/CI final, merge, publicación/firma
+e instalación44 siguen pendientes.
+No completa Capital Manager sobre propuestas reales ni la Fase 3 operativa.
 
 Auditoría RO de conservación a las **13:18:23 UTC**: las 80 filas trades y 48
 receipts del backup Spot 43 permanecen sin ausencias ni cambios; SHA del backup

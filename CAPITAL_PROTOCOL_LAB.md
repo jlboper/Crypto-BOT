@@ -49,6 +49,9 @@ nocional, margen ni riesgo hasta stops.
 ## Portal y límites de interpretación
 
 Research Lab presenta un bloque plegable **Capital Lab · escenario sintético**.
+La procedencia y auditoría quedan en otro plegable cerrado al inicio. Cada caso
+muestra título, LAB SIM y resultado; su ámbito, estados y libro se consultan en
+el detalle independiente. La fecha y los avisos esenciales permanecen visibles.
 Los siete casos conservan cuenta, política, fecha, checks y referencias de
 auditoría. El formato monetario mantiene seis decimales mediante aritmética
 entera. No suma cohortes entre sí ni incorpora sus importes a Portfolio & Capital,
@@ -89,17 +92,30 @@ fuera de esta entrega. Los cierres protectores siguen independientes de Guardian
 ## Estado de validación
 
 Los prototipos exteriores aprobaron 61 pruebas y seis probes independientes;
-core/Lab/CLI integrados aprobaron 64 pruebas enfocadas. Full local final 44:
+core/Lab/CLI integrados aprobaron 64 pruebas enfocadas. Antes de la compactación UI:
 **850/850 Python offline** (181.531 s en `TEST_RESULTS.json`, 2026-10-19 13:19:52.904728
 UTC; sin fallos, errores ni skips, red externa bloqueada y sin iniciar el bot),
 **202/202 Node** (69.325 s), 84 pruebas UI enfocadas (13.643 s), lifecycle/vistas
 Windows PowerShell 5.1, build y diff PASS, con las validaciones UI de política y
 coherencia contable reforzadas.
 
-QA visual todavía bloqueada por falta de acceso al navegador; no se afirma PASS
-visual. PR draft todavía por crear; no hay CI/publicación/firma/instalación
-verificados de 44 ni ejecución
-del CLI firmado instalado. Esos checkpoints se registran por separado en
+El [PR #121](https://github.com/jlboper/Crypto-BOT/pull/121) está en draft, head
+`5138e51a1f37001629ac1420e3b0d7e48a439170`; CI 39259777367/39259777360 PASS
+corresponden a ese head. La compactación posterior conserva 47 plegables y
+aprobó 84 pruebas UI de foco (7.046 s) y diff. QA visual PASS en preview sintético
+local, sin trading/red, a 360/768/1366px: client/scroll 345/345, 753/753 y 1351/1351.
+Los siete casos aparecen sin overflow; auditoría cerrada 42.53px frente a 815.9px,
+primer caso aproximadamente a 534px frente a 1215px. Apertura individual,
+cierre por Enter, auditoría y pérdida/deficit −204.000000/204.000000 verificados.
+Evidencia: `capital-lab44-visual-qa.json` y capturas mobile/tablet/desktop en artifacts.
+Validación final tras compactar, **2026-10-19 17:56:01.749748 UTC**:
+**850/850 Python offline** (171.844 s en TEST_RESULTS; runner 171.835 s),
+**202/202 Node** (37.430 s), build y diff PASS. Sin fallos, errores ni skips;
+Python 3.12.14, fixtures sintéticas, red bloqueada y bot no iniciado.
+Nuevo head/CI final y merge siguen pendientes. No se afirma
+publicación/firma/instalación44 ni ejecución del CLI firmado instalado. La QA
+del preview no es evidencia de instalación; la CI anterior no valida el nuevo
+head pendiente. Esos checkpoints se registran por separado en
 `BOT_UPDATE_PROGRESS.md`; las pruebas del laboratorio no completan Fase 3 runtime.
 
 La auditoría RO de las 13:18:23 UTC verificó todas las filas del backup Spot 43:

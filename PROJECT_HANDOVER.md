@@ -23,14 +23,25 @@ recipes, new SIM accounts, CLI, bounded RO JSON and shared Research Lab display.
 No existing capital, engine candidate hooks, trading or Guardian Control. F3
 runtime/common proposal/account adapters remain work, not authorization gates for
 routine simulation development. Activating financial control still requires its
-separate owner authorization. Final local checks passed **850/850 Python**
+separate owner authorization. Before the later mobile compacting change,
+local checks passed **850/850 Python**
 (181.531 s in `TEST_RESULTS.json`, 2026-10-19 13:19:52.904728 UTC; no failures/errors/
 skips, external network blocked, no bot started), **202/202 Node** (69.325 s),
 focused UI hardening 84 tests (13.643 s), Windows PowerShell 5.1 lifecycle/view,
-portal build and diff. Visual QA is blocked: CUA has no browser,
-Edge launch approval timed out and the owner access request/IAB are pending.
-No visual PASS or 44 PR/CI/publication/signature/install/runtime success is claimed;
-the draft PR has not yet been created.
+portal build and diff. [Draft PR #121](https://github.com/jlboper/Crypto-BOT/pull/121)
+exists at head `5138e51a1f37001629ac1420e3b0d7e48a439170`; CI
+39259777367/39259777360 passed for that head. A later local UI change keeps
+47 folds, with audit initially closed and compact case details; LAB SIM, date,
+outcome and essential warnings stay visible. Focused UI 84/84 (7.046 s) and diff
+passed after compacting. Visual QA passed on the isolated synthetic preview at
+360/768/1366px: no overflow, seven cases, audit/details/keyboard and negative book
+verified. Artifacts/measurements are recorded in CAPITAL_PROTOCOL_LAB.md. Final
+local suites passed 850/850 Python (171.844 s TEST_RESULTS at
+2026-10-19 17:56:01.749748 UTC; runner 171.835 s), 202/202 Node (37.430 s),
+build and diff, without failures/errors/skips. New head/CI remain pending;
+preview QA is not installed44 evidence. Do not attribute
+earlier CI to later changes.
+No merge/main CI, publication/signature/install/runtime44 success is claimed.
 
 At 13:18:23 UTC a RO audit verified all **80/80 trade rows and 48/48 receipt rows**
 from the signed-43 Spot backup, with zero missing/changed rows and unchanged backup

@@ -14,12 +14,25 @@ prefixes were preserved unchanged.
 
 44 is a synthetic CLI/research lab, not F3 real-proposal runtime. See
 [CAPITAL_PROTOCOL_LAB.md](CAPITAL_PROTOCOL_LAB.md). Prior focused checks passed
-61 prototype tests and 64 integrated core/Lab/CLI tests. Final full local 44
+61 prototype tests and 64 integrated core/Lab/CLI tests. Before mobile compacting,
 validation passed **850/850 Python** (181.531 s in TEST_RESULTS at
 2026-10-19 13:19:52.904728 UTC), **202/202 Node** (69.325 s), 84 focused UI tests
-(13.643 s), PS5.1 lifecycle/view, build and diff. Visual QA remains blocked by
-browser access. Draft PR is not yet created; no visual PASS or 44 CI/publication/
-signature/install/runtime success is claimed.
+(13.643 s), PS5.1 lifecycle/view, build and diff.
+[Draft PR #121](https://github.com/jlboper/Crypto-BOT/pull/121) exists, head
+`5138e51a1f37001629ac1420e3b0d7e48a439170`, with
+[CI 39259777367](https://github.com/jlboper/Crypto-BOT/actions/runs/39259777367) and
+[CI 39259777360](https://github.com/jlboper/Crypto-BOT/actions/runs/39259777360) PASS.
+Later local compacting keeps 47 folds, closed audit and compact case details,
+with LAB SIM/date/result visible; focused UI 84/84 (7.046 s) and diff passed.
+Visual QA passed on the isolated synthetic preview at 360/768/1366px: widths
+345/345, 753/753, 1351/1351 client/scroll, seven cases, keyboard/audit/details and
+signed loss/shortfall verified. Collapsed audit 42.53px vs 815.9px; first case
+about 534px vs 1215px. Artifacts: `capital-lab44-visual-qa.json` and three screenshots.
+Final local revalidation after compacting passed **850/850 Python** (171.844 s
+TEST_RESULTS at 2026-10-19 17:56:01.749748 UTC; unittest runner 171.835 s),
+**202/202 Node** (37.430 s), build and diff; no failures/errors/skips.
+New head/CI remain pending. Prior CI applies to its exact head;
+preview QA does not prove merge/main CI/publication/signature/install/runtime44.
 
 RO audit at 13:18:23 UTC verified **80/80 Spot trade rows and 48/48 receipt rows**
 from the 43 backup, zero missing/changed and unchanged backup SHA. Report:

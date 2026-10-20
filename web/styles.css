@@ -108,6 +108,9 @@ details[open]>*:not(summary){animation:portalDetailsOpen .28s var(--motion-ease)
 .capital-lab .platform-note,.capital-lab-checks p{overflow-wrap:anywhere}
 .capital-lab-detail{margin-top:14px;border-top:1px solid var(--line);padding-top:12px}
 .capital-lab-detail>summary{cursor:pointer;font-size:.8rem;line-height:1.5;font-weight:700}
+.capital-lab-audit{margin:14px 0;padding:11px 12px;border:1px solid var(--line);border-radius:9px;min-width:0}
+.capital-lab-audit>summary{cursor:pointer;font-size:.8rem;line-height:1.5;font-weight:700}
+.capital-lab-audit>.capital-lab-evidence{margin-bottom:10px}
 .capital-lab-checks{display:grid;gap:9px;margin-top:14px}
 .capital-lab-checks>div{min-width:0;padding:10px;border:1px solid var(--line);border-radius:8px}
 .capital-lab-checks strong,.capital-lab-checks span{display:block;font-size:.75rem;line-height:1.5}

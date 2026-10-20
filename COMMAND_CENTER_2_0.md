@@ -20,14 +20,24 @@ Explicit CLI creates new SIM cohorts; portal/sync reads only bounded completed
 JSON. Research Lab shows seven protocol scenarios, never strategy returns or
 capital consolidated with engines. Guardian reserves stay NOT_INTEGRATED.
 This is part of F3 foundations, not its runtime completion or financial admission.
-Final local 44 validation passed **850/850 offline Python tests**
+Before the mobile compacting change, local validation passed **850/850 offline Python tests**
 (181.531 s in `TEST_RESULTS.json`, 2026-10-19 13:19:52.904728 UTC; no failures/errors/
 skips, external network blocked and no bot started), **202/202 Node tests**
 (69.325 s), focused UI hardening 84 tests (13.643 s), Windows PowerShell 5.1
 lifecycle/view checks, portal build and diff checks.
-Visual QA remains blocked by unavailable browser access; no visual PASS is claimed.
-44 draft PR has not yet been created; PR/main CI, publication, signature,
-installation and runtime validation remain pending. No new infrastructure or AI calls.
+[Draft PR #121](https://github.com/jlboper/Crypto-BOT/pull/121), head
+`5138e51a1f37001629ac1420e3b0d7e48a439170`, passed CI 39259777367/39259777360.
+The later local compacting change keeps 47 folds, with audit closed initially
+and individual case scope/book details folded; LAB SIM, date and outcome remain
+visible. Its focused UI suite passed 84 tests (7.046 s), plus diff checks.
+Visual QA passed in the isolated synthetic preview at 360/768/1366px, without
+horizontal overflow; seven cases, independent details, keyboard and audit fold
+worked. See CAPITAL_PROTOCOL_LAB.md for measurements/artifacts. Final local suites
+after compacting passed 850/850 Python (171.844 s TEST_RESULTS at
+2026-10-19 17:56:01.749748 UTC; unittest 171.835 s), 202/202 Node (37.430 s),
+build and diff, no failures/errors/skips. New head/CI remain pending; earlier
+CI does not validate later changes. Merge/main CI, publication, signature, installation and runtime44
+remain pending. No new infrastructure or AI calls.
 
 Preservation scope, **13:18:23 UTC RO audit**: all 80 Spot trade rows and 48 receipt
 rows in the verified 43 backup survived with zero missing/changed rows; the backup

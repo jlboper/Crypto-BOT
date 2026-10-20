@@ -19,25 +19,33 @@ test('Capital Lab is an independent closed fold in the existing Research Lab wor
   const p=setup({hash:'#capital-lab'});
   assert.equal(p.get('capital-lab').parentElement.id,'research-workspace');assert.equal(p.get('research-lab').parentElement.id,'research-workspace');
   assert.equal(p.get('capital-lab').open,true);assert.equal(p.get('research-lab').open,false);
+  assert.equal(p.get('capital-lab-audit').open,false);assert.equal(p.get('capitalLabEvidence').parentElement.id,'capital-lab-audit');
   assert.deepEqual(p.root.querySelectorAll('[data-workspace]').filter(node=>!node.hidden).map(node=>node.dataset.workspace),['research-lab']);
   assert.equal(p.root.querySelectorAll('[data-workspace]').length,7);
   p.ui.navigate('portfolio-capital');p.ui.navigate('capital-lab');p.history.back();assert.equal(p.get('portfolio-capital').hidden,false);p.history.forward();assert.equal(p.get('capital-lab').open,true);
   assert.equal(p.ui.resolve('quant-statistical'),'trading-engines');assert.equal(p.calls.length,0);
+  p.ui.navigate('capital-lab-audit');assert.equal(p.ui.resolve('capital-lab-audit'),'research-lab');assert.equal(p.get('capital-lab-audit').open,true);assert.equal(p.get('capital-lab').open,true);assert.equal(p.get('research-lab').open,false);
   const closed=setup();assert.equal(closed.get('capital-lab').open,false);
 });
 
 test('Lab fold remembers only its allowed visibility preference and remains independent of existing historical research',async()=>{
-  const p=setup({saved:{'capital-lab':true,'research-lab':false,'unknown-lab':true}});
+  const p=setup({saved:{'capital-lab':true,'capital-lab-audit':false,'research-lab':false,'unknown-lab':true}});
   assert.equal(p.get('capital-lab').open,true);assert.equal(p.get('research-lab').open,false);
+  p.get('capital-lab-audit').open=true;await p.get('capital-lab-audit').dispatch('toggle');
   p.get('capital-lab').open=false;await p.get('capital-lab').dispatch('toggle');
-  const saved=JSON.parse(p.storage.get('crypto-ai-trader.ui.folds.v1'));assert.equal(saved['capital-lab'],false);assert.equal(saved['unknown-lab'],undefined);
+  const saved=JSON.parse(p.storage.get('crypto-ai-trader.ui.folds.v1'));assert.equal(saved['capital-lab'],false);assert.equal(saved['capital-lab-audit'],true);assert.equal(saved['unknown-lab'],undefined);
 });
 
 test('real seven-recipe producer survives Worker validation and renders only synthetic cases without changing operating capital',()=>{
   const data=produce(),p=setup();assert.equal(validCapitalLab(data),true);assert.equal(p.lab.validWrapper(data),true);
   p.get('capitalReservations').textContent='NO INTEGRADAS · importe desconocido';p.get('guardianState').textContent='OBSERVER EXISTENTE';p.get('summarySpotCapital').textContent='CAPITAL EXISTENTE';
   p.lab.render({capital_lab:data});assert.equal(p.get('capitalLabState').textContent,'ENSAYOS CONFORMES');assert.equal(cases(p).length,7);
-  for(const card of cases(p)){assert.match(card.textContent,/LAB SIM/);assert.match(card.textContent,/SHADOW sintético/);assert.match(card.textContent,/Estado observado.*Estado esperado/);}
+  for(const card of cases(p)){
+    assert.match(card.textContent,/LAB SIM/);assert.match(card.textContent,/SHADOW sintético/);assert.match(card.textContent,/Estado observado.*Estado esperado/);
+    const detail=card.querySelector('details');assert.equal(detail.open,false);assert.equal(card.querySelector('.capital-lab-protocol').parentElement,detail);assert.equal(card.querySelector('.platform-note').parentElement,detail);
+    assert.deepEqual(card.children.map(node=>node.tagName),['DIV','P','DETAILS']);assert.match(card.children[0].textContent,/LAB SIM/);assert.match(card.children[1].textContent,/CONFORME/);
+  }
+  assert.equal(p.get('capital-lab-audit').open,false);assert.match(p.get('capitalLabStatus').textContent,/Reporte fechado/);assert.match(p.get('capital-lab').textContent,/no demuestra rentabilidad ni autoriza trading/);
   assert.match(p.get('capitalLabEvidence').textContent,new RegExp(data.report_id));assert.match(p.get('capitalLabEvidence').textContent,new RegExp(data.report_digest));
   assert.equal(p.get('capitalReservations').textContent,'NO INTEGRADAS · importe desconocido');assert.equal(p.get('guardianState').textContent,'OBSERVER EXISTENTE');assert.equal(p.get('summarySpotCapital').textContent,'CAPITAL EXISTENTE');
   assert.equal(p.get('capital-lab').querySelectorAll('button,input,select,form').length,0);assert.equal(p.calls.length,0);

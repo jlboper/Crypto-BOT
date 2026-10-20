@@ -19,10 +19,22 @@ Independent review caught terminal orders reviving after UNKNOWN, balances older
 than a financial mutation, and an extra-check parser escape. Prototype fixes have
 regressions. This is not global market risk, account reconciliation, financial
 authorization or F3 runtime. See [CAPITAL_PROTOCOL_LAB.md](CAPITAL_PROTOCOL_LAB.md).
-Final local 44 checks passed 850/850 offline Python (181.531 s in TEST_RESULTS,
+Before the later mobile compacting change, local44 checks passed 850/850 offline Python (181.531 s in TEST_RESULTS,
 2026-10-19 13:19:52.904728 UTC), 202/202 Node (69.325 s), 84 focused UI tests
-(13.643 s), PS5.1 lifecycle/view, build and diff. Browser access blocked visual QA;
-no visual PASS or PR/CI/release/install 44 is asserted. Draft PR remains to be created.
+(13.643 s), PS5.1 lifecycle/view, build and diff. Draft
+[PR #121](https://github.com/jlboper/Crypto-BOT/pull/121), head
+`5138e51a1f37001629ac1420e3b0d7e48a439170`, passed CI 39259777367/39259777360.
+Initial IAB mobile inspection prompted a later local compacting change: 47 folds,
+audit initially closed and per-case details folded, with synthetic identity,
+date and result still visible. Focused UI 84/84 (7.046 s) and diff passed for
+that change. Visual QA passed on the isolated synthetic preview at 360/768/1366px
+with seven cases, no overflow and working keyboard/details/audit. Audit collapsed
+height fell from 815.9px to 42.53px, bringing the first case from about 1215px to
+534px. Final local checks after compacting passed 850/850 Python
+(171.844 s TEST_RESULTS at 2026-10-19 17:56:01.749748 UTC; runner 171.835 s),
+202/202 Node (37.430 s), build and diff, without failures/errors/skips.
+New head/CI remain pending. Earlier CI is not evidence for subsequent
+changes, nor preview QA for merge/publication/signature/install44.
 
 The RO preservation audit at 13:18:23 UTC compared all 80 Spot trade rows and 48
 receipt rows from the verified 43 backup: zero missing/changed, backup SHA intact

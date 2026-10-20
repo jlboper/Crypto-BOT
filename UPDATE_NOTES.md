@@ -16,11 +16,21 @@
   mutaciones y campos extra en checks. No se modifican motores, riesgo o updater.
   No es F3 runtime/common candidate adapter ni Global Risk Engine completo.
 - Core/Lab/CLI integrados: 64 tests PASS (9.895 s); prototipos: 61 tests previos.
-  Full local final 44: **850/850 Python offline (181.531 s en TEST_RESULTS,
+  Antes de compactar la UI: **850/850 Python offline (181.531 s en TEST_RESULTS,
   2026-10-19 13:19:52.904728 UTC), 202/202 Node (69.325 s)**, 84 pruebas UI enfocadas
-  (13.643 s), PS5.1 lifecycle/vistas, build y diff PASS. QA visual bloqueada por
-  acceso al navegador; sin afirmar PASS visual. PR draft por crear; CI, publicación,
-  firma e instalación de 44 todavía pendientes.
+  (13.643 s), PS5.1 lifecycle/vistas, build y diff PASS.
+- [PR #121](https://github.com/jlboper/Crypto-BOT/pull/121) en draft, head
+  `5138e51a1f37001629ac1420e3b0d7e48a439170`: CI 39259777367/39259777360 PASS.
+  Compactación local posterior: 47 plegables, auditoría cerrada y ámbito/estados
+  dentro del detalle de cada caso; fecha, LAB SIM y resultado visibles. Pruebas
+  UI 84/84 (7.046 s) y diff PASS. QA visual PASS en preview sintético local a
+  360/768/1366px, sin overflow, siete casos y detalles/teclado/auditoría correctos.
+  Auditoría cerrada 42.53px frente a 815.9px; primer caso ~534px frente a 1215px.
+  Full final tras compactar: **850/850 Python** (171.844 s en TEST_RESULTS,
+  2026-10-19 17:56:01.749748 UTC; runner 171.835 s), **202/202 Node** (37.430 s),
+  build y diff PASS, sin fallos/errores/skips. Nuevo head/CI final pendientes;
+  no atribuir CI anterior a cambios nuevos ni QA de preview a instalación.
+  Sin merge, publicación/firma ni instalación44.
 - Auditoría RO 13:18:23 UTC: trades Spot del backup 43 80/80 y receipts 48/48 sin
   ausencias/cambios; SHA del backup intacto (`append-only-backup43-verification.json`).
   Updater 43 sólo respaldó Spot. Comparaciones anteriores de prefijos muestreados
