@@ -146,3 +146,28 @@ visibles guardadas. El preview no prueba instalación.
 CI del head exacto, main CI, publicación,
 firma, instalación Windows y observación operativa son verificaciones separadas.
 No atribuir resultados44 a candidata45 ni afirmar escenarios probados por inspección.
+
+
+## Verificación instalada45 y correctiva remota46
+
+45 se publicó e instaló (PR122/main5d08ca7, publicación39453869690, Ed25519,
+207/207hashes). Observer45 IDLE/FRESH con tres latidos distintos y cero errores;
+aún sin entradas observadas al corte16:10:37UTC. No se fuerza actividad.
+El exportador incluye el DTO de1035bytes dentro de414068bytes y mantiene el Lab44.
+Guardian Intelligence fue PARTIAL por Futures STALE_OR_UNPRICED_SOURCE, con
+servicio/lease activos y protecciones nativas confirmadas; no se relaja el criterio.
+
+GET remotos de ambos JS devolvieron401: faltaban en la allowlist estática del
+Worker.46 corrige exactamente esas dos rutas y prueba que las APIs conservan su
+autenticación/CSRF. No se considera el panel45 verificado remotamente; completar
+GET200/hash de ambos scripts tras despliegue46. Esto no amplía autoridad financiera.
+
+Auditoría45 posterior16:11:31UTC: Guardian OBSERVING, cuatro fuentes FRESH y
+tres replays causales MATCH; cero errores, LEVEL0, cuota2/2 intacta. No se
+relajó frescura. Seguridad main39453845081 SUCCESS; ejecución duplicada39453869860
+cancelada. Publicación39453869690 SUCCESS en el mismo main45.
+
+Validación local46: **959/959 Python offline** (157.844s TEST_RESULTS,
+20Oct2026 16:16:56.557358UTC; runner157.846s), **223/223 Node** (44.546s),
+build/diff PASS, sin fallos/errores/skips; red externa bloqueada, bot no iniciado.
+Regresión de recursos falló401 antes del fix y pasó después. CI/rollout46 pendientes.

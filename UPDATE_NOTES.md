@@ -1,3 +1,18 @@
+# 0.10.46 — Recursos remotos de Opportunity Shadow (en preparación)
+
+- Base instalada45, main5d08ca7/PR122, publicación39453869690 SUCCESS Linux/Windows;
+  firma y207/207hashes verificados20Oct16:10UTC. Observer IDLE/FRESH, tres latidos,
+  sin errores o entradas forzadas. Motores/protecciones preservados.
+- Corrección confirmada por GET401 remoto: los dos scripts compartidos existían
+  en el build pero faltaban en la lista cerrada de recursos estáticos del Worker.
+  Se agregan exactamente `/opportunity-contract.js` y `/opportunity-ui.js`.
+- Conserva CSP/no-store y autenticación/CSRF de APIs; sin abrir directorios,
+  rutas financieras, credenciales o datos. Sin cambio de motores, riesgo o IA.
+- Pruebas locales46:959 Python offline PASS (157.844s),223 Node PASS (44.546s),
+  build/diff PASS. Regresión401 antes del fix,5/5 foco después. CI/rollout46
+  pendientes;45 no acreditó el panel
+  remoto nuevo aunque la proyección HTTPS y la UI local funcionaron.
+
 # 0.10.45 — Opportunity & Capital Shadow (en preparación)
 
 - Base instalada/publicada44: main `f79578360f7870321d29cb842966bac2a250dba5`,
