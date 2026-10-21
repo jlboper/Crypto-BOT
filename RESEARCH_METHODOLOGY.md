@@ -1,3 +1,7 @@
+> Continuación47 en preparación: consultar [Validación y recuperación](VALIDATION_AND_RECOVERY.md).
+> Mantiene Guardian LEVEL0 y Pulse/Quant SHADOW. La evidencia fechada de instalación46
+> no acredita publicación, instalación ni validación operativa de47.
+
 # Corrección 0.10.30 — temporalidad y referencia operativa
 
 Spot usa sus velas configuradas de 4h y Futures/mark las de Futures (1h). Cada cache valida la duración y cadencia solicitadas. La cohorte Futures 4h anterior queda archivada; el seguimiento 1h comienza con velas posteriores a su nueva inscripción, conservando la observación Spot. Los informes antiguos identifican su temporalidad histórica.

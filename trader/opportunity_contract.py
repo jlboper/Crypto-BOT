@@ -112,15 +112,36 @@ def build_intent(*,engine,environment,origin_ref,strategy_version,at,legs,capita
     return _freeze(result)
 
 
-def build_outcome(*,engine,environment,origin_ref,at,stage,state,complete=False,evidence=None):
+def position_digest(engine, environment, position_ref):
+    """Hash a durable position identity, never a symbol-only correlation."""
+    if type(position_ref) is not str or not 1 <= len(position_ref) <= 160:
+        raise ValueError('INVALID_POSITION_REFERENCE')
+    return hashlib.sha256(canonical(['POSITION', engine, environment, position_ref])).hexdigest()
+
+
+def build_outcome(*,engine,environment,origin_ref,at,stage,state,complete=False,evidence=None,by_position=False):
     result=_identity(engine,environment,origin_ref,at)
     if type(stage) is not str or type(state) is not str or stage not in ('EXCHANGE_RESPONSE','LEDGER_COMMIT') or state not in ('FILLED','PARTIAL','REJECTED','CANCELLED','UNKNOWN','OPENED','CLOSED') or type(complete) is not bool:
         raise ValueError('INVALID_OUTCOME')
-    source=closed_dict(evidence,('response_digest','decision_digest','quantity','fees'))
+    source=closed_dict(evidence,('response_digest','decision_digest','position_digest','quantity','remaining_quantity','fees'))
     metadata={key:decimal_text(source.get(key)) for key in ('quantity','fees')}
-    for key in ('response_digest','decision_digest'):
+    for key in ('response_digest','decision_digest','position_digest'):
         value=source.get(key)
         if value is not None and (type(value) is not str or not re.fullmatch(r'[a-f0-9]{64}',value)):raise ValueError('INVALID_OUTCOME_DIGEST')
-        metadata[key]=value
+        if key=='position_digest':
+            if value is not None:result[key]=value
+        else:metadata[key]=value
+    remaining=decimal_text(source.get('remaining_quantity'))
+    if remaining is not None:result['remaining_quantity']=remaining
+    if type(by_position) is not bool:
+        raise ValueError('INVALID_POSITION_REFERENCE')
+    if by_position:
+        if (stage != 'LEDGER_COMMIT' or state not in ('CLOSED','PARTIAL')
+                or result.get('position_digest') is None or metadata['decision_digest'] is None
+                or remaining is None
+                or complete != (state == 'CLOSED')
+                or (remaining == '0') != (state == 'CLOSED')):
+            raise ValueError('INVALID_POSITION_OUTCOME')
+        result['position_reference']=True
     result.update(kind='ENTRY_OUTCOME',stage=stage,state=state,complete=complete,evidence=metadata)
     return _freeze(result)

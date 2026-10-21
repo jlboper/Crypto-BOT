@@ -590,6 +590,8 @@ class FuturesTestnetLab:
             raise
         if not isinstance(result, dict) or result.get("clientOrderId") != pending["client_order_id"]:
             raise FuturesTestnetExecutionError("Futures forward order identity mismatch")
+        if not pending.get('reduce_only'):
+            self._observe_forward_response(pending,result)
         status = str(result.get("status", ""))
         if status in {"NEW", "PARTIALLY_FILLED"}:
             return {"resolved": False, "status": status, "pending": pending}

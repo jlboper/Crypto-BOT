@@ -145,6 +145,7 @@ class BinanceTestnetBroker(PaperBroker):
         )
         pending.update(self._normalize_fill_with_trades(response, pending))
         self._save_pending(pending)
+        self._observe_response(pending)
         if pending["status"] in {"NEW", "PARTIALLY_FILLED"}:
             return False
         if pending["status"] not in TERMINAL:
@@ -407,6 +408,7 @@ class BinanceTestnetBroker(PaperBroker):
 
     def _apply_terminal_fill(self, pending: dict, *, native: bool = False) -> None:
         if pending.get("applied"):
+            self._observe_ledger_commit(pending)
             return
         identity = pending.get("client_order_id")
         if not isinstance(identity, str) or not identity:
@@ -420,14 +422,35 @@ class BinanceTestnetBroker(PaperBroker):
                     pending["applied"] = True
                     pending["realized_pnl"] = float(receipt["realized_pnl"])
                     if not native: self._save_pending(pending)
-                    return
-                self._apply_terminal_fill_once(pending, native=native)
-                db.execute("INSERT INTO exchange_fill_receipts VALUES(?,?,?,?,?)", (
-                    identity, pending["symbol"], pending["side"], float(pending.get("realized_pnl", 0)),
-                    datetime.now(UTC).isoformat()))
+                else:
+                    self._apply_terminal_fill_once(pending, native=native)
+                    db.execute("INSERT INTO exchange_fill_receipts VALUES(?,?,?,?,?)", (
+                        identity, pending["symbol"], pending["side"], float(pending.get("realized_pnl", 0)),
+                        datetime.now(UTC).isoformat()))
         except BaseException:
             pending.pop("applied", None)
             raise
+        # The transaction context has committed before optional evidence is sent.
+        self._observe_ledger_commit(pending)
+
+    @staticmethod
+    def _observe_ledger_commit(pending):
+        try:
+            from .opportunity_contract import canonical
+            from .opportunity_observer import observe_entry_outcome, observe_position_commit
+            evidence=pending.get('_opportunity_commit')
+            if type(evidence) is not dict:return
+            proof=hashlib.sha256(canonical([pending['client_order_id'],pending['side'],evidence])).hexdigest()
+            if pending['side']=='BUY':
+                observe_entry_outcome(engine='SPOT',environment='SPOT_TESTNET',origin_ref=pending['client_order_id'],
+                    at=time.time(),stage='LEDGER_COMMIT',state='OPENED',complete=True,
+                    evidence={'position_digest':evidence['position_digest'],'quantity':evidence['quantity'],
+                              'remaining_quantity':evidence['remaining_quantity'],'decision_digest':proof})
+            else:
+                observe_position_commit(engine='SPOT',environment='SPOT_TESTNET',position_ref=evidence['position_ref'],
+                    at=time.time(),remaining_quantity=evidence['remaining_quantity'],quantity=evidence['quantity'],proof=proof)
+        except Exception:
+            pass
 
     def _apply_terminal_fill_once(self, pending: dict, *, native: bool = False) -> None:
         if pending.get("applied"):
@@ -469,6 +492,7 @@ class BinanceTestnetBroker(PaperBroker):
                 entry_fee=float(fee_quote + fee_base * average),
                 opened_at=datetime.now(UTC).isoformat(),
             )
+            self._capture_opportunity_commit(pending,position,float(net_quantity),float(net_quantity))
             with self.db.connect():
                 if self.db.position(signal.symbol):
                     raise TestnetExecutionError("Duplicate local Testnet BUY")
@@ -495,6 +519,8 @@ class BinanceTestnetBroker(PaperBroker):
             allocated_entry_fee = Decimal(str(current.entry_fee)) * sold / Decimal(str(current.quantity))
             pnl -= allocated_entry_fee
             remaining = Decimal(str(current.quantity)) - sold
+            self._capture_opportunity_commit(pending,current,float(sold),
+                0.0 if remaining <= Decimal('0.000000000001') else float(remaining))
             with self.db.connect():
                 self.db.set_cash(self.db.cash() + float(proceeds))
                 if remaining <= Decimal("0.000000000001"):
@@ -526,6 +552,19 @@ class BinanceTestnetBroker(PaperBroker):
             pending["realized_pnl"] = float(pnl)
         pending["applied"] = True
         if not native: self._save_pending(pending)
+
+    @staticmethod
+    def _capture_opportunity_commit(pending,position,quantity,remaining):
+        # This metadata is saved with the existing pending receipt transaction;
+        # it cannot change quantity, order identity or financial accounting.
+        try:
+            from .opportunity_contract import position_digest,decimal_text
+            reference=position.symbol+'|'+position.opened_at
+            pending['_opportunity_commit']={'position_ref':reference,
+                'position_digest':position_digest('SPOT','SPOT_TESTNET',reference),
+                'quantity':decimal_text(quantity),'remaining_quantity':decimal_text(remaining)}
+        except Exception:
+            pass
 
     def protect(self, position: Position, price: float, atr_value: float):
         self.native.reconcile(position.symbol)

@@ -136,7 +136,9 @@ class GuardianAIRequestSchemaTests(unittest.TestCase):
                 self.assertEqual(result["reason"], "AI_COMMENTARY_INVALID")
                 self.assertEqual((len(rows), len(opener.calls)), (1, 1))
                 self.assertEqual(rows[0]["outcome"], "FAILED")
-                self.assertIsNone(rows[0]["result"])
+                diagnostic=json.loads(rows[0]['result'])
+                self.assertEqual(diagnostic['kind'],'COMMENTARY_REJECTION_DIAGNOSTIC')
+                self.assertIn(diagnostic['code'],ai.COMMENTARY_DIAGNOSTIC_CODES)
                 self.assertEqual((rows[0]["input_tokens"], rows[0]["output_tokens"]), (120, 40))
                 self.assertIsNotNone(rows[0]["estimated_cost_usd"])
 

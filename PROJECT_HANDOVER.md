@@ -1,3 +1,26 @@
+## 0.10.47 — validación y recuperación en preparación
+
+Base sincronizada main `a851908a11ff9f84cf53e755db120edc853b9fe9` (0.10.46).
+Verificación independiente 21Oct2026 01:56:39 UTC: firma Ed25519, 207/207 hashes,
+journal COMMITTED, runtime RUNNING, mismo motor7636/agente17748 y HTTPS correcto.
+Spot5/Futures7 con protecciones ARMED y cantidad desprotegida observada cero.
+Pulse/Quant SHADOW; Guardian LEVEL0 sin autoridad. Son cortes fechados.
+
+El propietario autorizó completar los seis frentes propuestos, manteniendo esas
+restricciones. La candidata añade trazabilidad postcommit de cierres/parciales,
+compatibilidad de rollback46, presupuesto remoto después de compactar, consultas
+RO con evidencia, matriz Research/Quant y preparación Risk+Capital exclusivamente
+SIM. No habilita Testnet nuevo, Control, reservas efectivas, LIVE ni promociones.
+Ver [VALIDATION_AND_RECOVERY.md](VALIDATION_AND_RECOVERY.md) para alcance y límites.
+
+Antes de publicar se obtuvieron ocho copias SQLite locales consistentes cada una
+(quick_check OK/hash; no captura global atómica), sin restaurar datos. Referencia
+01:58:35–39 UTC: 154485 filas/11 tablas para comparación posterior; configuraciones
+y credenciales sólo mediante hashes. CI, publicación, firma e instalación47 siguen
+pendientes y requieren comprobación propia. Local47:1042Python offline PASS142.563s,
+242Node PASS39.280s, PS5.1/build/diff PASS; no reutilizar resultados46.
+Las secciones siguientes conservan historia.
+
 # Project Handover — Crypto AI Trader
 
 This is the durable context entry point for a future engineer or AI model taking over this repository.

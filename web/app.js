@@ -509,6 +509,7 @@ function renderObservationHealth(spotHealth, futuresHealth, futures, status={}) 
 
 function renderResearch(report, state) {
   PulsePortal.renderResearch(report?.market_pulse_observation);
+  globalThis.CryptoResearchValidation?.render(report?.validation_summary);
   lastResearchReport=report;
   const badge=document.getElementById('researchState');
   const button=document.getElementById('researchButton');
@@ -781,7 +782,7 @@ const CommandCenterPortal = (() => {
     'portfolio-guardian':'guardian-ai','guardian-exposure':'guardian-ai','guardian-overlaps':'guardian-ai','guardian-quality':'guardian-ai',
     'guardian-intelligence':'guardian-ai','intelligence-scopes':'guardian-ai','intelligence-sources':'guardian-ai','intelligence-ai':'guardian-ai','intelligence-conflicts':'guardian-ai','intelligence-journal':'guardian-ai','intelligence-queries':'guardian-ai',
     'comparison-details':'portfolio-capital','spot-finance':'portfolio-capital','futures-finance':'portfolio-capital',
-    'capital-lab':'research-lab','capital-lab-audit':'research-lab',
+    'capital-lab':'research-lab','capital-lab-audit':'research-lab','research-validation':'research-lab',
     'opportunity-shadow':'guardian-ai','opportunity-capital':'guardian-ai','opportunity-decisions':'guardian-ai',
     'activity-section':'operations-decisions','historyPanel':'operations-decisions',
     'modelSettingsPanel':'system-settings','diagnosticsPanel':'system-settings','observation-details':'system-settings',
@@ -902,7 +903,7 @@ window.CommandCenterPortal=CommandCenterPortal;
 /* Shared supervised engine view. External event text is always escaped, never executable. */
 const PulsePortal = (() => {
   let pendingControl=null;
-  const foldIds=new Set(['spot-analysis','futures-analysis','pulse-live','pulse-news','pulse-scanner','pulse-decisions','pulse-finance','pulse-health','guardian-exposure','guardian-overlaps','guardian-quality','intelligence-scopes','intelligence-sources','intelligence-ai','intelligence-conflicts','intelligence-journal','intelligence-queries','quant-funding','quant-statistical','quant-positions','quant-decisions','quant-finance','quant-health','observation-details','comparison-details','spot-limits','futures-limits','spot-positions','futures-positions','spot-finance','futures-finance','diagnosticsPanel','research-lab','capital-lab','capital-lab-audit','opportunity-shadow','opportunity-capital','opportunity-decisions']);
+  const foldIds=new Set(['spot-analysis','futures-analysis','pulse-live','pulse-news','pulse-scanner','pulse-decisions','pulse-finance','pulse-health','guardian-exposure','guardian-overlaps','guardian-quality','intelligence-scopes','intelligence-sources','intelligence-ai','intelligence-conflicts','intelligence-journal','intelligence-queries','quant-funding','quant-statistical','quant-positions','quant-decisions','quant-finance','quant-health','observation-details','comparison-details','spot-limits','futures-limits','spot-positions','futures-positions','spot-finance','futures-finance','diagnosticsPanel','research-lab','capital-lab','capital-lab-audit','research-validation','opportunity-shadow','opportunity-capital','opportunity-decisions']);
   const navIds=new Set(['platform-overview','spot-bot','futures-bot','market-pulse','portfolio-guardian','quant-arbitrage','activity-section','modelSettingsPanel',...foldIds]);
   const foldStorageKey='crypto-ai-trader.ui.folds.v1';
   let redrawQueued=false;
@@ -1278,7 +1279,7 @@ const GuardianIntelligencePortal = (() => {
   const engines=['SPOT','FUTURES','AI_MARKET_PULSE','QUANT_ARBITRAGE'];
   const names={SPOT:'Spot Bot',FUTURES:'Futures Bot',AI_MARKET_PULSE:'AI Market Pulse',QUANT_ARBITRAGE:'Quant Arbitrage'};
   const flags=['controls_enabled','can_veto','execution_enabled','reservations_enabled','promotion_allowed'];
-  const intents=['SUMMARY','REGIME','SCOPE_RISK','CONFLICTS','DATA_QUALITY','ORIGINAL_REVIEW','LIMITATIONS','COUNTERFACTUAL'];
+  const intents=['SUMMARY','REGIME','SCOPE_RISK','CONFLICTS','DATA_QUALITY','ORIGINAL_REVIEW','LIMITATIONS','COUNTERFACTUAL','EXPOSURE','LAST_DECISION','CAPITAL_BLOCKS','PERFORMANCE','WHY_NO_ENTRY'];
   const riskLabels={CAUTION:'Cautela · revisar evidencia',RISK_REDUCED:'Revisar margen de presupuesto observado',ENTRY_HALTED:'Revisar pausa o exceso observado',RECOVERY_REQUIRED:'Revisar protección y conciliación'};
   const regimeLabels={BULLISH:'Sesgo alcista observado',BEARISH:'Sesgo bajista observado',SIDEWAYS:'Movimiento lateral observado',HIGH_VOLATILITY:'Volatilidad elevada observada',LIQUIDITY_STRESS:'Estrés de liquidez observado',INSUFFICIENT_DATA:'Evidencia insuficiente'};
   const allocations={KEEP_UNASSIGNED:'Mantener sin asignación sugerida',REVIEW_PROTECTION_AND_RECONCILIATION:'Revisar protección y conciliación',REVIEW_CURRENT_BUDGET_EXCESS:'Revisar exceso de presupuesto existente',REVIEW_EXISTING_PAUSE:'Revisar la pausa original del motor',REVIEW_NO_OBSERVED_GROSS_HEADROOM:'Revisar techo bruto observado'};
@@ -1299,8 +1300,57 @@ const GuardianIntelligencePortal = (() => {
   const reason=value=>mapped(reasons,value,short(value,100));
   const empty=value=>`<p class="empty">${esc(value)}</p>`;
   const authority=value=>object(value)&&value.schema===1&&value.engine==='GUARDIAN_INTELLIGENCE'&&value.mode==='SHADOW'&&value.autonomy_level===0&&flags.every(key=>value[key]===false);
-  let current=null,initialized=false,querySerial=0,answerAssessment=null;
+  let current=null,queryEvidence={portfolio:null,opportunities:null,remote:false},initialized=false,querySerial=0,answerAssessment=null,answerSource=null;
   const queries=[];
+  const asciiSize=value=>JSON.stringify(value).replace(/[\u007f-\uffff]/g,char=>'\\u'+char.charCodeAt(0).toString(16).padStart(4,'0')).length;
+  const count=value=>Number.isSafeInteger(value)&&value>=0&&value<=1000000000;
+  const nonnegative=value=>finite(value)&&value>=0&&value<=1e18;
+  const scopeEnvironment=(engine,environment)=>({SPOT:['SPOT_TESTNET','PAPER','UNKNOWN'],FUTURES:['FUTURES_DEMO'],AI_MARKET_PULSE:['SHADOW'],QUANT_ARBITRAGE:['SHADOW']}[engine]||[]).includes(environment);
+  const sourceRecent=(at,maximum)=>stamp(at)&&Date.now()-Date.parse(at)>=-5000&&Date.now()-Date.parse(at)<=maximum*1000;
+  function exposureEvidence(value){
+    // Validate and copy only evidence used by this query. The projection has no
+    // durable record ID; its timestamp must not be attributed to another report.
+    try{
+      if(!object(value)||value.schema!==1||value.engine!=='PORTFOLIO_GUARDIAN'||value.mode!=='OBSERVER'
+        ||['controls_enabled','can_veto','execution_enabled'].some(key=>value[key]!==false)
+        ||!['OBSERVING','PARTIAL','DEGRADED'].includes(value.state)||!stamp(value.at)||asciiSize(value)>15000
+        ||!Array.isArray(value.scopes)||value.scopes.length!==4||new Set(value.scopes.map(scope=>scope?.id)).size!==4)return null;
+      let assets=0;
+      const scopes=value.scopes.map(scope=>{
+        if(!object(scope)||!engines.includes(scope.id)||scope.engine!==scope.id||!scopeEnvironment(scope.id,scope.environment)
+          ||scope.inventory_scope!=='LEDGER_ONLY'||!['FRESH','PARTIAL','UNAVAILABLE','NOT_STARTED'].includes(scope.state)
+          ||!(scope.position_count===null||count(scope.position_count))||!(scope.unpriced_positions===null||count(scope.unpriced_positions))
+          ||!count(scope.assets_omitted)||!Array.isArray(scope.assets)||scope.assets.length>40
+          ||new Set(scope.assets.map(asset=>asset?.symbol)).size!==scope.assets.length
+          ||scope.position_count===null&&(scope.assets.length||scope.assets_omitted)
+          ||scope.position_count!==null&&(scope.assets.length+scope.assets_omitted>scope.position_count||scope.unpriced_positions>scope.position_count))throw Error();
+        const selected=scope.assets.map(asset=>{
+          if(!object(asset)||typeof asset.symbol!=='string'||!/^[A-Z0-9]{2,24}USDT$/.test(asset.symbol)
+            ||!['LONG','SHORT','UNKNOWN'].includes(asset.direction)||!['FRESH','UNKNOWN'].includes(asset.state)
+            ||!(asset.notional_usdt===null||nonnegative(asset.notional_usdt))||!(asset.priced_at===null||stamp(asset.priced_at)))throw Error();
+          return {symbol:asset.symbol,direction:asset.direction,state:asset.state,notional_usdt:asset.notional_usdt,priced_at:asset.priced_at};
+        });
+        assets+=selected.length;
+        return {id:scope.id,environment:scope.environment,state:scope.state,position_count:scope.position_count,unpriced_positions:scope.unpriced_positions,assets_omitted:scope.assets_omitted,assets:selected};
+      });
+      return assets<=40?{at:value.at,scopes}:null;
+    }catch{return null;}
+  }
+  function captureQueryEvidence(platform){
+    const portfolio=exposureEvidence(platform?.portfolio_guardian);
+    let opportunities=null;
+    try{
+      const value=platform?.opportunity_shadow;
+      if(window.CryptoOpportunityContract?.validOpportunityShadow(value)===true
+        &&value.recent_records.every(row=>Date.parse(row.at)<=Date.parse(value.at)&&Date.parse(row.recorded_at)<=Date.parse(value.at)))opportunities=JSON.parse(JSON.stringify(value));
+    }catch{}
+    queryEvidence={portfolio,opportunities,remote:platform?.remote_sync_stale===true};
+  }
+  function evidenceReference(source){
+    if(source==='PORTFOLIO_GUARDIAN')return queryEvidence.portfolio?.at||null;
+    if(source==='OPPORTUNITY_SHADOW')return queryEvidence.opportunities?.at||null;
+    return null;
+  }
   function validWrapper(value){
     try{return authority(value)&&['NOT_STARTED','INITIALIZED','OBSERVING','PARTIAL','STALE','DEGRADED','RETENTION_FULL','STOPPED'].includes(value.state)&&stamp(value.at)&&JSON.stringify(value).replace(/[\u007f-\uffff]/g,char=>'\\u'+char.charCodeAt(0).toString(16).padStart(4,'0')).length<=12000;}catch{return false;}
   }
@@ -1344,6 +1394,8 @@ const GuardianIntelligencePortal = (() => {
     html('intelligenceAi',empty(`Interpretación no disponible o desactivada. ${short(annotation.reason||annotation.state,100)}. El observador no depende de ella.`));
   }
   function render(platform){
+    captureQueryEvidence(platform);
+    if(answerSource&&(queryEvidence.remote||answerSource.at!==evidenceReference(answerSource.name)))set('intelligenceAnswerFreshness','Respuesta anterior sobre una proyección histórica; consulta de nuevo para citar la evidencia actual.');
     const value=platform?.guardian_intelligence;
     if(!validWrapper(value)){current=null;set('intelligenceState',value?'REPORTE NO COMPATIBLE':'SIN EVIDENCIA');set('intelligenceStatus','Sin reporte Intelligence compatible. No se infiere un fallo de los motores; Observer conserva su lectura independiente.');clear('Intelligence aún no ha publicado evidencia compatible. Los valores desconocidos no se sustituyen por cero.');html('intelligenceAnswer',empty('Sin reporte actual verificable para responder. Las consultas anteriores sólo figuran en el historial local.'));return;}
     const old=isOld(value,platform?.remote_sync_stale===true),valid=validReport(value.report,value),report=valid?value.report:null;
@@ -1380,6 +1432,11 @@ const GuardianIntelligencePortal = (() => {
     const scopes=[];if(/\bspot\b/.test(text))scopes.push('SPOT');if(/future|futuro/.test(text))scopes.push('FUTURES');if(/pulse/.test(text))scopes.push('AI_MARKET_PULSE');if(/quant/.test(text))scopes.push('QUANT_ARBITRAGE');
     const choices=[];
     if(/sin ia|habria|evitad|contrafactual/.test(text))choices.push('COUNTERFACTUAL');
+    else if(/por que.*(?:no\s+(?:compro|entro|opero|abrio)|rechaz)|por que.*(?:compro|entro|opero|abrio).*no/.test(text))choices.push('WHY_NO_ENTRY');
+    else if(/exposicion|expuesto|expuesta|posiciones? en/.test(text))choices.push('EXPOSURE');
+    else if(/capital.*(?:bloque|rechaz|insufic)|(?:bloque|rechaz).*capital|fondos.*insufic/.test(text))choices.push('CAPITAL_BLOCKS');
+    else if(/ultima.*(?:decision|operacion|intencion|evaluacion)|ultimo.*(?:evento|resultado)/.test(text))choices.push('LAST_DECISION');
+    else if(/rendimiento|rentabilidad|mejor.*(?:motor|estrategia)|resultado.*(?:ajustad|riesgo)/.test(text))choices.push('PERFORMANCE');
     else if(/coincid|conflict|cobertura|hedge|correlacion/.test(text))choices.push('CONFLICTS');
     else if(/revision|veredicto|revisor|modelo|que dijo la ia/.test(text))choices.push('ORIGINAL_REVIEW');
     else if(/falta|fuente|fresc|antigu|calidad|datos/.test(text))choices.push('DATA_QUALITY');
@@ -1389,25 +1446,77 @@ const GuardianIntelligencePortal = (() => {
     else if(/resumen|observando|observa|estado general/.test(text))choices.push('SUMMARY');
     if(text&&!choices.length)return {state:'UNSUPPORTED',reason:'No se identificó una consulta de lectura cerrada. Elige una consulta guiada o reformula.'};
     const intent=choices[0]||selected;
-    if(scopes.length>1&&['SCOPE_RISK','ORIGINAL_REVIEW'].includes(intent))return {state:'AMBIGUOUS',reason:'Selecciona un solo motor para esta consulta.'};
-    const symbols=intent==='CONFLICTS'?[...new Set([...(question.match(/\b[A-Z0-9]{2,24}USDT\b/g)||[]),...[...question.matchAll(/\b(?:en|de|para)\s+([A-Z0-9]{2,24})\b/gi)].map(match=>match[1]).filter(value=>value===value.toUpperCase()),...(text.match(/\b(?:btc|eth|sol|bnb|xrp|ada|doge|trx|link|avax)(?:usdt)?\b/g)||[])].filter(value=>value!=='IA').map(value=>value.toUpperCase().replace(/USDT$/,'')+'USDT'))]:[];
+    if(scopes.length>1&&['SCOPE_RISK','ORIGINAL_REVIEW','WHY_NO_ENTRY'].includes(intent))return {state:'AMBIGUOUS',reason:'Selecciona un solo motor para esta consulta.'};
+    const symbols=['CONFLICTS','EXPOSURE','LAST_DECISION','CAPITAL_BLOCKS','WHY_NO_ENTRY'].includes(intent)?[...new Set([...(question.match(/\b[A-Z0-9]{2,24}USDT\b/g)||[]),...[...question.matchAll(/\b(?:en|de|para|a)\s+([A-Z0-9]{2,24})\b/gi)].map(match=>match[1]).filter(value=>value===value.toUpperCase()),...(text.match(/\b(?:btc|eth|sol|bnb|xrp|ada|doge|trx|link|avax)(?:usdt)?\b/g)||[])].filter(value=>!['IA','AI','SPOT','FUTURES','PULSE','QUANT','GUARDIAN','MARKET','BOT','BOTS','LA','EL','LAS','LOS','HOY','AYER'].includes(value)).map(value=>value.toUpperCase().replace(/USDT$/,'')+'USDT'))]:[];
     if(symbols.length>1)return {state:'AMBIGUOUS',reason:'Consulta un solo activo a la vez.'};
     return {state:'SUPPORTED',intent,scope:scopes[0]||selectedScope,symbol:symbols[0]||null};
+  }
+  function answerObserved(resolved){
+    const result={...resolved,state:'UNKNOWN',assessment_id:null,cutoff_at:null,record_id:null,source:null,source_at:null,evidence_ids:[]};
+    if(resolved.intent==='PERFORMANCE')return {...result,text:'Desconocido: falta una cohorte comparable validada con el mismo período, entorno, metodología y costes. No se puede identificar la mejor estrategia ajustada por riesgo ni atribuir beneficios a IA o Guardian.'};
+    if(resolved.intent==='EXPOSURE'){
+      const value=queryEvidence.portfolio;
+      if(!resolved.symbol)return {...result,text:'Indica un solo activo, por ejemplo «exposición a BTC». No se suman entornos ni cuentas.'};
+      if(!value)return {...result,text:'Sin proyección Portfolio Guardian compatible para valorar ese activo. Exposición desconocida; no se sustituye por cero.'};
+      const old=queryEvidence.remote||!sourceRecent(value.at,120);
+      Object.assign(result,{source:'PORTFOLIO_GUARDIAN',source_at:value.at,cutoff_at:value.at,state:old?'HISTORICAL':'ANSWERED'});
+      let incomplete=false;
+      const scopes=value.scopes.filter(scope=>resolved.scope==='ALL'||scope.id===resolved.scope);
+      const explanations=scopes.map(scope=>{
+        const label=`${names[scope.id]} / ${scope.environment}`,asset=scope.assets.find(row=>row.symbol===resolved.symbol);
+        const complete=!old&&scope.state==='FRESH'&&scope.environment!=='UNKNOWN'&&scope.assets_omitted===0&&scope.unpriced_positions===0&&count(scope.position_count)&&(scope.id==='QUANT_ARBITRAGE'||scope.assets.length===scope.position_count);
+        if(!complete){incomplete=true;return `${label}: exposición actual desconocida; inventario del ledger incompleto, sin precio o antiguo.`;}
+        if(!asset)return `${label}: activo sin posición publicada en el ledger de este corte; no certifica el inventario de Binance.`;
+        if(asset.state!=='FRESH'||!nonnegative(asset.notional_usdt)||!sourceRecent(asset.priced_at,sourceAges[scope.id])||Date.parse(asset.priced_at)>Date.parse(value.at)){
+          incomplete=true;return `${label}: posición publicada, valor actual desconocido por calidad o antigüedad del precio.`;
+        }
+        return `${label}: exposición bruta ${number(asset.notional_usdt,6)} USDT; dirección ${asset.direction==='UNKNOWN'?'mixta o no desglosada':asset.direction}; precio conocido ${time(asset.priced_at)}.`;
+      });
+      if(incomplete&&!old)result.state='UNKNOWN';
+      result.text=`${resolved.symbol} · ${old?'proyección histórica, cantidades actuales desconocidas. ':''}${explanations.join(' ')} Ámbitos separados; sin suma global, neteo ni cobertura supuesta. Sólo inventario del ledger; proyección ${time(value.at)}, sin ID durable de captura publicado.`;
+      return result;
+    }
+    const value=queryEvidence.opportunities;
+    if(!value)return {...result,text:'Sin journal Opportunity Shadow compatible. Últimas decisiones y restricciones de capital no verificables en esta lectura.'};
+    const old=queryEvidence.remote||value.freshness.state!=='FRESH'||value.health.worker_alive!==true||!sourceRecent(value.at,30)||!sourceRecent(value.health.heartbeat_at,20);
+    Object.assign(result,{source:'OPPORTUNITY_SHADOW',source_at:value.at,cutoff_at:value.at});
+    let records=value.recent_records.filter(row=>resolved.scope==='ALL'||row.engine===resolved.scope);
+    if(resolved.symbol){
+      const origins=new Set(records.filter(row=>row.legs.some(leg=>leg.symbol===resolved.symbol)).map(row=>row.engine+':'+row.environment+':'+row.origin_digest));
+      records=records.filter(row=>origins.has(row.engine+':'+row.environment+':'+row.origin_digest));
+    }
+    records=records.slice().sort((a,b)=>Date.parse(b.at)-Date.parse(a.at)||Date.parse(b.recorded_at)-Date.parse(a.recorded_at)||a.id.localeCompare(b.id));
+    if(resolved.intent==='CAPITAL_BLOCKS'){
+      const rejected=records.filter(row=>row.kind==='ENTRY_INTENT'&&row.assessment.hypothetical_state==='REJECTED_UNVERIFIED');
+      result.evidence_ids=rejected.map(row=>row.id);
+      result.text=`${old?'Última proyección histórica. ':''}En ${records.length} registros recientes publicados: ${rejected.length} intenciones con hipótesis rechazadas${rejected.length?' ('+[...new Set(rejected.map(row=>row.assessment.reason))].join(', ')+')':''}. Guardian no aplica vetos ni reservas efectivas. Estos resultados simulados no acreditan órdenes nativas bloqueadas por capital. El total de bloqueos reales es desconocido; la muestra acotada no es el historial completo.`;
+      return result;
+    }
+    const record=records[0];
+    if(!record)return {...result,text:'Sin observación reciente publicada para ese ámbito o activo. La ausencia de registros en una muestra acotada no demuestra ausencia de operaciones.'};
+    Object.assign(result,{state:old?'HISTORICAL':'ANSWERED',cutoff_at:record.at,record_id:record.id,evidence_ids:[record.id]});
+    const stage=record.stage==='EXCHANGE_RESPONSE'?'Respuesta del exchange; FILLED no demuestra commit del ledger ni protección nativa.'
+      :record.stage==='LEDGER_COMMIT'?'Commit del ledger observado; no acredita por sí solo conciliación completa o protección nativa.'
+      :['FINAL_ENTRY_INTENT','HYPOTHETICAL_ENTRY_INTENT'].includes(record.stage)?'Intención de entrada observada; no equivale a una operación ejecutada.'
+      :'Etapa del ciclo de vida observada; consultar la evidencia, sin inferir ejecución.';
+    result.text=`${old?'Observación histórica; situación actual desconocida. ':''}${names[record.engine]} / ${record.environment} · ${record.stage} · ${record.state} · ${time(record.at)}. ${stage} Asentada ${time(record.recorded_at)}. Último registro de la muestra publicada; no necesariamente la última decisión IA o ejecución global. ID ${record.id}; origen ${record.origin_digest}. La UI valida el contrato, sin volver a verificar el corpus persistido.`;
+    return result;
   }
   function answer(question='',selected='SUMMARY',selectedScope='ALL'){
     const resolved=resolveIntent(question,selected,selectedScope);
     if(resolved.state!=='SUPPORTED')return {...resolved,text:resolved.reason};
+    if(['EXPOSURE','LAST_DECISION','CAPITAL_BLOCKS','PERFORMANCE'].includes(resolved.intent))return answerObserved(resolved);
     if(!current)return {...resolved,state:'UNKNOWN',text:'Sin assessment compatible disponible. No se puede responder usando datos inventados.'};
     const {report,wrapper}=current,old=isOld(wrapper,current.remote),selectedRows=report.scopes.filter(scope=>resolved.scope==='ALL'||scope.id===resolved.scope),regime=report.regime||{};
     const output={...resolved,state:old?'HISTORICAL':'ANSWERED',assessment_id:report.assessment_id,cutoff_at:report.cutoff_at,record_id:rows(wrapper.journal,3).find(row=>stamp(row.cutoff_at)&&Date.parse(row.cutoff_at)===Date.parse(report.cutoff_at)&&hash(row.id)&&row.id===report.evidence.source_digest)?.id||null};
-    const texts={SUMMARY:()=>`Guardian observa cuatro ámbitos separados. ${mapped(regimeLabels,regime.state,'Régimen desconocido')}. ${selectedRows.filter(scope=>scopeCurrent(scope,report,old)).length}/${selectedRows.length} fuentes seleccionadas recientes; sin autoridad de ejecución.`,REGIME:()=>`${mapped(regimeLabels,regime.state,'Régimen desconocido')}. Proxy descriptivo BTC Spot de 60 minutos, no señal para todos los activos. ${reason(regime.reason)}.`,SCOPE_RISK:()=>selectedRows.map(scope=>`${names[scope.id]}: evaluación Shadow ${mapped(riskLabels,scope.risk_state)}. ${mapped(allocations,scope.allocation)}; no es un cambio aplicado por Guardian.`).join(' '),CONFLICTS:()=>`Coincidencias publicadas: ${rows(report.conflicts,10).length}. Son observaciones entre ámbitos separados, no una cobertura verificada. Correlación desconocida; no se calcula una cartera neta común.`,DATA_QUALITY:()=>selectedRows.map(scope=>`${names[scope.id]}: ${scopeCurrent(scope,report,old)?'fuente reciente':'actualidad desconocida'}; inventario ${scope.inventory_complete===true?'completo según esa captura':'sin completar'}; dato ${time(scope.source_at)}, disponible ${time(scope.available_at)}.`).join(' '),ORIGINAL_REVIEW:()=>selectedRows.map(scope=>`${names[scope.id]}: ${reviewText(scope,report)}`).join(' '),LIMITATIONS:()=>`LEVEL 0 · SHADOW. Sin veto, reservas, asignación, cambios de riesgo, promoción u órdenes. La revisión individual y los cierres protectores de los motores siguen independientes.`,COUNTERFACTUAL:()=>`Desconocido: no existe una cohorte contrafactual comparable validada. No se pueden estimar pérdidas evitadas ni ganancias sin IA a partir de este reporte.`};
+    const texts={SUMMARY:()=>`Guardian observa cuatro ámbitos separados. ${mapped(regimeLabels,regime.state,'Régimen desconocido')}. ${selectedRows.filter(scope=>scopeCurrent(scope,report,old)).length}/${selectedRows.length} fuentes seleccionadas recientes; sin autoridad de ejecución.`,REGIME:()=>`${mapped(regimeLabels,regime.state,'Régimen desconocido')}. Proxy descriptivo BTC Spot de 60 minutos, no señal para todos los activos. ${reason(regime.reason)}.`,SCOPE_RISK:()=>selectedRows.map(scope=>`${names[scope.id]}: evaluación Shadow ${mapped(riskLabels,scope.risk_state)}. ${mapped(allocations,scope.allocation)}; no es un cambio aplicado por Guardian.`).join(' '),CONFLICTS:()=>`Coincidencias publicadas: ${rows(report.conflicts,10).length}. Son observaciones entre ámbitos separados, no una cobertura verificada. Correlación desconocida; no se calcula una cartera neta común.`,DATA_QUALITY:()=>selectedRows.map(scope=>`${names[scope.id]}: ${scopeCurrent(scope,report,old)?'fuente reciente':'actualidad desconocida'}; inventario ${scope.inventory_complete===true?'completo según esa captura':'sin completar'}; dato ${time(scope.source_at)}, disponible ${time(scope.available_at)}.`).join(' '),ORIGINAL_REVIEW:()=>selectedRows.map(scope=>`${names[scope.id]}: ${reviewText(scope,report)}`).join(' '),WHY_NO_ENTRY:()=>selectedRows.map(scope=>`${names[scope.id]}: ${reviewText(scope,report)}`).join(' ')+' Causa de la ausencia de entradas durante el día: desconocida. Una revisión puntual no acredita el historial completo ni su vínculo con el activo o la propuesta preguntados.',LIMITATIONS:()=>`LEVEL 0 · SHADOW. Sin veto, reservas, asignación, cambios de riesgo, promoción u órdenes. La revisión individual y los cierres protectores de los motores siguen independientes.`,COUNTERFACTUAL:()=>`Desconocido: no existe una cohorte contrafactual comparable validada. No se pueden estimar pérdidas evitadas ni ganancias sin IA a partir de este reporte.`};
     output.text=(old?'Último reporte histórico; estado actual sin verificar. ':'')+texts[resolved.intent]();
     if(resolved.intent==='CONFLICTS'&&resolved.symbol){
       const matches=rows(report.conflicts,10).filter(row=>row.symbol===resolved.symbol);
       output.text=(old?'Último reporte histórico. ':'')+`${resolved.symbol}: ${matches.length?matches.length+' coincidencia(s) publicadas entre '+matches.flatMap(row=>rows(row.members,8).map(member=>names[member.engine]||'Ámbito desconocido')).join(' / '):'sin coincidencias registradas en esta proyección'}. No prueba una cobertura, ausencia real de exposición ni correlación. Los registros omitidos o fuentes incompletas limitan la respuesta.`;
       if(!matches.length)output.state='UNKNOWN';
     }
-    if(resolved.intent==='COUNTERFACTUAL')output.state='UNKNOWN';
+    if(['COUNTERFACTUAL','WHY_NO_ENTRY'].includes(resolved.intent))output.state='UNKNOWN';
     return output;
   }
   function init(){
@@ -1416,14 +1525,15 @@ const GuardianIntelligencePortal = (() => {
       event.preventDefault();
       const result=answer(document.getElementById('intelligenceQuestion')?.value||'',document.getElementById('intelligenceIntent')?.value||'SUMMARY',document.getElementById('intelligenceScope')?.value||'ALL');
       answerAssessment=result.assessment_id||null;
+      answerSource=result.source&&result.source_at?{name:result.source,at:result.source_at}:null;
       const id='browser-'+(++querySerial),at=new Date().toISOString();
       queries.unshift({id,at,intent:result.intent||result.state,assessment:result.assessment_id||null});queries.splice(6);
-      html('intelligenceAnswer',`<article class="pulse-item"><strong>Respuesta local · ${esc(mapped({ANSWERED:'EVIDENCIA DISPONIBLE',HISTORICAL:'HISTÓRICA',UNKNOWN:'DESCONOCIDO',UNSUPPORTED:'NO SOPORTADO',AMBIGUOUS:'ELEGIR ÁMBITO'},result.state))}</strong><p id="intelligenceAnswerFreshness" class="platform-note">${result.state==='HISTORICAL'?'Respuesta sobre un reporte histórico.':'Respuesta vinculada al corte citado; no se actualiza como si fuera un assessment nuevo.'}</p><p>${esc(result.text)}</p><dl class="intelligence-evidence">${metrics([['Consulta local',id],['Hora',time(at)],['Assessment',result.assessment_id||'No disponible'],['Corte',time(result.cutoff_at)],['Registro persistido vinculado',result.record_id||'No incluido en esta proyección']])}</dl>${result.assessment_id?'<a class="command-link" href="#intelligence-journal">Ver identidad de la evidencia →</a>':''}<p class="platform-note">Historial de esta pestaña; no es auditoría durable. La respuesta queda vinculada al assessment citado y no se actualiza como si fuera uno nuevo.</p></article>`);
+      html('intelligenceAnswer',`<article class="pulse-item"><strong>Respuesta local · ${esc(mapped({ANSWERED:'EVIDENCIA DISPONIBLE',HISTORICAL:'HISTÓRICA',UNKNOWN:'DESCONOCIDO',UNSUPPORTED:'NO SOPORTADO',AMBIGUOUS:'ELEGIR ÁMBITO'},result.state))}</strong><p id="intelligenceAnswerFreshness" class="platform-note">${result.state==='HISTORICAL'?'Respuesta sobre un reporte histórico.':'Respuesta vinculada al corte citado; no se actualiza como si fuera un assessment nuevo.'}</p><p>${esc(result.text)}</p><dl class="intelligence-evidence">${metrics([['Consulta local',id],['Hora',time(at)],['Fuente',result.source||'GUARDIAN_INTELLIGENCE'],['Proyección de la fuente',time(result.source_at)],['Assessment',result.assessment_id||'No disponible para esta fuente'],['Corte',time(result.cutoff_at)],['Registro persistido vinculado',result.record_id||'No incluido en esta proyección'],['Referencias publicadas',(result.evidence_ids||[]).join(' / ')||'Sin referencias adicionales']])}</dl>${result.assessment_id?'<a class="command-link" href="#intelligence-journal">Ver identidad de la evidencia →</a>':result.source==='OPPORTUNITY_SHADOW'?'<a class="command-link" href="#opportunity-decisions">Ver observaciones publicadas →</a>':result.source==='PORTFOLIO_GUARDIAN'?'<a class="command-link" href="#guardian-exposure">Ver exposición por ámbito →</a>':''}<p class="platform-note">Historial de esta pestaña; no es auditoría durable. La respuesta conserva su fuente y corte; no se reasigna a otra captura.</p></article>`);
       html('intelligenceQueryHistory',queries.map(query=>`<p class="settings-help">${esc(query.id)} · ${esc(query.intent)} · ${esc(time(query.at))} · assessment ${esc(query.assessment||'no disponible')}</p>`).join(''));
       // Deliberately do not store raw questions, invoke APIs, tools or model calls.
     });
   }
-  function disconnected(){current=null;set('intelligenceState','LECTURA NO DISPONIBLE');set('intelligenceStatus','La conexión del portal no confirma una parada de los motores. Observer y las protecciones mantienen sus mecanismos independientes.');clear('Sin lectura actual verificable; consulta de nuevo para obtener evidencia reciente.');html('intelligenceAnswer',empty('La respuesta anterior no representa el estado actual. Sin conexión verificable.'));}
+  function disconnected(){current=null;queryEvidence={portfolio:null,opportunities:null,remote:false};set('intelligenceState','LECTURA NO DISPONIBLE');set('intelligenceStatus','La conexión del portal no confirma una parada de los motores. Observer y las protecciones mantienen sus mecanismos independientes.');clear('Sin lectura actual verificable; consulta de nuevo para obtener evidencia reciente.');html('intelligenceAnswer',empty('La respuesta anterior no representa el estado actual. Sin conexión verificable.'));}
   return {render,disconnected,init,resolveIntent,answer,isOld,validWrapper};
 })();
 window.GuardianIntelligencePortal=GuardianIntelligencePortal;

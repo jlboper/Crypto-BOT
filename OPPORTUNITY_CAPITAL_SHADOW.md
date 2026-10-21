@@ -1,3 +1,7 @@
+> Continuación47 en preparación: consultar [Validación y recuperación](VALIDATION_AND_RECOVERY.md).
+> Mantiene Guardian LEVEL0 y Pulse/Quant SHADOW. La evidencia fechada de instalación46
+> no acredita publicación, instalación ni validación operativa de47.
+
 # Opportunity & Capital Shadow — candidata 0.10.45
 
 ## Alcance

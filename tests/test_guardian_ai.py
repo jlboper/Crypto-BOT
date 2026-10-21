@@ -570,7 +570,10 @@ class GuardianAITests(unittest.TestCase):
                 row = self.rows(reviewer)[0]
                 self.assertEqual((row["input_tokens"], row["output_tokens"], row["cached_tokens"]), (120, 40, 20))
                 self.assertAlmostEqual(row["estimated_cost_usd"], (100*.10+20*.01+40*.50)/1_000_000)
-                self.assertIsNone(row["result"])
+                if kind=='commentary':
+                    self.assertEqual(json.loads(row['result'])['code'],'JSON_DECODE')
+                else:
+                    self.assertIsNone(row["result"])
                 self.assertTrue(reviewer.health()["costs_complete"])
 
     def test_incomplete_partial_usage_retains_only_valid_tokens_without_zero_cost(self):

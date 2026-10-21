@@ -1052,7 +1052,7 @@ test('opportunity scripts use the explicit GET asset route without opening priva
     return new Response('/* '+path+' */',{headers:{'content-type':'application/javascript','cache-control':'public, max-age=86400','content-security-policy':"default-src *"}});
   }};
   assert.equal((await f.request('/v1/status')).status,401);
-  const paths=['/opportunity-contract.js','/opportunity-ui.js'];
+  const paths=['/opportunity-contract.js','/opportunity-ui.js','/research-validation.js'];
   for(const path of paths){
     const response=await worker.fetch(new Request(origin+path),f.env);
     assert.equal(response.status,200);
@@ -1202,4 +1202,18 @@ test('expanded research sync accepts bounded portfolios and rejects operating pr
     const invalid=structuredClone(s);mutate(invalid.dashboard.research);
     assert.equal((await f.sync({snapshot:invalid,acks:[]})).status,400);
   }
+});
+
+test('optional research validation preserves legacy sync and uses its known safe fallback on rejection',async t=>{
+  const f=await fixture(t);
+  const summary=JSON.parse(execFileSync(process.env.PYTHON||'python',[
+    '-X','utf8',fileURLToPath(new URL('../../tests/emit_research_validation_fixture.py',import.meta.url))],{encoding:'utf8'}));
+  const s={...snapshot(),dashboard:{status:{mode:'PAPER'},positions:[],equity:[],trades:[],reviews:[],events:[],research:{assets:[],validation_summary:summary}}};
+  assert.equal((await f.sync({snapshot:s,acks:[]})).status,200);
+  for(const mutate of [x=>x.controls_enabled=true,x=>x.engines[3].replay.sampled=17,x=>x.comparison.best_strategy='SPOT']){
+    const bad=structuredClone(s);mutate(bad.dashboard.research.validation_summary);
+    const response=await f.sync({snapshot:bad,acks:[]});assert.equal(response.status,400);assert.equal(response.body.error,'Invalid research report');
+  }
+  const legacy=structuredClone(s);delete legacy.dashboard.research.validation_summary;
+  assert.equal((await f.sync({snapshot:legacy,acks:[]})).status,200);
 });
