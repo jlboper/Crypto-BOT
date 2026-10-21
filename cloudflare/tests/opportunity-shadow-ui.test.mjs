@@ -56,7 +56,50 @@ test('absence, healthy idleness and unknown money keep distinct honest states',(
   assert.equal(p.get('opportunityState').textContent,'ESPERANDO PROPUESTAS');
   assert.match(p.get('opportunityStatus').textContent,/no implica un error/);
   assert.match(p.get('opportunityRecords').textContent,/Sin propuestas/);
+  assert.match(p.get('opportunityRecords').textContent,/Selección reciente: 0 de 0 registros/);
   assert.equal(p.get('opportunityScopes').querySelectorAll('article').length,0);
+});
+
+test('a nonempty journal without recent detail never claims no proposals or changes aggregate counters',()=>{
+  const p=setup(),v=produce();
+  assert.ok(v.health.records>0);
+  v.recent_records=[];
+  assert.equal(p.window.CryptoOpportunityContract.validOpportunityShadow(v),true);
+  const before=structuredClone(v);
+  p.observer.render({opportunity_shadow:v});
+  assert.equal(p.get('opportunityState').textContent,'OBSERVANDO');
+  assert.match(p.get('opportunityRecords').textContent,new RegExp('Selección reciente: 0 de '+v.health.records+' registros'));
+  assert.match(p.get('opportunityRecords').textContent,/esta lectura no incluye detalle reciente/);
+  assert.doesNotMatch(p.get('opportunityRecords').textContent,/Sin propuestas recibidas|presupuesto|tamaño|recortado|pérdida del journal/);
+  assert.equal(p.get('opportunityRecords').querySelectorAll('article').length,0);
+  assert.match(p.get('opportunityMetrics').textContent,new RegExp('Registros'+v.health.records));
+  assert.deepEqual(v,before);
+  assert.equal(p.calls.length,0);
+});
+
+test('a bounded recent prefix states its selection size without claiming a cause or a full history',()=>{
+  const p=setup(),v=produce();
+  assert.ok(v.recent_records.length>2&&v.health.records>2);
+  v.recent_records=v.recent_records.slice(0,2);
+  assert.equal(p.window.CryptoOpportunityContract.validOpportunityShadow(v),true);
+  const before=structuredClone(v);
+  p.observer.render({opportunity_shadow:v});
+  assert.match(p.get('opportunityRecords').textContent,new RegExp('Selección reciente: 2 de '+v.health.records+' registros'));
+  assert.equal(p.get('opportunityRecords').querySelectorAll('article').length,2);
+  assert.doesNotMatch(p.get('opportunityRecords').textContent,/Sin propuestas recibidas|presupuesto de sincronización|recortado por/);
+  assert.match(p.get('opportunityRecords').textContent,/admisión efectiva no evaluable/);
+  assert.deepEqual(v,before);
+  assert.equal(p.calls.length,0);
+});
+
+test('an unknown journal total remains distinct from a genuinely empty journal',()=>{
+  const p=setup();p.observer.render({opportunity_shadow:produce('not-started')});
+  assert.match(p.get('opportunityRecords').textContent,/total del journal desconocido/);
+  assert.match(p.get('opportunityRecords').textContent,/actividad total del journal no está confirmada/);
+  assert.doesNotMatch(p.get('opportunityRecords').textContent,/Sin propuestas recibidas|0 de 0/);
+  p.observer.render({opportunity_shadow:produce('idle')});
+  assert.match(p.get('opportunityRecords').textContent,/Selección reciente: 0 de 0 registros/);
+  assert.match(p.get('opportunityRecords').textContent,/Sin propuestas recibidas/);
 });
 test('every authority extension, injected unknown field and malformed numeric result fails closed',()=>{
   const changes=[v=>v.controls_enabled=true,v=>v.reservations_enabled=true,v=>v.autonomy_level=1,

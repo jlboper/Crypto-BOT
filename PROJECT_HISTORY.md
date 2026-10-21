@@ -1,5 +1,60 @@
 # Project History and Decision Log
 
+## 2026-10-21 — Research48 completado y correctiva49 de presupuesto remoto
+
+**0.10.48 está publicada, firmada e instalada**: main
+`0270057f59d67362a6cff2851d138e0cc765155d`,
+[PR125](https://github.com/jlboper/Crypto-BOT/pull/125).
+[Publicación39609237309](https://github.com/jlboper/Crypto-BOT/actions/runs/39609237309)
+y [seguridad39609237234](https://github.com/jlboper/Crypto-BOT/actions/runs/39609237234)
+aprobaron Linux y Windows. Entre21Oct2026 **13:41–13:44UTC** se verificaron Ed25519,
+**228/228 archivos**, agente11/11 y dos sincronizaciones HTTPS correctas.
+Las **172145 filas** de referencia conservaron cero ausencias/cambios;
+configuración, credenciales y settings mantuvieron sus hashes. Son verificaciones
+fechadas, no una captura global atómica ni prueba de todas las filas posteriores.
+
+Research terminó **COMPLETED a13:50:14UTC**:24/30 activos Spot y15/15 Futures.
+Seis activos Spot quedaron excluidos con categoría `ValueError`; no se atribuye
+una causa específica que el informe no conserva. El nuevo archivo incluye matriz
+de cuatro motores, replay Pulse acotado a1000 decisiones sin divergencias y
+16/16 modelos Quant coincidentes en su muestra. El archivo previo del19Oct quedó
+intacto. Metodología presente/replay coincidente no acreditan rentabilidad,
+ejecución validada, ventaja OOS independiente o ganancias atribuibles a IA/Guardian.
+
+Después del estudio se observó en48 una proyección remota de **474183 bytes**
+con serialización ASCII predeterminada y **441792 bytes** de transporte que omitía
+`opportunity_shadow`. La menor huella de transporte no aumenta el límite de
+validación ni demuestra una caída del observador o de los motores.
+
+La candidata49 prepara historial remoto adaptativo: probar de seis a cero registros
+recientes y conservar el mayor prefijo que quepa, retirando primero el detalle más
+antiguo. Mantiene **480000 bytes** como límite de serialización ASCII predeterminada.
+Conserva sin recortar la base, `health`, `coverage`, `scopes`, permisos y
+evidencia de protecciones. Si ni con cero detalles cabe, conserva la omisión
+opcional reconocida; no fuerza una proyección inválida.
+
+La UI diferencia cero registros en el journal de cero detalles incluidos en esa
+proyección. El SQLite y el detalle habitual local no se recortan para reducir el
+envío remoto. No cambian contratos públicos, APIs, autoridad, trading o riesgo.
+Pulse/Quant permanecen SHADOW y Guardian LEVEL0, sin promociones o LIVE.
+
+Validación local49: **1061/1061 Python offline PASS**198.282s,21Oct14:10:29UTC,
+sin fallos/errores/skips, red externa bloqueada y bot no iniciado; **245/245 Node
+PASS**90.126s, PS5.1 lifecycle/vistas, build/diff PASS. Nueve regresiones Python
+y tres UI cubren prefijo máximo, límite exacto/Unicode, resumen sin detalle,
+omisión inevitable, ausencia de mutaciones y distinción entre vacío/desconocido.
+Probe RO secuencial14:05:22–23UTC:48omite el observer con474217bytes; candidata49
+incluye3recientes de37 con479616bytes, misma matriz y protecciones,0SQLmutaciones.
+No es sesión remota autenticada ni una captura global atómica. CI del head/main,
+PR, publicación, firma e instalación49 aún requieren verificación propia.
+Las secciones inferiores conservan historia.
+
+Decisión de continuidad: reducir sólo detalle histórico remoto opcional antes de
+omitir el observador completo. No elevar el presupuesto, eliminar protecciones,
+mezclar cuentas/entornos o modificar el journal para acomodar la sincronización.
+La falta de detalle remoto sigue siendo distinta de un journal vacío.
+
+
 ## 2026-10-21 — Instalación47 verificada y correctiva48 del estado Research
 
 Base confirmada **0.10.47 publicada, firmada e instalada**, main
