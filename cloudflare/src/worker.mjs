@@ -5,6 +5,7 @@ import { signRelease, releaseFailureCode } from './bot-releases.mjs';
 import { validGuardianIntelligence } from './guardian-intelligence.mjs';
 import { validCapitalLab } from './capital-lab.mjs';
 import { validOpportunityShadow } from './opportunity-shadow.mjs';
+import { validResearchValidation } from './research-validation.mjs';
 
 const encoder = new TextEncoder();
 const TOKEN = /^[A-Za-z0-9_-]{43}$/;
@@ -603,6 +604,7 @@ function validateSnapshot(snapshot) {
     for(const key of ['positions','equity','trades','reviews','events'])assert(Array.isArray(d[key]) && d[key].length<=300,'Dashboard rows exceeded');
     assert(object(d.research) && Array.isArray(d.research.assets) && d.research.assets.length<=30
       &&JSON.stringify(d.research).length<=240000,'Invalid research report');
+    if(d.research.validation_summary!==undefined)assert(validResearchValidation(d.research.validation_summary),'Invalid research report');
     if(d.research.joint_portfolios!==undefined){
       const r=d.research;
       assert(r.mode==='RESEARCH_ONLY'&&r.auto_promotion===false
@@ -700,7 +702,7 @@ export async function handle(request, env, now = Math.floor(Date.now() / 1000)) 
     await statement(env.DB,'SELECT id FROM jobs LIMIT 1').all();
     return json({status:'ok',commit:/^[a-f0-9]{40}$/.test(env.PORTAL_COMMIT||'')?env.PORTAL_COMMIT:null});
   }
-  if (method === 'GET' && ['/', '/app.js', '/style.css','/styles.css','/monitoring.css','/portal-bridge.js','/opportunity-contract.js','/opportunity-ui.js','/portal.css','/crypto-ai-trader-icon.png','/manifest.webmanifest','/service-worker.js'].includes(path)) {
+  if (method === 'GET' && ['/', '/app.js', '/style.css','/styles.css','/monitoring.css','/portal-bridge.js','/opportunity-contract.js','/opportunity-ui.js','/research-validation.js','/portal.css','/crypto-ai-trader-icon.png','/manifest.webmanifest','/service-worker.js'].includes(path)) {
     const asset = await env.ASSETS.fetch(request);
     const headers = new Headers(asset.headers);
     for (const [name, value] of Object.entries(security)) headers.set(name, value);

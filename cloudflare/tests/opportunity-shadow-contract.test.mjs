@@ -69,6 +69,17 @@ test('actual empty, stale, partial, full and unavailable producer states remain 
   assert.equal(produce('unavailable').health.last_error, 'SNAPSHOT_UNAVAILABLE');
 });
 
+test('exact release46 reader accepts later position-link and closed journal evidence', () => {
+  const value=produce('rollback46');
+  both(value,true);
+  assert.equal(value.recent_records[0].state,'CLOSED_OBSERVED');
+  assert.equal(value.scopes[0].hypothetical_reserved,'0');
+  for(const record of value.recent_records.filter(row=>row.kind==='ENTRY_OUTCOME')) {
+    assert.deepEqual(Object.keys(record.evidence).sort(),['decision_digest','fees','quantity','response_digest']);
+    assert.equal(record.position_digest,undefined);
+  }
+});
+
 test('mixed Spot PAPER and Testnet history keeps five unique scopes without a portfolio total', () => {
   const value = produce('mixed');
   both(value, true);

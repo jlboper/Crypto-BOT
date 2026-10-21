@@ -16,7 +16,7 @@ from trader.futures_testnet_ledger import FuturesTestnetLedger
 from trader.portal_snapshot import dashboard_snapshot
 
 
-def make_dashboard(root, *, degraded=False):
+def make_dashboard(root, *, degraded=False, remote=False):
     base = load_config()
     config = replace(base,
         bot=replace(base.bot, mode='paper', database_path=root / 'spot.db', kill_switch_path=root / 'spot-kill'),
@@ -38,8 +38,8 @@ def make_dashboard(root, *, degraded=False):
         'BTCUSDT': {'opened_at': stamp, 'quantity': 1, 'mark_price': 102, 'unrealized_pnl_usdt': -2}}})
     if degraded:
         with patch('trader.portfolio_guardian.build_guardian', side_effect=RuntimeError('private-data')):
-            return dashboard_snapshot(config)
-    return dashboard_snapshot(config)
+            return dashboard_snapshot(config, remote=remote)
+    return dashboard_snapshot(config, remote=remote)
 
 
 if __name__ == '__main__':

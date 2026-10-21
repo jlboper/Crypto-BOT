@@ -742,6 +742,18 @@ class MarketPulseService:
             elif net < 0:
                 _set(db, "gross_loss", float(_meta(db, "gross_loss", "0")) - net)
         self._positions.pop(symbol, None)
+        self._observe_position_close(position,trade,self.clock())
+
+    @staticmethod
+    def _observe_position_close(position,trade,now):
+        try:
+            from .opportunity_contract import canonical
+            from .opportunity_observer import observe_position_commit
+            observe_position_commit(engine='AI_MARKET_PULSE',environment='SHADOW',position_ref=position['id'],
+                at=now,remaining_quantity='0',quantity=position['quantity'],
+                proof=hashlib.sha256(canonical(trade)).hexdigest())
+        except Exception:
+            pass
 
     def evaluate(self, now: float | None = None, *, project: bool = True) -> dict | None:
         now = self.clock() if now is None else now
@@ -899,9 +911,11 @@ class MarketPulseService:
     @staticmethod
     def _observe_entry_commit(identity, now):
         try:
+            from .opportunity_contract import position_digest
             from .opportunity_observer import observe_entry_outcome
             observe_entry_outcome(engine="AI_MARKET_PULSE", environment="SHADOW", origin_ref=identity,
-                at=now, stage="LEDGER_COMMIT", state="OPENED", complete=True)
+                at=now, stage="LEDGER_COMMIT", state="OPENED", complete=True,
+                evidence={'position_digest':position_digest('AI_MARKET_PULSE','SHADOW',identity)})
         except Exception:
             pass
 

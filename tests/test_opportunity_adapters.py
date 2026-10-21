@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import ast
+from contextlib import closing
 from dataclasses import replace
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -105,7 +106,7 @@ class EntryAdapterTests(unittest.TestCase):
         self.assertEqual(payloads, [payloads[0]]*3)
         self.assertEqual(balances, [989.99]*3)
 
-    def test_spot_sell_and_reconciliation_do_not_emit_entry_observation(self):
+    def test_spot_sell_does_not_emit_entry_and_buy_reconciliation_reports_outcome(self):
         broker, signal, _ = self.spot("sell")
         pending = {"symbol": "BTCUSDT", "side": "SELL", "client_order_id": "sell-id", "planned_qty": ".1"}
         response = {"symbol": "BTCUSDT", "side": "SELL", "clientOrderId": "sell-id",
@@ -118,7 +119,69 @@ class EntryAdapterTests(unittest.TestCase):
             response.update(side="BUY")
             broker._save_pending(pending)
             self.assertTrue(broker.reconcile_pending())
-        intent.assert_not_called(); outcome.assert_not_called()
+        intent.assert_not_called()
+        self.assertEqual(outcome.call_count,1)
+        self.assertEqual(outcome.call_args.kwargs['state'],'CANCELLED')
+        self.assertEqual(outcome.call_args.kwargs['evidence']['quantity'],'0')
+
+    def filled_buy(self,broker,signal,identity='entry-id'):
+        return {'symbol':'BTCUSDT','side':'BUY','client_order_id':identity,'planned_qty':'.1',
+            'signal':signal.to_dict(),'status':'FILLED','executed_qty':'.1','cumulative_quote':'10',
+            'commission_quote':'.01','commission_base':'0','commission_other':{},'reason':'fixture'}
+
+    def test_spot_commit_observation_reads_committed_ledger_and_survives_receipt_replay(self):
+        broker,signal,_=self.spot('ledger-commit')
+        pending=self.filled_buy(broker,signal)
+        observations=[]
+        def committed(**fields):
+            with closing(sqlite3.connect(broker.db.path)) as db:
+                self.assertEqual(db.execute('SELECT COUNT(*) FROM positions').fetchone()[0],1)
+                self.assertEqual(db.execute('SELECT COUNT(*) FROM exchange_fill_receipts').fetchone()[0],1)
+            observations.append(fields)
+        with patch('trader.opportunity_observer.observe_entry_outcome',side_effect=committed):
+            broker._apply_terminal_fill(pending)
+            recovered=broker._pending()
+            broker._apply_terminal_fill(recovered)
+        self.assertEqual(len(observations),2)
+        self.assertEqual(observations[0]['evidence'],observations[1]['evidence'])
+        self.assertEqual(observations[0]['state'],'OPENED')
+        self.assertEqual(broker.db.cash(),989.99)
+        self.assertEqual(broker.db.position('BTCUSDT').quantity,.1)
+
+    def test_spot_failed_commit_emits_no_open_and_preserves_balance(self):
+        broker,signal,_=self.spot('ledger-rollback')
+        with broker.db.connect() as db:
+            db.execute("CREATE TRIGGER reject_receipt BEFORE INSERT ON exchange_fill_receipts BEGIN SELECT RAISE(ABORT,'synthetic'); END")
+        with patch('trader.opportunity_observer.observe_entry_outcome') as observed:
+            with self.assertRaises(sqlite3.IntegrityError):broker._apply_terminal_fill(self.filled_buy(broker,signal))
+        observed.assert_not_called()
+        self.assertEqual(broker.db.cash(),1000.)
+        self.assertIsNone(broker.db.position('BTCUSDT'))
+
+    def test_spot_partial_and_native_full_close_emit_only_after_commit(self):
+        broker,signal,_=self.spot('ledger-close')
+        broker._apply_terminal_fill(self.filled_buy(broker,signal))
+        opening=broker.db.position('BTCUSDT')
+        calls=[]
+        def closed(**fields):
+            with closing(sqlite3.connect(broker.db.path)) as db:
+                count=db.execute('SELECT COUNT(*) FROM positions').fetchone()[0]
+                self.assertEqual(count,0 if fields['remaining_quantity']=='0' else 1)
+                self.assertGreater(db.execute("SELECT COUNT(*) FROM trades WHERE side='SELL'").fetchone()[0],0)
+            calls.append(fields)
+        with patch('trader.opportunity_observer.observe_position_commit',side_effect=closed):
+            for identity,quantity,quote in [('partial-id','.04','4'),('native-stop-id','.06','6')]:
+                position=broker.db.position('BTCUSDT')
+                pending={'symbol':'BTCUSDT','side':'SELL','client_order_id':identity,'status':'FILLED',
+                    'executed_qty':quantity,'cumulative_quote':quote,'commission_quote':'0','commission_base':'0',
+                    'commission_other':{},'position':position.to_dict(),'reason':'native stop'}
+                broker._apply_terminal_fill(pending,native=identity=='native-stop-id')
+        self.assertEqual(len(calls),2)
+        self.assertEqual(calls[0]['position_ref'],opening.symbol+'|'+opening.opened_at)
+        self.assertEqual(calls[0]['position_ref'],calls[1]['position_ref'])
+        self.assertGreater(float(calls[0]['remaining_quantity']),0)
+        self.assertEqual(calls[1]['remaining_quantity'],'0')
+        self.assertIsNone(broker.db.position('BTCUSDT'))
 
     def test_spot_native_rejection_preserves_zero_posts_and_zero_observation(self):
         broker, signal, _ = self.spot("reject")
@@ -133,6 +196,59 @@ class EntryAdapterTests(unittest.TestCase):
         lab = FuturesTestnetLab(settings)
         lab.ledger.set_setting("forward_open_plan", {"symbol": "BTCUSDT", "direction": "LONG", "leverage": 1})
         return lab
+
+    def forward_position(self):
+        return {'symbol':'BTCUSDT','direction':'LONG','leverage':1,'quantity':.1,'entry_price':100.,
+            'stop_price':95.,'take_profit':110.,'liquidation_price':None,'signal_score':80,
+            'opened_at':datetime.fromtimestamp(NOW,UTC).isoformat()}
+
+    def test_futures_ledger_open_close_observation_is_after_sqlite_commit(self):
+        lab=self.future('forward-ledger')
+        observations=[]
+        def opened(**fields):
+            with closing(sqlite3.connect(lab.ledger.path)) as db:
+                self.assertEqual(db.execute('SELECT COUNT(*) FROM forward_position').fetchone()[0],1)
+            observations.append(fields)
+        def closed(**fields):
+            with closing(sqlite3.connect(lab.ledger.path)) as db:
+                self.assertEqual(db.execute('SELECT COUNT(*) FROM forward_position').fetchone()[0],0)
+                self.assertEqual(db.execute('SELECT COUNT(*) FROM forward_trades').fetchone()[0],1)
+            observations.append(fields)
+        with patch('trader.opportunity_observer.observe_entry_outcome',side_effect=opened), \
+                patch('trader.opportunity_observer.observe_position_commit',side_effect=closed):
+            lab.ledger.set_forward_position(self.forward_position(),observation_origin='exact-forward-entry')
+            lab.ledger.close_forward_position(symbol='BTCUSDT',exit_price=101.,gross_pnl=.1,exit_reason='NATIVE_STOP')
+        self.assertEqual(observations[0]['origin_ref'],'exact-forward-entry')
+        self.assertEqual(observations[1]['position_ref'],'BTCUSDT|'+self.forward_position()['opened_at'])
+        self.assertEqual(observations[1]['remaining_quantity'],'0')
+
+    def test_futures_close_rollback_and_absent_identity_do_not_fabricate_open(self):
+        lab=self.future('forward-rollback')
+        with patch('trader.opportunity_observer.observe_entry_outcome') as opened:
+            lab.ledger.set_forward_position(self.forward_position())
+        opened.assert_not_called()
+        with lab.ledger._connect() as db:
+            db.execute("CREATE TRIGGER reject_close BEFORE INSERT ON forward_trades BEGIN SELECT RAISE(ABORT,'synthetic'); END")
+        with patch('trader.opportunity_observer.observe_position_commit') as closed:
+            with self.assertRaises(sqlite3.IntegrityError):
+                lab.ledger.close_forward_position(symbol='BTCUSDT',exit_price=101.,gross_pnl=.1,exit_reason='STOP')
+        closed.assert_not_called()
+        self.assertIsNotNone(lab.ledger.forward_position('BTCUSDT'))
+
+    def test_futures_readonly_reconciliation_reports_partial_without_second_post(self):
+        lab=self.future('forward-partial')
+        pending={'symbol':'BTCUSDT','client_order_id':'pending-entry','reduce_only':False}
+        lab.ledger.set_setting('forward_pending_order',pending)
+        response={'clientOrderId':'pending-entry','status':'PARTIALLY_FILLED','executedQty':'.04'}
+        with patch('trader.futures_testnet.signed_request',return_value=response) as request, \
+                patch('trader.opportunity_observer.observe_entry_outcome') as observed:
+            result=lab.reconcile_forward_pending()
+        self.assertFalse(result['resolved'])
+        self.assertEqual(request.call_args.args[0],'GET')
+        self.assertEqual(request.call_count,1)
+        self.assertEqual(observed.call_args.kwargs['state'],'PARTIAL')
+        self.assertFalse(observed.call_args.kwargs['complete'])
+        self.assertEqual(lab.ledger.setting('forward_pending_order'),pending)
 
     def test_futures_identical_post_with_observation_full_or_failed(self):
         posts = []
@@ -363,6 +479,54 @@ class EntryAdapterTests(unittest.TestCase):
             with self.assertRaises(sqlite3.IntegrityError):
                 service.evaluate(NOW, project=False)
         self.assertEqual(intent.call_count, 1); outcome.assert_not_called()
+
+    def test_pulse_protective_close_observes_committed_trade_and_failure_is_isolated(self):
+        service=self.pulse('pulse-close');service.evaluate(NOW,project=False)
+        identity=service._positions['BTCUSDT']['id']
+        def closed(**fields):
+            with pulse_connect(service.path,readonly=True) as db:
+                self.assertEqual(db.execute('SELECT COUNT(*) FROM pulse_positions').fetchone()[0],0)
+                self.assertEqual(db.execute('SELECT COUNT(*) FROM pulse_trades').fetchone()[0],1)
+            self.assertEqual(fields['position_ref'],identity)
+            raise RuntimeError('observer failure never cancels the committed protective close')
+        with patch('trader.opportunity_observer.observe_position_commit',side_effect=closed) as observe:
+            service._close_position('BTCUSDT',99.,NOW,'STOP')
+        self.assertEqual(observe.call_count,1)
+        self.assertNotIn('BTCUSDT',service._positions)
+
+    def test_pulse_close_rollback_never_claims_closed(self):
+        service=self.pulse('pulse-close-rollback');service.evaluate(NOW,project=False)
+        with pulse_connect(service.path) as db:
+            db.execute("CREATE TRIGGER reject_close BEFORE INSERT ON pulse_trades BEGIN SELECT RAISE(ABORT,'synthetic'); END")
+        with patch('trader.opportunity_observer.observe_position_commit') as observe:
+            with self.assertRaises(sqlite3.IntegrityError):service._close_position('BTCUSDT',99.,NOW,'STOP')
+        observe.assert_not_called()
+        self.assertIn('BTCUSDT',service._positions)
+
+    def test_quant_protective_close_observes_only_committed_pair(self):
+        service=QuantShadowService(self.root/'quant-close',source=quant_source,clock=lambda:NOW)
+        self.addCleanup(service.stop);self.assertTrue(service.tick())
+        service.kill_switch_path.write_text('owner pause',encoding='utf-8')
+        def closed(**fields):
+            with quant_connect(service.path,readonly=True) as db:
+                self.assertEqual(db.execute('SELECT COUNT(*) FROM quant_positions').fetchone()[0],0)
+                self.assertEqual(db.execute('SELECT COUNT(*) FROM quant_trades').fetchone()[0],1)
+            self.assertEqual(fields['remaining_quantity'],'0')
+        with patch('trader.opportunity_observer.observe_position_commit',side_effect=closed) as observe:
+            self.assertTrue(service.tick())
+        self.assertEqual(observe.call_count,1)
+
+    def test_quant_protective_close_rollback_has_no_false_terminal(self):
+        service=QuantShadowService(self.root/'quant-close-rollback',source=quant_source,clock=lambda:NOW)
+        self.addCleanup(service.stop);self.assertTrue(service.tick())
+        service.kill_switch_path.write_text('owner pause',encoding='utf-8')
+        with quant_connect(service.path) as db:
+            db.execute("CREATE TRIGGER reject_close BEFORE INSERT ON quant_trades BEGIN SELECT RAISE(ABORT,'synthetic'); END")
+        with patch('trader.opportunity_observer.observe_position_commit') as observe:
+            with self.assertRaises(sqlite3.IntegrityError):service.tick()
+        observe.assert_not_called()
+        with quant_connect(service.path,readonly=True) as db:
+            self.assertEqual(db.execute('SELECT COUNT(*) FROM quant_positions').fetchone()[0],1)
 
     def test_quant_two_legs_before_insert_and_commit_after_native_transaction(self):
         service = QuantShadowService(self.root/"quant", source=quant_source, clock=lambda: NOW)

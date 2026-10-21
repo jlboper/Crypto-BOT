@@ -7,31 +7,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 from scripts.windows_agent import source_settings
-from trader.portal_snapshot import (dashboard_snapshot, bounded_futures_projection,
-                                    bounded_market_pulse_projection, bounded_quant_projection)
-
-
-def compatible_remote_projection(payload):
-    """Preserve legacy finance and already-built optional Observer evidence.
-
-    Guardian was calculated before Futures marks are omitted here. Its independent
-    bounded scope values must not be recomputed from the reduced legacy shape.
-    """
-    payload.get('paper_scorecard', {}).pop('financial', None)
-    futures = payload.get('futures_forward', {})
-    futures.get('scorecard', {}).pop('financial', None)
-    positions = list(futures.get('positions') or [])
-    if isinstance(futures.get('position'), dict):
-        positions.append(futures['position'])
-    for position in positions:
-        for key in ('mark_price', 'unrealized_pnl_usdt', 'priced_at', 'unrealized_after_accrued_costs_usdt'):
-            position.pop(key, None)
-    bounded_futures_projection(futures)
-    if 'market_pulse' in payload:
-        bounded_market_pulse_projection(payload['market_pulse'])
-    if 'quant' in payload:
-        bounded_quant_projection(payload['quant'])
-    return payload
+from trader.portal_snapshot import dashboard_snapshot, compatible_remote_projection
 
 
 def main():
@@ -41,8 +17,8 @@ def main():
     if source != ROOT:
         raise ValueError('Installed source mismatch')
     config = source_settings(source)
-    payload = dashboard_snapshot(config, source / 'data/research/latest.json')
-    print(json.dumps(compatible_remote_projection(payload), allow_nan=False, separators=(',', ':')))
+    payload = dashboard_snapshot(config, source / 'data/research/latest.json', remote=True)
+    print(json.dumps(payload, allow_nan=False, separators=(',', ':')))
 
 
 if __name__ == '__main__':

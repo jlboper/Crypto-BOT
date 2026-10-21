@@ -348,7 +348,7 @@ class FuturesForwardEngine:
                 self._halt("uncertain Futures open could not be reconstructed")
                 raise FuturesTestnetExecutionError("Futures forward recovery requires owner review")
             reconstructed=self._reconstruct_open_position(symbol,pending,plan,rows[0])
-            self.ledger.set_forward_position(reconstructed)
+            self.ledger.set_forward_position(reconstructed,observation_origin=pending.get('client_order_id'))
             self.ledger.set_setting("forward_open_plan",None)
             self.ledger.set_setting("forward_pending_order",None)
             if str(rows[0].get("marginType","")).lower()!="isolated":
@@ -638,7 +638,7 @@ class FuturesForwardEngine:
         position={"symbol":symbol,"direction":direction,"leverage":leverage,"leverage_trial_index":trial_index,
             "quantity":float(actual_qty),"entry_price":float(entry),"stop_price":float(stop),
             "take_profit":float(take),"liquidation_price":float(liquidation) if liquidation>0 else None,"signal_score":int(signal["score"]),"opened_at":plan["opened_at"]}
-        self.ledger.set_forward_position(position); self.ledger.set_setting("forward_open_plan",None); self.ledger.set_setting("forward_pending_order",None)
+        self.ledger.set_forward_position(position,observation_origin=order.get('clientOrderId')); self.ledger.set_setting("forward_open_plan",None); self.ledger.set_setting("forward_pending_order",None)
         self.native.ensure(position)
         self.portfolio_budget()
         return {"symbol":symbol,"status":"OPENED","position":position,"signal":signal,"ai_review":review}

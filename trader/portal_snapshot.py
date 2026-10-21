@@ -633,7 +633,7 @@ def quant_projection(config):
         return result
 
 
-def platform_projection(payload):
+def platform_projection(payload, *, check_budget=True):
     """Optional read-only identities and diagnostics, isolated from engine views.
 
     Use the rich local snapshot: the legacy remote exporter omits individual
@@ -660,7 +660,7 @@ def platform_projection(payload):
         except Exception:
             guardian = guardian_unavailable(now)
         result = {'engine_catalog': catalog, 'portfolio_guardian': guardian, 'quant': quant}
-        if len(json.dumps({**payload, **result}, allow_nan=False).encode()) > 480_000:
+        if check_budget and len(json.dumps({**payload, **result}, allow_nan=False).encode()) > 480_000:
             # Existing financial/protection evidence has priority at the shared
             # dashboard budget; optional expansion cannot invalidate that view.
             return {}
@@ -726,7 +726,32 @@ def opportunity_shadow_projection(config):
         return None
 
 
-def dashboard_snapshot(config, report_path=None):
+def compatible_remote_projection(payload):
+    """Apply the existing remote compatibility shape before optional budgeting.
+
+    Guardian must already have consumed the rich, contemporaneous marks. Only
+    existing legacy omissions and optional display histories are thinned here;
+    positions, protections, pauses and financial aggregate totals are preserved.
+    The exporter re-exports this function for older callers and independent agents.
+    """
+    payload.get('paper_scorecard', {}).pop('financial', None)
+    futures = payload.get('futures_forward', {})
+    futures.get('scorecard', {}).pop('financial', None)
+    positions = list(futures.get('positions') or [])
+    if isinstance(futures.get('position'), dict):
+        positions.append(futures['position'])
+    for position in positions:
+        for key in ('mark_price', 'unrealized_pnl_usdt', 'priced_at', 'unrealized_after_accrued_costs_usdt'):
+            position.pop(key, None)
+    bounded_futures_projection(futures)
+    if 'market_pulse' in payload:
+        bounded_market_pulse_projection(payload['market_pulse'])
+    if 'quant' in payload:
+        bounded_quant_projection(payload['quant'])
+    return payload
+
+
+def dashboard_snapshot(config, report_path=None, *, remote=False):
     connection = sqlite3.connect(config.bot.database_path.resolve().as_uri()+'?mode=ro', uri=True, timeout=3)
     connection.row_factory = sqlite3.Row
     try:
@@ -826,7 +851,13 @@ def dashboard_snapshot(config, report_path=None):
             report = json.loads(path.read_text(encoding='utf-8'))
             if report.get('mode') == 'RESEARCH_ONLY' and isinstance(report.get('assets'), list):
                 payload['research'] = project_report(report)
-        payload.update(platform_projection({**payload, 'quant': quant_projection(config)}))
+        # Build Guardian from full marks before legacy remote omissions. Remote
+        # history/compatibility changes precede optional-field size admission so
+        # discarded legacy financial detail cannot consume their budget.
+        payload.update(platform_projection({**payload, 'quant': quant_projection(config)},
+                                           check_budget=not remote))
+        if remote:
+            compatible_remote_projection(payload)
         intelligence = guardian_intelligence_projection(config)
         if intelligence is not None and len(json.dumps({**payload, 'guardian_intelligence': intelligence},
                 allow_nan=False).encode()) <= 480_000:

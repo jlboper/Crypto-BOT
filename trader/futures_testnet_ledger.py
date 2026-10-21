@@ -135,7 +135,7 @@ class FuturesTestnetLedger:
                 row=db.execute("SELECT * FROM forward_position ORDER BY symbol LIMIT 1").fetchone()
         return dict(row) if row else None
 
-    def set_forward_position(self, position: dict | None, symbol: str | None = None) -> None:
+    def set_forward_position(self, position: dict | None, symbol: str | None = None, *, observation_origin=None) -> None:
         target = symbol or (position or {}).get("symbol")
         if not target:
             raise ValueError("Futures forward symbol required")
@@ -161,6 +161,24 @@ class FuturesTestnetLedger:
                     cursor = max(int(json.loads(prior[0])) if prior else 0, trial_index + 1)
                     db.execute("INSERT OR REPLACE INTO settings VALUES(?,?)",
                                ("forward_leverage_trial_cursor", json.dumps(cursor)))
+        if position is not None:
+            self._observe_forward_open(position,observation_origin)
+
+    @staticmethod
+    def _observe_forward_open(position,origin):
+        try:
+            import hashlib,time
+            from .opportunity_contract import canonical,position_digest
+            from .opportunity_observer import observe_entry_outcome
+            if not origin:return
+            reference=position['symbol']+'|'+position['opened_at']
+            observe_entry_outcome(engine='FUTURES',environment='FUTURES_DEMO',origin_ref=origin,
+                at=time.time(),stage='LEDGER_COMMIT',state='OPENED',complete=True,
+                evidence={'position_digest':position_digest('FUTURES','FUTURES_DEMO',reference),
+                    'quantity':position['quantity'],'remaining_quantity':position['quantity'],
+                    'decision_digest':hashlib.sha256(canonical(position)).hexdigest()})
+        except Exception:
+            pass
 
     def leverage_trial_status(self, levels: tuple[int, ...], notional_limit: float) -> dict:
         cursor = int(self.setting("forward_leverage_trial_cursor") or 0)
@@ -190,8 +208,22 @@ class FuturesTestnetLedger:
                  float(position["entry_price"]),float(exit_price),float(gross_pnl),str(exit_reason)[:180],
                  position["opened_at"],closed_at))
             db.execute("DELETE FROM forward_position WHERE symbol=?",(position["symbol"],))
-        return {**position,"exit_price":float(exit_price),"gross_pnl":float(gross_pnl),
+        closed={**position,"exit_price":float(exit_price),"gross_pnl":float(gross_pnl),
                 "exit_reason":str(exit_reason)[:180],"closed_at":closed_at}
+        self._observe_forward_close(closed)
+        return closed
+
+    @staticmethod
+    def _observe_forward_close(closed):
+        try:
+            import hashlib,time
+            from .opportunity_contract import canonical
+            from .opportunity_observer import observe_position_commit
+            observe_position_commit(engine='FUTURES',environment='FUTURES_DEMO',
+                position_ref=closed['symbol']+'|'+closed['opened_at'],at=time.time(),
+                quantity=closed['quantity'],remaining_quantity='0',proof=hashlib.sha256(canonical(closed)).hexdigest())
+        except Exception:
+            pass
 
     def record_forward_equity(self,wallet_balance,available_balance,unrealized_pnl):
         with self._connect() as db:

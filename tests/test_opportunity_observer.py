@@ -11,7 +11,7 @@ import unittest
 from unittest.mock import patch
 
 from trader import opportunity_observer as module
-from trader.opportunity_contract import OpportunityEvent, build_intent, build_outcome, canonical
+from trader.opportunity_contract import OpportunityEvent, build_intent, build_outcome, canonical, position_digest
 from trader.opportunity_observer import (OpportunityObserverService, opportunity_snapshot,
     observe_entry_intent, observe_entry_outcome, register_observer, unregister_observer)
 from tests.test_opportunity_contract import NOW,intent_fields,outcome_fields
@@ -120,6 +120,96 @@ class OpportunityObserverTests(unittest.TestCase):
             self.assertEqual(db.execute('SELECT terminal,closed FROM opportunity_origins').fetchone(),('CLOSED',1))
         self.assertIsNone(service.snapshot()['scopes'][0]['hypothetical_reserved'])
         self.assertEqual(service._consume(build_outcome(**outcome_fields())),'TERMINAL_CONFLICT')
+
+    def position_event(self,reference,*,state='CLOSED',remaining='0',proof='c'*64,at=NOW):
+        digest=position_digest('SPOT','SPOT_TESTNET',reference)
+        return build_outcome(**outcome_fields(origin_ref='POSITION:'+digest,at=at,stage='LEDGER_COMMIT',
+            state=state,complete=state=='CLOSED',by_position=True,
+            evidence={'position_digest':digest,'remaining_quantity':remaining,'decision_digest':proof}))
+
+    def link(self,service,reference,origin='private-client-order',proof='b'*64):
+        event=build_outcome(**outcome_fields(origin_ref=origin,stage='LEDGER_COMMIT',state='OPENED',
+            evidence={'position_digest':position_digest('SPOT','SPOT_TESTNET',reference),'decision_digest':proof}))
+        self.assertEqual(service._consume(event),'COMMITTED_PROTECTION_UNVERIFIED')
+        return event
+
+    def test_exact_position_link_survives_restart_and_closes_only_its_origin(self):
+        service=self.initialized();self.consume(service)
+        reference='BTCUSDT|2026-10-20T12:00:00+00:00'
+        self.link(service,reference)
+        restarted=self.initialized()
+        unrelated=self.position_event('BTCUSDT|2026-10-20T12:00:01+00:00')
+        self.assertEqual(restarted._consume(unrelated),'UNKNOWN')
+        self.assertEqual(restarted.snapshot()['scopes'][0]['hypothetical_reserved'],'100.4')
+        self.assertEqual(restarted._consume(self.position_event(reference)),'CLOSED_OBSERVED')
+        self.assertEqual(restarted.snapshot()['scopes'][0]['hypothetical_reserved'],'0')
+        with closing(sqlite3.connect(service.path)) as db:
+            raw,origin=db.execute('SELECT data,origin FROM opportunity_records ORDER BY sequence DESC LIMIT 1').fetchone()
+        self.assertNotEqual(json.loads(raw)['origin_digest'],origin)
+        self.assertEqual(origin,build_intent(**intent_fields()).payload()['origin_digest'])
+
+    def test_partial_close_retains_reservation_until_exact_closed_commit(self):
+        service=self.initialized();self.consume(service);self.link(service,'position-1')
+        service._consume(self.position_event('position-1',state='PARTIAL',remaining='.4'))
+        self.assertEqual(service.snapshot()['scopes'][0]['hypothetical_reserved'],'100.4')
+        self.assertEqual(service._consume(self.position_event('position-1')),'CLOSED_OBSERVED')
+        self.assertEqual(service.snapshot()['scopes'][0]['hypothetical_reserved'],'0')
+
+    def test_unlinked_position_namespace_cannot_match_an_order_origin(self):
+        service=self.initialized()
+        digest=position_digest('SPOT','SPOT_TESTNET','position-1')
+        self.consume(service,origin_ref='POSITION:'+digest)
+        self.assertEqual(service._consume(self.position_event('position-1')),'UNKNOWN')
+        self.assertEqual(service.snapshot()['scopes'][0]['hypothetical_reserved'],'100.4')
+
+    def test_duplicate_closed_proof_and_open_receipt_replay_do_not_revive(self):
+        service=self.initialized();self.consume(service);opening=self.link(service,'position-1')
+        service._consume(self.position_event('position-1'))
+        self.clock[0]+=1
+        self.assertEqual(service._consume(self.position_event('position-1',at=NOW+1)),'CLOSED_OBSERVED')
+        payload=opening.payload();payload['at']=NOW+1
+        self.assertEqual(service._consume(build_outcome(**outcome_fields(at=NOW+1,stage='LEDGER_COMMIT',state='OPENED',
+            evidence=payload['evidence']|{'position_digest':payload['position_digest']}))),'CLOSED_OBSERVED')
+        self.assertEqual(service.snapshot()['scopes'][0]['hypothetical_reserved'],'0')
+        self.assertEqual(service._consume(self.position_event('position-1',proof='d'*64,at=NOW+1)),'TERMINAL_CONFLICT')
+        self.assertIsNone(service.snapshot()['scopes'][0]['hypothetical_reserved'])
+
+    def test_position_link_collision_latches_both_origins_without_reassignment(self):
+        service=self.initialized();self.consume(service);self.link(service,'position-1')
+        self.consume(service,origin_ref='another-entry')
+        collision=build_outcome(**outcome_fields(origin_ref='another-entry',stage='LEDGER_COMMIT',state='OPENED',
+            evidence={'position_digest':position_digest('SPOT','SPOT_TESTNET','position-1'),'decision_digest':'e'*64}))
+        self.assertEqual(service._consume(collision),'ORIGIN_CONFLICT')
+        self.assertEqual(service._consume(self.position_event('position-1')),'ORIGIN_CONFLICT')
+        self.assertIsNone(service.snapshot()['scopes'][0]['hypothetical_reserved'])
+
+    def test_public_outcome_schema_does_not_leak_internal_position_link(self):
+        service=self.initialized();self.consume(service);self.link(service,'private-position-reference')
+        value=service.snapshot()['recent_records'][0]
+        self.assertEqual(set(value['evidence']),{'response_digest','decision_digest','quantity','fees'})
+        self.assertNotIn('private-position-reference',json.dumps(service.snapshot()))
+        # Version46 projects payload['evidence'] unchanged. The durable format
+        # must therefore keep the old closed shape, not just filter it in47.
+        with closing(sqlite3.connect(service.path)) as db:
+            payload=json.loads(db.execute('SELECT data FROM opportunity_records ORDER BY sequence DESC LIMIT 1').fetchone()[0])
+        self.assertEqual(set(payload['evidence']),{'response_digest','decision_digest','quantity','fees'})
+        self.assertIn('position_digest',payload)
+
+    def test_exact_release46_reader_and_writer_preserve47_closed_origin(self):
+        from tests.legacy_opportunity import load_observer46
+        legacy=load_observer46()
+        service=self.initialized();self.consume(service);self.link(service,'position-1')
+        service._consume(self.position_event('position-1'))
+        before=service.snapshot();old=legacy.opportunity_snapshot(self.path,now=NOW)
+        self.assertEqual(old,before)
+        rolled_back=legacy.OpportunityObserverService(self.path,clock=lambda:NOW)
+        rolled_back.initialize()
+        self.assertEqual(rolled_back._consume(build_intent(**intent_fields(origin_ref='new-after-rollback'))),'INTENT_OBSERVED')
+        origin=build_intent(**intent_fields()).payload()['origin_digest']
+        with closing(sqlite3.connect(service.path)) as db:
+            self.assertEqual(db.execute('SELECT closed,terminal FROM opportunity_origins WHERE origin=?',(origin,)).fetchone(),(1,'CLOSED'))
+            self.assertEqual(db.execute('SELECT COUNT(*) FROM opportunity_positions').fetchone()[0],1)
+        self.assertEqual(legacy.opportunity_snapshot(self.path,now=NOW),service.snapshot())
 
     def test_filled_then_unknown_cannot_release_on_zero_cancel(self):
         service=self.initialized();self.consume(service)

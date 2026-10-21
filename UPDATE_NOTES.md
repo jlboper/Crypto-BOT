@@ -1,3 +1,29 @@
+# 0.10.47 — Trazabilidad, investigación y recuperación (en preparación)
+
+- Hooks postcommit observan aperturas/cierres/parciales y conciliación GET con
+  vínculo persistente exacto de posición. Nunca se libera por símbolo o TTL.
+  Sin cambio de órdenes, cantidades, revisión IA individual, stops o límites.
+- Metadatos internos conservan el DTO público; regresión con lector/escritor46
+  congelado permite ignorar tablas nuevas y preserva terminales durante rollback.
+- El presupuesto remoto se aplica después de la compatibilidad histórica; Guardian
+  se calcula antes con marcas completas. Se conserva el tope480000 y evidencia
+  de protecciones. Omisiones y fuentes antiguas siguen explícitas.
+- Trece consultas locales RO citan observaciones, cortes y registros, separando
+  exposición por entorno. Rechazo hipotético no equivale a veto ni pérdida evitada.
+- Research agrega auditoría Quant causal acotada y matriz de cuatro motores:
+  metodología no equivale a ejecución validada, comparabilidad/atribución UNKNOWN.
+- Preparación Risk+Capital SIM usa políticas explícitas, enteros micro-USDT,
+  estados objetivos y el protocolo transaccional previo; ningún hook financiero.
+- Copias explícitas de ocho SQLite en directorios nuevos, manifiesto INCOMPLETE
+  antes del trabajo, integridad/hash y protección contra sobrescrituras. No cambia
+  updater, firma, antirretroceso ni restaura datos operativos.
+- Validación local final:1042Python offline PASS142.563s/242Node PASS39.280s,
+  PS5.1 lifecycle/vistas, build/diff/paquete227archivos PASS. CI del head/main,
+  publicación, firma e instalación47 pendientes.
+- Guardian IA: dos intentos ordinarios21Oct completados por el API pero rechazados
+  localmente; se añade diagnóstico cerrado sin cambiar validador/schema/cuotas.
+  Causa histórica específica y comentario aceptado siguen sin verificar.
+
 # 0.10.46 — Recursos remotos de Opportunity Shadow (en preparación)
 
 - [PR123](https://github.com/jlboper/Crypto-BOT/pull/123) inicial5199e23: CI de

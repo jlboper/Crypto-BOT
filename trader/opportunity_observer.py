@@ -10,7 +10,7 @@ import sqlite3
 import threading
 import time
 
-from .opportunity_contract import OpportunityEvent, build_intent, build_outcome, canonical, FLAGS, ENGINES
+from .opportunity_contract import OpportunityEvent, build_intent, build_outcome, canonical, position_digest, FLAGS, ENGINES
 from .opportunity_shadow import evaluate_intent
 
 QUEUE_CAPACITY=64
@@ -63,6 +63,20 @@ def observe_entry_outcome(**fields):
     except Exception:_DROPPED+=1;return False
 
 
+def observe_position_commit(*,engine,environment,position_ref,at,remaining_quantity,quantity=None,proof=None):
+    """Only a committed native position identity may resolve an earlier entry."""
+    try:
+        reference=position_digest(engine,environment,position_ref)
+        closed=Decimal(str(remaining_quantity))==0
+        return observe_entry_outcome(engine=engine,environment=environment,
+            origin_ref='POSITION:'+reference,at=at,stage='LEDGER_COMMIT',
+            state='CLOSED' if closed else 'PARTIAL',complete=closed,by_position=True,
+            evidence={'position_digest':reference,'remaining_quantity':remaining_quantity,
+                      'quantity':quantity,'decision_digest':proof})
+    except Exception:
+        return False
+
+
 def _connect(path,readonly=False):
     db=sqlite3.connect(path.resolve().as_uri()+'?mode=ro',uri=True,timeout=.25) if readonly else sqlite3.connect(path,timeout=.25)
     db.row_factory=sqlite3.Row
@@ -98,6 +112,10 @@ class OpportunityObserverService:
               CREATE TABLE IF NOT EXISTS opportunity_origins(origin TEXT PRIMARY KEY,engine TEXT,environment TEXT,
               intent_id TEXT,revision INTEGER,at REAL,state TEXT,metrics TEXT,symbols TEXT,closed INTEGER NOT NULL,terminal TEXT);
               CREATE TABLE IF NOT EXISTS opportunity_meta(key TEXT PRIMARY KEY,value TEXT NOT NULL);
+              CREATE TABLE IF NOT EXISTS opportunity_positions(position_digest TEXT PRIMARY KEY,origin TEXT UNIQUE NOT NULL,
+                engine TEXT NOT NULL,environment TEXT NOT NULL,proof_digest TEXT);
+              CREATE TABLE IF NOT EXISTS opportunity_terminal_proofs(origin TEXT PRIMARY KEY,position_digest TEXT NOT NULL,
+                proof_digest TEXT NOT NULL);
               CREATE TRIGGER IF NOT EXISTS opportunity_no_update BEFORE UPDATE ON opportunity_records BEGIN SELECT RAISE(ABORT,'immutable evidence'); END;
               CREATE TRIGGER IF NOT EXISTS opportunity_no_delete BEFORE DELETE ON opportunity_records BEGIN SELECT RAISE(ABORT,'immutable evidence'); END;''')
             page=db.execute('PRAGMA page_size').fetchone()[0]
@@ -117,7 +135,15 @@ class OpportunityObserverService:
             count=db.execute('SELECT COUNT(*) FROM opportunity_records').fetchone()[0]
             if count>=self.max_records or self.path.stat().st_size>=self.max_bytes:
                 self._last_error='RETENTION_FULL';return 'RETENTION_FULL'
-            origin=db.execute('SELECT * FROM opportunity_origins WHERE origin=?',(payload['origin_digest'],)).fetchone()
+            reference=payload.get('position_digest')
+            resolved_origin=payload['origin_digest']
+            link=None
+            if payload.get('position_reference') is True:
+                link=db.execute('SELECT origin FROM opportunity_positions WHERE position_digest=? AND engine=? AND environment=?',
+                    (reference,payload['engine'],payload['environment'])).fetchone()
+                if link:resolved_origin=link['origin']
+            origin=(None if payload.get('position_reference') is True and not link else
+                db.execute('SELECT * FROM opportunity_origins WHERE origin=?',(resolved_origin,)).fetchone())
             revision=origin['revision'] if origin else 1
             assessment=_unknown('MISSING_INTENT');state='UNKNOWN';stage=payload.get('stage','HYPOTHETICAL_ENTRY_INTENT' if payload['environment']=='SHADOW' else 'FINAL_ENTRY_INTENT')
             if payload['kind']=='ENTRY_INTENT':
@@ -143,11 +169,28 @@ class OpportunityObserverService:
                     assessment=_unknown('OUTCOME_BEFORE_INTENT')
                 elif origin['state']=='ORIGIN_CONFLICT':
                     assessment=_unknown('ORIGIN_REVISION_CONFLICT');state='ORIGIN_CONFLICT'
+                elif (origin['terminal']=='CLOSED' and payload.get('position_reference') is True
+                        and payload['state']=='CLOSED' and payload['complete']
+                        and db.execute('SELECT 1 FROM opportunity_terminal_proofs WHERE origin=? AND position_digest=? AND proof_digest=?',
+                            (resolved_origin,reference,payload['evidence'].get('decision_digest'))).fetchone()
+                        and origin['state']!='TERMINAL_CONFLICT'):
+                    state='CLOSED_OBSERVED'
+                elif (origin['terminal']=='CLOSED' and payload['stage']=='LEDGER_COMMIT'
+                        and payload['state']=='OPENED' and payload['complete']
+                        and payload['evidence'].get('decision_digest') is not None
+                        and db.execute('SELECT 1 FROM opportunity_positions WHERE origin=? AND position_digest=? AND proof_digest=?',
+                            (resolved_origin,reference,payload['evidence']['decision_digest'])).fetchone()
+                        and origin['state']!='TERMINAL_CONFLICT'):
+                    # An exact durable receipt replay does not revive a close.
+                    state='CLOSED_OBSERVED'
                 elif origin['state']=='TERMINAL_CONFLICT' or origin['terminal'] in ('CLOSED','CANCELLED','REJECTED'):
                     state='TERMINAL_CONFLICT';assessment=_unknown('LATE_TERMINAL_DIVERGENCE')
                 elif payload['stage']=='LEDGER_COMMIT' and payload['complete'] and payload['state']=='CLOSED':
                     state='CLOSED_OBSERVED'
-                    db.execute("UPDATE opportunity_origins SET closed=1,state=?,terminal='CLOSED' WHERE origin=?",(state,payload['origin_digest']))
+                    db.execute("UPDATE opportunity_origins SET closed=1,state=?,terminal='CLOSED' WHERE origin=?",(state,resolved_origin))
+                    if payload.get('position_reference') is True:
+                        db.execute('INSERT INTO opportunity_terminal_proofs VALUES(?,?,?)',
+                            (resolved_origin,reference,payload['evidence']['decision_digest']))
                 elif payload['complete'] and payload['state'] in ('CANCELLED','REJECTED') and payload['evidence']['quantity']=='0' and origin['terminal'] not in ('FILLED','OPENED'):
                     state='CANCELLED_OBSERVED'
                     db.execute('UPDATE opportunity_origins SET closed=1,state=?,terminal=? WHERE origin=?',(state,payload['state'],payload['origin_digest']))
@@ -156,10 +199,22 @@ class OpportunityObserverService:
                     db.execute("UPDATE opportunity_origins SET terminal='FILLED' WHERE origin=?",(payload['origin_digest'],))
                 elif payload['complete'] and payload['state']=='OPENED' and payload['stage']=='LEDGER_COMMIT':
                     state='COMMITTED_PROTECTION_UNVERIFIED'
-                    db.execute("UPDATE opportunity_origins SET terminal='OPENED' WHERE origin=?",(payload['origin_digest'],))
-                db.execute('UPDATE opportunity_origins SET state=? WHERE origin=?',(state,payload['origin_digest']))
+                    if reference:
+                        links=db.execute('SELECT origin,position_digest,proof_digest FROM opportunity_positions WHERE origin=? OR position_digest=?',
+                            (resolved_origin,reference)).fetchall()
+                        if links and any(link['origin']!=resolved_origin or link['position_digest']!=reference
+                                or link['proof_digest']!=payload['evidence'].get('decision_digest') for link in links):
+                            state='ORIGIN_CONFLICT';assessment=_unknown('ORIGIN_REVISION_CONFLICT')
+                            for link in links:
+                                db.execute("UPDATE opportunity_origins SET state='ORIGIN_CONFLICT' WHERE origin=?",(link['origin'],))
+                        elif not links:
+                            db.execute('INSERT INTO opportunity_positions VALUES(?,?,?,?,?)',
+                                (reference,resolved_origin,payload['engine'],payload['environment'],payload['evidence'].get('decision_digest')))
+                    if state!='ORIGIN_CONFLICT':
+                        db.execute("UPDATE opportunity_origins SET terminal='OPENED' WHERE origin=?",(resolved_origin,))
+                db.execute('UPDATE opportunity_origins SET state=? WHERE origin=?',(state,resolved_origin))
             db.execute('INSERT INTO opportunity_records(id,origin,revision,kind,engine,environment,at,recorded,state,stage,data,assessment) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)',
-                (event.id,payload['origin_digest'],revision,payload['kind'],payload['engine'],payload['environment'],payload['at'],now,state,stage,event.encoded.decode(),canonical(assessment).decode()))
+                (event.id,resolved_origin,revision,payload['kind'],payload['engine'],payload['environment'],payload['at'],now,state,stage,event.encoded.decode(),canonical(assessment).decode()))
         return state
 
     def _flush_health(self,*,heartbeat=False,stopped=False):
@@ -257,6 +312,8 @@ def opportunity_snapshot(data_dir,*,now=None):
                     'hypothetical_stop_risk':summed('stop_risk'),'uncertain_intents':sum(row['state'] in ('UNCERTAIN','ORIGIN_CONFLICT','TERMINAL_CONFLICT') for row in held)})
             for row in db.execute('SELECT * FROM opportunity_records ORDER BY sequence DESC LIMIT 6'):
                 payload=json.loads(row['data']);evidence=payload['evidence']
+                if payload['kind']=='ENTRY_OUTCOME':
+                    evidence={key:evidence.get(key) for key in ('response_digest','decision_digest','quantity','fees')}
                 legs=[{key:leg[key] for key in ('symbol','venue','direction','quantity','reference_price','stop_price','take_profit')} for leg in payload.get('legs',[])]
                 value['recent_records'].append({'id':row['id'],'origin_digest':row['origin'],'revision':row['revision'],'kind':row['kind'],
                     'engine':row['engine'],'environment':row['environment'],'at':_iso(row['at']),'recorded_at':_iso(row['recorded']),

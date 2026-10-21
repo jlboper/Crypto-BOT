@@ -547,3 +547,25 @@ permite sólo rutas estáticas explícitas.46 conserva la lista cerrada y agrega
 exactamente ambos recursos de código con CSP/no-store; APIs/CSRF no cambian.
 Verificar GET remoto de cada dependencia nueva además del build, payload y CI.
 Nunca inferir experiencia remota completa de un exportador o heartbeat aceptado.
+
+
+## 2026-10-21 — Trazabilidad durable antes de control financiero
+
+La continuación autorizada mantiene LEVEL0. El vínculo entrada→posición se conserva
+mediante identificadores de posición y su apertura, nunca sólo activo; una posición
+anterior sin vínculo o un evento perdido conserva UNKNOWN. Cierre observado prueba
+un commit del ledger, no saldo de cuenta completo ni protección nativa. La evidencia
+nueva permanece legible por46; rollback no debe reabrir reservas terminales.
+
+Un probe RO de Windows reprodujo la omisión remota cuando el presupuesto se evaluaba
+antes de eliminar detalle legacy que no se enviaría.47 calcula Guardian con datos
+ricos y adjudica campos opcionales después de compatibilidad. No amplía el límite ni
+sustituye falta de sincronización por caída del motor. Consultas locales y Research
+citan evidencia acotada, sin inferir causalidad IA o mezclar wallets/entornos.
+
+Global Risk y Capital Control siguen simulaciones no integradas: políticas SIM
+explícitas y sin importes financieros por defecto. El inventario de cuenta completo,
+semántica TOTAL/FREE y protocolo real de conciliación no se deducen de una API key,
+USDT o un ledger. Las transiciones de autonomía requieren validación y autorización
+separadas. Las copias SQLite explícitas amplían evidencia recuperable local sin
+modificar el updater: consistencia individual no constituye una captura global.

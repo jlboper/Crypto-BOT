@@ -23,6 +23,8 @@ test('real workerd + local D1: browser session -> command -> Windows sync -> ack
     {type:'ESModule',path:fileURLToPath(new URL('../src/capital-lab.mjs',import.meta.url))},
     {type:'ESModule',path:fileURLToPath(new URL('../src/opportunity-shadow.mjs',import.meta.url))},
     {type:'ESModule',path:fileURLToPath(new URL('../../web/opportunity-contract.js',import.meta.url))},
+    {type:'ESModule',path:fileURLToPath(new URL('../src/research-validation.mjs',import.meta.url))},
+    {type:'ESModule',path:fileURLToPath(new URL('../../web/research-validation.js',import.meta.url))},
     {type:'ESModule',path:fileURLToPath(new URL('../src/github-updates.mjs',import.meta.url))},
     {type:'ESModule',path:fileURLToPath(new URL('../src/password.mjs',import.meta.url))},
     {type:'ESModule',path:fileURLToPath(new URL('../src/bot-releases.mjs',import.meta.url))}],
@@ -71,6 +73,15 @@ test('real workerd + local D1: browser session -> command -> Windows sync -> ack
   const rejectedObservation=await call('/v1/device/sync',{snapshot:invalidObservation,acks:[]},{Authorization:`Bearer ${device}`});
   assert.equal(rejectedObservation.status,400);assert.equal(rejectedObservation.body.error,'Invalid Opportunity Shadow status');
   assert.deepEqual((await call('/v1/status')).body.snapshot,observed);
+  const researchValidation=JSON.parse(execFileSync(process.env.PYTHON||'python',[
+    '-B',fileURLToPath(new URL('../../tests/emit_research_validation_fixture.py',import.meta.url))],{encoding:'utf8',timeout:15000}));
+  const researched=structuredClone(observed);researched.dashboard.research.validation_summary=researchValidation;
+  assert.equal((await call('/v1/device/sync',{snapshot:researched,acks:[]},{Authorization:`Bearer ${device}`})).status,200);
+  assert.deepEqual((await call('/v1/status')).body.snapshot.dashboard.research.validation_summary,researchValidation);
+  const invalidResearch=structuredClone(researched);invalidResearch.dashboard.research.validation_summary.controls_enabled=true;
+  const rejectedResearch=await call('/v1/device/sync',{snapshot:invalidResearch,acks:[]},{Authorization:`Bearer ${device}`});
+  assert.equal(rejectedResearch.status,400);assert.equal(rejectedResearch.body.error,'Invalid research report');
+  assert.deepEqual((await call('/v1/status')).body.snapshot,researched);
   const capable={...snapshot,killed:true,paper_controls:true};
   assert.equal((await call('/v1/device/sync',{snapshot:capable,acks:[]},{Authorization:`Bearer ${device}`})).status,200);
   const control=await call('/v1/paper-controls',{action:'risk_profile',request_id:'runtime-paper-risk-0001',payload:{profile:'prudente'}});

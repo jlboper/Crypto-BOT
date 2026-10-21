@@ -3,7 +3,7 @@ from decimal import Decimal
 import hashlib
 import unittest
 
-from trader.opportunity_contract import (FLAGS, build_intent, build_outcome,
+from trader.opportunity_contract import (FLAGS, build_intent, build_outcome, position_digest,
     canonical, decimal_text)
 
 NOW=1800000000.
@@ -100,6 +100,19 @@ class OpportunityContractTests(unittest.TestCase):
             with self.assertRaises(ValueError):build_intent(**intent_fields(at=at))
         with self.assertRaises(ValueError):build_intent(**intent_fields(engine=[]))
         with self.assertRaises(ValueError):build_outcome(**outcome_fields(state=[]))
+
+    def test_position_reference_is_scoped_and_closes_require_explicit_zero(self):
+        reference='BTCUSDT|2026-10-20T12:00:00+00:00'
+        digest=position_digest('SPOT','SPOT_TESTNET',reference)
+        self.assertNotEqual(digest,position_digest('SPOT','PAPER',reference))
+        self.assertNotEqual(digest,position_digest('SPOT','SPOT_TESTNET',reference+'1'))
+        fields=outcome_fields(origin_ref='POSITION:'+digest,stage='LEDGER_COMMIT',state='CLOSED',
+            by_position=True,evidence={'position_digest':digest,'remaining_quantity':'0','decision_digest':'b'*64})
+        self.assertTrue(build_outcome(**fields).payload()['position_reference'])
+        for changes in [dict(complete=False),dict(stage='EXCHANGE_RESPONSE'),dict(state='OPENED'),
+                        dict(evidence={'position_digest':digest,'remaining_quantity':'1','decision_digest':'b'*64}),
+                        dict(evidence={'position_digest':digest,'remaining_quantity':'0'})]:
+            with self.subTest(changes=changes),self.assertRaises(ValueError):build_outcome(**(fields|changes))
 
 
 if __name__=='__main__':unittest.main()

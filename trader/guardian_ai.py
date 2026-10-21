@@ -143,6 +143,113 @@ def _validate_commentary(value, identities):
             "cautions": [re.sub(r"[\x00-\x1f]", " ", v) for v in value["cautions"]]}
 
 
+COMMENTARY_DIAGNOSTIC_CODES = frozenset({
+    'TEXT_EXTRACTION', 'JSON_TEXT_TYPE', 'JSON_DECODE', 'FIELD_SET',
+    'SUMMARY_TYPE', 'SUMMARY_BOUNDS', 'POSTURE_ENUM', 'CAUTIONS_TYPE',
+    'CAUTIONS_COUNT', 'CAUTION_TYPE', 'CAUTION_BOUNDS', 'EVIDENCE_TYPE',
+    'EVIDENCE_COUNT', 'EVIDENCE_IDS', 'PRIVATE_MATERIAL', 'VALIDATION_OTHER',
+})
+_DIAGNOSTIC_TYPES = frozenset({'OBJECT','ARRAY','STRING','NUMBER','BOOLEAN','NULL','OTHER'})
+_DIAGNOSTIC_COUNTERS = ('text_chars','field_count','summary_chars','caution_count',
+                        'caution_max_chars','evidence_count','evidence_unknown_count')
+
+
+def _diagnostic_type(value):
+    return {dict:'OBJECT',list:'ARRAY',str:'STRING',int:'NUMBER',float:'NUMBER',
+            bool:'BOOLEAN',type(None):'NULL'}.get(type(value),'OTHER')
+
+
+def _commentary_diagnostic(phase, text, value, identities):
+    """Closed metadata only; the historical validator remains authoritative.
+
+    Called after rejection, never repairs/truncates/retries a response. Field
+    names, text, evidence identities, exception messages and credentials are
+    deliberately absent. Counts are capped at the existing response-byte bound.
+    """
+    result={'schema':1,'kind':'COMMENTARY_REJECTION_DIAGNOSTIC','code':'VALIDATION_OTHER',
+        'text_type':_diagnostic_type(text),'value_type':_diagnostic_type(value),
+        **{key:None for key in _DIAGNOSTIC_COUNTERS}}
+    count=lambda item:min(len(item),32768)
+    if type(text) is str:result['text_chars']=count(text)
+    if type(value) is dict:
+        result['field_count']=count(value)
+        summary=value.get('summary');cautions=value.get('cautions');evidence=value.get('evidence_ids')
+        if type(summary) is str:result['summary_chars']=count(summary)
+        if type(cautions) is list:
+            result['caution_count']=count(cautions)
+            lengths=[len(item) for item in cautions if type(item) is str]
+            result['caution_max_chars']=min(max(lengths,default=0),32768)
+        if type(evidence) is list:
+            result['evidence_count']=count(evidence)
+            result['evidence_unknown_count']=min(sum(item not in identities for item in evidence),32768)
+    if phase=='EXTRACT':code='TEXT_EXTRACTION'
+    elif phase=='PARSE':code='JSON_DECODE' if type(text) is str else 'JSON_TEXT_TYPE'
+    elif phase=='PRIVATE':code='PRIVATE_MATERIAL'
+    elif not isinstance(value,dict) or set(value)!=set(SCHEMA['required']):code='FIELD_SET'
+    elif not isinstance(value['summary'],str):code='SUMMARY_TYPE'
+    elif not 1<=len(value['summary'])<=280:code='SUMMARY_BOUNDS'
+    elif value['posture'] not in SCHEMA['properties']['posture']['enum']:code='POSTURE_ENUM'
+    elif not isinstance(value['cautions'],list):code='CAUTIONS_TYPE'
+    elif len(value['cautions'])>4:code='CAUTIONS_COUNT'
+    elif any(not isinstance(item,str) for item in value['cautions']):code='CAUTION_TYPE'
+    elif any(len(item)>120 for item in value['cautions']):code='CAUTION_BOUNDS'
+    elif not isinstance(value['evidence_ids'],list):code='EVIDENCE_TYPE'
+    elif not 1<=len(value['evidence_ids'])<=4:code='EVIDENCE_COUNT'
+    elif any(item not in identities for item in value['evidence_ids']):code='EVIDENCE_IDS'
+    else:code='VALIDATION_OTHER'
+    result['code']=code
+    return result
+
+
+def _closed_commentary_diagnostic(value):
+    expected={'schema','kind','code','text_type','value_type',*_DIAGNOSTIC_COUNTERS}
+    if (type(value) is not dict or set(value)!=expected or type(value['schema']) is not int
+            or value['schema']!=1 or value['kind']!='COMMENTARY_REJECTION_DIAGNOSTIC'
+            or type(value['code']) is not str or value['code'] not in COMMENTARY_DIAGNOSTIC_CODES
+            or type(value['text_type']) is not str or value['text_type'] not in _DIAGNOSTIC_TYPES
+            or type(value['value_type']) is not str or value['value_type'] not in _DIAGNOSTIC_TYPES
+            or any(value[key] is not None and (type(value[key]) is not int or not 0<=value[key]<=32768)
+                   for key in _DIAGNOSTIC_COUNTERS)):
+        return None
+    return value
+
+
+def guardian_ai_diagnostics(data_dir, *, limit=8):
+    """Explicit private metadata audit; never initialize a reviewer or read keys."""
+    if type(limit) is not int or not 1<=limit<=20:raise ValueError('INVALID_DIAGNOSTIC_LIMIT')
+    result={'schema':1,'kind':'GUARDIAN_AI_DIAGNOSTICS','read_only':True,'api_calls_made':0,
+            'state':'NOT_STARTED','attempts':[]}
+    path=Path(data_dir)/'guardian-ai.db'
+    if not path.is_file():return result
+    try:
+        with closing(sqlite3.connect(path.resolve().as_uri()+'?mode=ro',uri=True,timeout=.25)) as db:
+            db.execute('PRAGMA query_only=ON')
+            columns={row[1] for row in db.execute('PRAGMA table_info(guardian_ai_attempts)')}
+            failure='failure_code' if 'failure_code' in columns else 'NULL'
+            rows=db.execute('SELECT id,at,model,outcome,'+failure+',input_tokens,output_tokens,cached_tokens,'
+                'CASE WHEN outcome=\'FAILED\' AND '+failure+'=\'AI_COMMENTARY_INVALID\' THEN substr(result,1,2049) ELSE NULL END '
+                'FROM guardian_ai_attempts ORDER BY id DESC LIMIT ?',(limit,)).fetchall()
+        for identifier,at,model,outcome,code,input_tokens,output_tokens,cached_tokens,raw in rows:
+            instant=(datetime.fromtimestamp(at,UTC).isoformat() if type(at) in (int,float)
+                and math.isfinite(at) and 0<at<253402300799 else None)
+            diagnostic=None
+            if type(raw) is str and len(raw)<=2048:
+                try:diagnostic=_closed_commentary_diagnostic(json.loads(raw))
+                except (ValueError,TypeError):pass
+            result['attempts'].append({'id':identifier if type(identifier) is int and 0<identifier<10**12 else None,
+                'at':instant,'model':PRICE['model'] if model==PRICE['model'] else 'UNKNOWN',
+                'outcome':outcome if outcome in ('CLAIMED','FAILED','COMPLETED') else 'UNKNOWN',
+                'failure_code':code if type(code) is str and code in FAILURE_CODES else None,
+                'input_tokens':input_tokens if type(input_tokens) is int and 0<=input_tokens<=100000 else None,
+                'output_tokens':output_tokens if type(output_tokens) is int and 0<=output_tokens<=100000 else None,
+                'cached_tokens':cached_tokens if type(cached_tokens) is int and 0<=cached_tokens<=100000 else None,
+                'diagnostic':diagnostic})
+        result['state']='AVAILABLE'
+    except (OSError,sqlite3.Error,ValueError,TypeError,OverflowError):
+        result.update(state='UNAVAILABLE',attempts=[])
+    return result
+
+
 class GuardianAIReviewer:
     MAX_INPUT_BYTES = 4096
     MAX_RESPONSE_BYTES = 32768
@@ -240,6 +347,7 @@ class GuardianAIReviewer:
         if self.model != PRICE["model"]:
             return self._unavailable("MODEL_PRICING_NOT_VERIFIED")
         claim = None
+        diagnostic = None
         tokens, cached_tokens, estimate = [None, None], None, None
         try:
             context, data, fingerprint = self._context(report)
@@ -321,12 +429,19 @@ class GuardianAIReviewer:
                 raise _AIResponseFailure("AI_RESPONSE_INVALID")
             if any(c.get("type") == "refusal" for item in output for c in item.get("content", [])):
                 raise _AIResponseFailure("AI_RESPONSE_REFUSED")
+            text = parsed = None
+            phase = 'EXTRACT'
             try:
                 text = response.get("output_text") or "".join(c.get("text", "") for item in output for c in item.get("content", []) if c.get("type") == "output_text")
-                result = _validate_commentary(json.loads(text), context["evidence_ids"])
+                phase = 'PARSE'
+                parsed = json.loads(text)
+                phase = 'VALIDATE'
+                result = _validate_commentary(parsed, context["evidence_ids"])
+                phase = 'PRIVATE'
                 if self.api_key in _json(result):
                     raise ValueError("Private material in commentary")
             except (ValueError, TypeError):
+                diagnostic = _commentary_diagnostic(phase,text,parsed,context['evidence_ids'])
                 raise _AIResponseFailure("AI_COMMENTARY_INVALID") from None
             record = {"state":"COMPLETED","at":datetime.fromtimestamp(now,UTC).isoformat(),
                 "assessment_id":context["assessment_id"],"model":self.model,"advisory_only":True,
@@ -343,8 +458,8 @@ class GuardianAIReviewer:
             if claim is not None:
                 try:
                     with closing(self._connect()) as db,db:
-                        db.execute("UPDATE guardian_ai_attempts SET outcome='FAILED',failure_code=?,input_tokens=?,output_tokens=?,cached_tokens=?,estimated_cost_usd=? WHERE id=? AND outcome='CLAIMED'",
-                            (failure,*tokens,cached_tokens,estimate,claim))
+                        db.execute("UPDATE guardian_ai_attempts SET outcome='FAILED',failure_code=?,input_tokens=?,output_tokens=?,cached_tokens=?,estimated_cost_usd=?,result=? WHERE id=? AND outcome='CLAIMED'",
+                            (failure,*tokens,cached_tokens,estimate,_json(diagnostic) if diagnostic is not None else None,claim))
                 except sqlite3.Error:
                     pass
             return self._unavailable(failure)

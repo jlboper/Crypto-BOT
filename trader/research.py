@@ -958,8 +958,12 @@ def _execute_research(
     report['operating_baselines'] = operating_baselines(market_data, futures_data, config, train, test)
     from .market_pulse_research import pulse_research_evidence
     report['market_pulse_observation'] = pulse_research_evidence(config.bot.database_path.parent)
-    progress(config.research.report_path, 'Guardando historial y curvas de cartera')
+    from .quant_research import quant_research_evidence
+    from .research_validation import build_validation_summary
+    report['quant_observation'] = quant_research_evidence(config.bot.database_path.parent)
     report['generated_at'] = datetime.now(UTC).isoformat()
+    report['validation_summary'] = build_validation_summary(report)
+    progress(config.research.report_path, 'Guardando historial y curvas de cartera')
     archive_report(report, config.research.report_path)
     from .research_runtime import DAY
     import time

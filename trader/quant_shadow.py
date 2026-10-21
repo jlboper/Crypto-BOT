@@ -521,7 +521,7 @@ class QuantShadowService:
             if "closed" in position and not _pending_funding(db, position, now):
                 db.execute("DELETE FROM quant_pending_funding WHERE position_id=?", (position["id"],))
 
-    def _close(self, db, position, markets, now, reason):
+    def _close(self, db, position, markets, now, reason, observations=None):
         projection = _projection(position, markets, now, self.config)
         if not projection["mark_complete"]:
             _journal(db, now, "EXIT_WAIT_FOR_FRESH_LEGS", {"position_id": position["id"], "reason": reason},
@@ -566,9 +566,15 @@ class QuantShadowService:
                      "stress_costs_usdt":stress_cost,"kind":"SIMULATED_STRESS_COST",
                      "fraction":self.config.leg_failure_stress_fraction,"reason":reason},"margin-stress-"+position["id"])
         _journal(db, now, "PAIR_CLOSED_SIMULATION", closed, "closed-"+position["id"])
+        if observations is not None:
+            try:
+                from .opportunity_contract import canonical
+                observations.append((position['id'],hashlib.sha256(canonical(closed)).hexdigest()))
+            except Exception:
+                pass
         return True
 
-    def _protect(self, db, markets, now):
+    def _protect(self, db, markets, now, observations=None):
         closed_assets = set()
         for position in _positions(db):
             projection = _projection(position, markets, now, self.config)
@@ -597,7 +603,7 @@ class QuantShadowService:
                 if _fresh_book(future, now) and type(future.get("observed_funding_rate")) in (int,float) and future["observed_funding_rate"] <= 0:
                     reason = "ADVERSE_FUNDING_SIGN"
             if reason:
-                if self._close(db, position, markets, now, reason):
+                if self._close(db, position, markets, now, reason,observations):
                     closed_assets.update(leg["symbol"] for leg in position["legs"])
         return closed_assets
 
@@ -707,9 +713,20 @@ class QuantShadowService:
     @staticmethod
     def _observe_entry_commit(identity, now):
         try:
+            from .opportunity_contract import position_digest
             from .opportunity_observer import observe_entry_outcome
             observe_entry_outcome(engine="QUANT_ARBITRAGE", environment="SHADOW", origin_ref=identity,
-                at=now, stage="LEDGER_COMMIT", state="OPENED", complete=True)
+                at=now, stage="LEDGER_COMMIT", state="OPENED", complete=True,
+                evidence={'position_digest':position_digest('QUANT_ARBITRAGE','SHADOW',identity)})
+        except Exception:
+            pass
+
+    @staticmethod
+    def _observe_position_close(identity,proof,now):
+        try:
+            from .opportunity_observer import observe_position_commit
+            observe_position_commit(engine='QUANT_ARBITRAGE',environment='SHADOW',position_ref=identity,
+                at=now,remaining_quantity='0',proof=proof)
         except Exception:
             pass
 
@@ -755,6 +772,7 @@ class QuantShadowService:
         source = self.source(self.clock())  # Network runs only on this optional thread.
         now = self.clock()
         observed_openings = []
+        observed_closings = []
         with self._lock, _connect(self.path) as db:
             db.execute("BEGIN IMMEDIATE")
             if not self._owned(db, now) or self._stop.is_set():
@@ -764,7 +782,7 @@ class QuantShadowService:
             reduced_source = {key: value for key, value in source.items() if key != "closed_bars"} if isinstance(source, dict) else source
             markets, source_digest = self._store_source(db, reduced_source, now)
             self._settle_funding(db, markets, now)
-            closed_assets = self._protect(db, markets, now)  # Always before entry models/pauses.
+            closed_assets = self._protect(db, markets, now,observed_closings)  # Always before entry models/pauses.
             positions, balance, collateral, equity, gross = self._wallet(db, markets, now)
             risk_halt = self._risk_halt(db,now,equity)
             hypotheses = {"spot_fee_rate": self.config.fee_bps/10000,
@@ -868,6 +886,8 @@ class QuantShadowService:
                 return False
         for identity in observed_openings:
             self._observe_entry_commit(identity, self.clock())
+        for identity,proof in observed_closings:
+            self._observe_position_close(identity,proof,self.clock())
         return True
 
     def snapshot(self, *, now=None):

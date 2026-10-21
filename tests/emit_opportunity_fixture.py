@@ -18,7 +18,7 @@ def make_opportunity(*, variant='ready', at=None):
         OpportunityObserverService, opportunity_snapshot,
         observe_entry_intent, observe_entry_outcome,
     )
-    variants = {'ready', 'not-started', 'idle', 'stale', 'partial', 'unavailable', 'full', 'mixed', 'ai-allow', 'ai-reduce', 'capital-unknown', 'clock-regression'}
+    variants = {'ready', 'not-started', 'idle', 'stale', 'partial', 'unavailable', 'full', 'mixed', 'ai-allow', 'ai-reduce', 'capital-unknown', 'clock-regression', 'rollback46'}
     if variant not in variants:
         raise ValueError('Unknown synthetic observer fixture')
     instant = math.floor(time.time()*1000)/1000 if at is None else float(at)
@@ -40,6 +40,24 @@ def make_opportunity(*, variant='ready', at=None):
             return result
         service = OpportunityObserverService(root, clock=lambda: instant)
         try:
+            if variant=='rollback46':
+                from trader.opportunity_contract import build_intent,build_outcome,position_digest
+                from tests.legacy_opportunity import load_observer46
+                service.initialize();service._flush_health(heartbeat=True)
+                reference=position_digest('SPOT','SPOT_TESTNET','BTCUSDT|synthetic-distinct-position')
+                service._consume(build_intent(engine='SPOT',environment='SPOT_TESTNET',origin_ref='synthetic-order',
+                    strategy_version='synthetic-rollback-v1',at=instant-3,
+                    legs=[{'symbol':'BTCUSDT','venue':'SPOT_TESTNET','direction':'LONG','quantity':'1','reference_price':'100'}]))
+                service._consume(build_outcome(engine='SPOT',environment='SPOT_TESTNET',origin_ref='synthetic-order',
+                    at=instant-2,stage='LEDGER_COMMIT',state='OPENED',complete=True,
+                    evidence={'position_digest':reference,'decision_digest':'b'*64}))
+                service._consume(build_outcome(engine='SPOT',environment='SPOT_TESTNET',origin_ref='POSITION:'+reference,
+                    at=instant-1,stage='LEDGER_COMMIT',state='CLOSED',complete=True,by_position=True,
+                    evidence={'position_digest':reference,'remaining_quantity':'0','decision_digest':'c'*64}))
+                legacy=load_observer46().opportunity_snapshot(root,now=instant)
+                if legacy!=opportunity_snapshot(root,now=instant):
+                    raise AssertionError('Release46 cannot read current synthetic lifecycle journal')
+                return legacy
             if not service.start():
                 raise AssertionError('Synthetic observer did not start')
             deadline = time.monotonic()+3
@@ -140,7 +158,7 @@ def contract_codes():
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--variant', choices=('ready', 'not-started', 'idle', 'stale', 'partial', 'unavailable', 'full', 'mixed', 'ai-allow', 'ai-reduce', 'capital-unknown', 'clock-regression'), default='ready')
+    parser.add_argument('--variant', choices=('ready', 'not-started', 'idle', 'stale', 'partial', 'unavailable', 'full', 'mixed', 'ai-allow', 'ai-reduce', 'capital-unknown', 'clock-regression', 'rollback46'), default='ready')
     parser.add_argument('--contract-codes', action='store_true')
     args = parser.parse_args()
     value = contract_codes() if args.contract_codes else make_opportunity(variant=args.variant)
