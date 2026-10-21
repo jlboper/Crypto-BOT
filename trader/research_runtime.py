@@ -6,6 +6,7 @@ import json
 import os
 import subprocess
 import sys
+import tempfile
 import time
 from contextlib import contextmanager
 from contextvars import ContextVar
@@ -16,6 +17,8 @@ from .runtime import single_instance
 
 DAY = 86400
 MAX_SECONDS = 6900
+_WINDOWS = os.name == 'nt'
+_REPLACE_RETRY_DELAYS = (.01, .02, .04, .08, .16)
 _cancel = ContextVar('research_cancel', default=None)
 
 
@@ -43,13 +46,35 @@ def cancellation(config):
 
 
 def atomic(path: Path, value: dict) -> None:
+    """Replace a complete JSON file; retain the previous file on any failure."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    temp = path.with_suffix('.tmp')
-    with temp.open('w', encoding='utf-8') as handle:
-        json.dump(value, handle, allow_nan=False)
-        handle.flush()
-        os.fsync(handle.fileno())
-    temp.replace(path)
+    temp = None
+    try:
+        # Same-directory, exclusive temporaries cannot collide across writers.
+        # Close before replace: Windows readers can temporarily deny replacement.
+        with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8',
+                dir=path.parent, prefix='.'+path.name+'.', suffix='.tmp', delete=False) as handle:
+            temp = Path(handle.name)
+            json.dump(value, handle, allow_nan=False)
+            handle.flush()
+            os.fsync(handle.fileno())
+        for attempt in range(len(_REPLACE_RETRY_DELAYS)+1):
+            try:
+                temp.replace(path)
+                return
+            except PermissionError as error:
+                if (not _WINDOWS or getattr(error, 'winerror', None) not in (5, 32, 33)
+                        or attempt == len(_REPLACE_RETRY_DELAYS)):
+                    raise
+                time.sleep(_REPLACE_RETRY_DELAYS[attempt])
+    finally:
+        if temp is not None:
+            try:
+                temp.unlink(missing_ok=True)
+            except OSError:
+                # Best effort for this invocation's file only; never mask failure
+                # or delete/truncate the destination to force replacement.
+                pass
 
 
 def read(path: Path) -> dict:

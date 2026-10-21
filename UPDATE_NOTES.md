@@ -1,3 +1,41 @@
+# 0.10.48 — Estado Research en Windows (en preparación)
+
+Base confirmada **0.10.47 publicada, firmada e instalada**, main
+`216c8232e50903627ff541b52befdb8494cac4e8`, [PR124](https://github.com/jlboper/Crypto-BOT/pull/124).
+[Publicación39532789868](https://github.com/jlboper/Crypto-BOT/actions/runs/39532789868)
+y [seguridad39532789801](https://github.com/jlboper/Crypto-BOT/actions/runs/39532789801)
+aprobaron Linux y Windows. Entre21Oct2026 **02:35–02:38UTC** se verificaron
+Ed25519, **227/227 archivos**, agente **11/11** y dos sincronizaciones HTTPS
+distintas correctas. Las **154485 filas** de referencia conservaron cero
+ausencias/cambios. Spot5/Futures7 mantenían protecciones ARMED en ese corte;
+son observaciones fechadas y no acreditan el estado actual de los motores.
+
+El arranque real de Research a02:38UTC falló con `WinError5` al reemplazar
+su JSON de estado. Se reprodujo un escenario con un lector sintético sin cambiar
+ACL. La identidad del handle que originó el incidente operativo no se determinó.
+
+La candidata48 usa temporales exclusivos por escritura en el mismo directorio,
+flush/fsync y cierre antes del reemplazo. Sólo reintenta los errores Windows5/32/33:
+hasta cinco reintentos, con **310ms de espera acumulada**; el tiempo de E/S se suma
+a esa espera. Si persiste el error, conserva el JSON anterior. La limpieza se limita
+al temporal de esa invocación; nunca borra el destino ni cambia permisos para
+forzar el reemplazo. No modifica scheduler, IA, trading, riesgos o protecciones.
+
+La matriz Research47 se adjunta sólo a un estudio nuevo completado. El informe
+histórico del19Oct conserva la evidencia disponible entonces y no se enriquece
+retrospectivamente con observaciones posteriores. Instalar47 no acredita que ese
+nuevo estudio haya finalizado. Pulse/Quant siguen SHADOW y Guardian LEVEL0;
+no se habilitan Control, reservas efectivas, promociones o LIVE.
+
+Validación local48: **1052/1052 Python offline PASS**145.156s,21Oct13:26:59UTC,
+sin fallos/errores/skips, red externa bloqueada y ningún bot iniciado;
+**242/242 Node PASS**34.309s, PS5.1 lifecycle/vistas, build/diff PASS.
+Diez regresiones nuevas incluyen un lector Windows real, fallos de serialización,
+E/S, fsync y reemplazo, reintentos selectivos/acotados y escrituras concurrentes.
+CI del head/main, PR, publicación, firma e instalación48 requieren verificación
+propia y permanecen pendientes. Los bloques inferiores conservan historia.
+
+
 # 0.10.47 — Trazabilidad, investigación y recuperación (en preparación)
 
 - Hooks postcommit observan aperturas/cierres/parciales y conciliación GET con
