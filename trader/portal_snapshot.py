@@ -726,6 +726,23 @@ def opportunity_shadow_projection(config):
         return None
 
 
+def _fit_opportunity_shadow(payload, value):
+    """Fit the newest journal prefix without weakening the existing dashboard.
+
+    Only recent display records may be omitted. Health, coverage, account scopes,
+    timestamps and disabled authority remain unchanged; journals are never edited.
+    The default ASCII JSON encoding matches the existing whole-dashboard guard.
+    """
+    if type(value) is not dict or type(value.get('recent_records')) is not list or len(value['recent_records'])>6:
+        return None
+    recent=list(value['recent_records'])
+    for count in range(len(recent),-1,-1):
+        candidate={**value,'recent_records':recent[:count]}
+        if len(json.dumps({**payload,'opportunity_shadow':candidate},allow_nan=False).encode())<=480_000:
+            return candidate
+    return None
+
+
 def compatible_remote_projection(payload):
     """Apply the existing remote compatibility shape before optional budgeting.
 
@@ -867,6 +884,8 @@ def dashboard_snapshot(config, report_path=None, *, remote=False):
                 allow_nan=False).encode()) <= 480_000:
             payload['capital_lab'] = capital_lab
         opportunities = opportunity_shadow_projection(config)
+        if remote and opportunities is not None:
+            opportunities = _fit_opportunity_shadow(payload, opportunities)
         if opportunities is not None and len(json.dumps({**payload, 'opportunity_shadow': opportunities},
                 allow_nan=False).encode()) <= 480_000:
             payload['opportunity_shadow'] = opportunities
