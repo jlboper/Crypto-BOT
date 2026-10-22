@@ -393,6 +393,42 @@ class RemoteConnectionTests(unittest.TestCase):
                 self.assertEqual(calls[1]['snapshot']['bot_update']['version'],'0.10.45')
                 self.assertEqual(self.agent.last_error,'DASHBOARD_REJECTED:'+label)
 
+    def test_preparation_downgrade_retains_observer_and_existing_capabilities(self):
+        Database(self.config.bot.database_path)
+        original={'status':{'mode':'PAPER'},'opportunity_shadow':{},
+                  'guardian_intelligence':{},'capital_lab':{},'live_preparation':{}}
+        for label in ('Unknown dashboard field','Invalid Live Preparation status'):
+            with self.subTest(label=label):
+                self.agent.dashboard_provider=lambda:json.loads(json.dumps(original))
+                self.agent.paper_controls=Mock(available=True,quant_available=True)
+                self.agent.paper_controls.results.return_value=[]
+                calls=[]
+                def send(request,timeout):
+                    calls.append(json.loads(request.data))
+                    if len(calls)==1:
+                        raise urllib.error.HTTPError(request.full_url,400,'Bad Request',{},
+                            io.BytesIO(json.dumps({'error':label}).encode()))
+                    return io.BytesIO(b'{"commands":[],"jobs":[]}')
+                with patch.object(self.agent.opener,'open',side_effect=send):self.agent.sync()
+                self.assertEqual(len(calls),2)
+                self.assertEqual(calls[1]['snapshot']['dashboard'],
+                                 {k:v for k,v in original.items() if k!='live_preparation'})
+                self.assertTrue(calls[1]['snapshot']['quant_controls'])
+                self.assertEqual(self.agent.last_error,'DASHBOARD_REJECTED:'+label)
+
+    def test_preparation_compatibility_retry_is_bounded(self):
+        Database(self.config.bot.database_path)
+        self.agent.dashboard_provider=lambda:{'status':{'mode':'PAPER'},'opportunity_shadow':{},'live_preparation':{}}
+        calls=[]
+        def send(request,timeout):
+            calls.append(json.loads(request.data))
+            reason='Invalid Live Preparation status' if len(calls)==1 else 'private untrusted detail'
+            raise urllib.error.HTTPError(request.full_url,400,'Bad Request',{},io.BytesIO(json.dumps({'error':reason}).encode()))
+        with patch.object(self.agent.opener,'open',side_effect=send),self.assertRaises(urllib.error.HTTPError):self.agent.sync()
+        self.assertEqual(len(calls),2)
+        self.assertEqual(calls[1]['snapshot']['dashboard'],{'status':{'mode':'PAPER'},'opportunity_shadow':{}})
+        self.assertEqual(self.agent.last_error,'HTTPError:400')
+
     def test_opportunity_retry_is_bounded_and_suppresses_arbitrary_provider_error(self):
         Database(self.config.bot.database_path)
         self.agent.dashboard_provider=lambda:{'status':{'mode':'PAPER'},'capital_lab':{},'opportunity_shadow':{}}

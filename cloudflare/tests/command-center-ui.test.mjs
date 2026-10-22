@@ -18,7 +18,7 @@ const guardian=()=>({schema:1,engine:'PORTFOLIO_GUARDIAN',mode:'OBSERVER',state:
 test('shipped markup has seven exclusive workspaces, unique IDs and the original financial/control targets',()=>{
   const p=portal(),ids=p.root.querySelectorAll('[id]').map(node=>node.id);
   assert.equal(new Set(ids).size,ids.length);assert.equal(p.root.querySelectorAll('[data-workspace]').length,7);assert.deepEqual(active(p),['command-center']);
-  assert.equal(p.root.querySelectorAll('details').length,51); // Existing folds plus the four-engine research validation summary.
+  assert.equal(p.root.querySelectorAll('details').length,53); // Includes the read-only migration preparation panel.
   assert.ok(p.get('research-validation'));
   for(const id of ['killButton','pauseFuturesForward','pauseMarketPulse','resumeMarketPulse','pauseQuant','resumeQuant','riskProfile','saveRiskProfile','positions','reviews','trades','events','research-lab','modelSettingsPanel','passwordPanel','updatePanel','guardianScopes'])assert.ok(p.get(id),id+' retained');
   assert.match(markup,/CRYPTO-BOT 2\.0/);assert.match(markup,/Intelligent Trading Command Center/);assert.match(p.get('guardian-ai').textContent,/LEVEL 0/);

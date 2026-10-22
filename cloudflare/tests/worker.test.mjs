@@ -1052,7 +1052,7 @@ test('opportunity scripts use the explicit GET asset route without opening priva
     return new Response('/* '+path+' */',{headers:{'content-type':'application/javascript','cache-control':'public, max-age=86400','content-security-policy':"default-src *"}});
   }};
   assert.equal((await f.request('/v1/status')).status,401);
-  const paths=['/opportunity-contract.js','/opportunity-ui.js','/research-validation.js'];
+  const paths=['/opportunity-contract.js','/opportunity-ui.js','/research-validation.js','/live-preparation.js'];
   for(const path of paths){
     const response=await worker.fetch(new Request(origin+path),f.env);
     assert.equal(response.status,200);
@@ -1215,5 +1215,28 @@ test('optional research validation preserves legacy sync and uses its known safe
     const response=await f.sync({snapshot:bad,acks:[]});assert.equal(response.status,400);assert.equal(response.body.error,'Invalid research report');
   }
   const legacy=structuredClone(s);delete legacy.dashboard.research.validation_summary;
+  assert.equal((await f.sync({snapshot:legacy,acks:[]})).status,200);
+});
+
+
+test('read-only migration preparation authenticates, rejects authority and adds no financial actions',async t=>{
+  const f=await fixture(t),dashboard=guardianDashboard();
+  const preparation=JSON.parse(execFileSync(process.env.PYTHON||'python',['-X','utf8',fileURLToPath(new URL('../../tests/emit_live_preparation_fixture.py',import.meta.url))],{encoding:'utf8'}));
+  dashboard.live_preparation=preparation;
+  // The authenticated transport is JSON: its canonical zero is +0.
+  const original=JSON.parse(JSON.stringify(dashboard)),base={...snapshot(),dashboard};
+  assert.equal((await f.request('/v1/device/sync',{snapshot:base,acks:[]})).status,401);
+  assert.equal((await f.sync({snapshot:base,acks:[]})).status,200);
+  await f.login();
+  assert.deepEqual((await f.request('/v1/status')).body.snapshot.dashboard,original);
+  for(const mutate of [x=>x.execution_enabled=true,x=>x.can_veto=true,x=>x.reservations_enabled=true,x=>x.automatic_activation=true,x=>x.state='APPROVED',x=>x.capital_proposal.status='ALLOCATED',x=>x.engines[0].qualified_days=30]){
+    const invalid=structuredClone(base);mutate(invalid.dashboard.live_preparation);
+    const response=await f.sync({snapshot:invalid,acks:[]});
+    assert.equal(response.status,400);assert.equal(response.body.error,'Invalid Live Preparation status');
+  }
+  assert.deepEqual((await f.request('/v1/status')).body.snapshot.dashboard,original);
+  for(const action of ['live_activate','live_prepare','capital_allocate','guardian_enable'])
+    assert.equal((await f.request('/v1/paper-controls',{action,payload:{},request_id:'no-financial-authority-'+action})).status,400);
+  const legacy=structuredClone(base);delete legacy.dashboard.live_preparation;
   assert.equal((await f.sync({snapshot:legacy,acks:[]})).status,200);
 });

@@ -256,7 +256,7 @@ function renderDualEvidence(spot, futures, status={}) {
   if(list){list.replaceChildren();for(const [ok,label] of checks){const li=document.createElement('li');li.textContent=(ok?'✓':'○')+' '+label;list.append(li);}}
   const ready=spotDays>=30&&spotTrades>=30&&futuresDays>=30&&futuresTrades>=30&&score.consecutive_errors===0;
   const state=document.getElementById('dualEvidenceState');
-  if(state){state.textContent=ready?'LISTO PARA REVISIÓN':'ACUMULANDO DATOS';state.className='state '+(ready?'warning':'neutral');}
+  if(state){state.textContent=ready?'MÍNIMO TEMPORAL · REVISIÓN PENDIENTE':'ACUMULANDO DATOS';state.className='state '+(ready?'warning':'neutral');}
   const note=document.getElementById('dualEvidenceNote');
   if(note)note.textContent=ready?
     'Ambos motores alcanzaron el mínimo de observación. Esto habilita una revisión humana de resultados, no Binance LIVE.':
@@ -337,7 +337,7 @@ function renderFuturesParity(futures) {
   const days=finite(score.observed_days), trades=finite(score.strategy_closed_trades);
   const ready=days>=30&&trades>=30&&finite(score.consecutive_errors)===0;
   const evidence=document.getElementById('futuresEvidenceState');
-  if(evidence){evidence.textContent=ready?'LISTO PARA REVISIÓN':'EVIDENCIA INSUFICIENTE';evidence.className='state '+(ready?'warning':'neutral');}
+  if(evidence){evidence.textContent=ready?'MÍNIMO TEMPORAL · REVISIÓN PENDIENTE':'EVIDENCIA INSUFICIENTE';evidence.className='state '+(ready?'warning':'neutral');}
   set('futuresEvidenceNote',
     'Historial Futures Demo: '+days.toFixed(1)+' días y '+trades.toFixed(0)+' cierres de estrategia; '+finite(score.technical_closed_trades).toFixed(0)+' cierres técnicos aparte. 30 días y 30 cierres solo permiten revisión; nunca activan dinero real automáticamente.');
   const metrics=document.getElementById('futuresEvidenceMetrics');
@@ -786,7 +786,7 @@ const CommandCenterPortal = (() => {
     'opportunity-shadow':'guardian-ai','opportunity-capital':'guardian-ai','opportunity-decisions':'guardian-ai',
     'activity-section':'operations-decisions','historyPanel':'operations-decisions',
     'modelSettingsPanel':'system-settings','diagnosticsPanel':'system-settings','observation-details':'system-settings',
-    'updates':'system-settings','updatePanel':'system-settings','password':'system-settings','passwordPanel':'system-settings'
+    'live-preparation':'system-settings','updates':'system-settings','updatePanel':'system-settings','password':'system-settings','passwordPanel':'system-settings'
   });
   const targets=Object.freeze({updates:'updatePanel',password:'passwordPanel'});
   const names=Object.freeze({SPOT:'Spot Bot',FUTURES:'Futures Bot',AI_MARKET_PULSE:'AI Market Pulse',QUANT_ARBITRAGE:'Quant Arbitrage'});
@@ -903,7 +903,7 @@ window.CommandCenterPortal=CommandCenterPortal;
 /* Shared supervised engine view. External event text is always escaped, never executable. */
 const PulsePortal = (() => {
   let pendingControl=null;
-  const foldIds=new Set(['spot-analysis','futures-analysis','pulse-live','pulse-news','pulse-scanner','pulse-decisions','pulse-finance','pulse-health','guardian-exposure','guardian-overlaps','guardian-quality','intelligence-scopes','intelligence-sources','intelligence-ai','intelligence-conflicts','intelligence-journal','intelligence-queries','quant-funding','quant-statistical','quant-positions','quant-decisions','quant-finance','quant-health','observation-details','comparison-details','spot-limits','futures-limits','spot-positions','futures-positions','spot-finance','futures-finance','diagnosticsPanel','research-lab','capital-lab','capital-lab-audit','research-validation','opportunity-shadow','opportunity-capital','opportunity-decisions']);
+  const foldIds=new Set(['live-preparation','spot-analysis','futures-analysis','pulse-live','pulse-news','pulse-scanner','pulse-decisions','pulse-finance','pulse-health','guardian-exposure','guardian-overlaps','guardian-quality','intelligence-scopes','intelligence-sources','intelligence-ai','intelligence-conflicts','intelligence-journal','intelligence-queries','quant-funding','quant-statistical','quant-positions','quant-decisions','quant-finance','quant-health','observation-details','comparison-details','spot-limits','futures-limits','spot-positions','futures-positions','spot-finance','futures-finance','diagnosticsPanel','research-lab','capital-lab','capital-lab-audit','research-validation','opportunity-shadow','opportunity-capital','opportunity-decisions']);
   const navIds=new Set(['platform-overview','spot-bot','futures-bot','market-pulse','portfolio-guardian','quant-arbitrage','activity-section','modelSettingsPanel',...foldIds]);
   const foldStorageKey='crypto-ai-trader.ui.folds.v1';
   let redrawQueued=false;
@@ -1858,7 +1858,9 @@ async function refresh() {
     GuardianIntelligencePortal.render(platform);
     CapitalLabPortal.render(platform);
     window.OpportunityShadowPortal?.render(platform);
+    window.CryptoLivePreparation?.render(platform?.live_preparation,platform?.remote_sync_stale===true);
   } catch(error) {
+    window.CryptoLivePreparation?.disconnected();
     PulsePortal.disconnected();
     FourEnginePortal.disconnected();
     CommandCenterPortal.disconnected();

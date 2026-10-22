@@ -6,6 +6,7 @@ import { validGuardianIntelligence } from './guardian-intelligence.mjs';
 import { validCapitalLab } from './capital-lab.mjs';
 import { validOpportunityShadow } from './opportunity-shadow.mjs';
 import { validResearchValidation } from './research-validation.mjs';
+import { validLivePreparation } from './live-preparation.mjs';
 
 const encoder = new TextEncoder();
 const TOKEN = /^[A-Za-z0-9_-]{43}$/;
@@ -482,10 +483,11 @@ function validateSnapshot(snapshot) {
         &&object(c.reasons)&&Object.entries(c.reasons).every(([k,v])=>codes.includes(k)&&Number.isInteger(v)&&v>0&&v<=10000)
         &&JSON.stringify(c).length<2400,'Invalid Spot cycle diagnostic');
     }
-    assert(Object.keys(d).every(k=>['status','positions','equity','trades','reviews','events','risk','research','research_state','testnet','testnet_execution','updates','paper_scorecard','futures_forward','market_pulse','portfolio_guardian','quant','engine_catalog','guardian_intelligence','capital_lab','opportunity_shadow'].includes(k)), 'Unknown dashboard field');
+    assert(Object.keys(d).every(k=>['status','positions','equity','trades','reviews','events','risk','research','research_state','testnet','testnet_execution','updates','paper_scorecard','futures_forward','market_pulse','portfolio_guardian','quant','engine_catalog','guardian_intelligence','capital_lab','opportunity_shadow','live_preparation'].includes(k)), 'Unknown dashboard field');
     if(d.guardian_intelligence!==undefined)assert(validGuardianIntelligence(d.guardian_intelligence),'Invalid Guardian Intelligence status');
     if(d.capital_lab!==undefined)assert(validCapitalLab(d.capital_lab),'Invalid Capital Protocol Lab status');
     if(d.opportunity_shadow!==undefined)assert(validOpportunityShadow(d.opportunity_shadow),'Invalid Opportunity Shadow status');
+    if(d.live_preparation!==undefined)assert(validLivePreparation(d.live_preparation),'Invalid Live Preparation status');
     if(d.market_pulse!==undefined)validateMarketPulse(d.market_pulse);
     if(d.quant!==undefined)validateQuantArbitrage(d.quant);
     if(d.portfolio_guardian!==undefined)validatePortfolioGuardian(d.portfolio_guardian,d.quant);
@@ -702,7 +704,7 @@ export async function handle(request, env, now = Math.floor(Date.now() / 1000)) 
     await statement(env.DB,'SELECT id FROM jobs LIMIT 1').all();
     return json({status:'ok',commit:/^[a-f0-9]{40}$/.test(env.PORTAL_COMMIT||'')?env.PORTAL_COMMIT:null});
   }
-  if (method === 'GET' && ['/', '/app.js', '/style.css','/styles.css','/monitoring.css','/portal-bridge.js','/opportunity-contract.js','/opportunity-ui.js','/research-validation.js','/portal.css','/crypto-ai-trader-icon.png','/manifest.webmanifest','/service-worker.js'].includes(path)) {
+  if (method === 'GET' && ['/', '/app.js', '/style.css','/styles.css','/monitoring.css','/portal-bridge.js','/opportunity-contract.js','/opportunity-ui.js','/research-validation.js','/live-preparation.js','/portal.css','/crypto-ai-trader-icon.png','/manifest.webmanifest','/service-worker.js'].includes(path)) {
     const asset = await env.ASSETS.fetch(request);
     const headers = new Headers(asset.headers);
     for (const [name, value] of Object.entries(security)) headers.set(name, value);

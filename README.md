@@ -1,3 +1,30 @@
+## Checkpoint vigente — 0.10.49 instalada; preparación 0.10.50
+
+La base confirmada es main `a3bd52b541868bce498107e9f6a19787db03bbbf`,
+[PR126](https://github.com/jlboper/Crypto-BOT/pull/126).
+[Publicación39615774170](https://github.com/jlboper/Crypto-BOT/actions/runs/39615774170)
+y [seguridad39615774421](https://github.com/jlboper/Crypto-BOT/actions/runs/39615774421)
+finalizaron correctamente en Linux y Windows. Corte21Oct2026 20:25–20:27UTC:
+Ed25519 válida,229/229 archivos, journal COMMITTED, un motor5016/agente14328,
+11/11 módulos del agente y dos sincronizaciones HTTPS distintas verificadas.
+Spot8/Futures6 con8/8 y6/6 protecciones ARMED y cantidad desprotegida observada cero.
+Pulse/Quant SHADOW; Guardian LEVEL0 sin autoridad. Es una observación fechada.
+Las172972 filas previas de11 tablas conservaron cero cambios o ausencias;
+configuración, credenciales y settings preservaron hashes. No es una captura
+atómica de toda la cuenta Binance. Research21Oct13:50UTC COMPLETED permanece archivado.
+
+La candidata50 prepara evaluación RO de migración y viabilidad de costes SIM.
+No habilita LIVE ni programa activación a30 días. Capital propuesto por el dueño
+no significa fondos asignados; pérdida diaria, drawdown, ámbito de motores,
+cuenta, reconciliación y autorización final se validan por separado.
+Los spans legacy no son cohortes continuas certificadas. Pulse/Quant necesitan
+su propia evidencia y el protocolo común de capital sigue sin admisión efectiva.
+La alerta Futures de riesgo inclusivo observado9.308 frente al límite7.5USDT
+no se resuelve elevando topes. Ver [Preparación de migración](LIVE_MIGRATION_PREPARATION.md)
+y [Auditoría de evidencia](LIVE_MIGRATION_EVIDENCE.md).
+Pruebas, PR, CI, publicación, firma e instalación50 requieren comprobaciones nuevas.
+Las secciones anteriores y posteriores de versiones previas son historia fechada.
+
 > Continuación47 en preparación: consultar [Validación y recuperación](VALIDATION_AND_RECOVERY.md).
 > Mantiene Guardian LEVEL0 y Pulse/Quant SHADOW. La evidencia fechada de instalación46
 > no acredita publicación, instalación ni validación operativa de47.
