@@ -1,3 +1,61 @@
+# 0.10.50 — Preparación verificable de migración (candidata)
+
+## Checkpoint vigente — 0.10.49 instalada; preparación 0.10.50
+
+La base confirmada es main `a3bd52b541868bce498107e9f6a19787db03bbbf`,
+[PR126](https://github.com/jlboper/Crypto-BOT/pull/126).
+[Publicación39615774170](https://github.com/jlboper/Crypto-BOT/actions/runs/39615774170)
+y [seguridad39615774421](https://github.com/jlboper/Crypto-BOT/actions/runs/39615774421)
+finalizaron correctamente en Linux y Windows. Corte21Oct2026 20:25–20:27UTC:
+Ed25519 válida,229/229 archivos, journal COMMITTED, un motor5016/agente14328,
+11/11 módulos del agente y dos sincronizaciones HTTPS distintas verificadas.
+Spot8/Futures6 con8/8 y6/6 protecciones ARMED y cantidad desprotegida observada cero.
+Pulse/Quant SHADOW; Guardian LEVEL0 sin autoridad. Es una observación fechada.
+Las172972 filas previas de11 tablas conservaron cero cambios o ausencias;
+configuración, credenciales y settings preservaron hashes. No es una captura
+atómica de toda la cuenta Binance. Research21Oct13:50UTC COMPLETED permanece archivado.
+
+La candidata50 prepara evaluación RO de migración y viabilidad de costes SIM.
+No habilita LIVE ni programa activación a30 días. Capital propuesto por el dueño
+no significa fondos asignados; pérdida diaria, drawdown, ámbito de motores,
+cuenta, reconciliación y autorización final se validan por separado.
+Los spans legacy no son cohortes continuas certificadas. Pulse/Quant necesitan
+su propia evidencia y el protocolo común de capital sigue sin admisión efectiva.
+La alerta Futures de riesgo inclusivo observado9.308 frente al límite7.5USDT
+no se resuelve elevando topes. Ver [Preparación de migración](LIVE_MIGRATION_PREPARATION.md)
+y [Auditoría de evidencia](LIVE_MIGRATION_EVIDENCE.md).
+Pruebas, PR, CI, publicación, firma e instalación50 requieren comprobaciones nuevas.
+Las secciones anteriores y posteriores de versiones previas son historia fechada.
+
+
+## Validación local de la candidata50
+
+Python offline final: **1099/1099 PASS**,139.719s,22Oct2026 01:40:43UTC,
+sin fallos, errores o skips; claves vacías, red externa bloqueada y ningún bot iniciado.
+Node final: **262/262 PASS**,56.772s, incluidos autenticación/CSRF, Worker/D1,
+contrato compartido cerrado, rechazo de autoridad y compatibilidad con snapshots
+anteriores. PS5.1 lifecycle/vistas y build compartido PASS. La primera corrida
+Node detectó una expectativa del test que preservaba -0 mientras JSON transmite0;
+se corrigió la expectativa al formato transportado, sin cambiar datos financieros.
+
+QA sintética: panel plegable en escritorio1265px y móvil360px; anchura documento
+345/345 en móvil, cuatro tarjetas y propuesta explícita sin asignación. Detalle
+abierto conservado al refrescar y repliegue por teclado comprobados. Sin APIs
+externas, POST403 y ninguna instancia de TradingEngine. No acredita UI instalada
+ni acceso de propietario remoto. CLI de costes ejecutada: una hipótesis compatible
+y otra rechazada por mínimo nocional, ambas sin autoridad ni financiación conjunta.
+
+Proyección candidata RO sobre instalación49 a21Oct20:55:16UTC:479577bytesASCII
+y cuatro detalles recientes del observer59; conserva matrizResearch,Guardian,
+CapitalLab,protecciones y preparación.205sentenciasSQLite,cero mutaciones y cero
+llamadas a proveedores/IA; el harness evita constructorDDL y lockResearch, por lo
+que no sustituye una petición HTTP real ni prueba de sincronización autenticada.
+
+El propietario pidió preparar Spot y Futures con perfil algo más agresivo. Los
+porcentajes sugeridos son un borrador privado; no hay aprobación de límites exactos
+ni activación de dinero real. Pulse y Quant conservan sus validaciones separadas.
+CI, publicación, firma e instalación50 permanecen pendientes a este checkpoint.
+
 # 0.10.49 — Historial remoto adaptativo (en preparación;48 verificada)
 
 **0.10.48 está publicada, firmada e instalada**: main

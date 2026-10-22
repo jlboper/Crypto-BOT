@@ -611,6 +611,18 @@ def public_quant_projection(raw):
     return bounded_quant_projection(result)
 
 
+def live_preparation_projection(config, payload):
+    """Optional, authority-free diagnostics; no ledger construction or API calls."""
+    try:
+        from .live_preparation import evaluate_live_preparation, read_proposal
+        proposal = read_proposal(config.bot.database_path.parent / 'live-preparation' / 'proposal.json')
+        return evaluate_live_preparation(payload, proposal)
+    except Exception:
+        # Failure is absent evidence. Never affect trading/protective cycles or
+        # leak paths, credentials, provider/model text or raw exceptions.
+        return None
+
+
 def quant_projection(config):
     """Installed-code read-only import; independent-agent modules do not import Quant."""
     from .portfolio_guardian import quant_not_started
@@ -883,6 +895,10 @@ def dashboard_snapshot(config, report_path=None, *, remote=False):
         if capital_lab is not None and len(json.dumps({**payload, 'capital_lab': capital_lab},
                 allow_nan=False).encode()) <= 480_000:
             payload['capital_lab'] = capital_lab
+        preparation = live_preparation_projection(config, payload)
+        if preparation is not None and len(json.dumps({**payload, 'live_preparation': preparation},
+                allow_nan=False).encode()) <= 480_000:
+            payload['live_preparation'] = preparation
         opportunities = opportunity_shadow_projection(config)
         if remote and opportunities is not None:
             opportunities = _fit_opportunity_shadow(payload, opportunities)

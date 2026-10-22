@@ -7,6 +7,7 @@ TEST_RESULTS.json
 .venv/
 data/*.db
 data/*.db-*
+data/live-preparation/
 data/KILL_SWITCH
 data/MARKET_PULSE_KILL_SWITCH
 data/MARKET_PULSE_PAUSED

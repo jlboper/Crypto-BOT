@@ -65,6 +65,8 @@ class DashboardServer:
             try:
                 payload = dashboard_snapshot(self.config)
                 result = {key: payload[key] for key in ('engine_catalog', 'portfolio_guardian', 'quant')}
+                if payload.get('live_preparation') is not None:
+                    result['live_preparation'] = payload['live_preparation']
             except Exception:
                 # A broken optional projection neither touches state nor controls
                 # Spot, Futures, Pulse, reconciliation or protective orders.
@@ -79,6 +81,10 @@ class DashboardServer:
                 result = {'engine_catalog': engine_catalog({'status': {'mode': self.config.bot.mode.upper()},
                                                            'quant': quant}),
                           'portfolio_guardian': guardian_unavailable(), 'quant': quant}
+                from .portal_snapshot import live_preparation_projection
+                preparation = live_preparation_projection(self.config, {})
+                if preparation is not None:
+                    result['live_preparation'] = preparation
             from .portal_snapshot import guardian_intelligence_projection, capital_lab_projection, opportunity_shadow_projection
             intelligence = guardian_intelligence_projection(self.config)
             if intelligence is not None:

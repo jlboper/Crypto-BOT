@@ -64,7 +64,7 @@
       </select></div>
       <p id="workspaceAnnouncement" class="sr-only" aria-live="polite" aria-atomic="true"></p>
 <section id="command-center" class="command-workspace" data-workspace="command-center" aria-labelledby="command-center-heading">
-      <div class="workspace-heading"><div><p class="eyebrow">CRYPTO-BOT 2.0 / COMMAND CENTER</p><h2 id="command-center-heading" tabindex="-1">Command Center</h2><p>Estado de los motores, decisiones y alertas en una sola lectura.</p></div></div>
+      <div class="workspace-heading command-heading-links"><div><p class="eyebrow">CRYPTO-BOT 2.0 / COMMAND CENTER</p><h2 id="command-center-heading" tabindex="-1">Command Center</h2><p>Estado de los motores, decisiones y alertas en una sola lectura.</p></div><a class="command-link" href="#live-preparation">Preparación futura de LIVE →</a></div>
       <div class="command-health" aria-label="Salud de la plataforma">
         <article><span>Lectura del portal</span><strong id="commandReadingState">ESPERANDO DATOS</strong><small id="commandReadingAt">Sin captura verificable</small></article>
         <article><span>Guardian AI · LEVEL 0</span><strong id="commandGuardianState">SIN EVIDENCIA</strong><small>Observer · sin veto ni reservas</small></article>
@@ -501,6 +501,20 @@
     </section>
 <section id="system-settings" class="command-workspace" data-workspace="system-settings" aria-labelledby="system-settings-heading" hidden>
       <div class="workspace-heading"><div><p class="eyebrow">CRYPTO-BOT 2.0 / SYSTEM &amp; SETTINGS</p><h2 id="system-settings-heading" tabindex="-1">System &amp; Settings</h2><p>Configuración, actualizaciones firmadas y diagnóstico del sistema.</p></div></div>
+      <details id="live-preparation" class="portal-fold panel live-preparation" data-remember-fold>
+        <summary><div class="panel-title"><div><p class="eyebrow">PLANIFICACIÓN · SOLO LECTURA</p><h2>Preparación futura de LIVE</h2></div><span id="livePreparationState" class="badge neutral">LIVE BLOQUEADO</span></div></summary>
+        <div class="fold-body">
+          <p id="livePreparationNote" class="platform-note" role="status" aria-live="polite">Sin evaluación de preparación disponible. LIVE permanece bloqueado.</p>
+          <p class="live-preparation-rule">Cumplir 30 días permite revisar evidencia. No certifica una estrategia ni activa operaciones con dinero real.</p>
+          <div class="live-preparation-overview">
+            <article><span>Capital propuesto</span><strong id="livePreparationCapital">Sin propuesta verificable</strong><p id="livePreparationCapitalNote">Una propuesta no constituye saldo, reserva ni asignación.</p></article>
+            <article><span>Puertas centrales pendientes</span><strong id="livePreparationBlockers">Desconocidas</strong><p>La revisión técnica y la autorización del propietario son pasos separados.</p></article>
+          </div>
+          <div id="livePreparationEngines" class="live-preparation-engines"></div>
+          <details class="live-preparation-checklist"><summary>Ver puertas de preparación y evidencia</summary><div id="livePreparationGates" class="live-preparation-gates"></div></details>
+          <p class="platform-note">Guardian continúa en LEVEL 0. No hay activación automática, asignación efectiva ni autoridad financiera desde este panel. Una transición futura exigirá validación y autorización específicas.</p>
+        </div>
+      </details>
       <section id="modelSettingsPanel" class="panel" hidden aria-label="Motor y entornos">
       <div class="panel-title"><div><p class="eyebrow">CONTROL DEL MOTOR</p><h2>Motor y entornos</h2></div><button id="closeModelSettings" class="secondary">Cerrar</button></div>
       <p class="settings-intro">Spot Testnet y Futures Demo mantienen sus controles. Market Pulse y Quant observan en Shadow con pausas independientes. Guardian es solo observador. PAPER se conserva como respaldo técnico/CI. Binance LIVE permanece bloqueado.</p>
@@ -621,6 +635,7 @@
   <script src="/opportunity-contract.js"></script>
   <script src="/opportunity-ui.js"></script>
   <script src="/research-validation.js"></script>
+  <script src="/live-preparation.js"></script>
   <script src="/app.js"></script>
 </body>
 </html>
