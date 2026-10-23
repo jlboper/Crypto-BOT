@@ -58,6 +58,9 @@
   }
   const esc=x=>String(x).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const date=x=>new Date(x).toLocaleString('es-MX',{dateStyle:'short',timeStyle:'medium'});
+  // Display only: bounded precision, without optional Intl number formatting.
+  // Truncate so an interval of 29.999 days cannot display as 30.
+  const observedDays=x=>String(Math.trunc(x*100)/100);
   const labels={SPOT_TESTNET:'Spot Testnet',PAPER:'Paper',FUTURES_DEMO:'Futures Demo',SHADOW:'Shadow',UNKNOWN:'Desconocido',FRESH:'Fuente reciente en su ventana',STALE:'Fuente atrasada',ARMED:'Cobertura nativa observada',UNCONFIRMED:'Protección sin confirmar',NOT_APPLICABLE:'No corresponde a esta observación'};
   const set=(id,text)=>{const node=root.document?.getElementById(id);if(node)node.textContent=text;};
   const html=(id,text)=>{const node=root.document?.getElementById(id);if(node)node.innerHTML=text;};
@@ -87,7 +90,7 @@
     set('livePreparationBlockers',`${value.blockers.length} pendientes`);
     const openConditions=new Set(ids.filter(id=>root.document?.getElementById('livePreparationConditions'+id)?.open===true));
     html('livePreparationEngines',value.engines.map((row,i)=>{
-      const fields=[['Entorno observado',labels[row.environment]],['Intervalo registrado',row.reported_span_days===null?'Desconocido':`${row.reported_span_days} días · ${row.span_gate==='SPAN_ONLY'?'solo intervalo, sin certificar':'inferior a 30 días'}`],['Días válidos certificados','Desconocidos'],['Frescura de la fuente',labels[row.freshness]],['Protección',labels[row.protection]]];
+      const fields=[['Entorno observado',labels[row.environment]],['Intervalo registrado',row.reported_span_days===null?'Desconocido':`${observedDays(row.reported_span_days)} días · ${row.span_gate==='SPAN_ONLY'?'solo intervalo, sin certificar':'inferior a 30 días'}`],['Días válidos certificados','Desconocidos'],['Frescura de la fuente',labels[row.freshness]],['Protección',labels[row.protection]]];
       const b=row.budget;
       if(b.state==='UNKNOWN')fields.push(['Presupuesto de riesgo','Sin verificación en esta evaluación']);
       else fields.push(['Presupuesto nativo Demo',`${b.state==='EXCEEDED'?'Superado':'Dentro del límite observado'} · ${b.inclusive_stop_risk_usdt} / ${b.stop_risk_limit_usdt} USDT`],['Corte del presupuesto',date(b.at)]);

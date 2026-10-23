@@ -1,3 +1,28 @@
+## 0.10.51 — presentación de intervalos (en preparación)
+
+Base main50 `df12f1d625503eed6e77ffc98ea50954ed97307a`,
+[PR127](https://github.com/jlboper/Crypto-BOT/pull/127).
+Publicación39707960453 y seguridad39707960358 SUCCESS en Linux/Windows.
+A22Oct2026 01:57–01:59UTC: Ed25519válida,237/237hashes,COMMITTED/RUNNING,
+único motor24484/agente22748,agente11/11 y dos HTTPS distintos correctos.
+Spot8/Futures6 con14/14ARMED y cantidad desprotegida observada cero.
+183170filas previas/11tablas,configuración,credenciales y settings congelados
+preservados; Research archivado conserva hashes. Es una verificación fechada,
+no captura atómica de toda cuenta Binance. Guardian LEVEL0, Pulse/Quant SHADOW.
+Una respuesta GuardianIA ordinaria22Oct00:00UTC fue aceptada; la de01:00UTC
+se rechazó por CAUTION_BOUNDS. No se forzaron llamadas ni se relajaron validadores.
+
+La candidata51 corrige exclusivamente la representación de días de observación:
+máximo dos decimales, truncados para evitar mostrar30 cuando el intervalo aún es
+29.999. Conserva valor original,umbral,contrato,fuentes,gates,límites y protecciones.
+No activa modos financieros. PR/CI/firma/instalación51 requieren comprobación propia.
+
+Validación local final51:1099/1099Python offline PASS193.141s a22Oct02:08:53UTC,
+263/263Node PASS43.290s,build compartido ydiff-checkPASS. La prueba de frontera
+se actualiza de29.999bruto a29.99visual conservando el dato original y su bloqueo.
+No se relajan validadores ni se modifican decisiones. CI/publicación/instalación51
+requieren evidencia nueva;50 permanece la última instalación comprobada aquí.
+
 # 0.10.50 — Preparación verificable de migración (candidata)
 
 ## Checkpoint vigente — 0.10.49 instalada; preparación 0.10.50

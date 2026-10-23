@@ -114,7 +114,7 @@ test('an entirely unknown Python evaluation remains valid and near-thirty spans 
   assert.equal(validLivePreparation(value),true);
   const p=view();p.live.render(value);assert.match(p.get('livePreparationEngines').textContent,/Intervalo registradoDesconocido/);
   const near=current();near.engines[0].reported_span_days=29.999;near.engines[0].span_gate='BELOW_30_DAYS';near.engines[0].blockers.splice(1,0,'OBSERVATION_SPAN_INSUFFICIENT');
-  assert.equal(validLivePreparation(near),true);p.live.render(near);assert.match(p.get('livePreparationEngines').textContent,/29\.999 días · inferior a 30 días/);
+  assert.equal(validLivePreparation(near),true);p.live.render(near);assert.match(p.get('livePreparationEngines').textContent,/29\.99 días · inferior a 30 días/);
 });
 
 test('a new report timestamp does not turn stale or unknown motor sources into healthy data',()=>{
@@ -169,4 +169,22 @@ test('responsive rules keep preparation cards in a single mobile column and allo
   assert.match(css,/\.live-preparation-engine\{min-width:0;overflow-wrap:anywhere\}/);
   assert.match(css,/\.live-preparation-engine summary[^}]*min-height:44px/);
   // Layout assertions supplement the shipped DOM; they are not a browser geometry benchmark.
+});
+
+
+test('day intervals keep bounded precision without Intl and never display thirty days prematurely',()=>{
+  const p=view();
+  vm.runInContext('Number.prototype.toLocaleString=function(){return String(this)};',p.context);
+  for(const [days,shown] of [[25.18874105395833,'25.18'],[29.999999999,'29.99'],[30,'30'],[36500,'36500']]){
+    const value=current(),row=value.engines[0];row.reported_span_days=days;
+    row.span_gate=days>=30?'SPAN_ONLY':'BELOW_30_DAYS';
+    row.blockers=['QUALIFIED_OBSERVATION_UNKNOWN',...(days<30?['OBSERVATION_SPAN_INSUFFICIENT']:[]),'ENGINE_BUDGET_UNKNOWN'];
+    p.live.render(value);
+    const first=p.get('livePreparationEngines').querySelectorAll('article')[0].textContent;
+    assert.equal(first.includes(shown+' días'),true);
+    assert.doesNotMatch(first,/25\.188741|29\.999999/);
+    assert.match(p.get('livePreparationState').textContent,/LIVE BLOQUEADO/);
+    assert.equal(row.reported_span_days,days);
+  }
+  assert.equal(p.calls.length,0);
 });
