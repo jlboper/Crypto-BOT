@@ -40,7 +40,8 @@ class Fixture:
                 {"asset": "BTC", "free": "0.001", "locked": "0.001"}]},
             ("SPOT_TESTNET", "/api/v3/openOrders"): [],
             ("SPOT_TESTNET", "/api/v3/openOrderList"): [],
-            ("FUTURES_DEMO", "/fapi/v3/account"): {"canTrade": True, "assets": []},
+            ("FUTURES_DEMO", "/fapi/v3/account"): {"totalWalletBalance": "100",
+                "availableBalance": "75", "assets": [], "positions": []},
             ("FUTURES_DEMO", "/fapi/v3/balance"): [
                 {"asset": "USDT", "balance": "100", "availableBalance": "75", "accountAlias": "demo-not-spot"}],
             ("FUTURES_DEMO", "/fapi/v3/positionRisk"): [
@@ -64,6 +65,40 @@ def local():
 
 
 class AccountInventoryTests(unittest.TestCase):
+    def test_futures_v3_without_can_trade_is_observation_not_permission(self):
+        for permission in ("ABSENT", True, False):
+            fixture = Fixture()
+            if permission != "ABSENT":
+                fixture.responses[("FUTURES_DEMO", "/fapi/v3/account")]["canTrade"] = permission
+            report = inv.capture_inventory(fixture, local(), clock=lambda: NOW)
+            self.assertEqual(report["accounts"][1]["state"], "OBSERVED")
+            self.assertEqual(report["accounts"][1]["quantity_check"], "EXACT_QUANTITIES_AT_CUT")
+            for key in inv.AUTHORITY:
+                self.assertIs(report[key], False)
+            self.assertFalse(report["accounts_linked"])
+            self.assertNotIn("canTrade", json.dumps(report))
+
+    def test_futures_v3_malformed_shapes_stay_partial(self):
+        for fields in ({}, {"assets": []}, {"canTrade": True, "assets": []},
+            {"totalWalletBalance": "NaN", "availableBalance": "75", "assets": [], "positions": []},
+            {"totalWalletBalance": "100", "availableBalance": "75", "assets": {}, "positions": []},
+            {"totalWalletBalance": "100", "availableBalance": "75", "assets": [], "positions": None},
+            {"totalWalletBalance": "100", "availableBalance": "75", "assets": [], "positions": [], "canTrade": "true"},
+            {"totalWalletBalance": "100", "availableBalance": "75", "assets": [], "positions": [], "code": -1}):
+            with self.subTest(fields=fields):
+                fixture = Fixture()
+                fixture.responses[("FUTURES_DEMO", "/fapi/v3/account")] = fields
+                row = inv.capture_inventory(fixture, local(), clock=lambda: NOW)["accounts"][1]
+                self.assertEqual(row["state"], "PARTIAL")
+                self.assertEqual(row["quantity_check"], "UNKNOWN")
+
+    def test_spot_still_requires_boolean_permission_field(self):
+        for permission in (None, "true", 1):
+            fixture = Fixture()
+            fixture.responses[("SPOT_TESTNET", "/api/v3/account")]["canTrade"] = permission
+            row = inv.capture_inventory(fixture, local(), clock=lambda: NOW)["accounts"][0]
+            self.assertEqual(row["state"], "PARTIAL")
+
     def test_product_balance_semantics_and_no_wallet_consolidation(self):
         report = inv.capture_inventory(Fixture(), local(), clock=lambda: NOW)
         spot, futures = report["accounts"]

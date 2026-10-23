@@ -1,4 +1,14 @@
-## 0.10.52 — auditoría de transición en preparación
+## 0.10.53 — auditoría Futures V3 (en preparación)
+
+Base52 publicada, firmada e instalada: mainb110b7e, [PR129](https://github.com/jlboper/Crypto-BOT/pull/129),
+255/255 hashes23Oct22:39UTC. Publicación40033473861 intento2 y seguridad40033473866
+SUCCESS Linux/Windows;259816 filas históricas y configuración/credenciales intactas.
+53 corrige sólo el auditor GET: Futures V3 omite canTrade. La validación local
+conservadora comprueba totales/listas, sin certificar permisos. Spot sigue estricto.
+No altera trading, límites, protecciones, autoridad o UI. Ver MIGRATION_AUDIT.md.
+Pruebas/CI/firma/instalación53 requieren evidencia nueva. LIVE sigue bloqueado.
+
+## 0.10.52 — historia de preparación
 
 Base main51 `f90f311f53a7c6f338b079f1d37b64bf4cd58459`,
 [PR128](https://github.com/jlboper/Crypto-BOT/pull/128). Workflows39903537643

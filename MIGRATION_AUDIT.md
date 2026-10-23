@@ -1,5 +1,12 @@
 # Auditoría de transición — 0.10.52
 
+Actualización53: el auditor instalado52 de23Oct22:40UTC marcó Futures PARTIAL
+por exigir canTrade, ausente en Futures Account V3.53 valida localmente totales
+finitos y listas assets/positions; canTrade opcional, bool si aparece. Spot conserva
+su requisito. OBSERVED nunca certifica permisos ni autoriza órdenes. Los cortes
+históricos no cambian;53 requiere nueva auditoría explícita. Fuente oficial:
+https://developers.binance.com/zh-CN/docs/catalog/core-trading-derivatives-trading-usd-s-m-futures/api/rest-api/account
+
 Esta entrega avanza cinco frentes con componentes funcionales verificables.
 Guardian conserva LEVEL0; Spot Testnet/Futures Demo conservan decisiones, límites,
 AI Review y protección nativa. Pulse/Quant continúan SHADOW. Ningún resultado de

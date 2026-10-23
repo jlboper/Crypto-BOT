@@ -1,5 +1,16 @@
 # Project History and Decision Log
 
+## 23Oct2026 — discrepancia de contrato en auditor GET
+
+Tras instalar52b110b7e255/255, el auditor explícito22:40/22:41UTC dejó Futures
+PARTIAL por INVALID_ACCOUNT_RESPONSE. Un diagnóstico de forma22:42UTC confirmó
+assets/positions/totales presentes y canTrade ausente, conforme al contratoV3.
+Los fixtures originales tomaron ese campo de un contrato anterior. No hubo fallo
+del motor Futures ni órdenes del auditor.53 corrige esa exigencia con comprobación
+local conservadora, permisos no certificados y autoridadfalse. No altera resultados
+históricos parciales ni los presenta como cuenta completa.259816 filas revisadas
+y hashes de configuración preservados al corte52; pruebas/CI/rollout53 son nuevos.
+
 ## Checkpoint vigente — 0.10.49 instalada; preparación 0.10.50
 
 La base confirmada es main `a3bd52b541868bce498107e9f6a19787db03bbbf`,
