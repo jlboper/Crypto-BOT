@@ -27,6 +27,8 @@ test('real workerd + local D1: browser session -> command -> Windows sync -> ack
     {type:'ESModule',path:fileURLToPath(new URL('../../web/research-validation.js',import.meta.url))},
     {type:'ESModule',path:fileURLToPath(new URL('../src/live-preparation.mjs',import.meta.url))},
     {type:'ESModule',path:fileURLToPath(new URL('../../web/live-preparation.js',import.meta.url))},
+    {type:'ESModule',path:fileURLToPath(new URL('../src/migration-audit.mjs',import.meta.url))},
+    {type:'ESModule',path:fileURLToPath(new URL('../../web/migration-audit.js',import.meta.url))},
     {type:'ESModule',path:fileURLToPath(new URL('../src/github-updates.mjs',import.meta.url))},
     {type:'ESModule',path:fileURLToPath(new URL('../src/password.mjs',import.meta.url))},
     {type:'ESModule',path:fileURLToPath(new URL('../src/bot-releases.mjs',import.meta.url))}],

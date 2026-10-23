@@ -1052,7 +1052,7 @@ test('opportunity scripts use the explicit GET asset route without opening priva
     return new Response('/* '+path+' */',{headers:{'content-type':'application/javascript','cache-control':'public, max-age=86400','content-security-policy':"default-src *"}});
   }};
   assert.equal((await f.request('/v1/status')).status,401);
-  const paths=['/opportunity-contract.js','/opportunity-ui.js','/research-validation.js','/live-preparation.js'];
+  const paths=['/opportunity-contract.js','/opportunity-ui.js','/research-validation.js','/live-preparation.js','/migration-audit.js'];
   for(const path of paths){
     const response=await worker.fetch(new Request(origin+path),f.env);
     assert.equal(response.status,200);
@@ -1238,5 +1238,26 @@ test('read-only migration preparation authenticates, rejects authority and adds 
   for(const action of ['live_activate','live_prepare','capital_allocate','guardian_enable'])
     assert.equal((await f.request('/v1/paper-controls',{action,payload:{},request_id:'no-financial-authority-'+action})).status,400);
   const legacy=structuredClone(base);delete legacy.dashboard.live_preparation;
+  assert.equal((await f.sync({snapshot:legacy,acks:[]})).status,200);
+});
+
+test('cached migration audits remain optional authenticated data and reject authority or inconsistent evidence',async t=>{
+  const f=await fixture(t),dashboard=guardianDashboard();
+  const audit=JSON.parse(execFileSync(process.env.PYTHON||'python',['-X','utf8',fileURLToPath(new URL('../../tests/emit_migration_audit_fixture.py',import.meta.url))],{encoding:'utf8'}));
+  dashboard.migration_audit=audit;
+  const original=JSON.parse(JSON.stringify(dashboard)),base={...snapshot(),dashboard};
+  assert.equal((await f.request('/v1/device/sync',{snapshot:base,acks:[]})).status,401);
+  assert.equal((await f.sync({snapshot:base,acks:[]})).status,200);
+  await f.login();assert.deepEqual((await f.request('/v1/status')).body.snapshot.dashboard,original);
+  for(const mutate of [x=>x.execution_enabled=true,x=>x.accounts_linked=true,x=>x.complete_exchange_inventory=true,
+    x=>x.financial_authorization=true,x=>x.qualified_days=30,x=>x.checks[0].passed=0,x=>x.costs.state='FEASIBLE_HYPOTHESIS',
+    x=>x.costs.hypothetical_usdt='100.00',x=>x.accounts[0].uid='private-account']){
+    const invalid=structuredClone(base);mutate(invalid.dashboard.migration_audit);
+    const response=await f.sync({snapshot:invalid,acks:[]});assert.equal(response.status,400);assert.equal(response.body.error,'Invalid Migration Audit status');
+  }
+  assert.deepEqual((await f.request('/v1/status')).body.snapshot.dashboard,original);
+  for(const action of ['migration_audit_run','testnet_inventory_refresh','risk_latches_enable','capital_reserve'])
+    assert.equal((await f.request('/v1/paper-controls',{action,payload:{},request_id:'no-audit-authority-'+action})).status,400);
+  const legacy=structuredClone(base);delete legacy.dashboard.migration_audit;
   assert.equal((await f.sync({snapshot:legacy,acks:[]})).status,200);
 });

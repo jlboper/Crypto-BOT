@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import {readFileSync} from 'node:fs';
 import {webcrypto} from 'node:crypto';
+import {execFileSync} from 'node:child_process';
+import {fileURLToPath} from 'node:url';
 
 const source=readFileSync(new URL('../../web/portal-bridge.js',import.meta.url),'utf8');
 
@@ -97,6 +99,18 @@ test('platform observer reads authenticated optional snapshots and reports remot
   const missing=await legacy.api('/api/platform');
   assert.equal(missing.portfolio_guardian,null);assert.equal(missing.quant,null);assert.equal(missing.engine_catalog,null);
   assert.equal(missing.guardian_intelligence,null);
+  assert.equal(missing.migration_audit,null);
+});
+
+test('remote migration audit preserves its cached evidence cut without refreshing providers',async()=>{
+  const audit=JSON.parse(execFileSync(process.env.PYTHON||'python',['-X','utf8',fileURLToPath(new URL('../../tests/emit_migration_audit_fixture.py',import.meta.url))],{encoding:'utf8'}));
+  audit.at='2026-01-02T03:04:05.000Z';for(const row of audit.accounts)row.at=audit.at;
+  const instance=bridge('paper.example.workers.dev',[{status:200,body:state({stale:true,snapshot:{dashboard:{migration_audit:audit}}})}]);
+  const result=await instance.api('/api/platform');
+  assert.deepEqual(result.migration_audit,audit);assert.equal(result.migration_audit.at,'2026-01-02T03:04:05.000Z');
+  assert.equal(result.remote_sync_stale,true);assert.equal(instance.calls.length,1);assert.equal(instance.calls[0].path,'/v1/status');
+  result.migration_audit.accounts[0].local_positions=999;
+  assert.equal(audit.accounts[0].local_positions,2);
 });
 
 test('platform observer has no remote command or promotion route',async()=>{
