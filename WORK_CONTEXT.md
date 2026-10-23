@@ -1,4 +1,16 @@
 
+## Correctiva53 en preparación — auditoría Futures V3
+
+Base main52b110b7e PR129: firmada/instalada255/25523Oct22:39UTC;
+workflows40033473861 intento2 y40033473866 SUCCESS Linux/Windows.259816 filas
+de11tablas y configuración/credenciales preservadas. CapitalFlow16/16 y pérdidas9/9
+instalados PASS SIM; agente11/11 y dos heartbeats HTTPS tras refresco firmado.
+InventarioGET22:40/22:41 dejó Futures PARTIAL porque V3 omite canTrade.
+53 corrige ese contrato con comprobación local conservadora de totales/listas;
+permisos no certificados, autoridad false y Spot sin relajación. Pruebas/PR/CI/
+firma/instalación53 requieren comprobación propia. Ningún navegador CUA disponible
+al corte: apertura Codex devolvió queued, no prueba de UI renderizada.
+
 ## Corrección de validación Windows de la candidata52
 
 Los primeros workflowsPR39986314395/39986314399 no pasaron Windows: una prueba

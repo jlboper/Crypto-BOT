@@ -1,4 +1,14 @@
-## 0.10.52 — auditoría de transición en preparación
+## 0.10.53 — auditoría Futures V3 en preparación
+
+52b110b7e PR129 publicada, firmada e instalada255/25523Oct22:39UTC;
+publicación40033473861 intento2 y seguridad40033473866 SUCCESS Linux/Windows.
+259816 filas/11tablas y hashes de configuración/credenciales preservados;
+CapitalFlow16/16 y RiskLatches9/9 instalados PASS SIM, agente11/11 y dos HTTPS.
+53 corrige la falsa exigencia de canTrade en el auditorGET Futures V3,
+sin certificar permisos ni añadir rutas/ejecución. Spot conserva su validación.
+Pruebas/CI/firma/rollout53 pendientes. GuardianL0; Pulse/QuantSHADOW.
+
+## 0.10.52 — historia de preparación
 
 Base main51 `f90f311f53a7c6f338b079f1d37b64bf4cd58459`,
 [PR128](https://github.com/jlboper/Crypto-BOT/pull/128). Workflows39903537643

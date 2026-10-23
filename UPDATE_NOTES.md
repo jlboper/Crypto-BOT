@@ -1,4 +1,21 @@
 
+## 0.10.53 — auditor GET compatible con Futures Account V3
+
+La verificación instalada52 detectó una exigencia incorrecta de canTrade en
+Futures V3, cuyo contrato financiero omite ese campo. Ahora el auditor exige
+localmente dict sin forma de error, totales numéricos finitos y listas assets/
+positions; canTrade opcional debe ser bool si aparece. Son criterios conservadores
+de observación, no campos obligatorios publicados ni certificación de permisos.
+Spot sigue exigiendo bool. Nuevos fixtures cubren contrato V3 y errores mezclados.
+No añade endpoints, claves, IA, ejecución, riesgo o UI. La cache52 conserva su
+corte parcial hasta una nueva auditoría explícita. Base52 verificada255/255;
+pruebas/publicación53 requieren resultados propios.
+
+Validación local53:1210/1210Python offline PASS208.359s y280/280Node PASS60.317s,
+sin skips. Primeros ensayos enfocado/Node en sandbox fallaron por permisosTEMP;
+se repitieron con runtime/temporales aislados, sin cambiar pruebas o lógica para
+ocultarlo. Revisión independiente focalizada sin bloqueantes. CI/rollout pendientes.
+
 ## Corrección de validación Windows de la candidata52
 
 Los primeros workflowsPR39986314395/39986314399 no pasaron Windows: una prueba

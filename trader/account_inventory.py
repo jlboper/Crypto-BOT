@@ -257,10 +257,21 @@ def capture_inventory(transport, local, *, symbols=(), clock=time.time):
                "recent_funding_rows": 0 if symbols and not spot else None, "history_scope": "REQUESTED_SYMBOLS_LAST_24H_FIRST_PAGE",
                "history_complete": False, "observations": observations}
         try:
-            if type(account) is not dict or type(account.get("canTrade")) is not bool:
+            if type(account) is not dict or "code" in account or "msg" in account:
                 raise InventoryError("INVALID_ACCOUNT_RESPONSE")
-            if not spot:
+            if spot:
+                if type(account.get("canTrade")) is not bool:
+                    raise InventoryError("INVALID_ACCOUNT_RESPONSE")
+            else:
+                # Futures V3 separates account configuration from balances.
+                # Its documented response omits canTrade. Observation of this
+                # shape never certifies key permissions or execution authority.
+                if "canTrade" in account and type(account["canTrade"]) is not bool:
+                    raise InventoryError("INVALID_ACCOUNT_RESPONSE")
+                _decimal(account.get("totalWalletBalance"), signed=True)
+                _decimal(account.get("availableBalance"), signed=True)
                 _rows(account.get("assets"))
+                _rows(account.get("positions"))
             assets = _rows(balances)
             by_asset = {}
             for value in assets:

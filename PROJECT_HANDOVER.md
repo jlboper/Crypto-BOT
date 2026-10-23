@@ -1,4 +1,13 @@
-## 0.10.52 — auditoría de transición en preparación
+## Contrato de cuenta — correctiva53
+
+No aplicar el contrato Spot de canTrade a Futures Account V3: este último
+separa configuración y balances y omite ese campo. Exigir localmente forma
+financiera suficiente no certifica permisos, cuenta completa ni capital común.
+Conservar errores/malformados PARTIAL, autoridad false y los mismos hosts/rutasGET.
+Fuente oficial: https://developers.binance.com/zh-CN/docs/catalog/core-trading-derivatives-trading-usd-s-m-futures/api/rest-api/account
+52b110b7e instalada255/25523Oct22:39UTC;53 requiere CI/firma/rollout propios.
+
+## 0.10.52 — historia de preparación
 
 Base main51 `f90f311f53a7c6f338b079f1d37b64bf4cd58459`,
 [PR128](https://github.com/jlboper/Crypto-BOT/pull/128). Workflows39903537643
