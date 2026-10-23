@@ -20,6 +20,10 @@ from trader.update_manager import UpdateManager, atomic_json, canonical, release
 from trader.update_supervisor import ProcessRuntime, UpdateSupervisor
 
 SOURCE = Path(__file__).resolve().parent.parent
+# Windows hosted runners can delay launching a fresh Python fixture beyond 3s.
+# Keep every readiness/token/commit invariant; only the synthetic process budget
+# differs. Production supervisor deadlines and health checks are untouched.
+FIXTURE_TIMEOUT = 10 if os.name == 'nt' else 3
 
 
 class FixtureRuntime(ProcessRuntime):
@@ -90,7 +94,7 @@ class SupervisorTests(unittest.TestCase):
         self.manager = UpdateManager(self.root, public)
         self.runtime = FixtureRuntime(self.root)
         self.addCleanup(self.runtime.close)
-        self.supervisor = UpdateSupervisor(self.manager, self.runtime, timeout=3)
+        self.supervisor = UpdateSupervisor(self.manager, self.runtime, timeout=FIXTURE_TIMEOUT)
         original = self.runtime.start()
         self.supervisor.wait_ready(original, None, '0.6.2', 'running')
         self.original = original
@@ -107,7 +111,7 @@ class SupervisorTests(unittest.TestCase):
         self.assertEqual(result['status'], 'installed_healthy')
         self.assertEqual(json.loads(self.supervisor.record.read_text())['job_id'], 41)
         self.assertIsNotNone(self.original.poll())
-        deadline = time.monotonic()+3
+        deadline = time.monotonic()+FIXTURE_TIMEOUT
         while not (self.root/'candidate-cycle').exists() and time.monotonic()<deadline:
             time.sleep(0.02)
         self.assertTrue((self.root/'candidate-cycle').exists())
@@ -168,7 +172,7 @@ class SupervisorTests(unittest.TestCase):
         self.supervisor.phase(token, 'candidate')
         child = self.runtime.start(token)
         self.supervisor.wait_ready(child, token, '0.6.3', 'candidate')
-        result = UpdateSupervisor(self.manager, self.runtime, timeout=3).recover()
+        result = UpdateSupervisor(self.manager, self.runtime, timeout=FIXTURE_TIMEOUT).recover()
         self.assertEqual(result['status'], 'rolled_back')
         self.assert_restored()
 

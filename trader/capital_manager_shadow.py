@@ -27,6 +27,10 @@ import time
 APP="CAPITAL_MANAGER_SHADOW_SIMULATION_V1"
 UNITS_PER_USDT=1_000_000
 MAX_INTEGER=9_000_000_000_000_000
+# This isolated SIM protocol may contend on Windows hosts. Waiting for SQLite's
+# lock is bounded and precedes the transaction; it is never an order retry or an
+# extension of the caller's balance/expiry checks inside the acquired lock.
+SIMULATION_BUSY_SECONDS=5
 ENVIRONMENTS=frozenset(("SHADOW","PAPER","SPOT_TESTNET","FUTURES_DEMO"))
 TERMINAL=frozenset(("CANCELLED","CLOSED"))
 ORDER_STATES=frozenset(("RESERVED","SUBMITTING","PARTIAL","FILLED","UNKNOWN","CANCEL_PENDING","CANCELLED","CLOSED","RECOVERY_REQUIRED"))
@@ -178,10 +182,10 @@ def _connection(path,readonly=False):
         with Path(path).open("rb") as handle:header=handle.read(100)
         if not header.startswith(b"SQLite format 3\0") or header[18:20]!=b"\x01\x01":
             raise SimulationError("FOREIGN_OR_UNSUPPORTED_SIMULATION_FILE")
-        db=sqlite3.connect(Path(path).resolve().as_uri()+"?mode=ro",uri=True,timeout=.25)
+        db=sqlite3.connect(Path(path).resolve().as_uri()+"?mode=ro",uri=True,timeout=SIMULATION_BUSY_SECONDS)
         db.execute("PRAGMA query_only=ON")
     else:
-        db=sqlite3.connect(path,timeout=.25)
+        db=sqlite3.connect(path,timeout=SIMULATION_BUSY_SECONDS)
     try:
         db.row_factory=sqlite3.Row
         db.execute("PRAGMA trusted_schema=OFF")

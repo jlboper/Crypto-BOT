@@ -786,7 +786,7 @@ const CommandCenterPortal = (() => {
     'opportunity-shadow':'guardian-ai','opportunity-capital':'guardian-ai','opportunity-decisions':'guardian-ai',
     'activity-section':'operations-decisions','historyPanel':'operations-decisions',
     'modelSettingsPanel':'system-settings','diagnosticsPanel':'system-settings','observation-details':'system-settings',
-    'live-preparation':'system-settings','updates':'system-settings','updatePanel':'system-settings','password':'system-settings','passwordPanel':'system-settings'
+    'live-preparation':'system-settings','migration-audit':'system-settings','updates':'system-settings','updatePanel':'system-settings','password':'system-settings','passwordPanel':'system-settings'
   });
   const targets=Object.freeze({updates:'updatePanel',password:'passwordPanel'});
   const names=Object.freeze({SPOT:'Spot Bot',FUTURES:'Futures Bot',AI_MARKET_PULSE:'AI Market Pulse',QUANT_ARBITRAGE:'Quant Arbitrage'});
@@ -903,7 +903,7 @@ window.CommandCenterPortal=CommandCenterPortal;
 /* Shared supervised engine view. External event text is always escaped, never executable. */
 const PulsePortal = (() => {
   let pendingControl=null;
-  const foldIds=new Set(['live-preparation','spot-analysis','futures-analysis','pulse-live','pulse-news','pulse-scanner','pulse-decisions','pulse-finance','pulse-health','guardian-exposure','guardian-overlaps','guardian-quality','intelligence-scopes','intelligence-sources','intelligence-ai','intelligence-conflicts','intelligence-journal','intelligence-queries','quant-funding','quant-statistical','quant-positions','quant-decisions','quant-finance','quant-health','observation-details','comparison-details','spot-limits','futures-limits','spot-positions','futures-positions','spot-finance','futures-finance','diagnosticsPanel','research-lab','capital-lab','capital-lab-audit','research-validation','opportunity-shadow','opportunity-capital','opportunity-decisions']);
+  const foldIds=new Set(['live-preparation','migration-audit','spot-analysis','futures-analysis','pulse-live','pulse-news','pulse-scanner','pulse-decisions','pulse-finance','pulse-health','guardian-exposure','guardian-overlaps','guardian-quality','intelligence-scopes','intelligence-sources','intelligence-ai','intelligence-conflicts','intelligence-journal','intelligence-queries','quant-funding','quant-statistical','quant-positions','quant-decisions','quant-finance','quant-health','observation-details','comparison-details','spot-limits','futures-limits','spot-positions','futures-positions','spot-finance','futures-finance','diagnosticsPanel','research-lab','capital-lab','capital-lab-audit','research-validation','opportunity-shadow','opportunity-capital','opportunity-decisions']);
   const navIds=new Set(['platform-overview','spot-bot','futures-bot','market-pulse','portfolio-guardian','quant-arbitrage','activity-section','modelSettingsPanel',...foldIds]);
   const foldStorageKey='crypto-ai-trader.ui.folds.v1';
   let redrawQueued=false;
@@ -1859,8 +1859,10 @@ async function refresh() {
     CapitalLabPortal.render(platform);
     window.OpportunityShadowPortal?.render(platform);
     window.CryptoLivePreparation?.render(platform?.live_preparation,platform?.remote_sync_stale===true);
+    window.CryptoMigrationAudit?.render(platform?.migration_audit,platform?.remote_sync_stale===true);
   } catch(error) {
     window.CryptoLivePreparation?.disconnected();
+    window.CryptoMigrationAudit?.disconnected();
     PulsePortal.disconnected();
     FourEnginePortal.disconnected();
     CommandCenterPortal.disconnected();

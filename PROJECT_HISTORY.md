@@ -696,3 +696,20 @@ semántica TOTAL/FREE y protocolo real de conciliación no se deducen de una API
 USDT o un ledger. Las transiciones de autonomía requieren validación y autorización
 separadas. Las copias SQLite explícitas amplían evidencia recuperable local sin
 modificar el updater: consistencia individual no constituye una captura global.
+
+
+## 2026-10-23 — Evidencia de cuentas separada de autoridad financiera
+
+La transición52 distingue consulta GET explícita Testnet/Demo de inventario integral
+y de identidad compartida. Recibos y cortes de origen no se rejuvenecen al publicar
+cache; cero no sustituye UNKNOWN. El portal lee un informe, nunca ejecuta auditorías.
+
+El nuevo protocolo SIM une riesgo+reserva en una transacción y conserva recibos
+sintéticos idempotentes. Los bloqueos SIM de pérdidas conservan cashflows, baselines
+UTC y disputas durables. Están separados y no integran admisión operativa: pasar
+recetas o una puerta de pérdidas no concede autorización de entradas. Los límites
+numéricos de ejemplos no constituyen política del propietario.
+
+Las cohortes usan fingerprints y ancla retenida, pero un validador de recibos no
+constituye registro/capturador durable ni certifica retrospectivamente historia.
+Las fechas legacy, casos matemáticos, snapshots y tests no activan LIVE.

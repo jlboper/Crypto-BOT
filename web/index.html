@@ -515,6 +515,22 @@
           <p class="platform-note">Guardian continúa en LEVEL 0. No hay activación automática, asignación efectiva ni autoridad financiera desde este panel. Una transición futura exigirá validación y autorización específicas.</p>
         </div>
       </details>
+      <details id="migration-audit" class="portal-fold panel migration-audit" data-remember-fold>
+        <summary><div class="panel-title"><div><p class="eyebrow">EVIDENCIA DE TRANSICIÓN · SOLO LECTURA</p><h2>Auditoría de cuentas y capital</h2></div><span id="migrationAuditState" class="badge neutral">SIN INFORME VERIFICABLE</span></div></summary>
+        <div class="fold-body">
+          <p id="migrationAuditNote" class="platform-note" role="status" aria-live="polite">Sin auditoría publicada. Consultar este panel no conecta a Binance ni ejecuta ensayos.</p>
+          <div id="migrationAuditAccounts" class="migration-audit-grid"></div>
+          <details class="migration-audit-recipes"><summary>Ver ensayos sintéticos de capital, riesgo y recuperación</summary>
+            <div id="migrationAuditChecks" class="migration-audit-checks"></div>
+            <p class="platform-note">Los resultados corresponden a recetas SIM. No acreditan un reinicio real de Windows ni admisión conjunta de entradas Spot/Futures.</p>
+          </details>
+          <div class="migration-audit-grid">
+            <article class="migration-audit-card"><h3>Viabilidad de capital · hipótesis</h3><p id="migrationAuditCosts">Sin hipótesis verificables</p><p id="migrationAuditCapital">Importes desconocidos; sin asignación.</p></article>
+            <article class="migration-audit-card"><h3>Evidencia forward</h3><p id="migrationAuditCohort">Sin evidencia verificable</p><p id="migrationAuditCoverage">Días válidos certificados: desconocidos.</p></article>
+          </div>
+          <p class="platform-note">Cuentas y entornos separados. Inventario e histórico completos sin certificar. Guardian sigue LEVEL 0. Los ensayos y los 30 días de calendario no autorizan LIVE ni asignan capital.</p>
+        </div>
+      </details>
       <section id="modelSettingsPanel" class="panel" hidden aria-label="Motor y entornos">
       <div class="panel-title"><div><p class="eyebrow">CONTROL DEL MOTOR</p><h2>Motor y entornos</h2></div><button id="closeModelSettings" class="secondary">Cerrar</button></div>
       <p class="settings-intro">Spot Testnet y Futures Demo mantienen sus controles. Market Pulse y Quant observan en Shadow con pausas independientes. Guardian es solo observador. PAPER se conserva como respaldo técnico/CI. Binance LIVE permanece bloqueado.</p>
@@ -636,6 +652,7 @@
   <script src="/opportunity-ui.js"></script>
   <script src="/research-validation.js"></script>
   <script src="/live-preparation.js"></script>
+  <script src="/migration-audit.js"></script>
   <script src="/app.js"></script>
 </body>
 </html>

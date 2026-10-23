@@ -1,3 +1,49 @@
+
+## Corrección de validación Windows de la candidata52
+
+Los primeros workflowsPR39986314395/39986314399 no pasaron Windows: una prueba
+nueva comparaba el alias8.3RUNNER~1 con la ruta canónica; un job agotó el margen
+fixture de3s del supervisor y otro registró FAILED en una receta previa sin
+diagnóstico suficiente para atribuir su causa exacta. Linux pasó. No se integró.
+
+Se normaliza sólo la expectativa de rutas y se amplía a10s sólo el arranque de
+fixtures sintéticos Windows; supervisor operativo/protecciones sin cambios.
+Un repro independiente retuvo un writerSIM400ms y falló con database locked
+al presupuesto250ms. Ahora SQLiteSIM espera máximo5s antes de la transacción,
+conservando comprobaciones de frescura/expiry dentro del lock y sin reintentos
+de exchange. Otra regresión verifica que agotar la espera no crea reserva ni
+entrada de journal.132pruebas relacionadas PASS23.158s y16supervisorPASS19.952s.
+La suite completa y CI del nuevo head requieren comprobación nueva.
+
+## 0.10.52 — auditoría de transición en preparación
+
+Base main51 `f90f311f53a7c6f338b079f1d37b64bf4cd58459`,
+[PR128](https://github.com/jlboper/Crypto-BOT/pull/128). Workflows39903537643
+y39903537657 SUCCESS Linux/Windows. Corte23Oct15:51UTC: Ed25519 válida,
+237/237 hashes, journal COMMITTED, runtime RUNNING, mismo motor18436/agente25008,
+HTTPS correcto; Spot2/Futures3 ARMED. Son observaciones fechadas.
+
+La candidata52 implementa auditoría GET Testnet/Demo explícita, protocolo conjunto
+riesgo+capital exclusivamente SIM, bloqueos durables de pérdidas SIM, hipótesis
+de capital Spot/Futures y validación de recibos prospectivos, más informe plegable
+compartido. Ver [MIGRATION_AUDIT.md](MIGRATION_AUDIT.md). No cambia admisión, riesgo,
+IA individual, protección, cuentas o trading de los motores. Guardian LEVEL0;
+Pulse/Quant SHADOW. LIVE/control/reservas efectivas/promoción permanecen bloqueados.
+
+No une wallets ni deduce30d certificados. Flow y latches aún tienen almacenes
+independientes; no hay captura/registro durable de cohortes operativas ni
+admisión conjunta de motores. Fuente de cuenta parcial, historia/cashflows y
+validación operativa siguen pendientes. Pruebas, CI, publicación, firma e
+instalación52 requieren evidencia propia. Las secciones siguientes son historia.
+
+
+Validación local52 final:1205/1205Python offline PASS197.937s a23Oct16:18:23UTC,
+280/280Node PASS58.945s, build compartido,diff-check yPowerShell5.1
+lifecycle/view PASS. Primer Node detectó expectativa53plegables frentea55;
+se actualizó la expectativa por el panel y detalle SIM nuevos, sin relajar
+validaciones. Dos revisores independientes corrigieron y comprobaron conflictos
+idempotentes y binding nocional/principal. CI/firma/instalación52 aún pendientes.
+
 ## 0.10.51 — presentación de intervalos (en preparación)
 
 Base main50 `df12f1d625503eed6e77ffc98ea50954ed97307a`,

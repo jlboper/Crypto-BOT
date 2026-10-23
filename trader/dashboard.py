@@ -95,6 +95,10 @@ class DashboardServer:
             opportunities = opportunity_shadow_projection(self.config)
             if opportunities is not None:
                 result['opportunity_shadow'] = opportunities
+            from .portal_snapshot import migration_audit_projection
+            migration = migration_audit_projection(self.config)
+            if migration is not None:
+                result['migration_audit'] = migration
             self._platform_cache = result
             self._platform_cached_at = time.monotonic()
             return result

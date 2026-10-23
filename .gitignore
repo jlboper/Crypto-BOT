@@ -8,6 +8,7 @@ TEST_RESULTS.json
 data/*.db
 data/*.db-*
 data/live-preparation/
+data/research/migration-audit/
 data/KILL_SWITCH
 data/MARKET_PULSE_KILL_SWITCH
 data/MARKET_PULSE_PAUSED

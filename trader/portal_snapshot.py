@@ -623,6 +623,15 @@ def live_preparation_projection(config, payload):
         return None
 
 
+def migration_audit_projection(config):
+    """Cached explicit audits only; never network, model, simulation or ledger IO."""
+    try:
+        from .migration_audit import read_migration_audit
+        return read_migration_audit(config.bot.database_path.parent / 'research' / 'migration-audit' / 'latest.json')
+    except Exception:
+        return None
+
+
 def quant_projection(config):
     """Installed-code read-only import; independent-agent modules do not import Quant."""
     from .portfolio_guardian import quant_not_started
@@ -899,6 +908,10 @@ def dashboard_snapshot(config, report_path=None, *, remote=False):
         if preparation is not None and len(json.dumps({**payload, 'live_preparation': preparation},
                 allow_nan=False).encode()) <= 480_000:
             payload['live_preparation'] = preparation
+        migration = migration_audit_projection(config)
+        if migration is not None and len(json.dumps({**payload, 'migration_audit': migration},
+                allow_nan=False).encode()) <= 480_000:
+            payload['migration_audit'] = migration
         opportunities = opportunity_shadow_projection(config)
         if remote and opportunities is not None:
             opportunities = _fit_opportunity_shadow(payload, opportunities)
