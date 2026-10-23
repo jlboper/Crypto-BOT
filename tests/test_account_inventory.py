@@ -239,7 +239,7 @@ class TransportTests(unittest.TestCase):
             (root/"config.toml").write_text('[bot]\nmode="testnet"\ntestnet_database_path="data/spot.db"\nfutures_testnet_database_path="data/futures.db"\n')
             (root/".env.local").write_text('BINANCE_API_KEY=synthetic\nBINANCE_API_SECRET=fixture\nOPENAI_API_KEY=unused\n')
             credentials, paths = source_inputs(root)
-            self.assertEqual(paths, [root/"data"/"spot.db", root/"data"/"futures.db"])
+            self.assertEqual(paths, [(root/"data"/"spot.db").resolve(), (root/"data"/"futures.db").resolve()])
             self.assertEqual(credentials, {"SPOT_TESTNET": ("synthetic", "fixture")})
             self.assertFalse((root/"data").exists())
             (root/".env.local").write_text('EXECUTION_MODE=live\n')

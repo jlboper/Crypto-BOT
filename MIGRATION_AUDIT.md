@@ -143,3 +143,12 @@ su activación por fecha. Los10 bloqueos de `live_preparation` permanecen intact
 Publicación, firma, instalación y verificación de esta versión requieren sus
 propias evidencias. Los resultados locales/CI se registran en el PR y entrega;
 no se reutilizan los de51 como pruebas de52.
+
+## Robustez del laboratorio en Windows
+
+La esperaSQLite de los walletsSIM está acotada a5s. Un lock400ms reproduce
+el error del antiguo presupuesto250ms; al liberarse conserva reserva única y
+contabilidad. Si se agota la espera no hay mutación/journal/reserva. No hay
+reintentos de órdenes. Las fuentes financieras/actualizador operativo no cambian.
+El fixture de proceso Windows dispone de10s, conservando todas las comprobaciones
+de identidad/handshake/commit; no amplía el plazo del supervisor operativo.

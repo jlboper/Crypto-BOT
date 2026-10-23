@@ -1,3 +1,20 @@
+
+## Corrección de validación Windows de la candidata52
+
+Los primeros workflowsPR39986314395/39986314399 no pasaron Windows: una prueba
+nueva comparaba el alias8.3RUNNER~1 con la ruta canónica; un job agotó el margen
+fixture de3s del supervisor y otro registró FAILED en una receta previa sin
+diagnóstico suficiente para atribuir su causa exacta. Linux pasó. No se integró.
+
+Se normaliza sólo la expectativa de rutas y se amplía a10s sólo el arranque de
+fixtures sintéticos Windows; supervisor operativo/protecciones sin cambios.
+Un repro independiente retuvo un writerSIM400ms y falló con database locked
+al presupuesto250ms. Ahora SQLiteSIM espera máximo5s antes de la transacción,
+conservando comprobaciones de frescura/expiry dentro del lock y sin reintentos
+de exchange. Otra regresión verifica que agotar la espera no crea reserva ni
+entrada de journal.132pruebas relacionadas PASS23.158s y16supervisorPASS19.952s.
+La suite completa y CI del nuevo head requieren comprobación nueva.
+
 ## 0.10.52 — auditoría de transición en preparación
 
 Base main51 `f90f311f53a7c6f338b079f1d37b64bf4cd58459`,
