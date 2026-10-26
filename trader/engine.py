@@ -26,6 +26,10 @@ from .monitoring import SPOT_CYCLE_ERRORS
 
 class TradingEngine:
     def __init__(self, config: AppConfig) -> None:
+        if config.bot.mode == "live":
+            # The prepared transport is not yet a commissioned strategy adapter.
+            # In particular, never fall through to PaperBroker labelled LIVE.
+            raise RuntimeError("LIVE_RUNTIME_ADAPTER_NOT_COMMISSIONED")
         self.config = config
         self.db = Database(config.bot.database_path)
         self.exchange = BinanceClient()
@@ -514,6 +518,21 @@ class TradingEngine:
         quant = None
         guardian = None
         opportunity_observer = None
+        preproduction_observer = None
+        if not should_stop():
+            try:
+                from .preproduction_runtime import create_observer, register_observer
+                preproduction_observer = create_observer(self.config)
+                if not preproduction_observer.start() or not register_observer(preproduction_observer):
+                    raise RuntimeError("Preproduction observer did not register")
+            except Exception as exc:
+                self.db.event("WARN", "Preproduction observation unavailable: " + type(exc).__name__)
+                if preproduction_observer is not None:
+                    try:
+                        preproduction_observer.stop()
+                    except Exception:
+                        pass
+                preproduction_observer = None
         if not should_stop() and self.config.guardian_intelligence.enabled:
             try:
                 from .opportunity_observer import register_observer
@@ -567,6 +586,13 @@ class TradingEngine:
         try:
             self._run_supervised_loop(should_stop)
         finally:
+            if preproduction_observer is not None:
+                try:
+                    from .preproduction_runtime import unregister_observer
+                    unregister_observer(preproduction_observer)
+                    preproduction_observer.stop()
+                except Exception as exc:
+                    self.db.event("WARN", "Preproduction observation shutdown: " + type(exc).__name__)
             if guardian is not None:
                 try:
                     guardian.stop()
@@ -626,6 +652,7 @@ class TradingEngine:
         from .market_pulse import MarketPulseService, PulseConfig
         from .market_pulse_ai import PulseAIReviewer
         from .market_pulse_news import PublicNewsFeeds
+        from .market_pulse_institutional import InstitutionalContextFeeds, load_sec_contact
         settings = self.config.market_pulse
         data_dir = self.config.bot.database_path.parent
         reviewer = PulseAIReviewer(data_dir, model=self.config.ai.model,
@@ -641,7 +668,8 @@ class TradingEngine:
             max_positions=min(3, self.config.risk.max_positions),
             fee_bps=self.config.paper.fee_rate*10000,
             slippage_bps=self.config.paper.slippage_rate*10000),
-            reviewer=reviewer, news_fetcher=PublicNewsFeeds(), kill_switch_path=settings.kill_switch_path)
+            reviewer=reviewer, news_fetcher=PublicNewsFeeds(), kill_switch_path=settings.kill_switch_path,
+            context_fetcher=InstitutionalContextFeeds(sec_contact=load_sec_contact(data_dir)))
 
     def _run_supervised_loop(self, should_stop) -> None:
         self.db.event("INFO", f"Trading engine started in {self.config.bot.mode.upper()} mode")

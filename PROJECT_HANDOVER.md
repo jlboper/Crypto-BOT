@@ -501,3 +501,17 @@ Windows now represent four identities plus a separate Observer, with no invented
 Quant performance. Quant simulation and Guardian Control remain future stages.
 Reload only the indicator after installed signed-inventory verification; never
 start another trading engine to update its appearance. Keep release states explicit.
+
+## 25 October 2026 — bounded preproduction and institutional context
+
+Candidate 0.10.54 starts from main53 7b64fd6407432f3cccec4edb1be99e41fa55133b.
+Owner authorized developing LIVE support and preparing a real connection, then
+confirmed no dedicated keys exist. This does not approve orders, leverage, loss
+limits or a conversion/allocation of the proposed 100 USD. No activation issuer
+is shipped. TradingEngine refuses LIVE until a commissioned adapter exists.
+Preserve the five-package acceptance scope in PREPRODUCTION_CLOSURE.md: do not
+add unrelated engines/sources/UI as migration blockers or reset valid history.
+Collector/source libraries are not proof of financially qualified 30-day cohorts.
+Pulse institutional context is SHADOW: CFTC contracts, delayed EDGAR metadata;
+SEC uses the separately authorized local contact; daily ETF flows/insider transaction parsing are
+not provided. Do not portray them as active feeds or completed trades.

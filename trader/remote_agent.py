@@ -159,7 +159,7 @@ class RemoteAgent:
                               'Invalid Futures cycle diagnostic', 'Invalid Futures latest signals',
                               'Invalid financial scorecard', 'Invalid Market Pulse status',
                               'Invalid Portfolio Guardian status', 'Invalid Quant Arbitrage status',
-                              'Invalid engine catalog', 'Invalid Guardian Intelligence status', 'Invalid Capital Protocol Lab status', 'Invalid Opportunity Shadow status', 'Invalid Live Preparation status', 'Invalid Migration Audit status'} or ('dashboard' not in payload['snapshot']
+                              'Invalid engine catalog', 'Invalid Guardian Intelligence status', 'Invalid Capital Protocol Lab status', 'Invalid Opportunity Shadow status', 'Invalid Live Preparation status', 'Invalid Migration Audit status', 'Invalid Preproduction Readiness status'} or ('dashboard' not in payload['snapshot']
                                                            and reason != 'Unknown snapshot field'):
                 self.last_error = f'HTTPError:{error.code}' + (f':{reason}' if reason else '')
                 raise
@@ -174,9 +174,23 @@ class RemoteAgent:
                 'Invalid Opportunity Shadow status': 'opportunity_shadow',
                 'Invalid Live Preparation status': 'live_preparation',
                 'Invalid Migration Audit status': 'migration_audit',
+                'Invalid Preproduction Readiness status': 'preproduction_readiness',
                 'Invalid engine catalog': 'engine_catalog'}.get(reason)
             new_fields = ('portfolio_guardian', 'quant', 'engine_catalog')
-            if (reason == 'Unknown dashboard field' and isinstance(dashboard, dict)
+            if (reason == 'Invalid Market Pulse status' and isinstance(dashboard, dict)
+                    and isinstance(dashboard.get('market_pulse'), dict)
+                    and 'institutional' in dashboard['market_pulse']):
+                # Previous signed Worker lacks only the optional institutional
+                # extension. Keep the engine's positions, finance and news.
+                pulse = dashboard['market_pulse']
+                pulse.pop('institutional')
+                for row in pulse.get('decisions', []):
+                    if isinstance(row, dict) and isinstance(row.get('evidence'), dict):
+                        row['evidence'].pop('institutional_context_ids', None)
+            elif (reason == 'Unknown dashboard field' and isinstance(dashboard, dict)
+                    and 'preproduction_readiness' in dashboard):
+                dashboard.pop('preproduction_readiness')
+            elif (reason == 'Unknown dashboard field' and isinstance(dashboard, dict)
                     and 'migration_audit' in dashboard):
                 # One compatible retry against the previous signed Worker.
                 dashboard.pop('migration_audit')
@@ -294,7 +308,7 @@ class RemoteAgent:
                    'Invalid Futures forward status', 'Invalid Futures pause diagnostics',
                    'Invalid Spot cycle diagnostic', 'Invalid Futures cycle diagnostic',
                    'Invalid Futures latest signals', 'Invalid financial scorecard', 'Invalid Market Pulse status',
-                   'Invalid Portfolio Guardian status', 'Invalid Quant Arbitrage status', 'Invalid engine catalog', 'Invalid Guardian Intelligence status', 'Invalid Capital Protocol Lab status', 'Invalid Opportunity Shadow status', 'Invalid Live Preparation status', 'Invalid Migration Audit status',
+                   'Invalid Portfolio Guardian status', 'Invalid Quant Arbitrage status', 'Invalid engine catalog', 'Invalid Guardian Intelligence status', 'Invalid Capital Protocol Lab status', 'Invalid Opportunity Shadow status', 'Invalid Live Preparation status', 'Invalid Migration Audit status', 'Invalid Preproduction Readiness status',
                    'Invalid balance', 'Invalid position', 'Invalid position value',
                    'Invalid bot release', 'Invalid restore offer',
                    'Invalid model', 'Invalid cycle time', 'Invalid acknowledgements',

@@ -56,6 +56,9 @@ def build(root, paths, output, commit, sequence, expires):
               'sha256':hashlib.sha256(output.read_bytes()).hexdigest(),
               'files':{name:hashlib.sha256(content).hexdigest() for name,content in files.items()},
               'package_url':f'https://raw.githubusercontent.com/jlboper/Crypto-BOT/bot-releases/packages/{commit}.zip'}
+    if {'trader/live_runtime_gate.py','trader/live_authorization.py',
+            'trader/local_protection.py','trader/central_admission.py'} <= files.keys():
+        manifest['prepared_live_protocol']=1
     output.with_suffix('.manifest.json').write_text(json.dumps(manifest),encoding='utf-8')
     return manifest
 

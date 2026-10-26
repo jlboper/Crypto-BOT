@@ -99,6 +99,10 @@ class DashboardServer:
             migration = migration_audit_projection(self.config)
             if migration is not None:
                 result['migration_audit'] = migration
+            from .portal_snapshot import preproduction_readiness_projection
+            readiness = preproduction_readiness_projection(self.config)
+            if readiness is not None:
+                result['preproduction_readiness'] = readiness
             self._platform_cache = result
             self._platform_cached_at = time.monotonic()
             return result

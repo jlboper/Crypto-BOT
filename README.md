@@ -446,3 +446,10 @@ La siguiente fase debe comenzar solo tras revisar resultados fuera de muestra, c
 - La cantidad inicial es 0.001 BTC, validada con `/order/test`, y la entrada se bloquea si su notional supera el presupuesto automático configurado.
 - Las protecciones de Futures se revisan durante los ticks de protección aunque se pausen nuevas entradas Futures.
 - Ninguna métrica de Testnet autoriza automáticamente LIVE. La evaluación de dinero real es una decisión posterior y separada.
+
+## Candidate 0.10.54: institutional context and bounded preproduction
+
+Market Pulse adds CFTC institutional context and a prepared SEC EDGAR filing
+watcher while remaining SHADOW. Dedicated LIVE keys have not been supplied.
+Prepared real-account libraries do not commission the operating strategy adapters
+or authorize orders. See [the finite closure matrix](PREPRODUCTION_CLOSURE.md).

@@ -44,7 +44,14 @@ def _enqueue(event):
     global _DROPPED
     ingress=_INGRESS
     if type(ingress) is not queue.Queue:return False
-    try:ingress.put_nowait(event);return True
+    try:
+        ingress.put_nowait(event)
+        try:
+            from .preproduction_runtime import enqueue_proposal
+            enqueue_proposal(event.payload())
+        except Exception:
+            pass
+        return True
     except queue.Full:_DROPPED+=1;return False
 
 

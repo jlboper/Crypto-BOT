@@ -27,6 +27,21 @@ const transport=async(url,options)=>{
 const manifest=()=>({app:'crypto-ai-trading-bot',mode:'paper',version:'0.6.3',runtime_protocol:1,commit:claim.sha,sequence:12345,
   expires:now+86400,size:100,sha256:'b'.repeat(64),package_url:`https://raw.githubusercontent.com/jlboper/Crypto-BOT/bot-releases/packages/${claim.sha}.zip`,
   files:Object.fromEntries(['trader/__main__.py','trader/runtime_control.py','pyproject.toml'].map(p=>[p,'c'.repeat(64)]))});
+
+test('optional prepared LIVE capability is strict signed metadata and never an enabled mode',()=>{
+  const legacy=manifest();assert.doesNotThrow(()=>validateManifest(legacy,claim,now));
+  for(const mode of ['paper','testnet']){
+    const prepared={...legacy,mode,prepared_live_protocol:1};
+    assert.doesNotThrow(()=>validateManifest(prepared,claim,now));
+    const signature=sign(null,Buffer.from(canonical(prepared)),ed.privateKey);
+    assert.equal(verify(null,Buffer.from(canonical(prepared)),ed.publicKey,signature),true);
+    assert.equal(verify(null,Buffer.from(canonical({...prepared,prepared_live_protocol:2})),ed.publicKey,signature),false);
+    assert.equal(verify(null,Buffer.from(canonical(legacy)),ed.publicKey,signature),false);
+  }
+  for(const protocol of [true,false,0,2,'1',null,undefined,{},[],NaN])assert.throws(()=>validateManifest({...legacy,prepared_live_protocol:protocol},claim,now));
+  for(const mode of ['live','LIVE','SPOT_LIVE','FUTURES_LIVE'])assert.throws(()=>validateManifest({...legacy,mode,prepared_live_protocol:1},claim,now));
+  for(const extra of [{live_enabled:true},{owner_authorization:true},{prepared_live_protocol:1,execution_enabled:true}])assert.throws(()=>validateManifest({...legacy,...extra},claim,now));
+});
 test('publisher identity binds protected environment, repository, workflow, revision and lifetime',async()=>{
   assert.equal((await authorizePublisher(token(),origin,now,transport)).sha,claim.sha);
   const prSha='d'.repeat(40), prRef='refs/pull/86/merge';

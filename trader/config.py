@@ -55,6 +55,17 @@ class BotSettings:
 
 
 @dataclass(frozen=True)
+class LiveSettings:
+    spot_database_path: Path
+    futures_database_path: Path
+    spot_capital_database_path: Path
+    futures_capital_database_path: Path
+    spot_kill_switch_path: Path
+    futures_kill_switch_path: Path
+    entry_halt_path: Path
+
+
+@dataclass(frozen=True)
 class PaperSettings:
     initial_cash_usdt: float
     fee_rate: float
@@ -193,6 +204,7 @@ class AppConfig:
     market_pulse: MarketPulseSettings = MarketPulseSettings()
     quant_arbitrage: QuantArbitrageSettings = QuantArbitrageSettings()
     guardian_intelligence: GuardianIntelligenceSettings = GuardianIntelligenceSettings()
+    live: LiveSettings | None = None
 
 
 def _project_path(raw: str) -> Path:
@@ -239,8 +251,14 @@ def load_config(path: str | Path | None = None) -> AppConfig:
             raise ValueError("Invalid Market Pulse AI budget")
 
     mode = os.getenv("EXECUTION_MODE", str(bot.get("mode", "paper"))).lower()
-    if mode not in {"paper", "testnet"}:
-        raise ValueError("Execution mode must be paper or testnet. Binance LIVE is not implemented.")
+    from .live_runtime_gate import (require_runtime_mode,confined_live_path,LIVE_SPOT_DATABASE,
+        LIVE_FUTURES_DATABASE,LIVE_SPOT_CAPITAL_DATABASE,LIVE_FUTURES_CAPITAL_DATABASE,
+        LIVE_SPOT_KILL,LIVE_FUTURES_KILL,LIVE_ENTRY_HALT)
+    require_runtime_mode(config_path.resolve().parent,mode)
+    live_settings=LiveSettings(*((confined_live_path(config_path.resolve().parent,name) if mode=="live"
+        else config_path.resolve().parent/name) for name in
+        (LIVE_SPOT_DATABASE,LIVE_FUTURES_DATABASE,LIVE_SPOT_CAPITAL_DATABASE,LIVE_FUTURES_CAPITAL_DATABASE,
+         LIVE_SPOT_KILL,LIVE_FUTURES_KILL,LIVE_ENTRY_HALT)))
     for section in (paper, risk, strategy):
         for key, value in section.items():
             if type(value) not in (int, float) or not math.isfinite(value) or value < 0:
@@ -326,10 +344,12 @@ def load_config(path: str | Path | None = None) -> AppConfig:
     if not math.isfinite(futures_forward_rr) or not 1 <= futures_forward_rr <= 5:
         raise ValueError("Invalid Futures forward-test reward/risk")
 
-    selected_database = bot.get("testnet_database_path", "data/testnet-trader.db") if mode == "testnet" else bot["database_path"]
+    selected_database = (live_settings.spot_database_path if mode=="live" else
+        bot.get("testnet_database_path", "data/testnet-trader.db") if mode == "testnet" else bot["database_path"])
     if type(research.get("automatic", True)) is not bool:
         raise ValueError("Research automatic must be a boolean")
     return AppConfig(
+        live=live_settings,
         guardian_intelligence=guardian_settings,
         quant_arbitrage=QuantArbitrageSettings(
             enabled=quant.get('enabled', True), mode='SHADOW',
@@ -349,7 +369,7 @@ def load_config(path: str | Path | None = None) -> AppConfig:
             universe_size=int(bot["universe_size"]),
             max_parallel_requests=int(bot["max_parallel_requests"]),
             database_path=_project_path(str(selected_database)),
-            kill_switch_path=_project_path(str(bot["kill_switch_path"])),
+            kill_switch_path=live_settings.spot_kill_switch_path if mode=="live" else _project_path(str(bot["kill_switch_path"])),
             protection_seconds=max(10, min(300, int(bot.get("protection_seconds", 30)))),
         ),
         paper=PaperSettings(**paper),
@@ -398,6 +418,6 @@ def load_config(path: str | Path | None = None) -> AppConfig:
             train_bars=int(research.get("train_bars", 1200)),
             test_bars=int(research.get("test_bars", 400)),
             report_path=_project_path(str(research.get("report_path", "data/research/latest.json"))),
-            automatic=research.get("automatic", True),
+            automatic=False if mode=="live" else research.get("automatic", True),
         ),
     )

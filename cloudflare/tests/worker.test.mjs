@@ -1052,7 +1052,7 @@ test('opportunity scripts use the explicit GET asset route without opening priva
     return new Response('/* '+path+' */',{headers:{'content-type':'application/javascript','cache-control':'public, max-age=86400','content-security-policy':"default-src *"}});
   }};
   assert.equal((await f.request('/v1/status')).status,401);
-  const paths=['/opportunity-contract.js','/opportunity-ui.js','/research-validation.js','/live-preparation.js','/migration-audit.js'];
+  const paths=['/opportunity-contract.js','/opportunity-ui.js','/research-validation.js','/live-preparation.js','/migration-audit.js','/preproduction-readiness.js','/pulse-institutional.js'];
   for(const path of paths){
     const response=await worker.fetch(new Request(origin+path),f.env);
     assert.equal(response.status,200);
@@ -1259,5 +1259,26 @@ test('cached migration audits remain optional authenticated data and reject auth
   for(const action of ['migration_audit_run','testnet_inventory_refresh','risk_latches_enable','capital_reserve'])
     assert.equal((await f.request('/v1/paper-controls',{action,payload:{},request_id:'no-audit-authority-'+action})).status,400);
   const legacy=structuredClone(base);delete legacy.dashboard.migration_audit;
+  assert.equal((await f.sync({snapshot:legacy,acks:[]})).status,200);
+});
+
+test('preproduction closure stays optional authenticated evidence without activation routes',async t=>{
+  const f=await fixture(t),dashboard=guardianDashboard();
+  const readiness=JSON.parse(execFileSync(process.env.PYTHON||'python',['-X','utf8',fileURLToPath(new URL('../../tests/emit_preproduction_fixture.py',import.meta.url))],{encoding:'utf8'}));
+  dashboard.preproduction_readiness=readiness;
+  const base={...snapshot(),dashboard},original=JSON.parse(JSON.stringify(dashboard));
+  assert.equal((await f.request('/v1/device/sync',{snapshot:base,acks:[]})).status,401);
+  assert.equal((await f.sync({snapshot:base,acks:[]})).status,200);
+  await f.login();assert.deepEqual((await f.request('/v1/status')).body.snapshot.dashboard,original);
+  for(const mutate of [x=>x.execution_enabled=true,x=>x.controls_enabled=true,x=>x.owner_authorization=true,
+    x=>x.connection.scopes[0].uid='private',x=>x.packages[0].state='LIVE_READY',x=>x.blockers=[]]){
+    const invalid=structuredClone(base);mutate(invalid.dashboard.preproduction_readiness);
+    const response=await f.sync({snapshot:invalid,acks:[]});
+    assert.equal(response.status,400);assert.equal(response.body.error,'Invalid Preproduction Readiness status');
+  }
+  assert.deepEqual((await f.request('/v1/status')).body.snapshot.dashboard,original);
+  for(const action of ['preproduction_activate','live_connection_configure','live_order_submit'])
+    assert.equal((await f.request('/v1/paper-controls',{action,payload:{},request_id:'no-preproduction-authority-'+action})).status,400);
+  const legacy=structuredClone(base);delete legacy.dashboard.preproduction_readiness;
   assert.equal((await f.sync({snapshot:legacy,acks:[]})).status,200);
 });

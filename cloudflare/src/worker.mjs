@@ -8,6 +8,8 @@ import { validOpportunityShadow } from './opportunity-shadow.mjs';
 import { validResearchValidation } from './research-validation.mjs';
 import { validLivePreparation } from './live-preparation.mjs';
 import { validMigrationAudit } from './migration-audit.mjs';
+import { validPreproductionReadiness } from './preproduction-readiness.mjs';
+import { validInstitutionalContext } from './pulse-institutional.mjs';
 
 const encoder = new TextEncoder();
 const TOKEN = /^[A-Za-z0-9_-]{43}$/;
@@ -314,10 +316,11 @@ function validateMarketPulse(p) {
       ||['fresh','complete'].includes(k)&&typeof v==='boolean'
       ||!['symbol','at','fresh','complete'].includes(k)&&finite(v));
   const evidence=value=>keys(value,['market','event_id','rule_version','published_at','received_at','decision_at',
-    'btc_change_1m_pct','btc_change_5m_pct','estimated_cost_bps','confirmations','selection_rank','selection_pool','selection_rule'])
+    'btc_change_1m_pct','btc_change_5m_pct','estimated_cost_bps','confirmations','selection_rank','selection_pool','selection_rule','institutional_context_ids'])
     &&(value.selection_rank===undefined||value.selection_pool===undefined||value.selection_rank<=value.selection_pool)
     &&Object.entries(value).every(([k,v])=>k==='market'?market(v):k==='event_id'?v===null||identifier(v)
       :k==='rule_version'?text(v):['published_at','received_at','decision_at'].includes(k)?stamp(v)
+      :k==='institutional_context_ids'?Array.isArray(v)&&v.length<=3&&new Set(v).size===v.length&&v.every(id=>typeof id==='string'&&/^[0-9a-f]{64}$/.test(id))
       :['selection_rank','selection_pool'].includes(k)?Number.isInteger(v)&&v>=1&&v<=10
       :k==='selection_rule'?v==='QUANTITATIVE_SCORE_THEN_CONFIDENCE_LIQUIDITY'
       :k==='confirmations'?strings(v)||Number.isSafeInteger(v)&&v>=0:finite(v));
@@ -352,7 +355,7 @@ function validateMarketPulse(p) {
     'benchmark_cash_return_pct','benchmark_buy_hold'];
   assert(keys(p,['schema','engine','mode','state','at','updated_at','freshness','enabled','controls_available',
     'execution_enabled','sources','stats','market','events','opportunities','decisions','positions','performance','health','research',
-    'news_providers','universe'])
+    'news_providers','universe','institutional'])
     &&p.schema===1&&p.engine==='AI_MARKET_PULSE'&&p.mode==='SHADOW'&&p.execution_enabled===false
     &&['SHADOW','PAUSED','WARMING_UP','DEGRADED','NOT_STARTED'].includes(p.state)
     &&typeof p.enabled==='boolean'&&typeof p.controls_available==='boolean'&&(!p.controls_available||p.enabled)
@@ -386,6 +389,7 @@ function validateMarketPulse(p) {
       &&Object.values(p.universe).every(text)
       &&(!/^https?:/i.test(p.universe.source)||safeUrl(p.universe.source)),error);
   }
+  if(p.institutional!==undefined)assert(validInstitutionalContext(p.institutional),error);
   assert(keys(p.health,['latency_ms','reconnects','errors','last_error','ws_messages','rest_calls','news_calls',
     'ai_reviews','ai_errors','buffer_seconds','uptime_seconds','ai_daily_cap','ai_used_today',
     'ai_min_interval_seconds','ai_max_output_tokens','ai_max_input_bytes'])&&Object.entries(p.health).every(([k,v])=>
@@ -484,12 +488,13 @@ function validateSnapshot(snapshot) {
         &&object(c.reasons)&&Object.entries(c.reasons).every(([k,v])=>codes.includes(k)&&Number.isInteger(v)&&v>0&&v<=10000)
         &&JSON.stringify(c).length<2400,'Invalid Spot cycle diagnostic');
     }
-    assert(Object.keys(d).every(k=>['status','positions','equity','trades','reviews','events','risk','research','research_state','testnet','testnet_execution','updates','paper_scorecard','futures_forward','market_pulse','portfolio_guardian','quant','engine_catalog','guardian_intelligence','capital_lab','opportunity_shadow','live_preparation','migration_audit'].includes(k)), 'Unknown dashboard field');
+    assert(Object.keys(d).every(k=>['status','positions','equity','trades','reviews','events','risk','research','research_state','testnet','testnet_execution','updates','paper_scorecard','futures_forward','market_pulse','portfolio_guardian','quant','engine_catalog','guardian_intelligence','capital_lab','opportunity_shadow','live_preparation','migration_audit','preproduction_readiness'].includes(k)), 'Unknown dashboard field');
     if(d.guardian_intelligence!==undefined)assert(validGuardianIntelligence(d.guardian_intelligence),'Invalid Guardian Intelligence status');
     if(d.capital_lab!==undefined)assert(validCapitalLab(d.capital_lab),'Invalid Capital Protocol Lab status');
     if(d.opportunity_shadow!==undefined)assert(validOpportunityShadow(d.opportunity_shadow),'Invalid Opportunity Shadow status');
     if(d.live_preparation!==undefined)assert(validLivePreparation(d.live_preparation),'Invalid Live Preparation status');
     if(d.migration_audit!==undefined)assert(validMigrationAudit(d.migration_audit),'Invalid Migration Audit status');
+    if(d.preproduction_readiness!==undefined)assert(validPreproductionReadiness(d.preproduction_readiness),'Invalid Preproduction Readiness status');
     if(d.market_pulse!==undefined)validateMarketPulse(d.market_pulse);
     if(d.quant!==undefined)validateQuantArbitrage(d.quant);
     if(d.portfolio_guardian!==undefined)validatePortfolioGuardian(d.portfolio_guardian,d.quant);
@@ -706,7 +711,7 @@ export async function handle(request, env, now = Math.floor(Date.now() / 1000)) 
     await statement(env.DB,'SELECT id FROM jobs LIMIT 1').all();
     return json({status:'ok',commit:/^[a-f0-9]{40}$/.test(env.PORTAL_COMMIT||'')?env.PORTAL_COMMIT:null});
   }
-  if (method === 'GET' && ['/', '/app.js', '/style.css','/styles.css','/monitoring.css','/portal-bridge.js','/opportunity-contract.js','/opportunity-ui.js','/research-validation.js','/live-preparation.js','/migration-audit.js','/portal.css','/crypto-ai-trader-icon.png','/manifest.webmanifest','/service-worker.js'].includes(path)) {
+  if (method === 'GET' && ['/', '/app.js', '/style.css','/styles.css','/monitoring.css','/portal-bridge.js','/opportunity-contract.js','/opportunity-ui.js','/research-validation.js','/live-preparation.js','/migration-audit.js','/preproduction-readiness.js','/pulse-institutional.js','/portal.css','/crypto-ai-trader-icon.png','/manifest.webmanifest','/service-worker.js'].includes(path)) {
     const asset = await env.ASSETS.fetch(request);
     const headers = new Headers(asset.headers);
     for (const [name, value] of Object.entries(security)) headers.set(name, value);

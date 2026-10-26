@@ -15,6 +15,8 @@ from trader.config import load_config
 from trader.remote_agent import RemoteAgent
 from trader.remote_jobs import RemoteJobs
 from trader.remote_paper_controls import RemotePaperControls
+from trader.live_runtime_gate import (require_runtime_mode,runtime_mode_allowed,
+    LIVE_SPOT_DATABASE,LIVE_SPOT_KILL)
 
 
 SUPERVISOR_MODULES = (
@@ -29,6 +31,10 @@ SUPERVISOR_MODULES = (
     "trader/native_protection_compat.py",
     "trader/runtime.py",
     "trader/runtime_control.py",
+    "trader/live_runtime_gate.py",
+    "trader/live_authorization.py",
+    "trader/local_protection.py",
+    "trader/central_admission.py",
 )
 
 
@@ -60,8 +66,7 @@ def supervisor_modules_current(source):
 def source_settings(source):
     source = Path(source).resolve(strict=True)
     raw = tomllib.loads((source / "config.toml").read_text(encoding="utf-8"))
-    if raw["bot"]["mode"].lower() not in {"paper", "testnet"}:
-        raise ValueError("Source mode is unsupported")
+    require_runtime_mode(source,raw["bot"]["mode"].lower(),require_ready=False)
     def confined(value):
         path = (source / value).resolve()
         if not path.is_relative_to(source) or path == source:
@@ -87,10 +92,11 @@ def source_settings(source):
             execution_mode = found_mode
         if found_model or found_mode:
             break
-    if execution_mode not in {"paper", "testnet"}:
-        raise ValueError("Unsupported execution override")
-    database_setting = (raw["bot"].get("testnet_database_path", "data/testnet-trader.db")
-                        if execution_mode == "testnet" else raw["bot"]["database_path"])
+    require_runtime_mode(source,execution_mode,require_ready=False)
+    database_setting = (LIVE_SPOT_DATABASE if execution_mode=='live' else
+        raw["bot"].get("testnet_database_path", "data/testnet-trader.db")
+        if execution_mode == "testnet" else raw["bot"]["database_path"])
+    if execution_mode=='live': kill=confined(LIVE_SPOT_KILL)
     database = confined(database_setting)
     if not database.is_file():
         raise ValueError("Existing active database required; no database will be created")
@@ -125,7 +131,7 @@ def dashboard_from_source(source, config):
         raise RuntimeError('Trading projection unavailable')
     payload = json.loads(result.stdout)
     if (not isinstance(payload, dict) or not isinstance(payload.get('status'), dict)
-            or payload['status'].get('mode') not in {'PAPER', 'TESTNET'}):
+            or not runtime_mode_allowed(source,str(payload['status'].get('mode','')).lower())):
         raise ValueError('Trading projection invalid')
     return payload
 
@@ -219,9 +225,11 @@ def main():
     def validate():
         raw = tomllib.loads((args.source / "config.toml").read_text(encoding="utf-8"))
         refreshed = source_settings(args.source)
-        expected_database = raw["bot"].get("testnet_database_path", "data/testnet-trader.db") if refreshed.bot.mode == "testnet" else raw["bot"]["database_path"]
+        expected_database = (LIVE_SPOT_DATABASE if refreshed.bot.mode=='live' else
+            raw["bot"].get("testnet_database_path", "data/testnet-trader.db") if refreshed.bot.mode == "testnet" else raw["bot"]["database_path"])
+        expected_kill=LIVE_SPOT_KILL if refreshed.bot.mode=='live' else raw["bot"]["kill_switch_path"]
         if ((args.source / expected_database).resolve() != refreshed.bot.database_path
-                or (args.source / raw["bot"]["kill_switch_path"]).resolve() != refreshed.bot.kill_switch_path):
+                or (args.source / expected_kill).resolve() != refreshed.bot.kill_switch_path):
             raise ValueError("Source paths changed; restart after review")
     last_success = None
     def report(ok):
