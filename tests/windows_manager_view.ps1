@@ -7,7 +7,7 @@ $ast = [Management.Automation.Language.Parser]::ParseFile((Join-Path $repo 'scri
 if ($errors.Count -gt 0) { throw ($errors -join '; ') }
 foreach ($name in @('Get-ManagerValue','Format-ManagerNumber','Get-ManagerAge','Format-ManagerTime',
     'Get-ManagerArmedCount','Get-ManagerProtection','Get-ManagerEngineViews','Get-ManagerGuardianView','Get-ManagerRemoteView',
-    'Get-ManagerPortalSections','Get-ManagerPortalUrl','New-ManagerPortalMenu','Get-InstalledVersion','New-AppButton','New-EngineCard','Set-EngineCard')) {
+    'Get-ManagerPortalSections','Get-ManagerPortalUrl','New-ManagerPortalMenu','Show-ManagerLiveConnection','New-ManagerLiveConnectionMenu','Get-InstalledVersion','New-AppButton','New-EngineCard','Set-EngineCard')) {
     $definition = $ast.Find({ param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $name }, $true)
     if ($null -eq $definition) { throw "Missing view helper: $name" }
     . ([scriptblock]::Create($definition.Extent.Text))
@@ -193,6 +193,8 @@ if ($RenderPath) {
         Assert-View ($card.Panel.Right -le $form.ClientSize.Width -and $card.Panel.Bottom -le $form.ClientSize.Height) 'All four cards must fit without horizontal scrolling'
     }
     Assert-View ($portalSectionsMenu.Items.Count -eq 7) 'One compact menu must expose every platform section'
+    Assert-View ($liveConnectionMenu.Items.Count -eq 4 -and $liveConnectionMenu.Items[0].DropDownItems.Count -eq 2 -and $liveConnectionMenu.Items[1].DropDownItems.Count -eq 2) 'Local credential scopes must expose explicit entry and replacement, never execution'
+    Assert-View ($liveConnectionLink.Right -le $form.ClientSize.Width -and $liveConnectionLink.Bottom -le $openLocalButton.Top) 'The protected connection link must fit above existing quick actions'
     Assert-View ($levelBadge -is [System.Windows.Forms.Label]) 'LEVEL 0 must be a read-only label, never an authority toggle'
     # Render the actual child controls on an unattached canvas: Form.DrawToBitmap
     # omits children of an unshown form, while showing it would violate isolation.
@@ -208,6 +210,6 @@ if ($RenderPath) {
         $canvas.CreateControl()
         $canvas.DrawToBitmap($bitmap, [Drawing.Rectangle]::new(0,0,$canvas.Width,$canvas.Height))
         $bitmap.Save([IO.Path]::GetFullPath($RenderPath), [Drawing.Imaging.ImageFormat]::Png)
-    } finally { $bitmap.Dispose(); $canvas.Dispose(); $form.Dispose(); $portalSectionsMenu.Dispose(); $script:LogoBitmap.Dispose() }
+    } finally { $bitmap.Dispose(); $canvas.Dispose(); $form.Dispose(); $portalSectionsMenu.Dispose(); $liveConnectionMenu.Dispose(); $script:LogoBitmap.Dispose() }
 }
 Write-Output 'Windows command-center view checks passed: seven safe sections, read-only LEVEL 0, four engines, Guardian Observer, synthetic finances, protections, missing/stale data and isolated HTTPS.'

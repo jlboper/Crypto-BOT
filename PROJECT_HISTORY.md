@@ -1,3 +1,20 @@
+## 26 octubre2026 — integridad de entrada y diagnóstico sin autoridad
+
+La entrada oculta puede recibir un pegado repetido sin que el propietario lo vea.
+55 valida el protocolo HMAC64 elegido antes de guardar. La configuración por ámbito
+se fusiona bajo lock de proceso exclusivo para que una consola abierta previamente
+no borre un ámbito configurado después. Un resultado interrumpido se representa
+CONFIGURATION_NOT_CONFIRMED: no promete que una escritura atómica no ocurrió.
+
+El diagnóstico de errores incorpora únicamente códigos numéricos acotados. Nunca
+registrar mensajes del proveedor, cabeceras o URLs firmadas. Las respuestas vacías
+reales de transferencias pueden omitir rows y devolver exactamente {"total":0};
+ese caso estrecho admite cero en la ventana consultada, sin convertir otros datos
+incompletos en cero ni certificar historia integral. No cambia admisión financiera.
+El propietario prefiere conservar los pares Spot/Futures existentes y considerar
+permisos mínimos sólo tras autorización futura; compatibilidad de Binance aún debe
+comprobarse por ámbito. No crear pares por cada estrategia SHADOW.
+
 # Project History and Decision Log
 
 ## 23Oct2026 — discrepancia de contrato en auditor GET

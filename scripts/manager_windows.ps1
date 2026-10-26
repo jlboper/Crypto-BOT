@@ -82,6 +82,54 @@ function Get-InstalledVersion {
     return "desconocida"
 }
 
+function Show-ManagerLiveConnection {
+    param([ValidateSet('SPOT_LIVE','FUTURES_LIVE')][string]$Scope,
+          [switch]$Replace, [switch]$Status)
+    try {
+        if ($Replace) {
+            $answer = [System.Windows.Forms.MessageBox]::Show(
+                "¿Reemplazar únicamente la clave de $Scope? La otra clave se conserva. Este paso no cambia permisos de Binance ni activa órdenes.",
+                'Reemplazar conexión de lectura',
+                [System.Windows.Forms.MessageBoxButtons]::YesNo,
+                [System.Windows.Forms.MessageBoxIcon]::Question)
+            if ($answer -ne [System.Windows.Forms.DialogResult]::Yes) { return }
+        }
+        $launcher = Join-Path $ProjectRoot 'scripts\open_live_connection_windows.ps1'
+        if ($Status) { & $launcher -Status }
+        else { & $launcher -Scope $Scope -Replace:$Replace }
+    } catch {
+        [System.Windows.Forms.MessageBox]::Show(
+            'La entrada protegida no está disponible. Comprueba la instalación firmada y el supervisor. No pegues claves en esta ventana.',
+            'Conexión Binance de solo lectura',
+            [System.Windows.Forms.MessageBoxButtons]::OK,
+            [System.Windows.Forms.MessageBoxIcon]::Warning) | Out-Null
+    }
+}
+
+function New-ManagerLiveConnectionMenu {
+    $menu = New-Object System.Windows.Forms.ContextMenuStrip
+    $menu.BackColor = [System.Drawing.Color]::FromArgb(16, 27, 45)
+    $menu.ForeColor = [System.Drawing.Color]::FromArgb(236, 242, 255)
+    $menu.Font = New-Object System.Drawing.Font('Segoe UI', 9)
+    foreach ($scope in @('SPOT_LIVE','FUTURES_LIVE')) {
+        $group = New-Object System.Windows.Forms.ToolStripMenuItem($scope.Replace('_LIVE','') + ' · lectura')
+        foreach ($replace in @($false, $true)) {
+            $label = if ($replace) { 'Reemplazar clave…' } else { 'Introducir clave' }
+            $item = New-Object System.Windows.Forms.ToolStripMenuItem($label)
+            $item.Tag = [PSCustomObject]@{ Scope=$scope; Replace=$replace }
+            $item.Add_Click({ param($sender,$eventArgs)
+                Show-ManagerLiveConnection -Scope ([string]$sender.Tag.Scope) -Replace:([bool]$sender.Tag.Replace)
+            })
+            $group.DropDownItems.Add($item) | Out-Null
+        }
+        $menu.Items.Add($group) | Out-Null
+    }
+    $menu.Items.Add('-') | Out-Null
+    $statusItem = $menu.Items.Add('Ver ámbitos guardados (sin claves)')
+    $statusItem.Add_Click({ Show-ManagerLiveConnection -Status })
+    return $menu
+}
+
 function Invoke-LocalSignedUpdate {
     param([string]$Action, [string]$ApprovedRelease = '')
     $task = Get-ScheduledTask -TaskName 'Crypto Paper Portal Agent' -ErrorAction Stop
@@ -842,6 +890,18 @@ $actionsLabel.Font = New-Object System.Drawing.Font("Segoe UI Semibold", 9)
 $actionsLabel.ForeColor = [System.Drawing.Color]::FromArgb(113, 139, 176)
 $form.Controls.Add($actionsLabel)
 
+$liveConnectionMenu = New-ManagerLiveConnectionMenu
+$liveConnectionLink = New-Object System.Windows.Forms.LinkLabel
+$liveConnectionLink.Text = 'Conexión Binance · solo lectura ▾'
+$liveConnectionLink.Location = New-Object System.Drawing.Point(420, 506)
+$liveConnectionLink.Size = New-Object System.Drawing.Size(296, 22)
+$liveConnectionLink.TextAlign = [System.Drawing.ContentAlignment]::MiddleRight
+$liveConnectionLink.Font = New-Object System.Drawing.Font('Segoe UI', 9)
+$liveConnectionLink.LinkColor = [System.Drawing.Color]::FromArgb(132, 197, 255)
+$liveConnectionLink.ActiveLinkColor = [System.Drawing.Color]::FromArgb(190, 223, 255)
+$liveConnectionLink.Add_LinkClicked({ $liveConnectionMenu.Show($liveConnectionLink, [System.Drawing.Point]::new(0,$liveConnectionLink.Height)) })
+$form.Controls.Add($liveConnectionLink)
+
 $openLocalButton = New-AppButton "⌂   Command Center local" 28 530
 $openLocalButton.Add_Click({ Start-Process $DashboardUrl })
 $form.Controls.Add($openLocalButton)
@@ -1083,6 +1143,8 @@ $checkUpdatesItem = $notifyMenu.Items.Add("Centro de actualizaciones")
 $checkUpdatesItem.Add_Click({ Show-LocalUpdateCenter })
 $repairAgentItem = $notifyMenu.Items.Add("Reparar conexión del portal")
 $repairAgentItem.Add_Click({ Show-AgentRefresh })
+$liveConnectionItem = $notifyMenu.Items.Add('Conexión Binance · solo lectura')
+$liveConnectionItem.DropDown = New-ManagerLiveConnectionMenu
 $notifyMenu.Items.Add("-") | Out-Null
 $exitItem = $notifyMenu.Items.Add("Salir del indicador")
 $script:AllowExit = $false
@@ -1155,6 +1217,7 @@ $form.Add_FormClosed({
     $notifyIcon.Visible = $false
     $notifyIcon.Dispose()
     $portalSectionsMenu.Dispose()
+    $liveConnectionMenu.Dispose()
     $script:LogoBitmap.Dispose()
     $script:MenuBitmap.Dispose()
     if ($script:RestartManager) {
