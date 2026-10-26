@@ -17,7 +17,7 @@ import re
 import time
 import uuid
 
-from trader.live_transport import LiveCredentials, LiveError, LiveReadOnlyTransport, SYMBOL
+from trader.live_transport import LiveCredentials, LiveError, LiveHTTPError, LiveReadOnlyTransport, SYMBOL
 
 PERMISSION_FIELDS = ("enableReading", "enableWithdrawals", "ipRestrict", "enableSpotAndMarginTrading",
                      "enableFutures", "enableMargin", "enableInternalTransfer", "permitsUniversalTransfer",
@@ -46,6 +46,23 @@ def _rows(value):
     if type(value) is not list or len(value) > 10_000 or any(type(row) is not dict for row in value):
         raise LiveError("LIVE_INVALID_ACCOUNT_ROWS")
     return value
+
+
+def _transfer_rows(value, *, prior_rows=0, page_size=100):
+    """A confirmed empty transfer response can omit rows; no other omission is zero."""
+    if (type(value) is not dict or set(value) not in ({"total"}, {"total", "rows"})
+            or type(value.get("total")) is not int or not 0 <= value["total"] <= 10**12):
+        raise LiveError("LIVE_INVALID_ACCOUNT_ROWS")
+    if "rows" not in value:
+        if value["total"] != 0:
+            raise LiveError("LIVE_INVALID_ACCOUNT_ROWS")
+        rows = []
+    else:
+        rows = _rows(value["rows"])
+    count = prior_rows + len(rows)
+    if count > value["total"] or len(rows) < page_size and count != value["total"]:
+        raise LiveError("LIVE_HISTORY_CONTRADICTION")
+    return rows
 
 
 def _asset(value):
@@ -158,7 +175,8 @@ class LiveAccountAudit:
             if not re.fullmatch(r"[A-Z0-9_]{1,80}", code, re.ASCII):
                 code = "LIVE_READ_FAILED"
             self.observations.append({"scope": scope, "name": name, "request_started_utc": _iso(began),
-                "received_utc": _iso(int(self.clock() * 1000)), "status": "UNKNOWN", "code": code})
+                "received_utc": _iso(int(self.clock() * 1000)), "status": "UNKNOWN", "code": code,
+                **(LiveHTTPError.diagnostics(error) if isinstance(error, LiveHTTPError) else {})})
             self._errors.append(code)
             return None
 
@@ -339,7 +357,10 @@ class LiveAccountAudit:
             value = self._get(scope, name + f"_page{pages + 1}", endpoint, fields)
             pages += 1
             try:
-                rows = _rows(value.get(row_key) if row_key and type(value) is dict else value)
+                if scope == "SPOT_LIVE" and endpoint == "/sapi/v1/asset/transfer" and row_key == "rows":
+                    rows = _transfer_rows(value, prior_rows=previous + observed, page_size=effective_limit)
+                else:
+                    rows = _rows(value.get(row_key) if row_key and type(value) is dict else value)
                 ids = []
                 for row in rows:
                     if pagination == "id":

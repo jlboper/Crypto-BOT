@@ -1,3 +1,13 @@
+## 0.10.55 — conexión y entrada protegida en preparación
+
+Base54maina5f7c599/PR131 publicada, firmada e instalada290/290; validaciones
+40374125017/40374125048 SUCCESS Linux/Windows. La entrega55 mantiene el mismo
+supervisor y canal firmado. Entrada HMAC64/lock por vault, acción Windows local,
+diagnóstico GET numérico, scope explícito y transferencias vacías verificadas.
+Sin cambios de riesgo, estrategias, stops, wallets o autoridad. Pruebas completas,
+PR, CI, firma e instalación55 requieren comprobación propia. No publicar archivos
+operativos, secretos ni reportes privados. Ver PREPRODUCTION_CLOSURE.md.
+
 ## 0.10.53 — auditoría Futures V3 en preparación
 
 52b110b7e PR129 publicada, firmada e instalada255/25523Oct22:39UTC;
@@ -789,3 +799,10 @@ local-protection/runtime-gate modules; refresh and supervisor inventories must
 match and isolated imports must pass. Verify old53 -> new54 manifest acceptance
 using isolated copies of the actual installed verifier, not a new-verifier mock.
 No new release is installed merely because this candidate document exists.
+
+Validación local final55:1427/1427 Python offline PASS303.641s a26Oct2026
+20:50:20UTC, cero errores/fallos/saltos y fuentes sin cambios;293/293Node
+PASS156.479s. PowerShell5.1 launcher,view/lifecycle y render sintético PASS,
+sin consolas/motores reales. Revisión cruzada corrigió carrera de marcador
+Windows y eco de argumentos rechazados; regresiones repetidas PASS. Paquete
+allowlist294 archivos,8/8 probes privados excluidos. CI/firma/rollout55 pendientes.

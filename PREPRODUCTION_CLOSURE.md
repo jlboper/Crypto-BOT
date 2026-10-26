@@ -1,10 +1,16 @@
 # Spot + Futures preproduction: fixed closure scope
 
-Updated 25 October 2026. Baseline: main `7b64fd6407432f3cccec4edb1be99e41fa55133b`,
-0.10.53. This document describes the 0.10.54 candidate, not installed proof.
+Updated 26 October 2026. Baseline: main `a5f7c599957f87171c63f359ee016180f7ea4c7b`,
+0.10.54, independently verified signed/installed 290/290 files. PR131 and main
+publication40374125017/security40374125048 passed Linux and Windows. This update
+describes candidate0.10.55; its own publication/installation require new evidence.
 
 The owner authorized developing segregated LIVE support and preparing a real
-account connection. The owner reports having no dedicated LIVE API keys.
+account connection. Dedicated keys are entered only through local hidden input.
+The owner prefers retaining the current two account/market scopes and explicitly
+reviewing future permission changes, rather than creating keys per engine.
+Exchange eligibility restrictions must still be verified; Binance documents that
+a key created before Futures activation cannot later enable its Futures permission.
 100 USD is a proposed total starting budget, not a USDT allocation or approval
 of losses, leverage, wallet splits or production activation. Earlier percentage
 profiles remain proposals. No authorization or readiness record is provisioned.
@@ -14,7 +20,7 @@ profiles remain proposals. No authorization or readiness record is provisioned.
 | Package | Implemented in this candidate | Outstanding acceptance |
 | --- | --- | --- |
 | 1. Evidence | One supervised, bounded cohort collector; read-only source snapshots; durable contemporaneous proposal receipts; legacy audit; material fingerprints | Financially qualified evidence must prove reconciliation, costs, cashflows and protections. Local uptime alone cannot certify 30 days. Legacy evidence is not erased or automatically restarted. |
-| 2. Account | Fixed-host signed GET-only LIVE auditor, bounded pagination/resumption, encrypted raw retention; dedicated Windows-user credential vault | Dedicated keys, identity/permissions verification and complete baseline/history reconciliation. No account was connected during development. |
+| 2. Account | Fixed-host signed GET-only LIVE auditor, bounded pagination/resumption, encrypted raw retention; dedicated Windows-user vault, transactional per-scope updates and signed native entry; closed numeric HTTP diagnostics | Scope-specific identity/permissions verification, exchange account eligibility and complete baseline/history reconciliation. A configured key or successful bounded GET is not a complete account certificate. |
 | 3. Common execution | Exact proposal/reservation/claim/transport grant; one submission, then GET reconciliation; UNKNOWN retains reserves | Commissioned adapters from actual strategy proposals and complete account facts into this protocol. Current operating Testnet brokers remain unchanged. |
 | 4. Risk/capital | Integer-unit transactional capital, stop risk, persistent day/week/drawdown state, idempotence, concurrency and segregated wallet envelopes | Owner-approved numeric policy and operational admission integration. AI cannot issue an authority or change limits. |
 | 5. LIVE commissioning | Separate fixed hosts, ledgers, kill paths, native-protection workflow, partial/unknown recovery, prepared signed-update capability | Complete supervised strategy adapters, end-to-end commissioning/recovery evidence and separate owner activation. TradingEngine explicitly refuses uncommissioned LIVE before creating a wallet. |
@@ -30,6 +36,22 @@ Dedicated credentials are protected by Windows DPAPI for the current user;
 configuration accepts hidden local input, never secret command-line arguments
 or a portal form. Keys are not reused from Testnet. Vault possession grants no
 trading permission. `configure_live_connection.py` performs no network call.
+Its current owner input flow is explicitly for system-generated HMAC pairs:
+64 ASCII alphanumeric characters per field, four attempts maximum, cancellation
+on empty input and no echo fallback. Existing transport/vault records retain their
+broader validated representation. A vault-only OS lock protects fresh scope
+read/merge/write; typing never holds that lock and cannot replace a newer scope
+from a previously opened console. Scope replacement remains explicit.
+
+Windows exposes **Conexión Binance · solo lectura** in Quick Actions and the tray.
+The native launcher checks the committed signed entry inventory, uses the
+supervisor's Python and cmd /D /V:OFF, and passes only paths/actions. It neither
+starts a trading engine nor alters PowerShell policies. The auditor's optional
+`--scope SPOT_LIVE|FUTURES_LIVE` fails closed when that dedicated scope is absent.
+HTTP diagnostics retain bounded numeric status/provider codes, never provider
+messages or signed request URLs. Exact empty transfer envelopes `{"total":0}`
+observed from Binance are accepted only for that endpoint; missing, contradictory
+or extended envelopes remain unknown. None of this certifies full history.
 `audit_live_account.py --ack-read-only --vault ...` can subsequently read an
 explicit production scope. Neither command writes an activation record.
 

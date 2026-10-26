@@ -1,3 +1,20 @@
+## Checkpoint de desarrollo — 0.10.55 en preparación
+
+Partir de main54a5f7c599957f87171c63f359ee016180f7ea4c7b/PR131, firmada e
+instalada290/290. Workflows40374125017 y40374125048 SUCCESS Linux/Windows;
+1397Python/293Node locales54. Baseline55 independiente367366 filas/11tablas y
+hash del vault cifrado guardados privadamente para comparar después del rollout.
+Dos HTTPS postinstalación54 e inventario agente15/15 comprobados.
+
+55 añade validación oculta HMAC64, fusión de ámbitos con lock exclusivo, menú
+Windows de entrada local, scope explícito del auditor, diagnósticos numéricos
+cerrados y sobre vacío de transferencias estricto. No consultas privadas en los
+tests ni escrituras a configuración operativa durante desarrollo. No borrar
+historia, rotar claves por rutina, habilitar LIVE o aumentar riesgo. La preferencia
+vigente es conservar los pares actuales; cualquier incompatibilidad comprobada
+requiere explicación y decisión separada. CI/publicación/instalación55 pendientes.
+La cuenta configurada no acredita30d financieros ni los otros paquetes de cierre.
+
 
 ## Correctiva53 en preparación — auditoría Futures V3
 
@@ -619,3 +636,10 @@ was used in development. Numerical policy and production commissioning remain
 unapproved/incomplete. Do not report all five acceptance packages as operating.
 Source and test details: PREPRODUCTION_CLOSURE.md; final publication/installation
 evidence must be appended only after verification.
+
+Validación local final55:1427/1427 Python offline PASS303.641s a26Oct2026
+20:50:20UTC, cero errores/fallos/saltos y fuentes sin cambios;293/293Node
+PASS156.479s. PowerShell5.1 launcher,view/lifecycle y render sintético PASS,
+sin consolas/motores reales. Revisión cruzada corrigió carrera de marcador
+Windows y eco de argumentos rechazados; regresiones repetidas PASS. Paquete
+allowlist294 archivos,8/8 probes privados excluidos. CI/firma/rollout55 pendientes.

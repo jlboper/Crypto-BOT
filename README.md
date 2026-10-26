@@ -1,3 +1,16 @@
+## 0.10.55 — conexión de lectura robusta (en preparación)
+
+Base verificada0.10.54: main `a5f7c599957f87171c63f359ee016180f7ea4c7b`,
+[PR131](https://github.com/jlboper/Crypto-BOT/pull/131), publicación40374125017 y
+seguridad40374125048 SUCCESS Linux/Windows; firma e instalación290/290 comprobadas.
+Esta candidata valida la entrada HMAC antes de guardar, conserva ámbitos de claves
+con actualizaciones concurrentes y añade **Conexión Binance · solo lectura** al
+menú Windows. El auditor permite elegir un ámbito y conserva códigos HTTP/Binance
+numéricos sin exponer respuestas privadas. Reconoce sólo el sobre vacío verificado
+de transferencias; no certifica toda la cuenta ni habilita órdenes. Pruebas,
+publicación e instalación55 requieren sus propios resultados. Ver
+[Alcance finito de preparación](PREPRODUCTION_CLOSURE.md).
+
 ## 0.10.53 — auditoría Futures V3 (en preparación)
 
 Base52 publicada, firmada e instalada: mainb110b7e, [PR129](https://github.com/jlboper/Crypto-BOT/pull/129),

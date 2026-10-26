@@ -1,3 +1,22 @@
+## 26 octubre2026 — conservación de claves y entrada transaccional
+
+0.10.54 maina5f7c599 PR131 verificada firmada/instalada290/290. La candidata55
+endurece sólo conexión/entrada y observabilidad. El propietario prefiere conservar
+los dos pares de ámbito Spot/Futures y revisar futuros permisos expresamente;
+no crear una API por motor ni rotar por rutina. Esto no autoriza ahora trading,
+retiros, transferencias, asignación de100USD o límites numéricos nuevos. Respetar
+restricciones verificadas de Binance: claves creadas antes de habilitar Futures
+no pueden recibir después su permiso Futures; explicar cualquier incompatibilidad
+antes de sustituir un par. Fuente oficial:
+https://www.binance.com/en/support/faq/detail/360002502072 .
+
+Las entradas simultáneas usan un lock propio de credenciales y vuelven a leer el
+vault dentro de la sección crítica. No usar el lock del motor ni mantenerlo al
+esperar entrada. Una conexión configurada no equivale a cuenta reconciliada,
+permisos certificados, aprobación financiera o ejecución. El menú Windows ofrece
+sólo entrada local oculta y estado de ámbitos, nunca una autorización de trading.
+Mantener el alcance fijo de cinco entregas en PREPRODUCTION_CLOSURE.md.
+
 ## Contrato de cuenta — correctiva53
 
 No aplicar el contrato Spot de canTrade a Futures Account V3: este último

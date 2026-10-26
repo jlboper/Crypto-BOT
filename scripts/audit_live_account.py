@@ -14,12 +14,20 @@ from trader.live_account import LiveAccountAudit, EncryptedAuditStore, audit_dir
 from trader.live_transport import LiveError, LiveReadOnlyTransport
 
 
+class ClosedArgumentParser(argparse.ArgumentParser):
+    def error(self, message):
+        # An accidentally pasted credential must not be repeated in an argv error.
+        self.exit(2, "LIVE_AUDIT_ARGUMENTS_INVALID\n")
+
+
 def main(argv=None):
-    parser = argparse.ArgumentParser(description="LIVE account observation: GET only, no orders or allocation")
+    parser = ClosedArgumentParser(description="LIVE account observation: GET only, no orders or allocation")
     parser.add_argument("--ack-read-only", action="store_true", required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--symbols", default=None)
     parser.add_argument("--vault", type=Path, help="Explicit current-user Windows DPAPI LIVE credential vault")
+    parser.add_argument("--scope", choices=("SPOT_LIVE", "FUTURES_LIVE"),
+                        help="Audit only this explicitly configured scope; never substitute another key")
     parser.add_argument("--start-utc-ms", type=int)
     parser.add_argument("--end-utc-ms", type=int)
     parser.add_argument("--max-calls", type=int, default=80)
@@ -35,6 +43,10 @@ def main(argv=None):
             credentials = LiveCredentialVault(args.vault).read()
         else:
             credentials = credentials_from_environment(os.environ)
+        if args.scope is not None:
+            if args.scope not in credentials:
+                raise LiveError("LIVE_REQUESTED_SCOPE_NOT_CONFIGURED")
+            credentials = {args.scope: credentials[args.scope]}
         cursors = {}
         prior_window = None
         if args.resume:

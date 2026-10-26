@@ -1,3 +1,23 @@
+## 0.10.55 — entrada protegida y auditor de conexión (en preparación)
+
+La entrada local system-generated HMAC64 rechaza pegados incompletos/duplicados
+antes de escribir, ofrece cuatro intentos y cancela con entrada vacía. El fallback
+de eco se bloquea. Un lock exclusivo propio del vault cubre lectura actualizada,
+fusión por ámbito y escritura atómica; la espera del usuario ocurre fuera del lock.
+Reemplazar un ámbito exige indicación explícita y conserva el otro.
+
+Windows añade un acceso local desde Acciones rápidas/bandeja. Usa el runtime del
+supervisor y el inventario de entrada COMMITTED del instalador firmado, consola
+cmd /D /V:OFF, sin perfiles PowerShell, secretos en argv o arranque del motor.
+El auditor --scope rechaza ámbitos no configurados antes de archivos o red.
+Los errores conservan sólo estados HTTP y códigos de proveedor numéricos acotados;
+no mensajes, cabeceras o URLs firmadas. El cuerpo de error es acotado y se cierra,
+sin introducir reintentos. Para transferencias, sólo {"total":0} exacto equivale a
+una ventana vacía; contradicciones permanecen UNKNOWN. No es historial integral.
+
+No cambia trading, estrategias, stops, límites, balances, cohortes, actualizador
+ni autoridad. Pulse/Quant SHADOW, GuardianL0. Pruebas/CI/firma/instalación pendientes.
+
 
 ## 0.10.53 — auditor GET compatible con Futures Account V3
 
@@ -1413,3 +1433,10 @@ deduplicated, timestamped and frozen for replay; it does not add model calls,
 change numeric score weights or claim daily ETF flows/parsed insider trades.
 The shared portal provides a collapsible institutional panel. See
 PREPRODUCTION_CLOSURE.md for exact implementation and commissioning boundaries.
+
+Validación local final55:1427/1427 Python offline PASS303.641s a26Oct2026
+20:50:20UTC, cero errores/fallos/saltos y fuentes sin cambios;293/293Node
+PASS156.479s. PowerShell5.1 launcher,view/lifecycle y render sintético PASS,
+sin consolas/motores reales. Revisión cruzada corrigió carrera de marcador
+Windows y eco de argumentos rechazados; regresiones repetidas PASS. Paquete
+allowlist294 archivos,8/8 probes privados excluidos. CI/firma/rollout55 pendientes.

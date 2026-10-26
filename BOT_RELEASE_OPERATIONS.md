@@ -202,3 +202,12 @@ compatibility before stopping any future LIVE engine. Future LIVE rollback must
 retain financial databases and reconcile Binance; never restore an older ledger
 over fills occurring while code was stopped. Existing Testnet rollback remains
 unchanged. No activation record or strategy adapter commissioning is implied.
+
+
+## Entrada local protegida (candidata55)
+
+El launcher Windows de conexión no instala paquetes ni emite autoridad financiera.
+Antes de abrir una consola comprueba versión/journal COMMITTED e inventario exacto
+de sus dependencias de entrada, reutilizando la evidencia del instalador firmado;
+no constituye una nueva firma Ed25519. Pruebas AST usan fixtures/mocks sin abrir
+consolas, scheduled tasks o motores. Los módulos del agente no se amplían.

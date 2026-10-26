@@ -32,6 +32,7 @@ IDENTIFIER = re.compile(r"[A-Za-z0-9_-]{1,36}\Z", re.ASCII)
 AUTH_IDENTIFIER = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,95}\Z", re.ASCII)
 HEX = re.compile(r"[a-f0-9]{64}\Z", re.ASCII)
 MAX_RESPONSE = 2_097_152
+MAX_ERROR_RESPONSE = 4096
 PUBLIC = {
     "SPOT_LIVE": {"/api/v3/time", "/api/v3/exchangeInfo", "/api/v3/ticker/price", "/sapi/v1/system/status"},
     "FUTURES_LIVE": {"/fapi/v1/time", "/fapi/v1/exchangeInfo", "/fapi/v2/ticker/price", "/fapi/v1/premiumIndex"},
@@ -56,6 +57,24 @@ WRITE = {
 
 class LiveError(ValueError):
     """Closed code only. Never include provider text, URLs or credentials."""
+
+
+class LiveHTTPError(LiveError):
+    """Closed error plus bounded numerical facts, never the provider message."""
+    def __init__(self, code, *, http_status=None, provider_code=None):
+        if code not in {"LIVE_HTTP_UNAVAILABLE", "LIVE_RATE_LIMITED", "LIVE_PROVIDER_REJECTED"}:
+            code = "LIVE_HTTP_UNAVAILABLE"
+        super().__init__(code)
+        self.http_status = http_status if type(http_status) is int and 100 <= http_status <= 599 else None
+        self.provider_code = provider_code if type(provider_code) is int and -(2**31) <= provider_code < 0 else None
+
+    def diagnostics(self):
+        out = {}
+        if type(self.http_status) is int and 100 <= self.http_status <= 599:
+            out["http_status"] = self.http_status
+        if type(self.provider_code) is int and -(2**31) <= self.provider_code < 0:
+            out["provider_code"] = self.provider_code
+        return out
 
 
 @dataclass(frozen=True, repr=False)
@@ -196,10 +215,23 @@ class LiveReadOnlyTransport:
                 except InventoryError:
                     raise LiveError("LIVE_INVALID_RESPONSE") from None
                 if type(value) is dict and type(value.get("code")) is int and value["code"] < 0:
-                    raise LiveError("LIVE_PROVIDER_REJECTED")
+                    raise LiveHTTPError("LIVE_PROVIDER_REJECTED", http_status=getattr(response, "status", None),
+                                        provider_code=value["code"])
                 return value
         except urllib.error.HTTPError as error:
-            raise LiveError("LIVE_RATE_LIMITED" if error.code in {418, 429} else "LIVE_HTTP_UNAVAILABLE") from None
+            status, provider_code = error.code, None
+            try:
+                raw = error.read(MAX_ERROR_RESPONSE + 1)
+                if len(raw) <= MAX_ERROR_RESPONSE:
+                    value = _json(raw)
+                    if type(value) is dict and type(value.get("code")) is int:
+                        provider_code = value["code"]
+            except (OSError, ValueError, InventoryError):
+                pass
+            finally:
+                error.close()
+            raise LiveHTTPError("LIVE_RATE_LIMITED" if status in {418, 429} else "LIVE_HTTP_UNAVAILABLE",
+                                http_status=status, provider_code=provider_code) from None
         except (urllib.error.URLError, TimeoutError, OSError):
             raise LiveError("LIVE_NETWORK_UNAVAILABLE") from None
 
