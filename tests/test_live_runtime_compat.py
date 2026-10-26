@@ -27,7 +27,9 @@ SOURCE=Path(__file__).resolve().parents[1]
 class LiveRuntimeCompatibilityTests(unittest.TestCase):
     def setUp(self):
         self.temp=tempfile.TemporaryDirectory(); self.addCleanup(self.temp.cleanup)
-        self.root=Path(self.temp.name)
+        # Hosted Windows may return an 8.3 TEMP alias. The production path
+        # confinement resolves it; compare the same canonical physical root.
+        self.root=Path(self.temp.name).resolve()
         (self.root/"data").mkdir(); (self.root/"trader").mkdir()
         (self.root/"config.toml").write_bytes((SOURCE/"config.toml").read_bytes())
         (self.root/"pyproject.toml").write_text('[project]\nversion="0.10.53"\n')
