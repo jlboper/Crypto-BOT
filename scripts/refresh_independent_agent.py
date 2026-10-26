@@ -27,6 +27,10 @@ MODULES = (
     "trader/native_protection_compat.py",
     "trader/runtime.py",
     "trader/runtime_control.py",
+    "trader/live_runtime_gate.py",
+    "trader/live_authorization.py",
+    "trader/local_protection.py",
+    "trader/central_admission.py",
 )
 
 

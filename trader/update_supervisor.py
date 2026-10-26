@@ -18,6 +18,7 @@ from .runtime import single_instance
 from .runtime_control import RuntimeControl
 from .update_manager import atomic_json, release_id, verify
 from .native_protection_compat import require_native_compatible
+from .live_runtime_gate import runtime_mode_allowed
 
 
 def _unlink_with_retry(path, attempts=20, delay=0.05):
@@ -71,7 +72,7 @@ class ProcessRuntime:
                 isinstance(payload, dict)
                 and payload.get('pid') == child.pid
                 and payload.get('token') == token
-                and payload.get('mode') in {'paper', 'testnet'}
+                and runtime_mode_allowed(self.root,payload.get('mode'))
                 and child.poll() is None
             )
         except (OSError, ValueError):
@@ -82,7 +83,8 @@ class UpdateSupervisor:
     def __init__(self, manager, runtime=None, timeout=120):
         self.manager = manager
         self.runtime = runtime or ProcessRuntime(manager.root)
-        self.control = RuntimeControl(manager.database_path().parent)
+        self.expected_mode=manager.execution_mode()
+        self.control = RuntimeControl(manager.root/'data' if self.expected_mode=='live' else manager.database_path().parent)
         self.record = manager.state/'supervisor.json'
         self.lock = manager.root/'data/update-supervisor.lock'
         self.timeout = timeout
@@ -107,7 +109,8 @@ class UpdateSupervisor:
             return False
         return (status.get('pid') == child.pid and status.get('token') == token
                 and status.get('version') == version and status.get('phase') == phase
-                and status.get('mode') in {'paper', 'testnet'} and status.get('protocol') == 1
+                and status.get('mode')==self.expected_mode
+                and runtime_mode_allowed(self.manager.root,status.get('mode')) and status.get('protocol') == 1
                 and status.get('dashboard_ready') is True and self.runtime.health(child, token))
 
     def wait_ready(self, child, token, version, phase):
@@ -145,13 +148,17 @@ class UpdateSupervisor:
                 raise ValueError("Approved release changed")
             if manifest.get('runtime_protocol') != 1 or 'trader/runtime_control.py' not in manifest['files']:
                 raise ValueError("Candidate lacks supervised runtime protocol")
+            if self.expected_mode=='live' and manifest.get('prepared_live_protocol')!=1:
+                raise ValueError("Candidate cannot supervise the active LIVE runtime")
             installed = tomllib.loads((self.manager.root/'pyproject.toml').read_text())['project']['version']
             if tuple(map(int, manifest['version'].split('.'))) <= tuple(map(int, installed.split('.'))):
                 raise ValueError('Version upgrade required before stopping engine')
             if not (self.manager.root/'trader/runtime_control.py').is_file():
                 raise RuntimeError("Existing installation requires one-time supervised bootstrap")
             original = json.loads(self.control.status.read_text())
-            if original.get('protocol') != 1 or original.get('phase') != 'running' or original.get('mode') not in {'paper', 'testnet'}:
+            if (original.get('protocol') != 1 or original.get('phase') != 'running'
+                    or original.get('mode') != self.expected_mode
+                    or not runtime_mode_allowed(self.manager.root,original.get('mode'))):
                 raise RuntimeError("Existing engine has no cooperative runtime status")
             # Do not turn a stopped installation into an active trading process.
             try:
@@ -215,7 +222,8 @@ class UpdateSupervisor:
         except (OSError, ValueError):
             return None
         if (status.get('protocol') != 1 or status.get('phase') != 'running'
-                or status.get('mode') not in {'paper', 'testnet'} or status.get('version') != offer['current_version']):
+                or status.get('mode') != self.expected_mode
+                or not runtime_mode_allowed(self.manager.root,status.get('mode')) or status.get('version') != offer['current_version']):
             return None
         try:
             with single_instance(self.control.directory/'engine.lock'):
@@ -234,7 +242,8 @@ class UpdateSupervisor:
                 raise ValueError('Approved restore target changed')
             original = json.loads(self.control.status.read_text())
             if (original.get('protocol') != 1 or original.get('phase') != 'running'
-                    or original.get('mode') not in {'paper', 'testnet'} or original.get('version') != offer['current_version']):
+                    or original.get('mode') != self.expected_mode
+                    or not runtime_mode_allowed(self.manager.root,original.get('mode')) or original.get('version') != offer['current_version']):
                 raise RuntimeError('Existing engine has no matching cooperative runtime status')
             try:
                 with single_instance(self.control.directory/'engine.lock'):

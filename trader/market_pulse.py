@@ -26,6 +26,7 @@ from typing import Callable
 from .market_pulse_news import clean_text, iso, normalize_event, timestamp, validate_review
 from .market_pulse_transport import BinancePublicStream, PublicRateLimitError, rest_recovery
 from .market_pulse_universe import DEFAULT_SYMBOLS, UNIVERSE_METADATA
+from .market_pulse_institutional import InstitutionalObservation, institutional_snapshot, valid_observation
 
 
 RULE_VERSION = "pulse-v1"
@@ -35,7 +36,7 @@ _OWNERS: dict[str, object] = {}
 _OWNERS_LOCK = threading.Lock()
 _EVIDENCE_KEYS = ("market", "event_id", "rule_version", "published_at", "received_at", "decision_at",
                   "btc_change_1m_pct", "btc_change_5m_pct", "estimated_cost_bps", "confirmations",
-                  "selection_rank", "selection_pool", "selection_rule")
+                  "selection_rank", "selection_pool", "selection_rule", "institutional_context_ids")
 _EVENT_KEYS = ("id", "published_at", "received_at", "symbol", "source", "url", "title", "impact",
                "credibility", "kind", "decision", "reason", "market_reaction_pct")
 LIMITATIONS = ["Initial score weights and thresholds are unvalidated hypotheses.",
@@ -290,13 +291,15 @@ class MarketPulseService:
     def __init__(self, data_dir: Path | str, *, config: PulseConfig | None = None,
                  reviewer: Callable | None = None, clock: Callable = time.time,
                  stream_factory: Callable | None = None, rest_fetcher: Callable | None = None,
-                 news_fetcher: Callable | None = None, kill_switch_path: Path | str | None = None) -> None:
+                 news_fetcher: Callable | None = None, kill_switch_path: Path | str | None = None,
+                 context_fetcher: Callable | None = None) -> None:
         self.config, self.clock = config or PulseConfig(), clock
         self.data_dir = Path(data_dir)
         self.path = self.data_dir / DB_NAME
         self.kill_switch_path = Path(kill_switch_path) if kill_switch_path else self.data_dir / "MARKET_PULSE_PAUSED"
         self.stream_factory, self.rest_fetcher = stream_factory or BinancePublicStream, rest_fetcher or rest_recovery
         self.news_fetcher, self.reviewer = news_fetcher, reviewer
+        self.context_fetcher = context_fetcher
         self.windows = {symbol: MarketWindow(symbol, self.config) for symbol in self.config.symbols}
         self._lock = threading.RLock()
         self._stop = threading.Event()
@@ -330,6 +333,8 @@ class MarketPulseService:
                 CREATE TABLE IF NOT EXISTS pulse_positions(symbol TEXT PRIMARY KEY,data TEXT NOT NULL);
                 CREATE TABLE IF NOT EXISTS pulse_trades(id TEXT PRIMARY KEY,symbol TEXT NOT NULL,opened REAL NOT NULL,closed REAL NOT NULL,net_pnl REAL NOT NULL,costs REAL NOT NULL,data TEXT NOT NULL);
                 CREATE TABLE IF NOT EXISTS pulse_observations(at INTEGER NOT NULL,symbol TEXT NOT NULL,data TEXT NOT NULL,PRIMARY KEY(at,symbol));
+                CREATE TABLE IF NOT EXISTS pulse_context(id TEXT PRIMARY KEY,received REAL NOT NULL,symbol TEXT NOT NULL,data TEXT NOT NULL);
+                CREATE INDEX IF NOT EXISTS pulse_context_received ON pulse_context(received);
             """)
             if not _meta(db, "initial_capital"):
                 for key, value in {"initial_capital": self.config.initial_capital, "cash": self.config.initial_capital,
@@ -377,7 +382,7 @@ class MarketPulseService:
         self._stop.clear()
         self._thread = threading.Thread(target=self._run, name="market-pulse-shadow", daemon=True)
         self._thread.start()
-        if self.news_fetcher or self.reviewer:
+        if self.news_fetcher or self.reviewer or self.context_fetcher:
             self._aux_thread = threading.Thread(target=self._auxiliary, name="market-pulse-events", daemon=True)
             self._aux_thread.start()
         return True
@@ -594,6 +599,11 @@ class MarketPulseService:
                     if "BTCUSDT" in self.windows else None, event)["score"],
                     event.get("credibility", 0), timestamp(event.get("published_at")) or 0)
         item = {"event": dict(event), "metrics": dict(market), "priority": priority}
+        with _connect(self.path, readonly=True) as db:
+            context = self._context_at(db, market.get("symbol", event.get("symbol")), self.clock())
+        if context:
+            # One bounded context item; no extra calls and no provider text tools.
+            item["institutional_context"] = context[:1]
         try:
             self._review_queue.put_nowait(item)
             self._queued_reviews.add(event["id"])
@@ -612,8 +622,18 @@ class MarketPulseService:
 
     def _auxiliary(self) -> None:
         next_news = 0.0
+        next_context = 0.0
         while not self._stop.is_set():
             now = self.clock()
+            if self.context_fetcher and now >= next_context:
+                next_context = now + 60
+                try:
+                    for observation in self.context_fetcher()[:8]:
+                        self.ingest_institutional(observation)
+                    with self._lock, _connect(self.path) as db:
+                        _set(db, "institutional_providers", _json(self.context_fetcher.health()))
+                except Exception:
+                    self._error("INSTITUTIONAL_CONTEXT_UNAVAILABLE")
             if self.news_fetcher and now >= next_news:
                 next_news = now + self.config.news_interval
                 try:
@@ -658,6 +678,7 @@ class MarketPulseService:
                                 event["reason"] = review["reason"]
                                 event["_reviewed_at"] = iso(self.clock())
                                 event["_review_confidence"] = review["confidence"]
+                                event["_institutional_review_ids"] = [row["id"] for row in item.get("institutional_context", [])]
                                 # The model cannot upgrade provenance/credibility or a rumor.
                                 db.execute("UPDATE pulse_events SET data=? WHERE id=?", (_json(event), event["id"]))
                 except Exception:
@@ -674,6 +695,30 @@ class MarketPulseService:
                     and (timestamp(event.get("_reviewed_at")) or 0) <= now):
                 return event
         return None
+
+    def ingest_institutional(self, observation) -> bool:
+        # A raw RSS/API dict cannot masquerade as trusted normalized context.
+        if type(observation) is not InstitutionalObservation:
+            raise ValueError("NORMALIZED_INSTITUTIONAL_OBSERVATION_REQUIRED")
+        row = observation.payload
+        received = timestamp(row["received_at"])
+        if received is None or received > self.clock():
+            raise ValueError("FUTURE_INSTITUTIONAL_RECEIPT_REJECTED")
+        with self._lock, _connect(self.path) as db:
+            result = db.execute("INSERT OR IGNORE INTO pulse_context(id,received,symbol,data) VALUES(?,?,?,?)",
+                                (row["id"], received, row["symbol"], _json(row)))
+        return bool(result.rowcount)
+
+    @staticmethod
+    def _context_at(db, symbol, now):
+        try:
+            rows = _context_records(db.execute(
+                "SELECT data FROM pulse_context WHERE received<=? AND symbol IN (?, 'MARKET') ORDER BY received DESC,rowid DESC LIMIT 12",
+                (now, symbol)))
+        except sqlite3.OperationalError:
+            return []  # Older immutable evidence remains replayable.
+        snapshot = institutional_snapshot(rows, [], now)
+        return [row for row in snapshot["observations"] if "STALE_CONTEXT" not in row["limitations"]][:3]
 
     def _protective_check(self, symbol: str, price: float, now: float) -> None:
         position = self._positions.get(symbol)
@@ -808,6 +853,9 @@ class MarketPulseService:
                                 "estimated_cost_bps": costs + (market["spread_bps"] or 0), "confirmations": result.pop("confirmations"),
                                 "_event": event, "_btc": btc, "_cost_bps": costs}
                     evidence.update(selection_rank=rank, selection_pool=len(ranked), selection_rule="QUANTITATIVE_SCORE_THEN_CONFIDENCE_LIQUIDITY")
+                    context = self._context_at(db, symbol, now)
+                    evidence["institutional_context_ids"] = [row["id"] for row in context]
+                    evidence["_institutional_context"] = context
                     decision = dict(result, id=identity, at=iso(now), symbol=symbol, evidence=evidence)
                     if db.execute("SELECT 1 FROM pulse_decisions WHERE id=?", (identity,)).fetchone():
                         continue
@@ -966,6 +1014,14 @@ def market_pulse_snapshot(data_dir: Path | str, *, now: float | None = None,
             result.update(updated_at=iso(updated), freshness={"state": "UNAVAILABLE" if age is None else "STALE" if stale else "FRESH", "age_seconds": age})
             result["market"] = json.loads(_meta(db, "market", "[]"))[:10]
             result["news_providers"] = json.loads(_meta(db, "news_providers", "[]"))[:5]
+            if db.execute("SELECT 1 FROM sqlite_master WHERE name='pulse_context' AND type='table'").fetchone():
+                context = _context_records(db.execute("SELECT data FROM pulse_context ORDER BY received DESC,rowid DESC LIMIT 12"))
+                try:
+                    providers = json.loads(_meta(db, "institutional_providers", "[]"))
+                except (ValueError, TypeError):
+                    providers = []
+                result["institutional"] = institutional_snapshot(context,
+                    providers, now)
             result["universe"] = dict(UNIVERSE_METADATA)
             for market in result["market"]:
                 market["fresh"] = bool(market["fresh"] and not stale and (timestamp(market["at"]) or 0) >= now - 30)
@@ -1089,6 +1145,13 @@ def replay_decisions(data_dir: Path | str, *, limit: int = 1000) -> dict:
             if at is None or any(value is not None and value > at for value in times + [market_at]):
                 invalid_time += 1
                 continue
+            context = evidence.get("_institutional_context", [])
+            if (type(context) is not list or len(context) > 3
+                    or any(not valid_observation(item) or any((timestamp(item.get(key)) or at+1) > at
+                        for key in ("as_of", "available_at", "received_at")) for item in context)
+                    or evidence.get("institutional_context_ids", []) != [item["id"] for item in context]):
+                invalid_time += 1
+                continue
             if evidence["rule_version"] != RULE_VERSION:
                 mismatches += 1
                 continue
@@ -1101,3 +1164,18 @@ def replay_decisions(data_dir: Path | str, *, limit: int = 1000) -> dict:
             "invalid_timestamps": invalid_time, "promotion_allowed": False,
             "limitations": ["Replays recorded deterministic scores; portfolio overrides and simulated fills are separate.",
                             "Not an independent out-of-sample test or retrospective news backtest."]}
+
+
+def _context_records(cursor):
+    """An optional malformed context row must never stop quantitative exits."""
+    result = []
+    for row in cursor:
+        try:
+            if type(row[0]) is not str or len(row[0]) > 2500:
+                continue
+            value = json.loads(row[0])
+            if valid_observation(value):
+                result.append(value)
+        except (ValueError, TypeError, RecursionError):
+            continue
+    return result

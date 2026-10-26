@@ -4,6 +4,6 @@ import shutil
 root=Path(__file__).resolve().parent.parent
 destination=root/'cloudflare/public'
 destination.mkdir(parents=True,exist_ok=True)
-for name in ('index.html','app.js','opportunity-contract.js','opportunity-ui.js','research-validation.js','live-preparation.js','migration-audit.js','styles.css','monitoring.css','portal-bridge.js','portal.css','crypto-ai-trader-icon.png','manifest.webmanifest','service-worker.js'):
+for name in ('index.html','app.js','opportunity-contract.js','opportunity-ui.js','research-validation.js','live-preparation.js','migration-audit.js','preproduction-readiness.js','pulse-institutional.js','styles.css','monitoring.css','portal-bridge.js','portal.css','crypto-ai-trader-icon.png','manifest.webmanifest','service-worker.js'):
     shutil.copy2(root/'web'/name,destination/name)
 print('Shared portal assets built; no live installation changed.')

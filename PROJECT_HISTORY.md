@@ -724,3 +724,19 @@ numéricos de ejemplos no constituyen política del propietario.
 Las cohortes usan fingerprints y ancla retenida, pero un validador de recibos no
 constituye registro/capturador durable ni certifica retrospectivamente historia.
 Las fechas legacy, casos matemáticos, snapshots y tests no activan LIVE.
+
+## 25 October 2026 — explicit preparation authority and source semantics
+
+Owner authorized preparing segregated production connectivity/code but supplied
+no dedicated keys or approved numeric loss policy. Development authority is
+separate from activation. The new central transaction protocol retains reserves
+for unknown/partial executions; future LIVE rollback restores code while retaining
+current financial data. One installation-wide process lock spans all modes.
+The current Testnet execution path is preserved and uncommissioned LIVE cannot
+be labelled PAPER or RUNNING. See PREPRODUCTION_CLOSURE.md.
+
+Institutional sources are public information only. CFTC TFF contracts and EDGAR
+filing metadata supplement Pulse research without changing quantitative weights.
+A report date is not its public availability; receipt times are never backdated.
+ETF AUM changes are not net flows, 13F does not disclose shorts and a Form 4
+publication alone provides no purchase/sale direction or direct crypto trade.

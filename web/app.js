@@ -777,7 +777,7 @@ const CommandCenterPortal = (() => {
     'spot-bot':'trading-engines','futures-bot':'trading-engines','market-pulse':'trading-engines','quant-arbitrage':'trading-engines',
     'spot-analysis':'trading-engines','futures-analysis':'trading-engines','spot-limits':'trading-engines','futures-limits':'trading-engines',
     'spot-positions':'trading-engines','futures-positions':'trading-engines',
-    'pulse-live':'trading-engines','pulse-news':'trading-engines','pulse-scanner':'trading-engines','pulse-decisions':'trading-engines','pulse-finance':'trading-engines','pulse-health':'trading-engines',
+    'pulse-live':'trading-engines','pulse-news':'trading-engines','pulse-institutional':'trading-engines','pulse-scanner':'trading-engines','pulse-decisions':'trading-engines','pulse-finance':'trading-engines','pulse-health':'trading-engines',
     'quant-funding':'trading-engines','quant-statistical':'trading-engines','quant-positions':'trading-engines','quant-decisions':'trading-engines','quant-finance':'trading-engines','quant-health':'trading-engines',
     'portfolio-guardian':'guardian-ai','guardian-exposure':'guardian-ai','guardian-overlaps':'guardian-ai','guardian-quality':'guardian-ai',
     'guardian-intelligence':'guardian-ai','intelligence-scopes':'guardian-ai','intelligence-sources':'guardian-ai','intelligence-ai':'guardian-ai','intelligence-conflicts':'guardian-ai','intelligence-journal':'guardian-ai','intelligence-queries':'guardian-ai',
@@ -786,7 +786,7 @@ const CommandCenterPortal = (() => {
     'opportunity-shadow':'guardian-ai','opportunity-capital':'guardian-ai','opportunity-decisions':'guardian-ai',
     'activity-section':'operations-decisions','historyPanel':'operations-decisions',
     'modelSettingsPanel':'system-settings','diagnosticsPanel':'system-settings','observation-details':'system-settings',
-    'live-preparation':'system-settings','migration-audit':'system-settings','updates':'system-settings','updatePanel':'system-settings','password':'system-settings','passwordPanel':'system-settings'
+    'live-preparation':'system-settings','migration-audit':'system-settings','preproduction-readiness':'system-settings','updates':'system-settings','updatePanel':'system-settings','password':'system-settings','passwordPanel':'system-settings'
   });
   const targets=Object.freeze({updates:'updatePanel',password:'passwordPanel'});
   const names=Object.freeze({SPOT:'Spot Bot',FUTURES:'Futures Bot',AI_MARKET_PULSE:'AI Market Pulse',QUANT_ARBITRAGE:'Quant Arbitrage'});
@@ -903,7 +903,7 @@ window.CommandCenterPortal=CommandCenterPortal;
 /* Shared supervised engine view. External event text is always escaped, never executable. */
 const PulsePortal = (() => {
   let pendingControl=null;
-  const foldIds=new Set(['live-preparation','migration-audit','spot-analysis','futures-analysis','pulse-live','pulse-news','pulse-scanner','pulse-decisions','pulse-finance','pulse-health','guardian-exposure','guardian-overlaps','guardian-quality','intelligence-scopes','intelligence-sources','intelligence-ai','intelligence-conflicts','intelligence-journal','intelligence-queries','quant-funding','quant-statistical','quant-positions','quant-decisions','quant-finance','quant-health','observation-details','comparison-details','spot-limits','futures-limits','spot-positions','futures-positions','spot-finance','futures-finance','diagnosticsPanel','research-lab','capital-lab','capital-lab-audit','research-validation','opportunity-shadow','opportunity-capital','opportunity-decisions']);
+  const foldIds=new Set(['live-preparation','migration-audit','preproduction-readiness','spot-analysis','futures-analysis','pulse-live','pulse-news','pulse-institutional','pulse-scanner','pulse-decisions','pulse-finance','pulse-health','guardian-exposure','guardian-overlaps','guardian-quality','intelligence-scopes','intelligence-sources','intelligence-ai','intelligence-conflicts','intelligence-journal','intelligence-queries','quant-funding','quant-statistical','quant-positions','quant-decisions','quant-finance','quant-health','observation-details','comparison-details','spot-limits','futures-limits','spot-positions','futures-positions','spot-finance','futures-finance','diagnosticsPanel','research-lab','capital-lab','capital-lab-audit','research-validation','opportunity-shadow','opportunity-capital','opportunity-decisions']);
   const navIds=new Set(['platform-overview','spot-bot','futures-bot','market-pulse','portfolio-guardian','quant-arbitrage','activity-section','modelSettingsPanel',...foldIds]);
   const foldStorageKey='crypto-ai-trader.ui.folds.v1';
   let redrawQueued=false;
@@ -933,6 +933,7 @@ const PulsePortal = (() => {
     const available=p.schema===1, perf=p.performance||{},health=p.health||{},stats=p.stats||{};
     const snapshotAge=(Date.now()-Date.parse(p.at))/1000;
     const projectionStale=p.remote_sync_stale===true||(Number.isFinite(snapshotAge)&&snapshotAge>120);
+    window.CryptoInstitutionalContext?.render(p.institutional,projectionStale);
     const dataAge=finite(p.freshness?.age_seconds)?p.freshness.age_seconds+Math.max(Number.isFinite(snapshotAge)?snapshotAge:0,0):null;
     const stale=p.freshness?.state==='STALE'||projectionStale||(dataAge!==null&&dataAge>30);
     const valuation=stale?{...perf,cash:null,equity:null,net_pnl:null,return_pct:null,exposure:null}:perf;
@@ -1036,6 +1037,7 @@ const PulsePortal = (() => {
   }
   function disconnected(){
     for(const name of ['Spot','Futures','Pulse'])state('summary'+name+'State','LECTURA NO DISPONIBLE',true);
+    window.CryptoInstitutionalContext?.disconnected();
     set('platformAlerts','El portal no pudo actualizar esta lectura. Los valores anteriores son históricos; esto no demuestra que los motores se hayan detenido.');
     for(const id of ['pauseMarketPulse','resumeMarketPulse']){const button=document.getElementById(id);if(button)button.disabled=true;}
   }
@@ -1860,9 +1862,11 @@ async function refresh() {
     window.OpportunityShadowPortal?.render(platform);
     window.CryptoLivePreparation?.render(platform?.live_preparation,platform?.remote_sync_stale===true);
     window.CryptoMigrationAudit?.render(platform?.migration_audit,platform?.remote_sync_stale===true);
+    window.CryptoPreproduction?.render(platform?.preproduction_readiness,platform?.remote_sync_stale===true);
   } catch(error) {
     window.CryptoLivePreparation?.disconnected();
     window.CryptoMigrationAudit?.disconnected();
+    window.CryptoPreproduction?.disconnected();
     PulsePortal.disconnected();
     FourEnginePortal.disconnected();
     CommandCenterPortal.disconnected();

@@ -41,7 +41,7 @@ PULSE_HEALTH_FIELDS = frozenset(('latency_ms', 'reconnects', 'errors', 'last_err
     'ai_daily_cap', 'ai_used_today', 'ai_min_interval_seconds', 'ai_max_output_tokens', 'ai_max_input_bytes'))
 PULSE_EVIDENCE_FIELDS = frozenset(('market', 'event_id', 'rule_version', 'published_at', 'received_at',
     'decision_at', 'btc_change_1m_pct', 'btc_change_5m_pct', 'estimated_cost_bps', 'confirmations',
-    'selection_rank', 'selection_pool', 'selection_rule'))
+    'selection_rank', 'selection_pool', 'selection_rule', 'institutional_context_ids'))
 PULSE_NEWS_PROVIDER_FIELDS = frozenset(('id', 'name', 'url', 'kind', 'state', 'last_update', 'last_error'))
 
 
@@ -85,6 +85,10 @@ def bounded_market_pulse_projection(pulse, maximum=20000):
     def size():
         return len(json.dumps(pulse, ensure_ascii=True, allow_nan=False, separators=(',', ':')))
     while size() >= maximum:
+        institution = pulse.get('institutional')
+        if isinstance(institution, dict) and isinstance(institution.get('observations'), list) and institution['observations']:
+            institution['observations'] = institution['observations'][:-1]
+            continue
         candidates = [key for key in ('events', 'opportunities', 'decisions')
                       if isinstance(pulse.get(key), list) and pulse[key]]
         if not candidates:
@@ -150,6 +154,11 @@ def market_pulse_projection(config):
                     evidence = pick(row['evidence'], PULSE_EVIDENCE_FIELDS - {'market'})
                     if isinstance(row['evidence'].get('market'), dict):
                         evidence['market'] = pick(row['evidence']['market'], PULSE_MARKET_FIELDS)
+                    if 'institutional_context_ids' in evidence:
+                        ids = evidence['institutional_context_ids']
+                        if (not isinstance(ids, list) or len(ids) > 3 or len(set(ids)) != len(ids)
+                                or any(type(item) is not str or not re.fullmatch(r'[0-9a-f]{64}', item) for item in ids)):
+                            evidence.pop('institutional_context_ids')
                     projected['evidence'] = evidence
                 result[key].append(projected)
         for key, fields in (('performance', PULSE_PERFORMANCE_FIELDS), ('health', PULSE_HEALTH_FIELDS)):
@@ -193,6 +202,10 @@ def market_pulse_projection(config):
             source = raw['universe'].get('source')
             if isinstance(source, str) and source.startswith('https://'):
                 result['universe']['source'] = _pulse_source_url(source) or '[URL omitida]'
+        if 'institutional' in raw:
+            from .market_pulse_institutional_contract import valid_institutional_context
+            if valid_institutional_context(raw['institutional']):
+                result['institutional'] = json.loads(json.dumps(raw['institutional'], ensure_ascii=True, allow_nan=False))
         return bounded_market_pulse_projection(result)
     except Exception:
         unavailable['state'] = 'DEGRADED'
@@ -632,6 +645,19 @@ def migration_audit_projection(config):
         return None
 
 
+def preproduction_readiness_projection(config):
+    """Optional bounded status, reading caches and the cohort journal only."""
+    try:
+        import tomllib
+        from .preproduction_status import read_preproduction_status
+        root = Path(__file__).resolve().parents[1]
+        with (root / 'pyproject.toml').open('rb') as handle:
+            version = tomllib.load(handle)['project']['version']
+        return read_preproduction_status(config.bot.database_path.parent, version, source_root=root)
+    except Exception:
+        return None
+
+
 def quant_projection(config):
     """Installed-code read-only import; independent-agent modules do not import Quant."""
     from .portfolio_guardian import quant_not_started
@@ -912,6 +938,10 @@ def dashboard_snapshot(config, report_path=None, *, remote=False):
         if migration is not None and len(json.dumps({**payload, 'migration_audit': migration},
                 allow_nan=False).encode()) <= 480_000:
             payload['migration_audit'] = migration
+        readiness = preproduction_readiness_projection(config)
+        if readiness is not None and len(json.dumps({**payload, 'preproduction_readiness': readiness},
+                allow_nan=False).encode()) <= 480_000:
+            payload['preproduction_readiness'] = readiness
         opportunities = opportunity_shadow_projection(config)
         if remote and opportunities is not None:
             opportunities = _fit_opportunity_shadow(payload, opportunities)

@@ -97,6 +97,12 @@ def verify(package: Path, envelope: Path, public_key: Path, minimum_sequence=0, 
     now = time.time() if now is None else now
     if manifest["app"] != "crypto-ai-trading-bot" or manifest["mode"] not in {"paper", "testnet"}:
         raise ValueError("wrong application or mode")
+    if "prepared_live_protocol" in manifest and (type(manifest["prepared_live_protocol"]) is not int or manifest["prepared_live_protocol"] != 1):
+        raise ValueError("unsupported prepared LIVE protocol")
+    if manifest.get("prepared_live_protocol")==1 and not {
+            "trader/live_runtime_gate.py","trader/live_authorization.py",
+            "trader/local_protection.py","trader/central_admission.py"} <= set(manifest.get("files",{})):
+        raise ValueError("incomplete prepared LIVE compatibility")
     if type(manifest["sequence"]) is not int or manifest["sequence"] <= minimum_sequence:
         raise ValueError("replayed or downgraded update")
     if not now < manifest["expires"] <= now + 90 * 86400:
@@ -203,7 +209,7 @@ class UpdateManager:
             raise ValueError("install path escapes root")
         return path
 
-    def database_path(self):
+    def execution_mode(self):
         with (self.root / "config.toml").open("rb") as handle:
             config = tomllib.load(handle)
         mode = str(config["bot"].get("mode", "paper")).lower()
@@ -219,8 +225,22 @@ class UpdateManager:
                     mode = value.strip().strip('"').strip("'").lower()
                     break
             break
-        if mode not in {"paper", "testnet"}:
-            raise ValueError("unsupported execution mode for database backup")
+        from .live_runtime_gate import require_runtime_mode
+        return require_runtime_mode(self.root,mode,require_ready=False)
+
+    def database_paths(self):
+        if self.execution_mode()=="live":
+            from .live_runtime_gate import LIVE_DATABASES,confined_live_path
+            return tuple(confined_live_path(self.root,name) for name in LIVE_DATABASES)
+        return (self.database_path(),)
+
+    def database_path(self):
+        with (self.root / "config.toml").open("rb") as handle:
+            config = tomllib.load(handle)
+        mode=self.execution_mode()
+        if mode=="live":
+            from .live_runtime_gate import LIVE_SPOT_DATABASE,confined_live_path
+            return confined_live_path(self.root,LIVE_SPOT_DATABASE)
         database_setting = (config["bot"].get("testnet_database_path", "data/testnet-trader.db")
                             if mode == "testnet" else config["bot"]["database_path"])
         path = self.root / database_setting
@@ -269,7 +289,8 @@ class UpdateManager:
             report = Path(config.get("research", {}).get("report_path", "data/research/latest.json"))
             if not report.is_absolute():
                 report = self.root / report
-            for lock in (db_path.parent / "engine.lock", db_path.parent / "remote.lock", report.parent / "research.lock"):
+            control_directory=self.root/'data' if self.execution_mode()=='live' else db_path.parent
+            for lock in (control_directory / "engine.lock", control_directory / "remote.lock", report.parent / "research.lock"):
                 stack.enter_context(single_instance(lock))
             return stack
         except BaseException:
@@ -286,7 +307,13 @@ class UpdateManager:
         if record["phase"] not in {"applying", "pending_health"}:
             return False
         backup = self.state / "backup"
-        if "database_existed" in record:
+        if record.get("financial_state_policy")=="PRESERVE_LIVE":
+            # Native exchange stops can fill while the process is stopped.
+            # A pre-commit code failure must never rewind LIVE financial facts.
+            from .live_runtime_gate import LIVE_DATABASES
+            if {x.get("path") for x in record.get("live_database_snapshots",())} != set(LIVE_DATABASES):
+                raise ValueError("incomplete LIVE preservation inventory")
+        elif "database_existed" in record:
             database = self.database_path()
             if str(database.relative_to(self.root)) != record["database_path"]:
                 raise ValueError("database configuration changed during update")
@@ -322,6 +349,8 @@ class UpdateManager:
         if (record.get('phase') != 'committed' or not isinstance(previous, dict)
                 or not isinstance(hashes, dict) or not previous.get('pyproject.toml')
                 or not previous.get('trader/runtime_control.py') or not record.get('old_version')):
+            return None
+        if self.execution_mode()=="live" and record.get("previous_prepared_live_protocol")!=1:
             return None
         if set(hashes) != {name for name, existed in previous.items() if existed}:
             return None
@@ -452,6 +481,8 @@ class UpdateManager:
             manifest = verify(package, envelope, self.public_key, minimum)
             if expected_release is not None and release_id(manifest) != expected_release:
                 raise ValueError("approved release changed")
+            if self.execution_mode()=="live" and (manifest.get("prepared_live_protocol")!=1 or not defer_commit):
+                raise ValueError("LIVE updates require compatible supervised activation")
             # Check consent before recovery or any changes to installed files.
             self._recover()
             minimum = json.loads(self.sequence.read_text())["sequence"] if self.sequence.exists() else 0
@@ -478,16 +509,29 @@ class UpdateManager:
                     saved.parent.mkdir(parents=True, exist_ok=True)
                     shutil.copy2(target, saved)
                     previous_hashes[name] = hashlib.sha256(saved.read_bytes()).hexdigest()
+            old_record=json.loads(self.journal.read_text()) if self.journal.is_file() else {}
             record = {"phase": "applying", "previous": previous, "sequence": manifest["sequence"],
                       "release_id": release_id(manifest), "version": manifest["version"], "files": manifest["files"],
-                      "old_version":old_version, "previous_hashes":previous_hashes}
+                      "old_version":old_version, "previous_hashes":previous_hashes,
+                      "prepared_live_protocol":manifest.get("prepared_live_protocol"),
+                      "previous_prepared_live_protocol":old_record.get("prepared_live_protocol")}
             if defer_commit:
-                database = self.database_path()
-                record.update(database_path=str(database.relative_to(self.root)), database_existed=database.is_file())
-                if database.exists() and not database.is_file():
-                    raise ValueError("non-file database")
-                if database.is_file():
-                    self.copy_database(database, self.state / "database-before.sqlite")
+                if self.execution_mode()=="live":
+                    snapshots=[]
+                    for index,database in enumerate(self.database_paths()):
+                        if database.exists() and not database.is_file(): raise ValueError("non-file LIVE database")
+                        saved=self.state/f"live-{index}-before.sqlite"
+                        if database.is_file(): self.copy_database(database,saved)
+                        snapshots.append({"path":database.relative_to(self.root).as_posix(),
+                                          "existed":database.is_file(),"backup":saved.name})
+                    record.update(financial_state_policy="PRESERVE_LIVE",live_database_snapshots=snapshots)
+                else:
+                    database = self.database_path()
+                    record.update(database_path=str(database.relative_to(self.root)), database_existed=database.is_file())
+                    if database.exists() and not database.is_file():
+                        raise ValueError("non-file database")
+                    if database.is_file():
+                        self.copy_database(database, self.state / "database-before.sqlite")
             atomic_json(self.journal, record)
             try:
                 with zipfile.ZipFile(package) as archive:

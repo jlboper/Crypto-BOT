@@ -286,9 +286,13 @@
       <p id="pulseStatusNote" class="platform-note">Esperando la primera sincronización del motor. Sin órdenes al exchange.</p>
       <div class="settings-actions pulse-controls"><button id="pauseMarketPulse" class="secondary" type="button" disabled>Pausar Market Pulse</button><button id="resumeMarketPulse" class="secondary" type="button" disabled>Reanudar Shadow</button></div>
       <p id="pulseControlMessage" class="settings-help" role="status">La pausa es independiente. La ejecución y promoción de estrategias permanecen bloqueadas.</p>
-      <div class="pulse-subnav"><a href="#pulse-live">Mercado</a><a href="#pulse-news">Noticias</a><a href="#pulse-scanner">Oportunidades</a><a href="#pulse-decisions">Decisiones</a><a href="#pulse-finance">Rendimiento</a><a href="#pulse-health">Salud</a></div>
+      <div class="pulse-subnav"><a href="#pulse-live">Mercado</a><a href="#pulse-news">Noticias</a><a href="#pulse-institutional">Institucional</a><a href="#pulse-scanner">Oportunidades</a><a href="#pulse-decisions">Decisiones</a><a href="#pulse-finance">Rendimiento</a><a href="#pulse-health">Salud</a></div>
       <details id="pulse-live" class="pulse-section portal-fold" data-remember-fold><summary><div class="panel-title"><h3>Live Market Intelligence</h3><span id="pulseFreshness" class="badge">SIN DATOS</span></div></summary><div class="fold-body"><p id="pulseUniverse" class="settings-help" hidden></p><p class="settings-help">Ventanas incrementales de 1 y 5 minutos. Datos incompletos o antiguos bloquean nuevas señales.</p><div id="pulseMarket" class="pulse-market-grid"><p class="empty">Esperando suficientes observaciones de mercado.</p></div></div></details>
       <details id="pulse-news" class="pulse-section portal-fold" data-remember-fold><summary><div class="panel-title"><h3>News &amp; Events Feed</h3><span id="pulseProviderSummary">Publicación → recepción → decisión</span></div></summary><div class="fold-body"><div id="pulseNewsProviders" class="pulse-provider-grid" hidden></div><div id="pulseNews" class="pulse-feed"><p class="empty">Aún no hay noticias verificables registradas. La ausencia de noticias no es un error del motor.</p></div></div></details>
+      <details id="pulse-institutional" class="pulse-section portal-fold" data-remember-fold>
+        <summary><div class="panel-title"><h3>Contexto institucional público</h3><span id="pulseInstitutionalState" class="badge">SIN CONTEXTO VERIFICABLE</span></div></summary>
+        <div class="fold-body"><p id="pulseInstitutionalNote" class="platform-note" role="status">Todavía no hay contexto institucional publicado.</p><p class="platform-note">CFTC muestra contratos reportados con retraso; no son flujos de dinero en USD. SEC muestra documentos publicados; sus metadatos no acreditan flujos netos de ETF ni operaciones directas de insiders sobre criptomonedas. No se usa información no pública ni se generan órdenes desde este panel.</p><div id="pulseInstitutionalProviders" class="pulse-source-grid"></div><div id="pulseInstitutionalObservations" class="pulse-feed"></div></div>
+      </details>
       <details id="pulse-scanner" class="pulse-section portal-fold" data-remember-fold><summary><div class="panel-title"><h3>Opportunity Scanner</h3><span>Score experimental · 0–100</span></div></summary><div class="fold-body"><p class="settings-help">Las ponderaciones son hipótesis iniciales; las confirmaciones cuantitativas y los límites prevalecen sobre la IA.</p><div id="pulseOpportunities" class="pulse-feed"><p class="empty">Aún no hay oportunidades registradas.</p></div></div></details>
       <details id="pulse-decisions" class="pulse-section portal-fold" data-remember-fold><summary><div class="panel-title"><h3>Trading Decisions</h3><span>Evidencia disponible en ese instante</span></div></summary><div class="fold-body"><div id="pulseDecisions" class="pulse-feed"><p class="empty">Aún no hay decisiones registradas.</p></div></div></details>
       <details id="pulse-finance" class="pulse-section portal-fold" data-remember-fold><summary><div class="panel-title"><h3>Financial Performance · Shadow</h3><span id="pulseFinanceQuality" class="badge">SIN DATOS</span></div></summary><div class="fold-body"><dl id="pulsePerformance" class="pulse-metrics"></dl><p id="pulseBenchmark" class="platform-note">La comparación requiere muestras coincidentes y costos simulados.</p><h4>Posiciones hipotéticas</h4><div id="pulsePositions" class="pulse-feed"><p class="empty">Esperando el ledger Shadow.</p></div></div></details>
@@ -515,6 +519,19 @@
           <p class="platform-note">Guardian continúa en LEVEL 0. No hay activación automática, asignación efectiva ni autoridad financiera desde este panel. Una transición futura exigirá validación y autorización específicas.</p>
         </div>
       </details>
+      <details id="preproduction-readiness" class="portal-fold panel preproduction-readiness" data-remember-fold>
+        <summary><div class="panel-title"><div><p class="eyebrow">CIERRE DE PREPRODUCCIÓN · SOLO LECTURA</p><h2>Preparación Spot y Futures</h2></div><span id="preproductionState" class="badge neutral">PREPARACIÓN SIN VERIFICAR</span></div></summary>
+        <div class="fold-body">
+          <p id="preproductionNote" class="platform-note" role="status" aria-live="polite">Sin informe de preparación. Consultar este panel no conecta cuentas ni envía órdenes.</p>
+          <p class="live-preparation-rule">Cinco paquetes de cierre. Una conexión de lectura o 30 días de calendario no autorizan órdenes. Los datos SHADOW y las cuentas Spot/Futures conservan sus propios entornos.</p>
+          <p id="preproductionConnection" class="platform-note">Sin corte verificable.</p>
+          <div id="preproductionPackages" class="preproduction-packages"></div>
+          <h3>Continuidad prospectiva por motor</h3>
+          <div id="preproductionCohorts" class="preproduction-grid"></div>
+          <h3>Puertas pendientes</h3><ul id="preproductionBlockers" class="preproduction-blockers"></ul>
+          <p class="platform-note">Cambios de portal, documentación o versión no reinician las cohortes. Una modificación material de estrategia, ejecución, IA o riesgo crea otra cohorte y conserva la anterior. La cobertura local no certifica por sí sola cashflows, costes ni rentabilidad.</p>
+        </div>
+      </details>
       <details id="migration-audit" class="portal-fold panel migration-audit" data-remember-fold>
         <summary><div class="panel-title"><div><p class="eyebrow">EVIDENCIA DE TRANSICIÓN · SOLO LECTURA</p><h2>Auditoría de cuentas y capital</h2></div><span id="migrationAuditState" class="badge neutral">SIN INFORME VERIFICABLE</span></div></summary>
         <div class="fold-body">
@@ -653,6 +670,8 @@
   <script src="/research-validation.js"></script>
   <script src="/live-preparation.js"></script>
   <script src="/migration-audit.js"></script>
+  <script src="/preproduction-readiness.js"></script>
+  <script src="/pulse-institutional.js"></script>
   <script src="/app.js"></script>
 </body>
 </html>

@@ -196,7 +196,7 @@ class UnifiedTestnetBrokerTests(unittest.TestCase):
 
     def test_live_mode_is_rejected_by_configuration(self):
         with patch.dict("os.environ", {"EXECUTION_MODE": "live"}):
-            with self.assertRaisesRegex(ValueError, "LIVE is not implemented"):
+            with self.assertRaisesRegex(ValueError, "LIVE requires protected"):
                 load_config()
 
 

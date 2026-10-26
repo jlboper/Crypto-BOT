@@ -779,3 +779,13 @@ PR112 merged0.10.35 maincf3eec5a9e310f4162e0b9edcd2c9a2f4dc2f9e6 after workflows
 0.10.36 prepares shared four-card web/mobile and Windows2x2 layout from that main.
 Its own main run, signature, installed hashes, engine health and indicator reload
 must be observed separately. Quant NOT_STARTED; Guardian Observer only, no veto.
+
+## Candidate54 — 25 October 2026
+
+Prepared signed manifest capability `prepared_live_protocol:1` declares parser
+and recovery compatibility, never a LIVE mode. Signed package mode stays Testnet.
+Independent agent inventory expands with dependency-closed admission/authority/
+local-protection/runtime-gate modules; refresh and supervisor inventories must
+match and isolated imports must pass. Verify old53 -> new54 manifest acceptance
+using isolated copies of the actual installed verifier, not a new-verifier mock.
+No new release is installed merely because this candidate document exists.

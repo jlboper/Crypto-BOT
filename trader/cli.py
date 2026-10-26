@@ -87,17 +87,20 @@ def parser() -> argparse.ArgumentParser:
 def main() -> None:
     args = parser().parse_args()
     config = load_config(args.config)
-    control = RuntimeControl(config.bot.database_path.parent, os.environ.get("CRYPTO_UPDATE_TOKEN"))
+    # Account ledgers are segregated; process ownership remains installation-wide.
+    control_dir = (config.source_path.parent / "data" if config.bot.mode == "live"
+                   else config.bot.database_path.parent)
+    control = RuntimeControl(control_dir, os.environ.get("CRYPTO_UPDATE_TOKEN"))
     if args.command in {"once", "run", "dashboard", "research", "status", "resume"}:
         if args.command != "run" and control.token is not None:
             raise RuntimeError("Candidate handshake only supports run")
         control.guard_start()
     if args.command == "once":
-        with single_instance(config.bot.database_path.parent / "engine.lock"):
+        with single_instance(control_dir / "engine.lock"):
             control.guard_start()
             print(json.dumps(TradingEngine(config).cycle(), indent=2))
     elif args.command == "run":
-        lock_path = config.bot.database_path.parent / "engine.lock"
+        lock_path = control_dir / "engine.lock"
         try:
             with single_instance(lock_path):
                 # Recheck after taking the lock to close the maintenance/start race.
@@ -119,7 +122,7 @@ def main() -> None:
             print(str(exc), file=sys.stderr)
             raise SystemExit(2) from exc
     elif args.command == "dashboard":
-        with single_instance(config.bot.database_path.parent / "engine.lock"):
+        with single_instance(control_dir / "engine.lock"):
             control.guard_start()
             db = Database(config.bot.database_path)
             print(f"{config.bot.mode.upper()} dashboard: http://{config.dashboard.host}:{config.dashboard.port}")

@@ -191,3 +191,14 @@ all installed hashes plus agent inventory/HTTPS after the new deployment.
 The optional opportunity-shadow.db is historical evidence; do not reset or delete
 it during upgrades. Current configured updater backup remains Spot only, not a
 multiledger or observation-journal backup. See OPPORTUNITY_CAPITAL_SHADOW.md.
+
+## Prepared LIVE compatibility (candidate54)
+
+The optional signed `prepared_live_protocol:1` is exactly integer1, not a mode
+or financial permission. Testnet remains the release/default operating mode.
+Future explicitly approved LIVE mode uses separate fixed ledgers but the same
+installation-wide process ownership lock. Refuse a package without prepared
+compatibility before stopping any future LIVE engine. Future LIVE rollback must
+retain financial databases and reconcile Binance; never restore an older ledger
+over fills occurring while code was stopped. Existing Testnet rollback remains
+unchanged. No activation record or strategy adapter commissioning is implied.

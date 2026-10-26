@@ -1397,3 +1397,19 @@ otro motor mientras el consumidor está retenido, FULL/integridad y evidencia pr
 Foco97/97 PASS5.022s; misma demora controlada80ms/evento falla antes y pasa después.
 Node223/223 PASS44.546s conserva validez: Worker/UI sin cambios posteriores.
 La CI del nuevo head debe validarse antes del merge; no reutilizar el head5199e23.
+
+## 0.10.54 candidate — 25 October 2026
+
+Adds durable supervised cohort receipts, a finite preproduction status fold,
+transactional risk/capital admission, dedicated DPAPI credentials, fixed-host
+GET-only account audit and segregated prepared LIVE execution/reconciliation.
+The operating engine explicitly refuses an uncommissioned LIVE adapter before
+creating any financial files. No keys, activation records or numeric policy are
+provisioned. Testnet Spot/Futures execution and native protections are preserved.
+
+Pulse retains five RSS feeds and adds CFTC TFF BTC/ETH context plus a SEC EDGAR
+metadata connector using the owner-authorized local contact. New context is bounded,
+deduplicated, timestamped and frozen for replay; it does not add model calls,
+change numeric score weights or claim daily ETF flows/parsed insider trades.
+The shared portal provides a collapsible institutional panel. See
+PREPRODUCTION_CLOSURE.md for exact implementation and commissioning boundaries.
