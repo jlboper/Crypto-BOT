@@ -1,3 +1,24 @@
+Validación local final27Oct2026: **1573/1573 Python offline PASS**, cero fallos,
+errores u omisiones; fuentes inalteradas durante ejecución, red externa bloqueada.
+**294/294 Node PASS**; Windows5.1 lifecycle, entrada protegida y vista/render
+sintéticos PASS. Build compartido, sintaxis y versión55→56 PASS; paquete308
+archivos permitidos. CI, firma e instalación requieren sus propias evidencias.
+
+## 27 octubre 2026 — candidata 0.10.56; base 0.10.55 verificada
+
+Main `d78b7ee882236bfbdac14047662abe9ad7154e03`, [PR132](https://github.com/jlboper/Crypto-BOT/pull/132),
+[publicación40400621712](https://github.com/jlboper/Crypto-BOT/actions/runs/40400621712)
+y seguridad40400621700 SUCCESS Linux/Windows. Base55 firmada e instalada294/294.
+56 añade enlace opcional de identidades/permisos GET, invalidación y caducidad de
+evidencia de claves, ingesta financiera segregada, productor de señales nativas
+y adaptador al coordinador, y preparación de política exclusivamente inactiva.
+Ver [validación y límites56](PREPRODUCTION_VALIDATION_56.md). No confundir pruebas
+con Binance simulado con una integración LIVE comisionada. El guard del motor
+sigue bloqueando LIVE antes de crear wallet. No cambia Testnet, riesgo, stops,
+IA individual ni datos financieros. GuardianL0; Pulse/Quant SHADOW. Aprobación del
+borrador numérico no equivale a activación. CI/firma/instalación56 requieren
+resultados propios; las secciones siguientes son historia fechada.
+
 ## 0.10.55 — conexión y entrada protegida en preparación
 
 Base54maina5f7c599/PR131 publicada, firmada e instalada290/290; validaciones

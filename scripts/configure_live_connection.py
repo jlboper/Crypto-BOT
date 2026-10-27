@@ -48,7 +48,8 @@ def main(argv=None):
     parser.add_argument('--status', action='store_true')
     parser.add_argument('--replace', action='store_true', help='Explicit replacement; never activates orders')
     args = parser.parse_args(argv)
-    vault = LiveCredentialVault(ROOT/'data/live-preproduction/credentials.dpapi')
+    vault = LiveCredentialVault(ROOT/'data/live-preproduction/credentials.dpapi',
+        connection_cache_path=ROOT/'data/live-preproduction/connection-status.json')
     interactive = args.scope is not None and sys.stdin.isatty()
     try:
         if args.status:

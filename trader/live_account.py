@@ -7,6 +7,7 @@ Spot and USD-M remain separate wallets. No trading class is imported here.
 from __future__ import annotations
 
 import ctypes
+import errno
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 import hashlib
@@ -14,6 +15,7 @@ import json
 import os
 from pathlib import Path
 import re
+import stat
 import time
 import uuid
 
@@ -22,12 +24,66 @@ from trader.live_transport import LiveCredentials, LiveError, LiveHTTPError, Liv
 PERMISSION_FIELDS = ("enableReading", "enableWithdrawals", "ipRestrict", "enableSpotAndMarginTrading",
                      "enableFutures", "enableMargin", "enableInternalTransfer", "permitsUniversalTransfer",
                      "enablePortfolioMarginTrading")
+KEY_WRITE_FIELDS = ("enableWithdrawals", "enableSpotAndMarginTrading", "enableFutures", "enableMargin",
+                    "enableInternalTransfer", "permitsUniversalTransfer", "enablePortfolioMarginTrading",
+                    "enableVanillaOptions", "enableFixApiTrade")
+KEY_RIGHT_FIELDS = PERMISSION_FIELDS + ("enableVanillaOptions", "enableFixApiTrade")
+LINK_SCOPES = ("SPOT_LIVE", "FUTURES_LIVE")
 AUTHORITY = {"execution_enabled": False, "financial_authorization": False,
              "capital_allocated": False, "automatic_activation": False, "account_ownership_certified": False}
 
 
 def _iso(ms):
     return datetime.fromtimestamp(ms / 1000, UTC).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+
+
+def _uid(value):
+    """UID is used only in memory and encrypted raw evidence, never returned."""
+    if type(value) is not int or not 0 < value < 2**63:
+        raise LiveError("LIVE_KEY_IDENTITY_UNKNOWN")
+    return value
+
+
+def _key_rights(raw):
+    if type(raw) is not dict or "code" in raw or "msg" in raw:
+        return {"status":"UNKNOWN", "subject":"GLOBAL_API_KEY_RIGHTS",
+                "read_only_verified":False, "flags":{}, "unexpected_fields_present":False,
+                "invalid_fields_present":False,
+                "configured_markets_read_only_verified":False, "other_product_rights_unknown":True,
+                "reason":"GLOBAL_KEY_RIGHTS_UNAVAILABLE",
+                "product_permissions_certified":False}
+    values = {key:raw[key] if type(raw.get(key)) is bool else None for key in KEY_RIGHT_FIELDS}
+    if "enableFixReadOnly" in raw:
+        values["enableFixReadOnly"] = raw["enableFixReadOnly"] if type(raw["enableFixReadOnly"]) is bool else None
+    known = set(KEY_RIGHT_FIELDS) | {"enableFixReadOnly", "createTime", "tradingAuthorityExpirationTime"}
+    unexpected = bool(set(raw) - known)
+    metadata_valid = all(type(raw[key]) is int and 0 <= raw[key] < 2**63
+                         for key in ("createTime", "tradingAuthorityExpirationTime") if key in raw)
+    invalid = not metadata_valid or any(type(raw[key]) is not bool
+                for key in set(raw) & (set(KEY_RIGHT_FIELDS) | {"enableFixReadOnly"}))
+    complete = not unexpected and not invalid and all(value is not None for value in values.values())
+    configured_read_only = (not unexpected and not invalid and values["enableReading"] is True
+        and type(values["ipRestrict"]) is bool
+        and all(values[key] is False for key in KEY_WRITE_FIELDS if key not in {"enableVanillaOptions", "enableFixApiTrade"})
+        and values["enableFixApiTrade"] in {False, None})
+    if "enableFixApiTrade" in raw and type(raw["enableFixApiTrade"]) is not bool:
+        configured_read_only = False
+    if type(values["enableFixApiTrade"]) is bool and values["enableFixApiTrade"]:
+        configured_read_only = False
+    other_unknown = values["enableVanillaOptions"] is None or values["enableFixApiTrade"] is None
+    reason = ("UNRECOGNIZED_KEY_METADATA" if unexpected else
+              "CONFIGURED_MARKETS_READ_ONLY_OTHER_RIGHTS_UNKNOWN" if configured_read_only and other_unknown else
+              "INCOMPLETE_KEY_RIGHTS" if not complete
+              else "KEY_WRITE_PRIVILEGES_PRESENT" if any(values[key] for key in KEY_WRITE_FIELDS)
+              else "READ_ONLY_KEY_RIGHTS_OBSERVED" if values["enableReading"] else "KEY_READING_DISABLED")
+    return {"status":"OBSERVED" if complete else "PARTIAL", "subject":"GLOBAL_API_KEY_RIGHTS",
+            "read_only_verified":complete and values["enableReading"] is True
+                and all(values[key] is False for key in KEY_WRITE_FIELDS),
+            "flags":values, "unexpected_fields_present":unexpected,
+            "invalid_fields_present":invalid,
+            "configured_markets_read_only_verified":configured_read_only,
+            "other_product_rights_unknown":other_unknown, "reason":reason,
+            "product_permissions_certified":False}
 
 
 def _amount(value, *, signed=False):
@@ -140,7 +196,7 @@ class EncryptedAuditStore:
 
 class LiveAccountAudit:
     def __init__(self, transport, *, symbols, start_utc_ms, end_utc_ms, max_pages=3,
-                 page_size=100, cursors=None, raw_store=None, clock=time.time):
+                 page_size=100, cursors=None, raw_store=None, clock=time.time, verify_account_link=False):
         if not isinstance(transport, LiveReadOnlyTransport) or type(transport) is not LiveReadOnlyTransport:
             raise LiveError("LIVE_GET_ONLY_TRANSPORT_REQUIRED")
         if type(symbols) not in {list, tuple} or not 1 <= len(symbols) <= 10 or len(set(symbols)) != len(symbols) or any(type(s) is not str or not SYMBOL.fullmatch(s) for s in symbols):
@@ -151,23 +207,38 @@ class LiveAccountAudit:
             raise LiveError("LIVE_AUDIT_PAGE_BUDGET_REQUIRED")
         if cursors is not None and (type(cursors) is not dict or len(cursors) > 100):
             raise LiveError("LIVE_AUDIT_CURSORS_INVALID")
+        if type(verify_account_link) is not bool:
+            raise LiveError("LIVE_EXPLICIT_ACCOUNT_LINK_REQUIRED")
+        if verify_account_link:
+            if set(transport._credentials) != set(LINK_SCOPES):
+                raise LiveError("LIVE_ACCOUNT_LINK_REQUIRES_BOTH_SCOPES")
+            if len({pair.fingerprint() for pair in transport._credentials.values()}) != 2:
+                raise LiveError("LIVE_ACCOUNT_LINK_REQUIRES_DISTINCT_KEYS")
+            if raw_store is None:
+                raise LiveError("LIVE_ACCOUNT_LINK_ENCRYPTED_EVIDENCE_REQUIRED")
         self.transport, self.symbols = transport, tuple(symbols)
         self.start, self.end, self.max_pages, self.page_size = start_utc_ms, end_utc_ms, max_pages, page_size
         self.cursors, self.store, self.clock = cursors or {}, raw_store, clock
         self.observations = []
         self._errors = []
+        self.verify_account_link = verify_account_link
+        self._native_uids = {}
 
-    def _get(self, scope, name, endpoint, params=None):
+    def _get(self, scope, name, endpoint, params=None, *, key_metadata=False):
         began = int(self.clock() * 1000)
         try:
-            value = self.transport.get(scope, endpoint, params)
+            value = (self.transport.get_key_metadata(scope, endpoint) if key_metadata else
+                     self.transport.get(scope, endpoint, params))
             received = int(self.clock() * 1000)
             evidence = {"scope": scope, "endpoint": endpoint, "params": params or {},
                         "request_started_utc": _iso(began), "received_utc": _iso(received), "response": value}
+            if key_metadata:
+                evidence["purpose"] = "GLOBAL_KEY_METADATA"
             retained = self.store.retain(evidence) if self.store else None
             self.observations.append({"scope": scope, "name": name, "request_started_utc": _iso(began),
                 "received_utc": _iso(received), "response_sha256": hashlib.sha256(_canonical(value)).hexdigest(),
-                "raw": retained, "status": "OBSERVED"})
+                "raw": retained, "status": "OBSERVED",
+                **({"purpose":"GLOBAL_KEY_METADATA"} if key_metadata else {})})
             return value
         except LiveError as error:
             code = str(error)
@@ -176,6 +247,7 @@ class LiveAccountAudit:
                 code = "LIVE_READ_FAILED"
             self.observations.append({"scope": scope, "name": name, "request_started_utc": _iso(began),
                 "received_utc": _iso(int(self.clock() * 1000)), "status": "UNKNOWN", "code": code,
+                **({"purpose":"GLOBAL_KEY_METADATA"} if key_metadata else {}),
                 **(LiveHTTPError.diagnostics(error) if isinstance(error, LiveHTTPError) else {})})
             self._errors.append(code)
             return None
@@ -212,6 +284,8 @@ class LiveAccountAudit:
                         balances.append({"asset": asset, "free": free, "locked": locked})
                 if type(raw.get("canTrade")) is not bool:
                     raise LiveError("LIVE_ACCOUNT_PERMISSIONS_UNKNOWN")
+                if self.verify_account_link and type(raw.get("uid")) is int and 0 < raw["uid"] < 2**63:
+                    self._native_uids[scope] = raw["uid"]
                 return {"status": "OBSERVED", "wallet": "SPOT_LIVE", "balances": balances,
                         "can_trade_reported": raw["canTrade"], "identity_reported": "uid" in raw,
                         "identity_linked": False, "ledger_reconciled": False}
@@ -233,6 +307,43 @@ class LiveAccountAudit:
         except LiveError as error:
             self._errors.append(str(error))
             return {"status": "UNKNOWN", "wallet": scope, "ledger_reconciled": False}
+
+    def _account_link(self, wallets):
+        """Compare global key-origin UIDs; wallets and funds remain separate."""
+        uids, rows = {}, []
+        for scope in LINK_SCOPES:
+            raw = self._get(scope, "global_key_identity", "/api/v3/account", key_metadata=True)
+            identity_evidence = self.observations[-1]
+            try:
+                if (type(raw) is not dict or "code" in raw or "msg" in raw
+                        or raw.get("accountType") != "SPOT" or type(raw.get("canTrade")) is not bool):
+                    raise LiveError("LIVE_KEY_IDENTITY_UNKNOWN")
+                _rows(raw.get("balances"))
+                uids[scope] = _uid(raw.get("uid"))
+            except LiveError as error:
+                self._errors.append(str(error))
+            permissions = _key_rights(self._get(scope, "global_key_permissions",
+                "/sapi/v1/account/apiRestrictions", key_metadata=True))
+            rights_evidence = self.observations[-1]
+            rows.append({"origin_scope":scope, "identity_reported":scope in uids,
+                "observed_at":rights_evidence["received_utc"], "global_key_permissions":permissions,
+                "evidence_refs":{"identity":(identity_evidence.get("raw") or {}).get("sha256"),
+                                 "permissions":(rights_evidence.get("raw") or {}).get("sha256")}})
+        native_match = ("SPOT_LIVE" in uids and self._native_uids.get("SPOT_LIVE") == uids["SPOT_LIVE"])
+        accounts_observed = all(wallets[scope]["account"].get("status") == "OBSERVED" for scope in LINK_SCOPES)
+        if len(uids) != 2 or not native_match or not accounts_observed:
+            status, same = "UNKNOWN", None
+            if len(uids) == 2 and not native_match:
+                self._errors.append("LIVE_KEY_IDENTITY_CONTRADICTION")
+        elif uids["SPOT_LIVE"] != uids["FUTURES_LIVE"]:
+            status, same = "DIFFERENT_ACCOUNTS", False
+        else:
+            status, same = "SAME_ACCOUNT_OBSERVED", True
+        # Raw identifiers are intentionally not copied into this plain report.
+        return {"schema":1, "status":status, "same_account_observed":same,
+                "identity_namespace":"BINANCE_GLOBAL_UID", "credential_origins_separate":True,
+                "scopes":rows, "wallets_merged":False, "human_ownership_certified":False,
+                "financial_authorization":False}
 
     def _current(self, scope):
         endpoints = ({"orders": "/api/v3/openOrders", "order_lists": "/api/v3/openOrderList"} if scope == "SPOT_LIVE" else
@@ -429,6 +540,7 @@ class LiveAccountAudit:
             wallet["cashflows_reconciled"] = False
             wallet["all_symbols_history_complete"] = False
             wallets[scope] = wallet
+        account_link = self._account_link(wallets) if self.verify_account_link else None
         finished = int(self.clock() * 1000)
         report = {"schema": "live-account-audit/v1", "status": "PARTIAL" if self._errors else "SCOPED_OBSERVATION",
                   "started_utc": _iso(started), "finished_utc": _iso(finished),
@@ -443,9 +555,216 @@ class LiveAccountAudit:
                   "limitations": ["BOUNDED_SYMBOLS_AND_TIME_WINDOW", "IDENTITY_NOT_LINKED", "NO_INITIAL_LEDGER_RECONCILIATION",
                                   "NO_ORDER_EXECUTION_OR_PROTECTION_CERTIFICATION", "NO_COMPLETE_ACCOUNT_HISTORY",
                                   "PERMISSIONS_OBSERVATION_IS_NOT_OWNER_AUTHORIZATION"]}
+        if account_link is not None:
+            report["account_link"] = account_link
+            if account_link["same_account_observed"] is True:
+                report["limitations"].remove("IDENTITY_NOT_LINKED")
+                report["limitations"].append("KEY_UID_LINK_IS_NOT_HUMAN_OWNERSHIP_CERTIFICATION")
         if self.store:
             self.store.report(report)
         return report
+
+
+def _evidence_stamp(value, *, now):
+    if (type(now) not in {int, float} or not 0 < now < 1e12
+            or type(value) is not str or not re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z", value)):
+        raise LiveError("LIVE_CONNECTION_EVIDENCE_TIME_INVALID")
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        stamp = parsed.timestamp()
+        if parsed.isoformat(timespec="milliseconds").replace("+00:00", "Z") != value or not 0 <= now - stamp <= 300:
+            raise ValueError()
+    except (ValueError, OverflowError):
+        raise LiveError("LIVE_CONNECTION_EVIDENCE_TIME_INVALID") from None
+    return stamp
+
+
+def connection_status_from_audit(report, *, now=None):
+    """Closed observation cache; cannot issue readiness or financial authority.
+
+    Only an explicit, fresh two-key UID observation with retained encrypted raw
+    evidence may label the configured Spot/USD-M REST scopes read-only verified.
+    Unknown rights for other products remain explicit in the audit, not silently
+    false. Account ownership, history, wallet pooling and execution stay unapproved.
+    """
+    now = time.time() if now is None else now
+    if (type(report) is not dict or report.get("schema") != "live-account-audit/v1"
+            or report.get("wallets_merged") is not False or report.get("account_history_complete") is not False
+            or report.get("initial_inventory_certified") is not False or report.get("raw_encrypted_retention") is not True
+            or type(report.get("authority")) is not dict or set(report["authority"]) != set(AUTHORITY)
+            or any(value is not False for value in report["authority"].values())
+            or type(report.get("wallets")) is not dict or set(report["wallets"]) != set(LINK_SCOPES)):
+        raise LiveError("LIVE_CONNECTION_LINK_EVIDENCE_REQUIRED")
+    finished_stamp = _evidence_stamp(report.get("finished_utc"), now=now)
+    link = report.get("account_link")
+    if (type(link) is not dict or set(link) != {"schema", "status", "same_account_observed", "identity_namespace",
+            "credential_origins_separate", "scopes", "wallets_merged", "human_ownership_certified", "financial_authorization"}
+            or type(link["schema"]) is not int or link["schema"] != 1
+            or link["identity_namespace"] != "BINANCE_GLOBAL_UID" or link["credential_origins_separate"] is not True
+            or link["wallets_merged"] is not False or link["human_ownership_certified"] is not False
+            or link["financial_authorization"] is not False or type(link["scopes"]) is not list or len(link["scopes"]) != 2
+            or not (link["same_account_observed"] is None or type(link["same_account_observed"]) is bool)
+            or link["status"] not in {"SAME_ACCOUNT_OBSERVED", "DIFFERENT_ACCOUNTS", "UNKNOWN"}
+            or (link["status"], link["same_account_observed"]) not in
+               {("SAME_ACCOUNT_OBSERVED", True), ("DIFFERENT_ACCOUNTS", False), ("UNKNOWN", None)}):
+        raise LiveError("LIVE_CONNECTION_LINK_EVIDENCE_REQUIRED")
+    observations = report.get("observations")
+    if type(observations) is not list or not 1 <= len(observations) <= 200:
+        raise LiveError("LIVE_CONNECTION_LINK_EVIDENCE_REQUIRED")
+    scopes, stamps = [], []
+    for row, scope in zip(link["scopes"], LINK_SCOPES):
+        if (type(row) is not dict or set(row) != {"origin_scope", "identity_reported", "observed_at",
+                "global_key_permissions", "evidence_refs"} or row["origin_scope"] != scope
+                or type(row["identity_reported"]) is not bool or type(row["evidence_refs"]) is not dict
+                or set(row["evidence_refs"]) != {"identity", "permissions"}):
+            raise LiveError("LIVE_CONNECTION_LINK_EVIDENCE_REQUIRED")
+        wallet = report["wallets"][scope]
+        if type(wallet) is not dict or type(wallet.get("account")) is not dict:
+            raise LiveError("LIVE_CONNECTION_LINK_EVIDENCE_REQUIRED")
+        account_observed = wallet["account"].get("status") == "OBSERVED"
+        if account_observed:
+            native = [item for item in observations if type(item) is dict and item.get("scope") == scope
+                      and item.get("name") == "account" and item.get("status") == "OBSERVED"
+                      and "purpose" not in item]
+            if len(native) != 1 or type(native[0].get("raw")) is not dict:
+                raise LiveError("LIVE_CONNECTION_LINK_EVIDENCE_REQUIRED")
+            raw = native[0]["raw"]
+            if (set(raw) != {"file", "sha256", "encrypted_sha256"}
+                    or type(raw["file"]) is not str or not re.fullmatch(r"response-\d{4}\.dpapi", raw["file"])
+                    or any(type(raw[field]) is not str or not re.fullmatch(r"[a-f0-9]{64}", raw[field])
+                           for field in ("sha256", "encrypted_sha256"))):
+                raise LiveError("LIVE_CONNECTION_LINK_EVIDENCE_REQUIRED")
+            stamps.append(_evidence_stamp(native[0].get("received_utc"), now=now))
+        stamps.append(_evidence_stamp(row["observed_at"], now=now))
+        for kind, name in (("identity", "global_key_identity"), ("permissions", "global_key_permissions")):
+            digest = row["evidence_refs"][kind]
+            matching = [item for item in observations if type(item) is dict and item.get("scope") == scope
+                        and item.get("name") == name and item.get("purpose") == "GLOBAL_KEY_METADATA"
+                        and item.get("status") == "OBSERVED" and type(item.get("raw")) is dict
+                        and item["raw"].get("sha256") == digest]
+            if digest is None:
+                if matching:
+                    raise LiveError("LIVE_CONNECTION_LINK_EVIDENCE_REQUIRED")
+                continue
+            if type(digest) is not str or not re.fullmatch(r"[a-f0-9]{64}", digest) or len(matching) != 1:
+                raise LiveError("LIVE_CONNECTION_LINK_EVIDENCE_REQUIRED")
+            item = matching[0]
+            raw = item.get("raw")
+            if (type(raw) is not dict or set(raw) != {"file", "sha256", "encrypted_sha256"}
+                    or type(raw["file"]) is not str or not re.fullmatch(r"response-\d{4}\.dpapi", raw["file"])
+                    or raw["sha256"] != digest or type(raw["encrypted_sha256"]) is not str
+                    or not re.fullmatch(r"[a-f0-9]{64}", raw["encrypted_sha256"])):
+                raise LiveError("LIVE_CONNECTION_LINK_EVIDENCE_REQUIRED")
+            stamps.append(_evidence_stamp(item.get("received_utc"), now=now))
+        rights = row["global_key_permissions"]
+        if (type(rights) is not dict or set(rights) != {"status", "subject", "read_only_verified", "flags",
+                "unexpected_fields_present", "product_permissions_certified", "configured_markets_read_only_verified",
+                "other_product_rights_unknown", "invalid_fields_present", "reason"}
+                or rights["status"] not in {"OBSERVED", "PARTIAL", "UNKNOWN"}
+                or rights["subject"] != "GLOBAL_API_KEY_RIGHTS" or type(rights["flags"]) is not dict
+                or type(rights["read_only_verified"]) is not bool or type(rights["unexpected_fields_present"]) is not bool
+                or type(rights["invalid_fields_present"]) is not bool
+                or type(rights["configured_markets_read_only_verified"]) is not bool
+                or type(rights["other_product_rights_unknown"]) is not bool
+                or rights["reason"] not in {"GLOBAL_KEY_RIGHTS_UNAVAILABLE", "UNRECOGNIZED_KEY_METADATA",
+                    "INCOMPLETE_KEY_RIGHTS", "KEY_WRITE_PRIVILEGES_PRESENT", "READ_ONLY_KEY_RIGHTS_OBSERVED", "KEY_READING_DISABLED",
+                    "CONFIGURED_MARKETS_READ_ONLY_OTHER_RIGHTS_UNKNOWN"}
+                or rights["product_permissions_certified"] is not False):
+            raise LiveError("LIVE_CONNECTION_LINK_EVIDENCE_REQUIRED")
+        flags = rights["flags"]
+        if set(flags) - (set(KEY_RIGHT_FIELDS) | {"enableFixReadOnly"}) or any(
+                value is not None and type(value) is not bool for value in flags.values()):
+            raise LiveError("LIVE_CONNECTION_LINK_EVIDENCE_REQUIRED")
+        verified = (rights["status"] in {"OBSERVED", "PARTIAL"} and not rights["unexpected_fields_present"]
+            and not rights["invalid_fields_present"]
+            and rights["configured_markets_read_only_verified"] is True and flags.get("enableReading") is True
+            and all(flags.get(key) is False for key in KEY_WRITE_FIELDS if key not in {"enableVanillaOptions", "enableFixApiTrade"})
+            and flags.get("enableFixApiTrade") in {False, None}
+            and type(flags.get("ipRestrict")) is bool)
+        observed = (row["identity_reported"] is True and row["evidence_refs"]["identity"] is not None and account_observed)
+        scopes.append({"environment":scope, "identity":"REPORTED" if observed else "UNKNOWN",
+                       "permissions":"VERIFIED" if observed and verified and row["evidence_refs"]["permissions"] else "UNKNOWN",
+                       "at":row["observed_at"]})
+    if max(stamps) > finished_stamp or max(stamps) - min(stamps) > 120:
+        raise LiveError("LIVE_CONNECTION_EVIDENCE_CUT_TOO_WIDE")
+    ready = (link["same_account_observed"] is True
+             and all(row["identity"] == "REPORTED" and row["permissions"] == "VERIFIED" for row in scopes))
+    return {"schema":1, "state":"READ_ONLY_VERIFIED" if ready else "CONFIGURED_UNVERIFIED",
+            "at":report["finished_utc"], "scopes":scopes}
+
+
+def publish_connection_status(report, data_dir, *, now=None):
+    """Atomic bounded observation cache only; no keys or activation records."""
+    value = connection_status_from_audit(report, now=now)
+    encoded = _canonical(value)
+    if len(encoded) > 8000:
+        raise LiveError("LIVE_CONNECTION_STATUS_SIZE_LIMIT")
+    target = Path(data_dir)/"live-preproduction"/"connection-status.json"
+    lock = target.with_suffix(".json.lock")
+    for path in (target, lock, *target.parents):
+        if path.is_symlink() or getattr(path, "is_junction", lambda: False)():
+            raise LiveError("LIVE_CONNECTION_STATUS_LINK_BLOCKED")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    temporary = target.with_name(".connection-" + uuid.uuid4().hex)
+    handle, acquired = None, False
+    try:
+        descriptor = os.open(lock, os.O_RDWR | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0)
+                             | getattr(os, "O_BINARY", 0), 0o600)
+        handle = os.fdopen(descriptor, "r+b")
+        opened, named = os.fstat(handle.fileno()), os.stat(lock, follow_symlinks=False)
+        if (not stat.S_ISREG(opened.st_mode) or opened.st_nlink != 1 or opened.st_size not in {0, 1}
+                or (opened.st_dev, opened.st_ino) != (named.st_dev, named.st_ino)
+                or getattr(named, "st_file_attributes", 0) & 0x400):
+            raise LiveError("LIVE_CONNECTION_STATUS_LINK_BLOCKED")
+        # Lock beyond EOF without writing a marker first: two Windows writers
+        # cannot race a buffered initialization write against the other's lock.
+        handle.seek(0)
+        if os.name == "nt":
+            import msvcrt
+            msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+        else:
+            import fcntl
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        acquired = True
+        for path in (target, lock, *target.parents):
+            if path.is_symlink() or getattr(path, "is_junction", lambda: False)():
+                raise LiveError("LIVE_CONNECTION_STATUS_LINK_BLOCKED")
+        current_lock = os.stat(lock, follow_symlinks=False)
+        if ((opened.st_dev, opened.st_ino) != (current_lock.st_dev, current_lock.st_ino)
+                or current_lock.st_nlink != 1):
+            raise LiveError("LIVE_CONNECTION_STATUS_LINK_BLOCKED")
+        if target.exists():
+            if target.stat().st_size > 8000:
+                raise LiveError("LIVE_CONNECTION_STATUS_SIZE_LIMIT")
+            current = json.loads(target.read_text(encoding="utf-8"))
+            if type(current) is not dict or type(current.get("at")) not in {str, type(None)}:
+                raise LiveError("LIVE_CONNECTION_STATUS_INVALID")
+            if current["at"] is not None and current["at"] > value["at"]:
+                raise LiveError("LIVE_CONNECTION_STATUS_OLDER_THAN_CURRENT")
+        with temporary.open("xb") as output:
+            output.write(encoded)
+            output.flush()
+            os.fsync(output.fileno())
+        os.replace(temporary, target)
+    except OSError as error:
+        raise LiveError("LIVE_CONNECTION_STATUS_BUSY" if error.errno in
+                        {errno.EACCES, errno.EAGAIN, errno.EDEADLK} else "LIVE_CONNECTION_STATUS_UNAVAILABLE") from None
+    finally:
+        if handle is not None:
+            if acquired:
+                try:
+                    handle.seek(0)
+                    if os.name == "nt":
+                        import msvcrt
+                        msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+                    else:
+                        import fcntl
+                        fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+                except OSError:
+                    pass
+            handle.close()
+        temporary.unlink(missing_ok=True)
+    return value
 
 
 def credentials_from_environment(environment):
