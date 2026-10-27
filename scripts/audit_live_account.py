@@ -3,14 +3,17 @@ from __future__ import annotations
 
 import argparse
 from datetime import UTC, datetime
+import hmac
 import json
 import os
 from pathlib import Path
 import sys
 import time
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from trader.live_account import LiveAccountAudit, EncryptedAuditStore, audit_directory, credentials_from_environment
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+from trader.live_account import (LiveAccountAudit, EncryptedAuditStore, audit_directory,
+    credentials_from_environment, publish_connection_status)
 from trader.live_transport import LiveError, LiveReadOnlyTransport
 
 
@@ -28,6 +31,10 @@ def main(argv=None):
     parser.add_argument("--vault", type=Path, help="Explicit current-user Windows DPAPI LIVE credential vault")
     parser.add_argument("--scope", choices=("SPOT_LIVE", "FUTURES_LIVE"),
                         help="Audit only this explicitly configured scope; never substitute another key")
+    parser.add_argument("--verify-account-link", action="store_true",
+                        help="Explicit global UID/key-rights GETs with both distinct credential origins; no wallet pooling")
+    parser.add_argument("--publish-connection-status", action="store_true",
+                        help="With --verify-account-link and --vault: write bounded observation cache, never financial readiness")
     parser.add_argument("--start-utc-ms", type=int)
     parser.add_argument("--end-utc-ms", type=int)
     parser.add_argument("--max-calls", type=int, default=80)
@@ -36,13 +43,25 @@ def main(argv=None):
     parser.add_argument("--resume", type=Path, help="Previous sanitized audit.json with matching scope/window")
     args = parser.parse_args(argv)
     try:
+        if args.publish_connection_status and not args.verify_account_link:
+            raise LiveError("LIVE_ACCOUNT_LINK_REQUIRED_FOR_STATUS")
+        if args.publish_connection_status and args.vault is None:
+            raise LiveError("LIVE_ACCOUNT_STATUS_REQUIRES_VAULT")
+        if args.verify_account_link and args.scope is not None:
+            raise LiveError("LIVE_ACCOUNT_LINK_REQUIRES_BOTH_SCOPES")
         if os.name != "nt":
             raise LiveError("WINDOWS_DPAPI_REQUIRED_FOR_RAW_RETENTION")
         if args.vault:
             from trader.live_credentials import LiveCredentialVault
-            credentials = LiveCredentialVault(args.vault).read()
+            vault = LiveCredentialVault(args.vault)
+            credentials = vault.read()
         else:
             credentials = credentials_from_environment(os.environ)
+        if args.verify_account_link:
+            if set(credentials) != {"SPOT_LIVE", "FUTURES_LIVE"}:
+                raise LiveError("LIVE_ACCOUNT_LINK_REQUIRES_BOTH_SCOPES")
+            if len({pair.fingerprint() for pair in credentials.values()}) != 2:
+                raise LiveError("LIVE_ACCOUNT_LINK_REQUIRES_DISTINCT_KEYS")
         if args.scope is not None:
             if args.scope not in credentials:
                 raise LiveError("LIVE_REQUESTED_SCOPE_NOT_CONFIGURED")
@@ -73,11 +92,28 @@ def main(argv=None):
         store = EncryptedAuditStore(directory)
         audit = LiveAccountAudit(LiveReadOnlyTransport(credentials, max_calls=args.max_calls),
             symbols=symbols, start_utc_ms=start, end_utc_ms=end,
-            max_pages=args.max_pages, page_size=args.page_size, cursors=cursors, raw_store=store)
+            max_pages=args.max_pages, page_size=args.page_size, cursors=cursors, raw_store=store,
+            verify_account_link=args.verify_account_link)
         report = audit.run()
+        connection = None
+        if args.publish_connection_status:
+            # Credential replacement invalidates this cache under the same vault
+            # lock. Keep VAULT -> CACHE order and reject any audit of old pairs,
+            # including a secret-only replacement with an unchanged API key.
+            with vault._write_lock():
+                current = vault.read()
+                unchanged = set(current) == set(credentials) and all([
+                    hmac.compare_digest(current[scope].api_key, credentials[scope].api_key)
+                    & hmac.compare_digest(current[scope].api_secret, credentials[scope].api_secret)
+                    for scope in credentials])
+                if not unchanged:
+                    raise LiveError("LIVE_CREDENTIALS_CHANGED_DURING_AUDIT")
+                connection = publish_connection_status(report, ROOT/"data")
         print(json.dumps({"status": report["status"], "report": str(directory / "audit.json"),
             "scopes": sorted(report["wallets"]), "calls": report["calls"], "account_history_complete": False,
-            "execution_enabled": False, "financial_authorization": False}, ensure_ascii=True))
+            "execution_enabled": False, "financial_authorization": False,
+            **({"account_link_status":report["account_link"]["status"]} if args.verify_account_link else {}),
+            **({"connection_status":connection["state"]} if connection is not None else {})}, ensure_ascii=True))
         return 0
     except (LiveError, ValueError, OSError, KeyError, TypeError) as error:
         code = str(error) if isinstance(error, LiveError) else "LIVE_AUDIT_LOCAL_INPUT_ERROR"

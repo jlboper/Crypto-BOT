@@ -27,6 +27,11 @@ import urllib.request
 from trader.account_inventory import _json, InventoryError
 
 HOSTS = {"SPOT_LIVE": "https://api.binance.com", "FUTURES_LIVE": "https://fapi.binance.com"}
+# Explicit API-key metadata lives on the wallet/Spot API host for either key
+# origin. This is a separate GET family, never a credentials fallback or wallet.
+KEY_METADATA_HOST = "https://api.binance.com"
+KEY_METADATA_PUBLIC = frozenset({"/api/v3/time"})
+KEY_METADATA_SIGNED = frozenset({"/api/v3/account", "/sapi/v1/account/apiRestrictions"})
 SYMBOL = re.compile(r"[A-Z0-9]{2,24}USDT\Z", re.ASCII)
 IDENTIFIER = re.compile(r"[A-Za-z0-9_-]{1,36}\Z", re.ASCII)
 AUTH_IDENTIFIER = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,95}\Z", re.ASCII)
@@ -155,23 +160,31 @@ class LiveReadOnlyTransport:
         return urllib.request.build_opener(urllib.request.ProxyHandler({}),
             type("NoRedirect", (urllib.request.HTTPRedirectHandler,), {"redirect_request": lambda *args: None})())
 
-    def _clock(self, scope):
-        sample = self._samples.get(scope)
+    def _clock(self, scope, *, key_metadata=False):
+        cache_key = ("KEY_METADATA", scope) if key_metadata else scope
+        sample = self._samples.get(cache_key)
         if sample is not None and 0 <= self.monotonic() - sample[1] <= 30:
             return sample[0] + int((self.monotonic() - sample[1]) * 1000)
         began = self.monotonic()
-        value = self.get(scope, "/api/v3/time" if scope == "SPOT_LIVE" else "/fapi/v1/time")
+        value = (self.get_key_metadata(scope, "/api/v3/time") if key_metadata else
+                 self.get(scope, "/api/v3/time" if scope == "SPOT_LIVE" else "/fapi/v1/time"))
         received = self.monotonic()
         stamp = value.get("serverTime") if type(value) is dict else None
         if type(stamp) is not int or not 0 < stamp < 253402300799000 or not 0 <= received - began <= 2:
             raise LiveError("LIVE_CLOCK_UNVERIFIED")
-        self._samples[scope] = (stamp, received)
+        self._samples[cache_key] = (stamp, received)
         return stamp
 
-    def _request(self, scope, method, endpoint, params, *, _write_capability=None):
+    def _request(self, scope, method, endpoint, params, *, _write_capability=None, _key_metadata=False):
         if scope not in HOSTS:
             raise LiveError("LIVE_SCOPE_REQUIRED")
-        if method == "GET":
+        if type(_key_metadata) is not bool:
+            raise LiveError("LIVE_KEY_METADATA_GET_BLOCKED")
+        if _key_metadata:
+            if method != "GET" or endpoint not in KEY_METADATA_PUBLIC | KEY_METADATA_SIGNED or params:
+                raise LiveError("LIVE_KEY_METADATA_GET_BLOCKED")
+            public, host = KEY_METADATA_PUBLIC, KEY_METADATA_HOST
+        elif method == "GET":
             if endpoint not in PUBLIC[scope] | SIGNED[scope]:
                 raise LiveError("LIVE_GET_ENDPOINT_BLOCKED")
         elif (type(_write_capability) is not _ConsumedGrant
@@ -180,12 +193,14 @@ class LiveReadOnlyTransport:
               or int(self.clock() * 1000) >= _write_capability.expires_utc_ms
               or (method, endpoint) not in WRITE[scope]):
             raise LiveError("LIVE_EXECUTION_LOCKED")
+        if not _key_metadata:
+            public, host = PUBLIC[scope], HOSTS[scope]
         if scope not in self._credentials or self.calls >= self.max_calls:
             raise LiveError("LIVE_CREDENTIALS_OR_BUDGET_UNAVAILABLE")
         headers = {"User-Agent": "CryptoAITrader/SegregatedLiveReadOnly"}
         fields = dict(params)
-        if endpoint not in PUBLIC[scope]:
-            fields.update(timestamp=self._clock(scope), recvWindow=5000)
+        if endpoint not in public:
+            fields.update(timestamp=self._clock(scope, key_metadata=_key_metadata), recvWindow=5000)
             pair = self._credentials[scope]
             query = urllib.parse.urlencode(sorted(fields.items()))
             fields["signature"] = hmac.new(pair.api_secret.encode("ascii"), query.encode("ascii"), hashlib.sha256).hexdigest()
@@ -195,7 +210,7 @@ class LiveReadOnlyTransport:
         if signature:
             query += "&signature=" + signature
         body = None
-        url = HOSTS[scope] + endpoint
+        url = host + endpoint
         if method == "POST":
             body = query.encode("ascii")
             headers["Content-Type"] = "application/x-www-form-urlencoded"
@@ -241,6 +256,16 @@ class LiveReadOnlyTransport:
         params = {} if fields is None else fields
         _read_params(params)
         return self._request(scope, "GET", endpoint, params)
+
+    def get_key_metadata(self, origin_scope, endpoint):
+        """Explicit global metadata using this origin's own dedicated key.
+
+        The fixed endpoints can report UID/key rights, not grant product access.
+        No user fields, arbitrary host, write method or alternative key is used.
+        """
+        if origin_scope not in HOSTS or endpoint not in KEY_METADATA_PUBLIC | KEY_METADATA_SIGNED:
+            raise LiveError("LIVE_KEY_METADATA_GET_BLOCKED")
+        return self._request(origin_scope, "GET", endpoint, {}, _key_metadata=True)
 
 
 @dataclass(frozen=True)

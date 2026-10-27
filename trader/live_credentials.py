@@ -1,7 +1,10 @@
 """Dedicated LIVE credential vault. Possession never authorizes orders."""
 from contextlib import contextmanager
 import errno
+import json
 import os
+from pathlib import Path
+import secrets
 import stat
 import time
 
@@ -13,8 +16,9 @@ CREDENTIAL_LOCK_WAIT_SECONDS = 5.0
 
 
 class LiveCredentialVault:
-    def __init__(self, path, *, protection=None):
+    def __init__(self, path, *, protection=None, connection_cache_path=None):
         self.store = ProtectedStore(path, PURPOSES[0], protection=protection)
+        self.connection_cache_path = None if connection_cache_path is None else Path(connection_cache_path)
 
     def read(self):
         try:
@@ -41,6 +45,9 @@ class LiveCredentialVault:
             raise LiveError('EXPLICIT_LIVE_CREDENTIALS_REQUIRED')
         credentials = dict(credentials)
         with self._write_lock():
+            if self.store.path.exists() and not replace:
+                raise LiveError('USER_PROTECTED_RECORD_UNAVAILABLE')
+            self._invalidate_connection_cache()
             self._write(credentials, replace=replace)
 
     def configure_scope(self, scope, pair, *, replace=False):
@@ -56,7 +63,48 @@ class LiveCredentialVault:
             if scope in current and not replace:
                 raise LiveError('EXPLICIT_CREDENTIAL_REPLACEMENT_REQUIRED')
             current[scope] = pair
+            # Invalidate before committing new credentials. A failure here must
+            # not leave a newer key with the older key's verified observation.
+            self._invalidate_connection_cache()
             self._write(current, replace=self.store.path.exists())
+
+    def _invalidate_connection_cache(self):
+        """Operator-entry cache only; no provider/identity/financial claim.
+
+        Called under the same vault lock used by the opt-in audit publisher.
+        No lock is held while the owner is typing or during network requests.
+        """
+        path = self.connection_cache_path
+        if path is None:
+            return
+        temporary = None
+        try:
+            if (path.name != 'connection-status.json'
+                    or path.parent.resolve() != self.store.path.parent.resolve()):
+                raise LiveError('CONNECTION_CACHE_PATH_BLOCKED')
+            ProtectedStore(path, PURPOSES[0])._safe()
+            if path.exists():
+                info = os.stat(path, follow_symlinks=False)
+                if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
+                    raise LiveError('CONNECTION_CACHE_PATH_BLOCKED')
+            value = {'schema':1, 'state':'CONFIGURED_UNVERIFIED', 'at':None,
+                'scopes':[{'environment':scope, 'identity':'UNKNOWN', 'permissions':'UNKNOWN', 'at':None}
+                          for scope in ('SPOT_LIVE','FUTURES_LIVE')]}
+            temporary = path.with_name('.connection-invalid-'+secrets.token_hex(16))
+            with temporary.open('xb') as stream:
+                os.chmod(temporary, 0o600)
+                stream.write(json.dumps(value,separators=(',',':')).encode('ascii'))
+                stream.flush(); os.fsync(stream.fileno())
+            ProtectedStore(path, PURPOSES[0])._safe()
+            os.replace(temporary, path)
+        except (ProtectionError, OSError):
+            raise LiveError('CONNECTION_EVIDENCE_INVALIDATION_REQUIRED') from None
+        finally:
+            if temporary is not None:
+                try:
+                    temporary.unlink(missing_ok=True)
+                except OSError:
+                    pass
 
     def _write(self, credentials, *, replace):
         try:

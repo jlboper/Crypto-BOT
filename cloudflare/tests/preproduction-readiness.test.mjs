@@ -44,10 +44,22 @@ test('local coverage and financial receipt days remain distinct without certific
 
 test('historical account cut is visible and remote freshness is separate',()=>{
   const value=fixture();value.connection.state='READ_ONLY_VERIFIED';value.connection.at=value.at;
-  for(const row of value.connection.scopes){row.identity='REPORTED';row.at=value.at;}
+  for(const row of value.connection.scopes){row.identity='REPORTED';row.permissions='VERIFIED';row.at=value.at;}
   const p=view();p.preproduction.render(value,true);assert.match(p.get('preproductionConnection').textContent,/corte histórico/);
   assert.match(p.get('preproductionConnection').textContent,/sin autorización de órdenes/);assert.match(p.get('preproductionNote').textContent,/Sincronización remota atrasada/);
   p.preproduction.disconnected();assert.equal(p.get('preproductionPackages').textContent,'');assert.match(p.get('preproductionNote').textContent,/no demuestra una caída/);
+});
+
+test('a verified account label cannot conceal unknown permissions in either scope',()=>{
+  for(const index of [0,1]){
+    const value=fixture();value.connection.state='READ_ONLY_VERIFIED';value.connection.at=value.at;
+    for(const row of value.connection.scopes){row.identity='REPORTED';row.permissions='VERIFIED';row.at=value.at;}
+    value.connection.scopes[index].permissions='UNKNOWN';
+    assert.equal(validPreproductionReadiness(value),false);
+    const p=view();p.preproduction.render(value);
+    assert.match(p.get('preproductionNote').textContent,/incompatible/);
+    assert.equal(p.calls.length,0);
+  }
 });
 
 test('hash navigation reaches one collapsed shared panel and mobile layout uses one column',()=>{

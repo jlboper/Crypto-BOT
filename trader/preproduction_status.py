@@ -12,6 +12,7 @@ import time
 from .operational_cohort import OperationalCohortStore
 
 MAX_BYTES = 8000
+CONNECTION_EVIDENCE_MAX_AGE_SECONDS = 900
 PACKAGE_IDS = ("EVIDENCE", "ACCOUNT", "CAPITAL", "RISK", "EXECUTION")
 PACKAGE_STATES = {"IMPLEMENTED_NOT_VALIDATED", "TESTED_PREPARED", "WAITING_OWNER", "WAITING_EVIDENCE", "UNAVAILABLE"}
 CONNECTION_STATES = {"NOT_CONFIGURED", "CONFIGURED_UNVERIFIED", "READ_ONLY_VERIFIED", "UNAVAILABLE"}
@@ -21,11 +22,13 @@ BLOCKERS = {"OWNER_ACTIVATION_REQUIRED", "READ_ONLY_CONNECTION_UNVERIFIED", "FOR
             "EXECUTION_RECOVERY_UNVALIDATED", "TECHNICAL_REPORT_UNAVAILABLE", "SOURCE_CHANGED",
             "LEGACY_AUDIT_REQUIRED", "NO_AUTOMATIC_THIRTY_DAY_APPROVAL"}
 SOURCE_REQUIREMENTS = {
-    "EVIDENCE": ("operational_cohort.py", "preproduction_observer.py", "migration_evidence.py"),
-    "ACCOUNT": ("live_account.py", "live_transport.py"),
+    "EVIDENCE": ("operational_cohort.py", "preproduction_observer.py", "migration_evidence.py",
+                 "financial_evidence.py", "financial_evidence_io.py"),
+    "ACCOUNT": ("live_account.py", "live_transport.py", "live_credentials.py"),
     "CAPITAL": ("central_admission.py", "capital_manager_shadow.py", "capital_flow_shadow.py"),
-    "RISK": ("central_admission.py", "risk_latches_shadow.py", "global_risk_shadow.py"),
-    "EXECUTION": ("live_execution_runtime.py", "live_runtime_gate.py", "live_authorization.py", "live_transport.py", "local_protection.py"),
+    "RISK": ("central_admission.py", "risk_latches_shadow.py", "global_risk_shadow.py", "live_policy_review.py"),
+    "EXECUTION": ("live_execution_runtime.py", "live_runtime_gate.py", "live_authorization.py", "live_transport.py",
+                  "local_protection.py", "live_strategy_adapter.py", "live_proposal_source.py"),
 }
 
 
@@ -77,7 +80,8 @@ def valid_connection(value, *, at):
             return False
         if row["permissions"] == "VERIFIED" and (row["identity"] != "REPORTED" or row["at"] is None):
             return False
-    if value["state"] == "READ_ONLY_VERIFIED" and (value["at"] is None or any(row["identity"] != "REPORTED" or row["at"] is None for row in value["scopes"])):
+    if value["state"] == "READ_ONLY_VERIFIED" and (value["at"] is None or any(
+            row["identity"] != "REPORTED" or row["permissions"] != "VERIFIED" or row["at"] is None for row in value["scopes"])):
         return False
     if value["state"] == "NOT_CONFIGURED" and (value["at"] is not None or any(row["at"] is not None or row["identity"] != "UNKNOWN" or row["permissions"] != "UNKNOWN" for row in value["scopes"])):
         return False
@@ -198,6 +202,15 @@ def read_preproduction_status(data_dir, source_version, *, now=None, source_root
         connection = _read(data/"live-preproduction"/"connection-status.json", MAX_BYTES)
         if not valid_connection(connection, at=at):
             raise ValueError()
+        # A successful account cut is historical evidence, not perpetual
+        # connectivity or a still-current API privilege certificate. Retain
+        # original timestamps; never rejuvenate them when the portal is read.
+        if connection['state'] == 'READ_ONLY_VERIFIED':
+            cuts = [connection['at'], *(row['at'] for row in connection['scopes'])]
+            cutoff = datetime.fromisoformat(at.replace('Z','+00:00')).timestamp() - CONNECTION_EVIDENCE_MAX_AGE_SECONDS
+            if any(stamp is None or datetime.fromisoformat(stamp.replace('Z','+00:00')).timestamp() < cutoff for stamp in cuts):
+                connection = {**connection, 'state':'CONFIGURED_UNVERIFIED',
+                    'scopes':[{**row, 'permissions':'UNKNOWN'} for row in connection['scopes']]}
         value["connection"] = connection
     except FileNotFoundError:
         pass

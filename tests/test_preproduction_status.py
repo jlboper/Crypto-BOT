@@ -65,7 +65,7 @@ class PreproductionStatusTests(unittest.TestCase):
         connection = value["connection"]
         connection.update(state="READ_ONLY_VERIFIED", at=value["at"])
         for row in connection["scopes"]:
-            row.update(identity="REPORTED", permissions="UNKNOWN", at=value["at"])
+            row.update(identity="REPORTED", permissions="VERIFIED", at=value["at"])
         self.write("connection-status.json", connection)
         result = read_preproduction_status(self.root, "0.10.54", now=START+86400)
         self.assertEqual(result["connection"]["at"], value["at"])

@@ -1,3 +1,21 @@
+## Candidate0.10.56 — scope unchanged
+
+Base55 main d78b7ee882236bfbdac14047662abe9ad7154e03 published/signed/installed294/294,
+PR132; main publication40400621712 and safety40400621700 passed both operating systems.
+See [implemented validation56](PREPRODUCTION_VALIDATION_56.md) for exact commands.
+The five packages below remain the finite acceptance scope. The optional account
+link, financial retained-packet ingestion and native strategy/coordinator adapters
+are implemented components; automatic complete financial capture and operating
+LIVE kernel commissioning remain outstanding. The owner approved only an inactive
+numeric LIVE MICRO draft. It creates no authority, fund allocation or Testnet
+change. Existing historical evidence is preserved for audit, never reset merely
+because this candidate adds a validator. New publication/installation need proof.
+
+The earlier candidate55 matrix below is historical; specifically its pending
+owner numeric-policy review is now recorded privately as reviewed/inactive, and
+its pending strategy adapters now have functional simulated-chain tests. Neither
+change certifies readiness or activates execution.
+
 # Spot + Futures preproduction: fixed closure scope
 
 Updated 26 October 2026. Baseline: main `a5f7c599957f87171c63f359ee016180f7ea4c7b`,

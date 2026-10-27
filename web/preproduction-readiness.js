@@ -22,7 +22,7 @@
         if(!keys(row,['environment','identity','permissions','at'])||row.environment!==['SPOT_LIVE','FUTURES_LIVE'][i]||!['UNKNOWN','REPORTED'].includes(row.identity)||!['UNKNOWN','VERIFIED'].includes(row.permissions)||!nullableTime(row.at,value.at))return false;
         if(row.permissions==='VERIFIED'&&(row.identity!=='REPORTED'||row.at===null))return false;
       }
-      if(c.state==='READ_ONLY_VERIFIED'&&(c.at===null||c.scopes.some(row=>row.identity!=='REPORTED'||row.at===null)))return false;
+      if(c.state==='READ_ONLY_VERIFIED'&&(c.at===null||c.scopes.some(row=>row.identity!=='REPORTED'||row.permissions!=='VERIFIED'||row.at===null)))return false;
       if(c.state==='NOT_CONFIGURED'&&(c.at!==null||c.scopes.some(row=>row.at!==null||row.identity!=='UNKNOWN'||row.permissions!=='UNKNOWN')))return false;
       const cohort=value.cohort;
       if(!keys(cohort,['state','scopes'])||!['NOT_REGISTERED','OBSERVING','PARTIAL','UNAVAILABLE'].includes(cohort.state)||!Array.isArray(cohort.scopes)||cohort.scopes.length>4)return false;

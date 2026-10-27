@@ -1,3 +1,18 @@
+## 27 octubre 2026 — candidata 0.10.56; base 0.10.55 verificada
+
+Main `d78b7ee882236bfbdac14047662abe9ad7154e03`, [PR132](https://github.com/jlboper/Crypto-BOT/pull/132),
+[publicación40400621712](https://github.com/jlboper/Crypto-BOT/actions/runs/40400621712)
+y seguridad40400621700 SUCCESS Linux/Windows. Base55 firmada e instalada294/294.
+56 añade enlace opcional de identidades/permisos GET, invalidación y caducidad de
+evidencia de claves, ingesta financiera segregada, productor de señales nativas
+y adaptador al coordinador, y preparación de política exclusivamente inactiva.
+Ver [validación y límites56](PREPRODUCTION_VALIDATION_56.md). No confundir pruebas
+con Binance simulado con una integración LIVE comisionada. El guard del motor
+sigue bloqueando LIVE antes de crear wallet. No cambia Testnet, riesgo, stops,
+IA individual ni datos financieros. GuardianL0; Pulse/Quant SHADOW. Aprobación del
+borrador numérico no equivale a activación. CI/firma/instalación56 requieren
+resultados propios; las secciones siguientes son historia fechada.
+
 ## 26 octubre2026 — integridad de entrada y diagnóstico sin autoridad
 
 La entrada oculta puede recibir un pegado repetido sin que el propietario lo vea.
