@@ -1,3 +1,21 @@
+## 0.10.57 — captura, evidencia y recuperación
+
+Revisión explícita de evidencia Spot/Futures sin modificar los ledgers:
+`python scripts/review_preproduction_evidence.py --data-dir <directorio>`.
+Conserva actividad e historia, separa resultados registrados de P&L neto
+conciliado y comprueba la cadena prospectiva. No certifica30d por uptime ni
+activa el borrador100USDT. Ver [alcance y validación57](PREPRODUCTION_VALIDATION_57.md).
+Las notas siguientes conservan sus fechas; preparar código no prueba instalación.
+
+Captura GET segregada en un único worker, originales cifrados, historial Earn
+explícito y cobertura financiera reconstruida desde journals/anclas de cuenta.
+La captura operativa Testnet/Demo conserva gaps concretos y no declara días
+financieros cuando faltan fuentes integrales. La recuperación persiste intents
+exactos antes del envío y concilia fills propios, comisiones y cobertura nativa
+antes de reducir exposición o liberar una reserva. Se corrige también el uso de
+precios medios Futures redondeados y el contrato opcional del diagnóstico Pulse.
+La evaluación estadística y la activación real mantienen sus puertas separadas.
+
 ## 27 octubre 2026 — candidata 0.10.56; base 0.10.55 verificada
 
 Main `d78b7ee882236bfbdac14047662abe9ad7154e03`, [PR132](https://github.com/jlboper/Crypto-BOT/pull/132),

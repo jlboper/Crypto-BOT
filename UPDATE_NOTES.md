@@ -1,3 +1,26 @@
+## 0.10.57 — captura original y recuperación verificable
+
+- Captura financiera GET reanudable y cifrada, historial Earn explícito y parser
+  de activos observados CJK, sin ampliar símbolos de órdenes ni mapear LD a USDT.
+- Un único worker cooperativo comparte presupuesto entre fuentes LIVE de lectura
+  y Testnet/Demo, después del registro vigente de cohortes. Fuentes acotadas y
+  falta de cortes exactos se conservan como gaps, sin cualificación inventada.
+- Estado/revisión enlazan originales encadenados con binding y ancla del journal
+  financiero. Sólo cobertura financiera reconstruida puede contar días continuos;
+  las métricas operacionales y la historia se conservan por separado.
+- Intents completos durables antes de POST; recuperación por GET sin reenvío.
+  Mitigación residual y liberación exigen fills/fees propios, cobertura nativa,
+  exposición actual y conciliación de órdenes hermanas. Incertidumbre conserva
+  las reservas y la pausa de recuperación.
+- Diagnóstico Spot conserva causas/códigos seguros. Futures deriva precio medio
+  de quote/cantidad confirmados antes de usar avgPrice redondeado; sólo afecta
+  cálculos futuros, con historial y tolerancias intactos.
+- Pulse separa densidad de mercado de conexión/frescura, conserva los umbrales y
+  mantiene compatibilidad del contrato compartido con el Worker.
+
+LIVE sigue sin comisionar; no se emiten permisos de activación, se mueven fondos
+ni se cambian límites. Pruebas, CI, firma e instalación requieren evidencia propia.
+
 Validación local final27Oct2026: **1573/1573 Python offline PASS**, cero fallos,
 errores u omisiones; fuentes inalteradas durante ejecución, red externa bloqueada.
 **294/294 Node PASS**; Windows5.1 lifecycle, entrada protegida y vista/render

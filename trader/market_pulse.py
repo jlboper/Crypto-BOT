@@ -123,19 +123,26 @@ def _set(db: sqlite3.Connection, key: str, value: object) -> None:
 
 
 class MarketWindow:
-    """At most 601 one-second buckets, regardless of trade arrival rate."""
+    """At most 608 one-second buckets, including accepted provider clock lead."""
     def __init__(self, symbol: str, config: PulseConfig) -> None:
         self.symbol, self.config = symbol, config
-        self.buckets: deque[list[float]] = deque(maxlen=601)
+        self.buckets: deque[list[float]] = deque(maxlen=608)
         self.last_id: int | None = None
         self.last_trade_at: float | None = None
         self.last_received_at: float | None = None
         self.gap_at: float | None = None
+        self.first_received_at: float | None = None
+        self.gap_reason: str | None = None
+        self.gap_count = 0
         self.book_at: float | None = None
         self.bid = self.ask = self.depth_quote = self.imbalance = None
         self.bid_quote = self.ask_quote = None
         self.depths: deque[tuple[float, float]] = deque(maxlen=61)
         self.latency_ms = None
+
+    def mark_gap(self, now: float, reason: str) -> None:
+        self.gap_at, self.gap_reason = now, reason
+        self.gap_count += 1
 
     def trade(self, data: dict, received_at: float) -> bool:
         trade_id = int(data["a"])
@@ -145,16 +152,18 @@ class MarketWindow:
         if traded_at > received_at + 5 or emitted_at > received_at + 5:
             raise ValueError("Future market event rejected")
         if received_at - traded_at > self.config.stale_seconds:
-            self.gap_at = received_at
+            self.mark_gap(received_at, 'STALE_TRADE')
             return False
         if self.last_id is not None and trade_id <= self.last_id:
             return False
         if self.last_trade_at is not None and traded_at < self.last_trade_at:
-            self.gap_at = received_at
+            self.mark_gap(received_at, 'TRADE_TIME_REGRESSION')
             return False
         if self.last_id is not None and trade_id != self.last_id + 1:
-            self.gap_at = received_at
+            self.mark_gap(received_at, 'TRADE_ID_GAP')
         self.last_id, self.last_trade_at, self.last_received_at = trade_id, traded_at, received_at
+        if self.first_received_at is None:
+            self.first_received_at = received_at
         self.latency_ms = max(0, (received_at - emitted_at) * 1000)
         second, quote = int(traded_at), price * quantity
         if self.buckets and self.buckets[-1][0] == second:
@@ -163,7 +172,9 @@ class MarketWindow:
             bucket[4], bucket[5] = min(bucket[4], price), max(bucket[5], price)
         else:
             self.buckets.append([second, price, price, quote, price, price])
-        while self.buckets and self.buckets[0][0] < second - self.config.windows_seconds[1] - 2:
+        # Ingestion admits up to five seconds of provider lead. Preserve its
+        # anchor too; metrics still excludes all provider buckets after now.
+        while self.buckets and self.buckets[0][0] < second - self.config.windows_seconds[1] - 7:
             self.buckets.popleft()
         return True
 
@@ -195,6 +206,10 @@ class MarketWindow:
         self.bid, self.ask, self.depth_quote = bids[0][0], asks[0][0], bid_value + ask_value
         self.imbalance = (bid_value - ask_value) / self.depth_quote
         self.book_at = received_at
+        # A connected depth stream with no trades must age out of initial
+        # warmup as well; this timestamp never creates a trade or baseline.
+        if self.first_received_at is None:
+            self.first_received_at = received_at
         if not self.depths or int(self.depths[-1][0]) != int(received_at):
             self.depths.append((received_at, self.depth_quote))
 
@@ -208,6 +223,26 @@ class MarketWindow:
         # Liquid initial assets need broad time coverage and no unresolved trade-ID gap.
         complete = bool(rows and rows[0][0] <= now - long and len(rows) >= long * 0.80
                         and (self.gap_at is None or now - self.gap_at > long))
+        elapsed = max(0, now-self.first_received_at) if self.first_received_at is not None else 0
+        gap_age = max(0, now-self.gap_at) if self.gap_at is not None else None
+        reasons = []
+        if not rows or rows[0][0] > now-long:
+            reasons.append('WINDOW_ANCHOR_MISSING')
+        if len(rows) < long*.80:
+            reasons.append('INSUFFICIENT_TRADE_SECONDS')
+        if gap_age is not None and gap_age <= long:
+            reasons.append('UNRESOLVED_DATA_GAP')
+        if not fresh:
+            reasons.append('STALE_TRADE_OR_DEPTH')
+        readiness = {'state': 'READY' if complete and fresh else 'WARMING_UP' if elapsed < long else
+                     'RECOVERING' if gap_age is not None and gap_age <= long else 'DEGRADED',
+            'reasons': reasons, 'occupied_seconds': len(rows), 'required_seconds': math.ceil(long*.80),
+            'window_seconds': long, 'observed_seconds': round(elapsed, 3),
+            'anchor_age_seconds': round(max(0, now-rows[0][0]), 3) if rows else None,
+            'gap_age_seconds': round(gap_age, 3) if gap_age is not None else None,
+            'gap_reason': self.gap_reason, 'gap_count': self.gap_count,
+            'provider_lead_seconds': round(self.last_trade_at-self.last_received_at, 3)
+                if self.last_trade_at is not None and self.last_received_at is not None else None}
         short_rows = [b for b in rows if b[0] > now - short]
         baseline = [b for b in rows if now - long <= b[0] <= now - short]
         def change(seconds: int) -> float | None:
@@ -228,7 +263,7 @@ class MarketWindow:
                 "spread_bps": (self.ask - self.bid) / ((self.ask + self.bid) / 2) * 10000 if self.bid and self.ask else None,
                 "depth_quote": self.depth_quote, "imbalance": self.imbalance,
                 "liquidity_change_pct": (self.depth_quote / depth_old[-1][1] - 1) * 100 if depth_old and self.depth_quote else None,
-                "fresh": fresh, "complete": complete, "at": iso(self.last_received_at)}
+                "fresh": fresh, "complete": complete, "at": iso(self.last_received_at), "readiness": readiness}
 
 
 def score_opportunity(market: dict, btc: dict | None, event: dict | None, *, cost_bps: float = 40) -> dict:
@@ -314,7 +349,7 @@ class MarketPulseService:
         self._owner = uuid.uuid4().hex
         self._health = {"latency_ms": None, "reconnects": 0, "errors": 0, "last_error": None,
                         "ws_messages": 0, "rest_calls": 0, "news_calls": 0, "ai_reviews": 0,
-                        "ai_errors": 0, "buffer_seconds": self.config.windows_seconds[1] + 2,
+                        "ai_errors": 0, "buffer_seconds": self.config.windows_seconds[1] + 7,
                         "uptime_seconds": 0}
         self._sources = {"binance_ws": {"state": "CONNECTING", "last_update": None},
                          "binance_rest": {"state": "STANDBY", "last_update": None},
@@ -422,7 +457,7 @@ class MarketPulseService:
                 self._positions = {row["symbol"]: json.loads(row["data"])
                                    for row in db.execute("SELECT symbol,data FROM pulse_positions")}
                 for window in self.windows.values():
-                    window.gap_at = now
+                    window.mark_gap(now, 'OBSERVER_TAKEOVER')
             _set(db, "lease_owner", self._owner)
             _set(db, "lease_until", now + 20)
         self._lease_valid_until = now + 20
@@ -470,7 +505,7 @@ class MarketPulseService:
                         self._sources["binance_ws"]["state"] = "DISCONNECTED"
                         self._error("PUBLIC_WS_INTERRUPTED")
                         for window in self.windows.values():
-                            window.gap_at = self.clock()
+                            window.mark_gap(self.clock(), 'STREAM_INTERRUPTED')
                         next_connect, backoff = self.clock() + backoff, min(60, backoff * 2)
                 else:
                     if now - self._last_rest >= 30:
@@ -559,7 +594,8 @@ class MarketPulseService:
                         # A bounded recovery page may be too old to catch a busy
                         # market up. Restart at recent public trades, mark the
                         # gap and warm up; never pretend that page was complete.
-                        window.last_id, window.gap_at = None, self.clock()
+                        window.last_id = None
+                        window.mark_gap(self.clock(), 'RECOVERY_PAGE_TOO_OLD')
                 self._sources["binance_rest"]["last_update"] = iso(self.clock())
             except PublicRateLimitError as exc:
                 self._last_rest = self.clock() + exc.retry_after
@@ -990,7 +1026,7 @@ def _empty_snapshot(now: float) -> dict:
                             "benchmark_buy_hold": None},
             "health": {"latency_ms": None, "reconnects": 0, "errors": 0, "last_error": None,
                        "ws_messages": 0, "rest_calls": 0, "news_calls": 0, "ai_reviews": 0,
-                       "ai_errors": 0, "buffer_seconds": 302, "uptime_seconds": 0},
+                       "ai_errors": 0, "buffer_seconds": 307, "uptime_seconds": 0},
             "research": {"state": "FORWARD_ONLY", "hypothesis_version": RULE_VERSION,
                          "promotion_allowed": False, "limitations": list(LIMITATIONS)}}
 
@@ -1030,7 +1066,11 @@ def market_pulse_snapshot(data_dir: Path | str, *, now: float | None = None,
                 result["sources"]["binance_ws"]["state"] = "STALE"
             result["health"] = json.loads(_meta(db, "health", _json(result["health"])))
             paused = bool(_meta(db, "paused") or marker.exists())
-            result["state"] = "PAUSED" if paused else "DEGRADED" if stale else "WARMING_UP" if not result["market"] or not all(m["complete"] for m in result["market"]) else "SHADOW" if all(m["fresh"] for m in result["market"]) else "DEGRADED"
+            incomplete = [m for m in result['market'] if not m['complete']]
+            initial_warmup = bool(incomplete) and all(m.get('readiness', {}).get('state') == 'WARMING_UP' for m in incomplete)
+            result['state'] = ('PAUSED' if paused else 'DEGRADED' if stale else 'WARMING_UP'
+                if not result['market'] or initial_warmup else 'DEGRADED'
+                if incomplete or not all(m['fresh'] for m in result['market']) else 'SHADOW')
             event_count = int(_meta(db, "events_analyzed", "0"))
             result["stats"] = {key: int(_meta(db, key, "0")) for key in ("decisions", "opportunities", "accepted", "rejected")}
             event_rows = [json.loads(row[0]) for row in db.execute("SELECT data FROM pulse_events ORDER BY received DESC LIMIT 10")]

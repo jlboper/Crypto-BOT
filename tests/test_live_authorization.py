@@ -151,5 +151,18 @@ class LiveAuthorizationTests(unittest.TestCase):
         oversized=replace(intent,fields=tuple((k,"0.002" if k=="quantity" else v) for k,v in intent.fields))
         with self.assertRaises(AuthorizationError): self.provider.protective_grant(oversized,position,now=self.now)
 
+    def test_partial_entry_cancel_cannot_cancel_native_stop_with_exposure(self):
+        self.write_fixture()
+        position=ConfirmedPosition("TICKET_1",self.scope,"BTCUSDT","LONG","0.001","100000","0.001","100",
+            self.now,"d"*64,False,"owned-entry-1")
+        cancel=LiveOrderIntent("SPOT_LIVE","CANCEL","DELETE","/api/v3/order",
+            (("symbol","BTCUSDT"),("origClientOrderId","owned-entry-1")),"owned-entry-1",
+            self.policy.fingerprint,int(self.now*1000)+20000)
+        grant=self.provider.protective_grant(cancel,position,now=self.now)
+        self.assertTrue(self.provider.verify_protective_grant(grant,cancel,position,now=self.now))
+        wrong=replace(cancel,client_id="native-stop",fields=(("symbol","BTCUSDT"),("origClientOrderId","native-stop")))
+        with self.assertRaises(AuthorizationError):self.provider.protective_grant(wrong,position,now=self.now)
+        with self.assertRaises(AuthorizationError):self.provider.protective_grant(cancel,replace(position,entry_client_id=None),now=self.now)
+
 
 if __name__=="__main__": unittest.main()

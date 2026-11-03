@@ -12,7 +12,11 @@ class TechnicalEvidenceTests(unittest.TestCase):
         names = {"trader/"+name for group in SOURCE_REQUIREMENTS.values() for name in group}
         names.update({'trader/engine.py', 'trader/preproduction_runtime.py', 'trader/live_authorization.py',
                       'tests/test_central_admission.py', 'tests/test_live_execution_runtime.py',
-                      'tests/test_preproduction_runtime.py', 'tests/test_preproduction_status.py'})
+                      'tests/test_preproduction_runtime.py', 'tests/test_preproduction_status.py',
+                      'tests/test_evidence_review.py', 'tests/test_financial_capture.py',
+                      'tests/test_financial_capture_runtime.py', 'tests/test_live_supervisor.py',
+                      'tests/test_live_venue.py', 'tests/test_live_recovery.py',
+                      'tests/test_testnet_financial_capture.py'})
         hashes = {}
         for name in names:
             path = root/name; path.parent.mkdir(parents=True, exist_ok=True)

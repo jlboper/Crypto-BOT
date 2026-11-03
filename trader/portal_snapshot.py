@@ -26,7 +26,7 @@ def public_text(value):
 
 PULSE_MARKET_FIELDS = frozenset(('symbol', 'price', 'change_1m_pct', 'change_5m_pct',
     'relative_volume', 'anomaly_z', 'momentum', 'acceleration', 'volatility_pct',
-    'spread_bps', 'depth_quote', 'imbalance', 'liquidity_change_pct', 'fresh', 'complete', 'at'))
+    'spread_bps', 'depth_quote', 'imbalance', 'liquidity_change_pct', 'fresh', 'complete', 'at', 'readiness'))
 PULSE_EVENT_FIELDS = frozenset(('id', 'published_at', 'received_at', 'symbol', 'source', 'url',
     'title', 'impact', 'credibility', 'kind', 'decision', 'reason', 'market_reaction_pct'))
 PULSE_DECISION_FIELDS = frozenset(('id', 'at', 'symbol', 'score', 'confidence', 'action',
@@ -62,6 +62,45 @@ def _pulse_public_value(value, depth=0):
     if isinstance(value, dict):
         return {str(key): _pulse_public_value(item, depth + 1) for key, item in value.items()}
     raise ValueError('Invalid Market Pulse value')
+
+
+PULSE_READINESS_FIELDS = frozenset(('state', 'reasons', 'occupied_seconds', 'required_seconds',
+    'window_seconds', 'observed_seconds', 'anchor_age_seconds', 'gap_age_seconds',
+    'gap_reason', 'gap_count', 'provider_lead_seconds'))
+PULSE_READINESS_REASONS = frozenset(('WINDOW_ANCHOR_MISSING', 'INSUFFICIENT_TRADE_SECONDS',
+    'UNRESOLVED_DATA_GAP', 'STALE_TRADE_OR_DEPTH'))
+PULSE_GAP_REASONS = frozenset(('STALE_TRADE', 'TRADE_TIME_REGRESSION', 'TRADE_ID_GAP',
+    'OBSERVER_TAKEOVER', 'STREAM_INTERRUPTED', 'RECOVERY_PAGE_TOO_OLD'))
+
+
+def _pulse_readiness(value):
+    """Only bounded public diagnostics; nested producer keys are not exported."""
+    if type(value) is not dict:
+        raise ValueError('Invalid Pulse readiness')
+    result = {key: value[key] for key in PULSE_READINESS_FIELDS if key in value}
+    if result.get('state') not in {'READY', 'WARMING_UP', 'RECOVERING', 'DEGRADED'}:
+        raise ValueError('Invalid Pulse readiness state')
+    reasons = result.get('reasons')
+    if (type(reasons) is not list or len(reasons) > 4
+            or any(type(reason) is not str or reason not in PULSE_READINESS_REASONS for reason in reasons)
+            or len(set(reasons)) != len(reasons)):
+        raise ValueError('Invalid Pulse readiness reasons')
+    if result.get('gap_reason') is not None and result['gap_reason'] not in PULSE_GAP_REASONS:
+        raise ValueError('Invalid Pulse gap reason')
+    limits = {'occupied_seconds': (0, 603), 'required_seconds': (1, 480),
+        'window_seconds': (15, 600), 'observed_seconds': (0, 1e12),
+        'anchor_age_seconds': (0, 602), 'gap_age_seconds': (0, 1e12),
+        'gap_count': (0, 1e12), 'provider_lead_seconds': (-30, 5)}
+    integers = {'occupied_seconds', 'required_seconds', 'window_seconds', 'gap_count'}
+    nullable = {'anchor_age_seconds', 'gap_age_seconds', 'provider_lead_seconds'}
+    for key, (minimum, maximum) in limits.items():
+        if key not in result or result[key] is None and key in nullable:
+            continue
+        item = result[key]
+        if (type(item) not in (int, float) or not math.isfinite(item)
+                or key in integers and type(item) is not int or not minimum <= item <= maximum):
+            raise ValueError('Invalid Pulse readiness number')
+    return result
 
 
 def _pulse_source_url(value):
@@ -123,7 +162,8 @@ def market_pulse_projection(config):
         def pick(value, fields):
             if not isinstance(value, dict):
                 raise ValueError('Invalid Market Pulse object')
-            return {key: _pulse_public_value(value[key]) for key in fields if key in value}
+            return {key: _pulse_readiness(value[key]) if key == 'readiness' else _pulse_public_value(value[key])
+                    for key in fields if key in value}
         result['freshness'] = pick(raw.get('freshness', {}), ('state', 'age_seconds'))
         result['sources'] = {key: pick(raw['sources'][key], ('state', 'last_update')) for key in
             ('binance_ws', 'binance_rest', 'news') if key in raw.get('sources', {})}
@@ -146,7 +186,7 @@ def market_pulse_projection(config):
             for row in rows[:count]:
                 if not isinstance(row, dict):
                     raise ValueError('Invalid Market Pulse row')
-                projected = {field: _pulse_public_value(row[field]) for field in fields
+                projected = {field: _pulse_readiness(row[field]) if field == 'readiness' else _pulse_public_value(row[field]) for field in fields
                              if field in row and field not in {'url', 'evidence'}}
                 if key == 'events':
                     projected['url'] = _pulse_source_url(row.get('url'))

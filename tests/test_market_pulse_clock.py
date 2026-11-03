@@ -18,6 +18,62 @@ def depth():
 
 
 class PulseClockTests(unittest.TestCase):
+    def test_entire_accepted_provider_lead_preserves_anchor_without_future_prices(self):
+        for lead in (3, 4, 5):
+            with self.subTest(lead=lead):
+                window = MarketWindow('BTCUSDT', PulseConfig())
+                for index in range(311):
+                    received = NOW-310+index
+                    window.trade(trade(index+1, received+lead, 900 if received > NOW-lead else 100), received)
+                window.depth(depth(), NOW)
+                metrics = window.metrics(NOW)
+                self.assertTrue(metrics['fresh'])
+                self.assertTrue(metrics['complete'])
+                self.assertEqual(metrics['price'], 100)
+                self.assertEqual(window.buckets[-1][2], 900)
+                self.assertIsNotNone(metrics['change_5m_pct'])
+                self.assertEqual(metrics['readiness']['state'], 'READY')
+
+    def test_sparse_window_is_diagnosed_after_warmup_without_relaxing_density(self):
+        window = MarketWindow('BTCUSDT', PulseConfig())
+        for index in range(311):
+            received = NOW-620+index*2
+            window.trade(trade(index+1, received), received)
+        window.depth(depth(), NOW)
+        value = window.metrics(NOW)
+        self.assertTrue(value['fresh'])
+        self.assertFalse(value['complete'])
+        self.assertEqual(value['readiness']['state'], 'DEGRADED')
+        self.assertIn('INSUFFICIENT_TRADE_SECONDS', value['readiness']['reasons'])
+
+    def test_gap_recovery_and_initial_warmup_are_distinct(self):
+        window = MarketWindow('BTCUSDT', PulseConfig())
+        for index in range(311):
+            received = NOW-310+index
+            window.trade(trade(index+1+index//100, received), received)
+        window.depth(depth(), NOW)
+        value = window.metrics(NOW)
+        self.assertFalse(value['complete'])
+        self.assertEqual(value['readiness']['state'], 'RECOVERING')
+        self.assertEqual(value['readiness']['gap_reason'], 'TRADE_ID_GAP')
+        self.assertEqual(value['readiness']['gap_count'], 3)
+        initial = MarketWindow('ETHUSDT', PulseConfig())
+        initial.trade(trade(1, NOW-20), NOW-20)
+        initial.depth(depth(), NOW)
+        self.assertEqual(initial.metrics(NOW)['readiness']['state'], 'WARMING_UP')
+
+    def test_depth_without_trades_cannot_report_initial_warmup_forever(self):
+        window = MarketWindow('BTCUSDT', PulseConfig())
+        window.depth(depth(), NOW-301)
+        window.depth(depth(), NOW)
+        value = window.metrics(NOW)
+        self.assertFalse(value['fresh'])
+        self.assertFalse(value['complete'])
+        self.assertIsNone(value['price'])
+        self.assertEqual(value['readiness']['state'], 'DEGRADED')
+        self.assertIn('INSUFFICIENT_TRADE_SECONDS', value['readiness']['reasons'])
+        self.assertEqual(value['readiness']['occupied_seconds'], 0)
+
     def test_received_two_second_provider_lead_is_fresh_without_future_buckets(self):
         window = MarketWindow("BTCUSDT", PulseConfig())
         for index in range(311):

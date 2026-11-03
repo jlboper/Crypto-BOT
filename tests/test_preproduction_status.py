@@ -85,26 +85,42 @@ class PreproductionStatusTests(unittest.TestCase):
         self.assertEqual(store.path.read_bytes(), before)
 
     def test_complete_spot_futures_do_not_require_shadow_qualification_or_grant_authority(self):
-        from trader.operational_cohort import iso
-        def scope(engine, environment, qualified):
-            return {"active": True, "engine": engine, "environment": environment,
-                "registered_at": iso(START), "starts_at": iso(START), "last_capture_at": iso(START),
-                "source_at": iso(START), "source_complete": True, "stale": False,
-                "operational_coverage_days": 30, "qualified_days": qualified,
-                "operational_missing_windows": 0}
-        rows = [scope("SPOT", "SPOT_TESTNET", 30), scope("FUTURES", "FUTURES_DEMO", 30),
-                scope("AI_MARKET_PULSE", "SHADOW", None), scope("QUANT_ARBITRAGE", "SHADOW", None)]
-        with patch("trader.preproduction_status.OperationalCohortStore.snapshot", return_value={"state":"OBSERVING", "scopes":rows}):
-            value = read_preproduction_status(self.root, "0.10.54", now=START)
+        from tests.test_evidence_review import EvidenceReviewTests, NOW
+        from trader.evidence_review import read_verified_cohort_snapshot
+        for engine in ('SPOT', 'FUTURES'):
+            EvidenceReviewTests.financial_scope(self, engine, days=30)
+        store = OperationalCohortStore(self.root/'operational-cohorts.sqlite3')
+        for engine in ('AI_MARKET_PULSE', 'QUANT_ARBITRAGE'):
+            store.register(engine, 'SHADOW', FINGERPRINTS, now=NOW)
+        value = read_preproduction_status(self.root, "0.10.54", now=NOW)
         self.assertNotIn("FORWARD_COHORT_INCOMPLETE", value["blockers"])
         self.assertIn("OWNER_ACTIVATION_REQUIRED", value["blockers"])
         self.assertIn("ACCOUNT_RECONCILIATION_INCOMPLETE", value["blockers"])
         self.assertFalse(value["execution_enabled"])
-        for incomplete in (rows[1:], rows[:1], [rows[0], {**rows[1], "qualified_days":29}, *rows[2:]],
-                           [rows[0], {**rows[1], "qualified_days":None}, *rows[2:]]):
-            with patch("trader.preproduction_status.OperationalCohortStore.snapshot", return_value={"state":"OBSERVING", "scopes":incomplete}):
-                value = read_preproduction_status(self.root, "0.10.54", now=START)
+        rows = read_verified_cohort_snapshot(self.root, now=NOW)['scopes']
+        for incomplete in (rows[1:], rows[:1], [rows[0], {**rows[1], "financial_continuous_qualified_days":29}, *rows[2:]],
+                           [rows[0], {**rows[1], "financial_continuous_qualified_days":None}, *rows[2:]],
+                           [rows[0], {**rows[1], "stale":True}, *rows[2:]]):
+            with patch("trader.preproduction_status.read_verified_cohort_snapshot", return_value={"state":"OBSERVING", "scopes":incomplete}):
+                value = read_preproduction_status(self.root, "0.10.54", now=NOW)
             self.assertIn("FORWARD_COHORT_INCOMPLETE", value["blockers"])
+
+    def test_cached_operational_day_claim_cannot_qualify_without_original_sources(self):
+        from trader.operational_cohort import iso
+        fake = {'active':True, 'engine':'SPOT', 'environment':'SPOT_TESTNET', 'registered_at':iso(START),
+            'starts_at':iso(START), 'last_capture_at':iso(START), 'source_at':iso(START), 'source_complete':True,
+            'stale':False, 'operational_coverage_days':30, 'qualified_days':30, 'operational_missing_windows':0}
+        with patch('trader.operational_cohort.OperationalCohortStore.snapshot', return_value={'state':'OBSERVING', 'scopes':[fake]}):
+            value = read_preproduction_status(self.root, '0.10.54', now=START)
+        self.assertIn('FORWARD_COHORT_INCOMPLETE', value['blockers'])
+        self.assertFalse(value['owner_authorization'])
+
+    def test_unavailable_or_expired_replay_stays_unavailable_without_appearing_reset(self):
+        with patch('trader.preproduction_status.read_verified_cohort_snapshot', return_value={'state':'UNAVAILABLE', 'scopes':[]}):
+            value = read_preproduction_status(self.root, '0.10.54', now=START)
+        self.assertEqual(value['cohort']['state'], 'UNAVAILABLE')
+        self.assertEqual(value['cohort']['scopes'], [])
+        self.assertIn('FORWARD_COHORT_INCOMPLETE', value['blockers'])
 
     def technical(self):
         source = self.root/"code"

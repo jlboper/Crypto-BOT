@@ -272,7 +272,7 @@ class NativeStrategyAdapterTests(unittest.TestCase):
     def test_partial_fill_protects_only_confirmed_quantity_and_retains_full_capital(self):
         bundle=self.prepare();self.store.save(bundle);coordinator,venue=self.coordinator(bundle);venue.status='PARTIALLY_FILLED'
         result=bundle.execute(coordinator,facts(self.scope),plan_store=self.store,event_id='PARTIAL')
-        self.assertEqual(result['state'],'PARTIAL');self.assertEqual(result['position'].quantity,'0.5')
+        self.assertEqual(result['state'],'OPEN');self.assertEqual(result['position'].quantity,'0.5')
         self.assertEqual({x['quantity'] for x in venue.algos.values()},{'0.5'})
         self.assertEqual(coordinator.admission.snapshot()['reserved_units'],100450000)
 

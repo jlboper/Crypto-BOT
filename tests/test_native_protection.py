@@ -235,7 +235,10 @@ class FuturesNativeTests(unittest.TestCase):
         record = self.engine.native.records()["BTCUSDT"]
         self.assertEqual(record["legs"][0]["state"], "REJECTED")
         self.engine.native.reconcile_all()  # no query of an explicitly rejected id
-        with patch.object(self.engine.lab, "forward_submit", return_value={"avgPrice": "94"}) as submit, \
+        fill = {"symbol": "BTCUSDT", "clientOrderId": "synthetic-local-protective-close",
+                "orderId": 901, "side": "SELL", "status": "FILLED", "avgPrice": "94",
+                "executedQty": "0.1", "cumQuote": "9.4"}
+        with patch.object(self.engine.lab, "forward_submit", return_value=fill) as submit, \
              patch.object(self.engine, "_actual_rows", side_effect=[self.exchange.rows, []]):
             trade = self.engine._close(self.position, "STOP")
         submit.assert_called_once(); self.assertEqual(trade["exit_reason"], "STOP")

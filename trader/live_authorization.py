@@ -375,8 +375,11 @@ class LocalAuthorizationProvider:
         try:
             held=Decimal(position.quantity)
             if intent.purpose=="CANCEL":
-                if (not held.is_finite() or held!=0
+                if (not held.is_finite() or held<0
                         or "symbol" in fields and fields["symbol"]!=position.symbol): raise ValueError()
+                if held>0 and (intent.endpoint not in {"/api/v3/order","/fapi/v1/order"}
+                        or not getattr(position,"entry_client_id",None)
+                        or fields.get("origClientOrderId")!=position.entry_client_id): raise ValueError()
                 return review,row
             quantity=Decimal(fields["quantity"])
             if (not quantity.is_finite() or not held.is_finite() or not 0<quantity<=held

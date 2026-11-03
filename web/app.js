@@ -921,6 +921,15 @@ const PulsePortal = (() => {
   const metrics=values=>values.map(([key,value])=>`<div><dt>${esc(key)}</dt><dd>${esc(value)}</dd></div>`).join('');
   const safeUrl=value=>{try{const url=new URL(value);return url.protocol==='https:'&&!url.username&&!url.password?url.href:null;}catch{return null;}};
   const ordered=value=>rows(value).sort((a,b)=>(Date.parse(b.received_at||b.at)||0)-(Date.parse(a.received_at||a.at)||0));
+  const readinessNote=m=>{
+    const r=m.readiness;if(!r||typeof r!=='object')return m.complete===true?'Ventana completa en el corte observado.':'Completitud limitada; diagnóstico detallado no conservado.';
+    const names={READY:'Ventana completa',WARMING_UP:'Ventana inicial',RECOVERING:'Recopilando tras discontinuidad',DEGRADED:'Cobertura limitada'};
+    const reasons={WINDOW_ANCHOR_MISSING:'falta ancla de la ventana',INSUFFICIENT_TRADE_SECONDS:'pocos segundos con operaciones',UNRESOLVED_DATA_GAP:'discontinuidad pendiente',STALE_TRADE_OR_DEPTH:'operaciones o profundidad antiguas'};
+    const coverage=finite(r.occupied_seconds)&&finite(r.required_seconds)&&finite(r.window_seconds)?` · ${n(r.occupied_seconds,0)}/${n(r.required_seconds,0)} segundos con operaciones requeridos en ${n(r.window_seconds,0)} s`:'';
+    const why=Array.isArray(r.reasons)?r.reasons.slice(0,4).map(code=>Object.hasOwn(reasons,code)?reasons[code]:'diagnóstico sin confirmar').join(' · '):'';
+    return `${Object.hasOwn(names,r.state)?names[r.state]:'Completitud sin confirmar'}${coverage}${why?' · '+why:''}.`;
+  };
+
   function opportunity(row,decision=false){
     const favorable=Array.isArray(row.favorable)?row.favorable.slice(0,8):[];
     const risks=Array.isArray(row.risks)?row.risks.slice(0,8):[];
@@ -947,7 +956,9 @@ const PulsePortal = (() => {
     state('summaryPulseState',pulseState,stale||p.state==='DEGRADED');
     set('pulseFreshness',freshness+(finite(dataAge)?` · ${n(dataAge,0)} s`:''));
     set('pulseHealthState',freshness);
-    set('pulseStatusNote',available?`${pulseState} · ${freshness.toLowerCase()} · última evaluación ${time(p.updated_at)}. ${projectionStale?'La proyección no es reciente; no demuestra que el motor se haya detenido. ':''}Ledger SHADOW independiente, sin órdenes al exchange. La falta de oportunidades puede ser una observación normal.`:'Market Pulse todavía no ha sincronizado un estado compatible. Spot y Futures conservan su operación; no se infiere un fallo por ausencia de datos.');
+    const marketRows=rows(p.market,10),readyWindows=marketRows.filter(m=>m.complete===true&&m.fresh===true).length;
+    const windowNote=marketRows.length?`${stale?'Última cobertura':'Ventanas'}: ${readyWindows}/${marketRows.length} listas · ${marketRows.length-readyWindows} limitadas. La densidad de operaciones puede limitar señales aunque la fuente esté conectada. `:'';
+    set('pulseStatusNote',available?`${pulseState} · ${freshness.toLowerCase()} · última evaluación ${time(p.updated_at)}. ${projectionStale?'La proyección no es reciente; no demuestra que el motor se haya detenido. ':''}${windowNote}Ledger SHADOW independiente, sin órdenes al exchange. La falta de oportunidades puede ser una observación normal.`:'Market Pulse todavía no ha sincronizado un estado compatible. Spot y Futures conservan su operación; no se infiere un fallo por ausencia de datos.');
     const sourceRows=Object.entries(p.sources||{}).slice(0,5);
     const activeSources=sourceRows.filter(([,s])=>!['STANDBY','DISABLED'].includes(s?.state));
     const sourceReady=s=>['CONNECTED','FRESH','OK','ACTIVE','READY'].includes(s?.state);
@@ -963,7 +974,7 @@ const PulsePortal = (() => {
       if(button&&!window.portalButtonBusy?.(id))button.disabled=!!pendingControl||projectionStale||!available||p.enabled!==true||p.controls_available!==true||!paperControlsAvailable()||(p.state==='PAUSED')!==paused;
     }
     html('pulseMarket',rows(p.market,15).map(m=>`<article class="pulse-market-card"><div class="pulse-item-head"><h4>${esc(m.symbol)}</h4><span class="badge">${m.fresh===true&&!projectionStale&&Number.isFinite(Date.parse(m.at))&&(Date.now()-Date.parse(m.at))/1000<=15?(m.complete===true?'RECIENTE':'MUESTRA PARCIAL'):'ANTIGUO / SIN DATOS'}</span></div><dl>${metrics([
-      ['Precio',n(m.price,6)],['Cambio 1 min / 5 min',`${percent(m.change_1m_pct)} / ${percent(m.change_5m_pct)}`],['Volumen relativo / anomalía z',`${n(m.relative_volume)}× / ${n(m.anomaly_z)}`],['Momentum / aceleración',`${n(m.momentum,4)} / ${n(m.acceleration,4)}`],['Volatilidad realizada',percent(m.volatility_pct)],['Spread / profundidad',`${n(m.spread_bps)} bps / ${cash(m.depth_quote)}`],['Desequilibrio / cambio de liquidez',`${n(m.imbalance,3)} / ${percent(m.liquidity_change_pct)}`],['Observado',time(m.at)]])}</dl></article>`).join('')||empty('Esperando suficientes observaciones de mercado; las ventanas necesitan calentamiento.'));
+      ['Precio',n(m.price,6)],['Cambio 1 min / 5 min',`${percent(m.change_1m_pct)} / ${percent(m.change_5m_pct)}`],['Volumen relativo / anomalía z',`${n(m.relative_volume)}× / ${n(m.anomaly_z)}`],['Momentum / aceleración',`${n(m.momentum,4)} / ${n(m.acceleration,4)}`],['Volatilidad realizada',percent(m.volatility_pct)],['Spread / profundidad',`${n(m.spread_bps)} bps / ${cash(m.depth_quote)}`],['Desequilibrio / cambio de liquidez',`${n(m.imbalance,3)} / ${percent(m.liquidity_change_pct)}`],['Observado',time(m.at)]])}</dl><p class="platform-note">${esc(readinessNote(m))}</p></article>`).join('')||empty('Esperando suficientes observaciones de mercado; las ventanas necesitan calentamiento.'));
     html('pulseNews',ordered(p.events).map(event=>{
       const url=safeUrl(event.url);
       return `<article class="pulse-item"><div class="pulse-item-head"><strong>${esc(event.symbol||'Mercado')} · ${esc(label(event.impact))}</strong><span class="badge">${esc(label(event.kind))}</span></div><h4>${esc(event.title||'Evento sin título')}</h4><p>${url?`<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(event.source||new URL(url).hostname)} ↗</a>`:esc(event.source||'Fuente pendiente de verificación')} · credibilidad ${esc(finite(event.credibility)?percent(event.credibility*100):'—')}</p><dl class="pulse-times">${metrics([['Publicado',time(event.published_at)],['Recibido',time(event.received_at)],['Reacción observada',percent(event.market_reaction_pct)]])}</dl><p><strong>${esc(event.decision||'DECISIÓN PENDIENTE')}</strong> · ${esc(event.reason||'Pendiente de confirmación independiente')}</p></article>`;

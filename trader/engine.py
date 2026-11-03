@@ -276,7 +276,10 @@ class TradingEngine:
             diagnostic["error_code"] = failure["code"] if failure["code"] in SPOT_CYCLE_ERRORS else "UNEXPECTED_ERROR"
             self._spot_cycle_reason(diagnostic, "CYCLE_ERROR")
             self._record_spot_cycle(diagnostic, "ERROR")
-            self.db.event("ERROR", f"Cycle failed [{failure['code']}]: {failure['label']}")
+            detail = f" · {failure['reason_code']}" if "reason_code" in failure else ""
+            if failure.get("exchange_code") is not None:
+                detail += f" · Binance {failure['exchange_code']}"
+            self.db.event("ERROR", f"Cycle failed [{failure['code']}]: {failure['label']}{detail}")
             if self._errors >= self.config.risk.max_consecutive_errors and not self.killed():
                 self.config.bot.kill_switch_path.parent.mkdir(parents=True, exist_ok=True)
                 self.config.bot.kill_switch_path.write_text("automatic halt after consecutive errors\n", encoding="utf-8")
@@ -329,7 +332,7 @@ class TradingEngine:
             return False
 
     @staticmethod
-    def _spot_failure_projection(exc: Exception) -> dict[str, str]:
+    def _spot_failure_projection(exc: Exception) -> dict:
         """Return a bounded, non-secret diagnostic suitable for the portal and persistent event log."""
         known = {
             "Spot Testnet order awaiting reconciliation": ("ORDER_RECONCILIATION_PENDING", "orden Spot pendiente de conciliación"),
@@ -343,7 +346,35 @@ class TradingEngine:
             code, label = known[str(exc)]
             return {"code": code, "label": label, "type": type(exc).__name__}
         if isinstance(exc, TestnetExecutionError):
-            return {"code": "TESTNET_EXECUTION_ERROR", "label": "fallo de ejecución o conciliación Spot Testnet", "type": type(exc).__name__}
+            # Keep exchange diagnostics without retaining arbitrary response text,
+            # URLs, request signatures or credentials in the portal/event log.
+            exchange_code = exc.code if type(exc.code) is int and -999999 <= exc.code < 0 else None
+            uncertain = exc.uncertain is True
+            reason = {
+                -1003: "EXCHANGE_RATE_LIMIT",
+                -1006: "EXCHANGE_RESPONSE_UNCERTAIN",
+                -1007: "EXCHANGE_RESPONSE_UNCERTAIN",
+                -1013: "EXCHANGE_FILTER_REJECTION",
+                -1021: "EXCHANGE_TIMESTAMP_REJECTION",
+                -1022: "EXCHANGE_SIGNATURE_REJECTION",
+                -2010: "EXCHANGE_ORDER_REJECTION",
+                -2011: "EXCHANGE_CANCEL_REJECTION",
+                -2013: "EXCHANGE_ORDER_NOT_FOUND",
+                -2014: "EXCHANGE_CREDENTIAL_FORMAT",
+                -2015: "EXCHANGE_CREDENTIAL_ACCESS",
+            }.get(exchange_code)
+            if reason is None:
+                reason = {
+                    "Testnet credentials unavailable": "TESTNET_CREDENTIALS_UNAVAILABLE",
+                    "Invalid Testnet response": "TESTNET_INVALID_RESPONSE",
+                    "Invalid Testnet trades response": "TESTNET_INVALID_TRADES_RESPONSE",
+                    "Unified Testnet order identity/status mismatch": "TESTNET_ORDER_IDENTITY_MISMATCH",
+                    "Testnet trade fills unavailable for reconciliation": "TESTNET_FILL_EVIDENCE_UNAVAILABLE",
+                    "Invalid unified Testnet journal": "TESTNET_INVALID_ORDER_JOURNAL",
+                }.get(str(exc), "TESTNET_RESPONSE_UNCERTAIN" if uncertain else "TESTNET_EXECUTION_UNCLASSIFIED")
+            return {"code": "TESTNET_EXECUTION_ERROR", "label": "fallo de ejecución o conciliación Spot Testnet",
+                    "type": type(exc).__name__, "reason_code": reason,
+                    "exchange_code": exchange_code, "uncertain": uncertain}
         if isinstance(exc, ValueError):
             return {"code": "UNEXPECTED_VALUE_ERROR", "label": "validación interna no clasificada", "type": "ValueError"}
         return {
@@ -514,11 +545,15 @@ class TradingEngine:
     def run_forever(self, should_stop=lambda: False) -> None:
         # CLI calls this only after the signed candidate activation barrier.
         # Market Pulse observes in this owned process; it never owns an order client.
+        from .live_supervisor import LiveSupervisionService
+        self._live_supervision = LiveSupervisionService(self.config)
+        self._live_supervision_status = self._live_supervision.cycle()
         pulse = None
         quant = None
         guardian = None
         opportunity_observer = None
         preproduction_observer = None
+        financial_capture = None
         if not should_stop():
             try:
                 from .preproduction_runtime import create_observer, register_observer
@@ -533,6 +568,19 @@ class TradingEngine:
                     except Exception:
                         pass
                 preproduction_observer = None
+        if not should_stop():
+            try:
+                # Register current source/cohort fingerprints before the
+                # segregated GET worker reads their immutable originals.
+                from .financial_capture_runtime import create_capture_worker
+                financial_capture = create_capture_worker(self.config)
+                if financial_capture is not None and not financial_capture.start():
+                    raise RuntimeError('Financial capture worker already active')
+            except Exception as exc:
+                self.db.event('WARN', 'Read-only financial capture unavailable: '+type(exc).__name__)
+                if financial_capture is not None:
+                    financial_capture.stop()
+                financial_capture = None
         if not should_stop() and self.config.guardian_intelligence.enabled:
             try:
                 from .opportunity_observer import register_observer
@@ -586,6 +634,11 @@ class TradingEngine:
         try:
             self._run_supervised_loop(should_stop)
         finally:
+            if financial_capture is not None:
+                try:
+                    financial_capture.stop()
+                except Exception as exc:
+                    self.db.event('WARN', 'Read-only financial capture shutdown: '+type(exc).__name__)
             if preproduction_observer is not None:
                 try:
                     from .preproduction_runtime import unregister_observer

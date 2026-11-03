@@ -603,14 +603,27 @@ class FuturesTestnetLab:
 
     def _execution_price(self, order: dict, symbol: str) -> Decimal:
         """Resolve a filled order price without resubmitting the order."""
-        for candidate in (order,):
-            avg = _decimal(candidate.get("avgPrice", "0"))
-            if avg > 0:
-                return avg
+        def confirmed_price(candidate):
+            if not isinstance(candidate, dict):
+                raise FuturesTestnetExecutionError("Invalid Futures Testnet execution response")
             qty = _decimal(candidate.get("executedQty", "0"))
             quote = _decimal(candidate.get("cumQuote", "0"))
+            if qty < 0 or quote < 0 or qty == 0 and quote > 0:
+                raise FuturesTestnetExecutionError("Invalid Futures Testnet execution totals")
+            # avgPrice can be rounded to the symbol's display precision. The
+            # confirmed quote/quantity preserves fills and reconciles income.
             if qty > 0 and quote > 0:
                 return quote / qty
+            avg = _decimal(candidate.get("avgPrice", "0"))
+            if avg < 0:
+                raise FuturesTestnetExecutionError("Invalid Futures Testnet execution price")
+            if qty > 0 and avg > 0:
+                return avg
+            return None
+
+        price = confirmed_price(order)
+        if price is not None:
+            return price
         client_id = str(order.get("clientOrderId") or "")
         if not client_id:
             raise FuturesTestnetExecutionError("Futures Testnet close missing order identity")
@@ -620,13 +633,9 @@ class FuturesTestnetLab:
         })
         if not isinstance(queried, dict) or queried.get("clientOrderId") != client_id:
             raise FuturesTestnetExecutionError("Futures Testnet order identity mismatch")
-        avg = _decimal(queried.get("avgPrice", "0"))
-        if avg > 0:
-            return avg
-        qty = _decimal(queried.get("executedQty", "0"))
-        quote = _decimal(queried.get("cumQuote", "0"))
-        if qty > 0 and quote > 0:
-            return quote / qty
+        price = confirmed_price(queried)
+        if price is not None:
+            return price
         raise FuturesTestnetExecutionError("Futures Testnet close missing execution price")
 
     def reconcile_pending(self) -> dict | None:

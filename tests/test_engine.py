@@ -169,6 +169,39 @@ class EngineTests(unittest.TestCase):
                 with self.assertRaises(TestnetExecutionError):
                     engine._buy_or_skip_guardrail(signal,.1,'post-fill protection failure')
 
+    def test_spot_exchange_incident_retains_safe_code_in_state_and_event(self):
+        import json
+        from trader.testnet_transport import TestnetExecutionError
+        with tempfile.TemporaryDirectory() as folder:
+            config = load_config()
+            config = replace(config, bot=replace(config.bot, mode='paper',
+                database_path=Path(folder)/'incident.db', kill_switch_path=Path(folder)/'KILL'))
+            engine = TradingEngine(config)
+            error = TestnetExecutionError('secret response and signed URL', code=-1021,
+                api_message='secret exchange body', uncertain=False)
+            with patch.object(engine.exchange, 'top_usdt_symbols', side_effect=error):
+                with self.assertRaises(TestnetExecutionError):
+                    engine.cycle()
+            retained = json.loads(engine.db.setting('spot_last_error'))
+            self.assertEqual(retained['exchange_code'], -1021)
+            self.assertEqual(retained['reason_code'], 'EXCHANGE_TIMESTAMP_REJECTION')
+            self.assertFalse(retained['uncertain'])
+            events = [row['message'] for row in engine.db.recent('events')]
+            self.assertTrue(any('EXCHANGE_TIMESTAMP_REJECTION' in row and 'Binance -1021' in row for row in events))
+            self.assertNotIn('secret', json.dumps([retained, events]))
+
+    def test_spot_uncertain_or_malformed_exchange_code_never_retains_raw_detail(self):
+        import json
+        from trader.testnet_transport import TestnetExecutionError
+        for code in (None, True, 'secret code', -(10**12)):
+            with self.subTest(code=code):
+                projection = TradingEngine._spot_failure_projection(TestnetExecutionError(
+                    'secret response', code=code, api_message='secret body', uncertain=True))
+                self.assertIsNone(projection['exchange_code'])
+                self.assertEqual(projection['reason_code'], 'TESTNET_RESPONSE_UNCERTAIN')
+                self.assertTrue(projection['uncertain'])
+                self.assertNotIn('secret', json.dumps(projection))
+
 
 
 if __name__ == "__main__":

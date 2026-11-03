@@ -9,7 +9,7 @@ authority remain the trust boundary.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from contextlib import contextmanager
 from decimal import Decimal, InvalidOperation
 import hashlib
@@ -32,6 +32,22 @@ HOSTS = {"SPOT_LIVE": "https://api.binance.com", "FUTURES_LIVE": "https://fapi.b
 KEY_METADATA_HOST = "https://api.binance.com"
 KEY_METADATA_PUBLIC = frozenset({"/api/v3/time"})
 KEY_METADATA_SIGNED = frozenset({"/api/v3/account", "/sapi/v1/account/apiRestrictions"})
+KEY_SNAPSHOT_ENDPOINT = "/sapi/v1/accountSnapshot"
+# Separate read capability for explaining retained Earn balances. Never trading,
+# redemption, subscription or automatic-subscribe authority.
+SIMPLE_EARN_READ = frozenset({
+    "/sapi/v1/simple-earn/flexible/position",
+    "/sapi/v1/simple-earn/flexible/history/subscriptionRecord",
+    "/sapi/v1/simple-earn/flexible/history/redemptionRecord",
+    "/sapi/v1/simple-earn/flexible/history/rewardsRecord",
+})
+# All documented universal-transfer directions touching the Spot MAIN wallet.
+# This is a GET-parameter allowlist, never transfer/write authority.
+SPOT_TRANSFER_TYPES = frozenset({
+    "MAIN_UMFUTURE", "UMFUTURE_MAIN", "MAIN_CMFUTURE", "CMFUTURE_MAIN",
+    "MAIN_MARGIN", "MARGIN_MAIN", "MAIN_FUNDING", "FUNDING_MAIN",
+    "MAIN_OPTION", "OPTION_MAIN", "MAIN_PORTFOLIO_MARGIN", "PORTFOLIO_MARGIN_MAIN",
+})
 SYMBOL = re.compile(r"[A-Z0-9]{2,24}USDT\Z", re.ASCII)
 IDENTIFIER = re.compile(r"[A-Za-z0-9_-]{1,36}\Z", re.ASCII)
 AUTH_IDENTIFIER = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,95}\Z", re.ASCII)
@@ -39,8 +55,10 @@ HEX = re.compile(r"[a-f0-9]{64}\Z", re.ASCII)
 MAX_RESPONSE = 2_097_152
 MAX_ERROR_RESPONSE = 4096
 PUBLIC = {
-    "SPOT_LIVE": {"/api/v3/time", "/api/v3/exchangeInfo", "/api/v3/ticker/price", "/sapi/v1/system/status"},
-    "FUTURES_LIVE": {"/fapi/v1/time", "/fapi/v1/exchangeInfo", "/fapi/v2/ticker/price", "/fapi/v1/premiumIndex"},
+    "SPOT_LIVE": {"/api/v3/time", "/api/v3/exchangeInfo", "/api/v3/ticker/price", "/sapi/v1/system/status",
+                  "/api/v3/depth", "/api/v3/avgPrice", "/api/v3/referencePrice", "/api/v3/executionRules"},
+    "FUTURES_LIVE": {"/fapi/v1/time", "/fapi/v1/exchangeInfo", "/fapi/v2/ticker/price", "/fapi/v1/premiumIndex",
+                     "/fapi/v1/depth"},
 }
 SIGNED = {
     "SPOT_LIVE": {"/api/v3/account", "/api/v3/openOrders", "/api/v3/openOrderList", "/api/v3/myTrades",
@@ -50,7 +68,8 @@ SIGNED = {
     "FUTURES_LIVE": {"/fapi/v3/account", "/fapi/v3/balance", "/fapi/v3/positionRisk", "/fapi/v1/accountConfig",
                      "/fapi/v1/symbolConfig", "/fapi/v1/openOrders", "/fapi/v1/openAlgoOrders",
                      "/fapi/v1/order", "/fapi/v1/algoOrder", "/fapi/v1/allOrders", "/fapi/v1/allAlgoOrders",
-                     "/fapi/v1/userTrades", "/fapi/v1/income", "/fapi/v1/commissionRate", "/fapi/v1/leverageBracket"},
+                     "/fapi/v1/userTrades", "/fapi/v1/income", "/fapi/v1/commissionRate", "/fapi/v1/leverageBracket",
+                     "/fapi/v1/positionSide/dual"},
 }
 WRITE = {
     "SPOT_LIVE": {("POST", "/api/v3/order"), ("POST", "/api/v3/orderList/oco"),
@@ -133,12 +152,33 @@ def _read_params(params):
             if value not in {"FUNDING_FEE", "COMMISSION", "TRANSFER", "REALIZED_PNL"}:
                 raise LiveError("LIVE_READ_PARAMETERS_BLOCKED")
         elif key == "type":
-            if value not in {"MAIN_UMFUTURE", "UMFUTURE_MAIN"}:
+            if value not in SPOT_TRANSFER_TYPES:
                 raise LiveError("LIVE_READ_PARAMETERS_BLOCKED")
         elif type(value) is not int or not 0 <= value <= 253402300799000:
             raise LiveError("LIVE_READ_PARAMETERS_BLOCKED")
         elif key in {"limit", "size"} and not 1 <= value <= 1000:
             raise LiveError("LIVE_READ_PARAMETERS_BLOCKED")
+
+
+def _simple_earn_params(endpoint, params, now_ms):
+    history = endpoint != "/sapi/v1/simple-earn/flexible/position"
+    required = {"current", "size"} | ({"startTime", "endTime"} if history else set())
+    if endpoint.endswith("/rewardsRecord"):
+        required.add("type")
+    if (endpoint not in SIMPLE_EARN_READ or type(params) is not dict
+            or not required <= set(params) or set(params)-required-{"asset"}
+            or any(type(params[k]) is not int for k in ("current", "size"))
+            or not 1 <= params["current"] <= 10000 or not 1 <= params["size"] <= 100):
+        raise LiveError("LIVE_EARN_PARAMETERS_BLOCKED")
+    if "asset" in params and (type(params["asset"]) is not str
+            or not re.fullmatch(r"[A-Z0-9]{1,24}", params["asset"], re.ASCII)):
+        raise LiveError("LIVE_EARN_PARAMETERS_BLOCKED")
+    if history and (any(type(params[k]) is not int for k in ("startTime", "endTime"))
+            or not 0 < params["startTime"] < params["endTime"] <= now_ms
+            or params["endTime"]-params["startTime"] > 30*86400000):
+        raise LiveError("LIVE_EARN_PARAMETERS_BLOCKED")
+    if endpoint.endswith("/rewardsRecord") and params["type"] not in {"BONUS", "REALTIME", "REWARDS", "ALL"}:
+        raise LiveError("LIVE_EARN_PARAMETERS_BLOCKED")
 
 
 class LiveReadOnlyTransport:
@@ -175,13 +215,30 @@ class LiveReadOnlyTransport:
         self._samples[cache_key] = (stamp, received)
         return stamp
 
-    def _request(self, scope, method, endpoint, params, *, _write_capability=None, _key_metadata=False):
+    def _request(self, scope, method, endpoint, params, *, _write_capability=None, _key_metadata=False, _simple_earn=False):
         if scope not in HOSTS:
             raise LiveError("LIVE_SCOPE_REQUIRED")
         if type(_key_metadata) is not bool:
             raise LiveError("LIVE_KEY_METADATA_GET_BLOCKED")
-        if _key_metadata:
-            if method != "GET" or endpoint not in KEY_METADATA_PUBLIC | KEY_METADATA_SIGNED or params:
+        if type(_simple_earn) is not bool or _simple_earn and _key_metadata:
+            raise LiveError("LIVE_EARN_GET_BLOCKED")
+        if _simple_earn:
+            if method != "GET" or scope != "SPOT_LIVE" or endpoint not in SIMPLE_EARN_READ:
+                raise LiveError("LIVE_EARN_GET_BLOCKED")
+            _simple_earn_params(endpoint, params, int(self.clock()*1000))
+            public, host = PUBLIC[scope], HOSTS[scope]
+        elif _key_metadata:
+            if method != "GET" or endpoint not in KEY_METADATA_PUBLIC | KEY_METADATA_SIGNED | {KEY_SNAPSHOT_ENDPOINT}:
+                raise LiveError("LIVE_KEY_METADATA_GET_BLOCKED")
+            if endpoint == KEY_SNAPSHOT_ENDPOINT:
+                if (type(params) is not dict or set(params) != {"type", "startTime", "endTime", "limit"}
+                        or params["type"] != ("SPOT" if scope == "SPOT_LIVE" else "FUTURES")
+                        or any(type(params[k]) is not int for k in ("startTime", "endTime", "limit"))
+                        or not 0 < params["startTime"] < params["endTime"] <= int(self.clock()*1000)
+                        or params["endTime"] - params["startTime"] >= 30*86400000
+                        or not 7 <= params["limit"] <= 30):
+                    raise LiveError("LIVE_SNAPSHOT_PARAMETERS_BLOCKED")
+            elif params:
                 raise LiveError("LIVE_KEY_METADATA_GET_BLOCKED")
             public, host = KEY_METADATA_PUBLIC, KEY_METADATA_HOST
         elif method == "GET":
@@ -193,7 +250,7 @@ class LiveReadOnlyTransport:
               or int(self.clock() * 1000) >= _write_capability.expires_utc_ms
               or (method, endpoint) not in WRITE[scope]):
             raise LiveError("LIVE_EXECUTION_LOCKED")
-        if not _key_metadata:
+        if not _key_metadata and not _simple_earn:
             public, host = PUBLIC[scope], HOSTS[scope]
         if scope not in self._credentials or self.calls >= self.max_calls:
             raise LiveError("LIVE_CREDENTIALS_OR_BUDGET_UNAVAILABLE")
@@ -266,6 +323,28 @@ class LiveReadOnlyTransport:
         if origin_scope not in HOSTS or endpoint not in KEY_METADATA_PUBLIC | KEY_METADATA_SIGNED:
             raise LiveError("LIVE_KEY_METADATA_GET_BLOCKED")
         return self._request(origin_scope, "GET", endpoint, {}, _key_metadata=True)
+
+    def get_account_snapshots(self, origin_scope, *, start_utc_ms, end_utc_ms):
+        """Explicit high-weight GET using this key's origin on the wallet host.
+
+        This is deliberately separate from ordinary metadata and background
+        capture. It never substitutes a key or accepts an arbitrary endpoint.
+        The caller retains originals and budgets the documented 2400 IP weight.
+        """
+        if origin_scope not in HOSTS:
+            raise LiveError("LIVE_SCOPE_REQUIRED")
+        return self._request(origin_scope, "GET", KEY_SNAPSHOT_ENDPOINT,
+            {"type": "SPOT" if origin_scope == "SPOT_LIVE" else "FUTURES",
+             "startTime": start_utc_ms, "endTime": end_utc_ms, "limit": 30},
+            _key_metadata=True)
+
+    def get_simple_earn(self, endpoint, fields):
+        """Explicit Spot-key GET-only Earn source, segregated from generic GET.
+
+        Fixed endpoints and bounded fields cannot subscribe, redeem, transfer,
+        change auto-subscribe or use the Futures key as a fallback.
+        """
+        return self._request("SPOT_LIVE", "GET", endpoint, fields, _simple_earn=True)
 
 
 @dataclass(frozen=True)
@@ -419,6 +498,12 @@ class LiveSubmissionJournal:
                 db.execute("CREATE TABLE live_journal_meta (version INTEGER NOT NULL CHECK(version=1))")
                 db.execute("INSERT INTO live_journal_meta VALUES (1)")
             db.execute("CREATE TABLE IF NOT EXISTS live_submissions (nonce TEXT PRIMARY KEY, scope TEXT NOT NULL, account TEXT NOT NULL, client_id TEXT NOT NULL, method TEXT NOT NULL, endpoint TEXT NOT NULL, digest TEXT NOT NULL, state TEXT NOT NULL, evidence_digest TEXT, UNIQUE(scope, account, method, endpoint, client_id))")
+            # Existing version-one dispatch fences remain fences. Missing terms
+            # in an old receipt are never reconstructed from today's quantities.
+            columns = {row[1] for row in db.execute("PRAGMA table_info(live_submissions)")}
+            for column in ("intent_json", "reservation_id", "execution_json"):
+                if column not in columns:
+                    db.execute("ALTER TABLE live_submissions ADD COLUMN " + column + " TEXT")
 
     @contextmanager
     def _db(self):
@@ -434,8 +519,9 @@ class LiveSubmissionJournal:
         try:
             with self._db() as db:
                 db.execute("BEGIN IMMEDIATE")
-                db.execute("INSERT INTO live_submissions VALUES (?,?,?,?,?,?,?,?,?)", (grant.nonce, intent.scope,
-                    grant.account_fingerprint, intent.client_id, intent.method, intent.endpoint, intent.digest(), "UNKNOWN", None))
+                db.execute("INSERT INTO live_submissions (nonce,scope,account,client_id,method,endpoint,digest,state,evidence_digest,intent_json,reservation_id) VALUES (?,?,?,?,?,?,?,?,?,?,?)", (grant.nonce, intent.scope,
+                    grant.account_fingerprint, intent.client_id, intent.method, intent.endpoint, intent.digest(), "UNKNOWN", None,
+                    json.dumps(asdict(intent), sort_keys=True, separators=(",", ":"), allow_nan=False), grant.reservation_id))
         except sqlite3.IntegrityError:
             raise LiveError("LIVE_ALREADY_CLAIMED_RECONCILE_ONLY") from None
 
@@ -455,6 +541,82 @@ class LiveSubmissionJournal:
             row = db.execute("SELECT digest,state FROM live_submissions WHERE scope=? AND account=? AND method=? AND endpoint=? AND client_id=?",
                 (scope, account_fingerprint, method, endpoint, client_id)).fetchone()
             return None if row is None else {"intent_digest": row[0], "state": row[1], "resend_permitted": False}
+
+    @staticmethod
+    def _retained_intent(value, digest):
+        try:
+            if type(value) is not str or len(value) > 16_384:
+                raise ValueError()
+            data = json.loads(value)
+            data["fields"] = tuple(tuple(pair) for pair in data["fields"])
+            data["risk_terms"] = tuple(tuple(pair) for pair in data["risk_terms"])
+            intent = LiveOrderIntent(**data)
+            if intent.digest() != digest:
+                raise ValueError()
+            return intent
+        except (TypeError, ValueError, KeyError):
+            raise LiveError("EXACT_RETAINED_LIVE_INTENT_UNAVAILABLE") from None
+
+    def owned_intents(self, scope, account, reservation_id, purpose):
+        """Original immutable requests only; expiry is not renewed for GET."""
+        if purpose not in {"ENTRY", "PROTECT", "CLOSE", "CANCEL"}:
+            raise LiveError("LIVE_PURPOSE_REQUIRED")
+        with self._db() as db:
+            rows = db.execute("SELECT intent_json,digest,scope,method,endpoint,client_id FROM live_submissions WHERE scope=? AND account=? AND reservation_id=? ORDER BY rowid",
+                (scope, account, reservation_id)).fetchall()
+        intents = []
+        for value, digest, recorded_scope, method, endpoint, client in rows:
+            intent = self._retained_intent(value, digest)
+            if (intent.scope, intent.method, intent.endpoint, intent.client_id) != (recorded_scope, method, endpoint, client):
+                raise LiveError("RETAINED_LIVE_INTENT_BINDING_MISMATCH")
+            intents.append(intent)
+        return tuple(intent for intent in intents if intent.purpose == purpose)
+
+    def record_execution(self, intent, account, reservation_id, observation):
+        """Retain original exact-order GET/trades before using a reduction.
+
+        This is evidence storage, never a permission, retry or financial PnL.
+        Repeated observations do not duplicate fees. Previous observations stay
+        retained so a later partial execution cannot erase an earlier fill.
+        """
+        if type(intent) is not LiveOrderIntent or type(observation) is not dict:
+            raise LiveError("OWNED_EXECUTION_OBSERVATION_REQUIRED")
+        encoded = json.dumps(observation, sort_keys=True, separators=(",", ":"), allow_nan=False)
+        if len(encoded) > MAX_RESPONSE * 2:
+            raise LiveError("OWNED_EXECUTION_OBSERVATION_TOO_LARGE")
+        with self._db() as db:
+            db.execute("BEGIN IMMEDIATE")
+            row = db.execute("SELECT digest,reservation_id,execution_json FROM live_submissions WHERE scope=? AND account=? AND method=? AND endpoint=? AND client_id=?",
+                (intent.scope, account, intent.method, intent.endpoint, intent.client_id)).fetchone()
+            if row is None or row[0] != intent.digest() or row[1] != reservation_id:
+                raise LiveError("OWNED_EXECUTION_SUBMISSION_REQUIRED")
+            try:
+                records = [] if row[2] is None else json.loads(row[2])
+                if type(records) is not list or len(records) > 128 or any(type(r) is not dict for r in records):
+                    raise ValueError()
+            except (TypeError, ValueError):
+                raise LiveError("RETAINED_EXECUTION_RECORDS_INVALID") from None
+            if observation not in records:
+                if len(records) >= 128:
+                    raise LiveError("RETAINED_EXECUTION_RECORD_LIMIT")
+                records.append(observation)
+            db.execute("UPDATE live_submissions SET execution_json=? WHERE scope=? AND account=? AND method=? AND endpoint=? AND client_id=?",
+                (json.dumps(records, sort_keys=True, separators=(",", ":"), allow_nan=False),
+                 intent.scope, account, intent.method, intent.endpoint, intent.client_id))
+
+    def execution_observations(self, intent, account, reservation_id):
+        with self._db() as db:
+            row = db.execute("SELECT digest,reservation_id,execution_json FROM live_submissions WHERE scope=? AND account=? AND method=? AND endpoint=? AND client_id=?",
+                (intent.scope, account, intent.method, intent.endpoint, intent.client_id)).fetchone()
+        if row is None or row[0] != intent.digest() or row[1] != reservation_id:
+            raise LiveError("OWNED_EXECUTION_SUBMISSION_REQUIRED")
+        try:
+            records = [] if row[2] is None else json.loads(row[2])
+            if type(records) is not list or len(records) > 128 or any(type(r) is not dict for r in records):
+                raise ValueError()
+            return tuple(records)
+        except (TypeError, ValueError):
+            raise LiveError("RETAINED_EXECUTION_RECORDS_INVALID") from None
 
 
 class LiveOrderTransport(LiveReadOnlyTransport):
