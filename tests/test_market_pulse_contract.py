@@ -42,6 +42,40 @@ class MarketPulseContractTests(unittest.TestCase):
             projected = market_pulse_projection(load_config())
         self.assertEqual(projected['universe']['source'], 'https://www.coingecko.com/')
 
+    def test_readiness_nested_fields_are_closed_for_market_and_frozen_decisions(self):
+        raw = self._pulse()
+        readiness = dict(state='DEGRADED', reasons=['INSUFFICIENT_TRADE_SECONDS'],
+            occupied_seconds=84, required_seconds=240, window_seconds=300,
+            observed_seconds=800, anchor_age_seconds=301, gap_age_seconds=None,
+            gap_reason=None, gap_count=0, provider_lead_seconds=-.2,
+            secret={'token': 'private'}, arbitrary_private_key='private')
+        row = dict(symbol='DOGEUSDT', fresh=True, complete=False, at=raw['at'], readiness=readiness)
+        raw['market'] = [row]
+        raw['decisions'] = [dict(id='one', evidence={'market': row})]
+        with patch('trader.market_pulse.market_pulse_snapshot', return_value=raw):
+            projected = market_pulse_projection(load_config())
+        self.assertEqual(projected['market'][0]['readiness']['occupied_seconds'], 84)
+        self.assertEqual(projected['decisions'][0]['evidence']['market']['readiness']['required_seconds'], 240)
+        self.assertNotIn('secret', json.dumps(projected))
+        self.assertNotIn('private', json.dumps(projected))
+
+    def test_malformed_readiness_is_not_exported_as_signal_quality(self):
+        bad = [dict(state='EXECUTE', reasons=[]), dict(state='READY', reasons=['IGNORE_RISK']),
+            dict(state='READY', reasons=[], occupied_seconds=True),
+            dict(state='READY', reasons=[], occupied_seconds=604),
+            dict(state='READY', reasons=[], gap_age_seconds=-1),
+            dict(state='READY', reasons=[], provider_lead_seconds=float('nan')),
+            dict(state='READY', reasons=[], gap_reason='api_key=private')]
+        for readiness in bad:
+            with self.subTest(readiness=readiness):
+                raw = self._pulse()
+                raw['market'] = [dict(symbol='BTCUSDT', readiness=readiness)]
+                with patch('trader.market_pulse.market_pulse_snapshot', return_value=raw):
+                    projected = market_pulse_projection(load_config())
+                self.assertEqual(projected['state'], 'DEGRADED')
+                self.assertEqual(projected['health']['last_error'], 'PULSE_PROJECTION_UNAVAILABLE')
+                self.assertNotIn('private', json.dumps(projected))
+
     def test_malformed_optional_metadata_and_over_limit_universes_fail_safely(self):
         base = self._pulse()
         provider = dict(id='public-source', name='Public source', url='https://example.com/feed',

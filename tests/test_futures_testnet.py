@@ -226,6 +226,44 @@ class FuturesTestnetLabTests(unittest.TestCase):
             price = self.lab._execution_price(order, "BTCUSDT")
         self.assertEqual(price, Decimal("101.5"))
 
+    def test_confirmed_quote_quantity_precedes_rounded_average_for_income_reconciliation(self):
+        order = {"clientOrderId": "synthetic-rounded-close", "avgPrice": "1.32454",
+                 "executedQty": "43.1", "cumQuote": "57.08778"}
+        with patch("trader.futures_testnet.signed_request", side_effect=AssertionError("no query needed")):
+            price = self.lab._execution_price(order, "XRPUSDT")
+        self.assertEqual(price, Decimal("57.08778") / Decimal("43.1"))
+        gross = ((Decimal("1.3895") - price) * Decimal("43.1")).quantize(Decimal("0.00000001"))
+        self.assertEqual(gross, Decimal("2.79967000"))
+        self.assertNotEqual(price, Decimal(order["avgPrice"]))
+
+    def test_queried_quote_quantity_also_precedes_rounded_average(self):
+        pending = {"clientOrderId": "synthetic-rounded-close", "avgPrice": "0", "executedQty": "0", "cumQuote": "0"}
+        queried = {**pending, "avgPrice": "1.32454", "executedQty": "43.1", "cumQuote": "57.08778"}
+        with patch("trader.futures_testnet.signed_request", return_value=queried) as request:
+            price = self.lab._execution_price(pending, "XRPUSDT")
+        self.assertEqual(price, Decimal("57.08778") / Decimal("43.1"))
+        self.assertEqual(request.call_args.args[:2], ("GET", "/fapi/v1/order"))
+        self.assertEqual(request.call_count, 1)
+
+    def test_execution_totals_cannot_be_nonfinite_negative_or_zero_with_positive_quote(self):
+        for changes in ({"executedQty": "NaN"}, {"cumQuote": "Infinity"},
+                        {"executedQty": "-1"}, {"cumQuote": "-1"}, {"executedQty": "0"}):
+            order = {"clientOrderId": "synthetic-invalid-close", "avgPrice": "100", "executedQty": "1", "cumQuote": "100", **changes}
+            with self.subTest(changes=changes), \
+                 patch("trader.futures_testnet.signed_request", side_effect=AssertionError("invalid totals cannot trigger a write or conceal malformed data")):
+                with self.assertRaises(FuturesTestnetExecutionError):
+                    self.lab._execution_price(order, "BTCUSDT")
+
+    def test_average_fallback_requires_positive_confirmed_quantity(self):
+        order = {"clientOrderId": "synthetic-fallback", "avgPrice": "101.5", "executedQty": "0.001"}
+        with patch("trader.futures_testnet.signed_request", side_effect=AssertionError("no query needed")):
+            self.assertEqual(self.lab._execution_price(order, "BTCUSDT"), Decimal("101.5"))
+        order["executedQty"] = "0"
+        with patch("trader.futures_testnet.signed_request", return_value=order) as request:
+            with self.assertRaises(FuturesTestnetExecutionError):
+                self.lab._execution_price(order, "BTCUSDT")
+        self.assertEqual(request.call_count, 1)
+
     def test_explicit_smoke_symbol_is_honored_and_closed(self):
         with patch("trader.futures_testnet.public_request", side_effect=AssertionError("smoke must not use public data")), \
              patch("trader.futures_testnet.signed_request", side_effect=self.signed):

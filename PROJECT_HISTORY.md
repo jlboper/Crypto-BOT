@@ -1,3 +1,13 @@
+## 28 octubre2026 — revisión del historial sin certificación retrospectiva
+
+La evaluación explícita conserva historia local y verifica la cadena de recibos
+antes de resumir cohortes. El legado sirve para revisar actividad, resultados
+registrados, incidentes y huecos; por sí solo no acredita metodología inmutable,
+costes/cashflows conciliados o ventaja OOS. No borrar ni reiniciar por una nueva
+herramienta de auditoría. Una actualización técnica y un borrador numérico
+revisado no conceden autoridad financiera. Pulse se mantiene separado del
+alcance de activación inicial Spot/Futures. Ver PREPRODUCTION_VALIDATION_57.md.
+
 ## 27 octubre 2026 — candidata 0.10.56; base 0.10.55 verificada
 
 Main `d78b7ee882236bfbdac14047662abe9ad7154e03`, [PR132](https://github.com/jlboper/Crypto-BOT/pull/132),
@@ -772,3 +782,28 @@ filing metadata supplement Pulse research without changing quantitative weights.
 A report date is not its public availability; receipt times are never backdated.
 ETF AUM changes are not net flows, 13F does not disclose shorts and a Form 4
 publication alone provides no purchase/sale direction or direct crypto trade.
+
+## 2 November 2026 — original-source capture and durable residual recovery
+
+The owner requested completion of the six operational/preproduction acceptance
+items. Current Testnet failure checks and real-capital eligibility are separate
+decisions: an old recovered Spot halt can be resumed through the installed local
+command after fresh checks, while failed strategy evidence still blocks LIVE.
+Record the actual release/installation evidence independently of that action.
+
+Persist complete LIVE intent terms and reservation identity before any POST;
+recover the same retained operation by GET after crash or timeout. Explicit
+residual mitigation is a reduction under the original ticket, never a new entry
+or a reason to release capital. Require linked original fills/fees, exact native
+coverage and a fresh venue check followed by a second exposure read. Unknown
+ownership, partial closes or costs preserve the recovery latch and reservation.
+Flatness caused by unrelated activity is not proof that the ticket closed.
+
+Retain historical and prospective financial originals separately. Add bounded
+GET-only Earn capture and observed Unicode asset parsing without widening order
+symbols or equating LD-prefixed assets with another asset. Background capture
+remains one bounded cooperative worker, without high-weight snapshot/Earn jobs.
+Do not fabricate historical baselines, upgrade operational receipts to financial
+qualification, reset retained cohorts, or activate because a code suite passes.
+The current statistical review is retained as a negative/unproven eligibility
+decision; real-capital commissioning and final authorization remain gated.

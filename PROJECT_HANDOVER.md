@@ -1,3 +1,14 @@
+## 28 octubre 2026 — candidata 0.10.57 desde main 0.10.56
+
+Base main `51532ac5956b147c233851891f00b4aff8817411`, PR133, publicación
+40512063414 y seguridad40512063383 SUCCESS. El propietario pide completar
+captura/conciliación, supervisor/recuperación y evaluación, con Pulse separado.
+La revisión de evidencia conserva legado y cohortes; no reinicia30d por cambios
+visuales ni convierte spans en días cualificados. Ver
+[validación57](PREPRODUCTION_VALIDATION_57.md). Borrador100USDT revisado e
+inactivo, autorización final separada; ningún test o publicación activa LIVE.
+Los cortes de versiones inferiores conservan su fecha y alcance originales.
+
 ## 27 octubre 2026 — candidata 0.10.56; base 0.10.55 verificada
 
 Main `d78b7ee882236bfbdac14047662abe9ad7154e03`, [PR132](https://github.com/jlboper/Crypto-BOT/pull/132),
@@ -549,3 +560,20 @@ Collector/source libraries are not proof of financially qualified 30-day cohorts
 Pulse institutional context is SHADOW: CFTC contracts, delayed EDGAR metadata;
 SEC uses the separately authorized local contact; daily ETF flows/insider transaction parsing are
 not provided. Do not portray them as active feeds or completed trades.
+
+## 2 November 2026 — candidate57 closure
+
+Read PREPRODUCTION_VALIDATION_57.md before continuing the current candidate.
+Automatic read-only financial capture and an explicit supervised execution
+kernel are prepared; the operating LIVE adapter remains uncommissioned. Exact
+intents/reservations survive submission crashes and reduction receipts bind own
+entry/exit fills, fees and immutable native identifiers. Reservations and global
+recovery latches do not disappear on an ACK, unknown close or unrelated flatness.
+
+Preserve historical sources, all retained cohort registrations and the original
+Research/forward results. Record negative/unproven real-capital eligibility
+without manufacturing qualified days or retrospectively assigning missing
+identity, costs, cashflows or fills. Current prospective reconciliation cannot
+certify a missing historical baseline. Final owner activation remains separate
+and cannot substitute for failed financial evidence. Publication and signed
+installation need their own exact-source verification for57.

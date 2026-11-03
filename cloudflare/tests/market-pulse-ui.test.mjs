@@ -228,3 +228,23 @@ test('Research Lab shows captured Pulse evidence and replay limitations while hi
   ui.renderResearch(undefined);assert.equal(get('researchMarketPulse').hidden,true);
   assert.equal(get('researchPulseObservation').textContent,'');
 });
+
+
+test('partial signal windows explain density separately from available providers',()=>{
+  const {ui,get}=portal(),at=new Date().toISOString();
+  const market=Array.from({length:10},(_,index)=>({symbol:index===0?'BTCUSDT':index===1?'BNBUSDT':'ASSET'+index+'USDT',
+    fresh:true,complete:index<2,at,readiness:{state:index<2?'READY':'DEGRADED',
+      reasons:index<2?[]:['INSUFFICIENT_TRADE_SECONDS'],occupied_seconds:index<2?280:84,required_seconds:240,window_seconds:300}}));
+  const p=snapshot({state:'DEGRADED',market,sources:{binance_ws:{state:'CONNECTED'},news:{state:'READY'}}});
+  ui.render(p);
+  assert.equal(get('summaryPulseState').textContent,'DATOS PARCIALES');
+  assert.match(get('pulseStatusNote').textContent,/Ventanas: 2\/10 listas · 8 limitadas/);
+  assert.match(get('pulseStatusNote').textContent,/aunque la fuente esté conectada/);
+  assert.match(get('summaryPulseSources').textContent,/2\/2 fuentes activas/);
+  assert.match(get('pulseMarket').innerHTML,/84\/240 segundos con operaciones requeridos en 300 s/);
+  assert.match(get('pulseMarket').innerHTML,/pocos segundos con operaciones/);
+  assert.doesNotMatch(get('pulseMarket').innerHTML,/IGNORE_RISK|NaN|undefined/);
+  p.remote_sync_stale=true;ui.render(p);
+  assert.match(get('pulseStatusNote').textContent,/Última cobertura: 2\/10 listas · 8 limitadas/);
+  assert.match(get('pulseMarket').innerHTML,/ANTIGUO \/ SIN DATOS/);
+});

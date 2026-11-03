@@ -23,7 +23,7 @@ import re
 import sqlite3
 import time
 
-from .migration_evidence import evaluate_forward_cohort, register_forward_cohort
+from .migration_evidence import evaluate_forward_cohort, register_forward_cohort, _receipt_slot
 
 MAX_BYTES = 262144
 MAX_ROWS = 1024
@@ -32,6 +32,12 @@ FLAGS = ('source_complete', 'reconciled', 'costs_complete', 'cashflows_complete'
 AUTHORITY = {'execution_enabled': False, 'financial_authorization': False,
              'automatic_activation': False, 'ready_for_live': False}
 _HASH = re.compile(r'[a-f0-9]{64}\Z', re.ASCII)
+
+
+def _check_deadline(deadline):
+    if deadline is not None and (type(deadline) not in (int, float)
+            or not -1e300 < deadline < 1e300 or time.monotonic() >= deadline):
+        raise ValueError('FINANCIAL_READ_BUDGET_EXCEEDED')
 _SYMBOL = re.compile(r'[A-Z0-9]{2,24}USDT\Z', re.ASCII)
 _ASSET = re.compile(r'[A-Z0-9]{1,24}\Z', re.ASCII)
 _KINDS = {'COMMISSION', 'FUNDING_FEE', 'REALIZED_PNL', 'DEPOSIT', 'WITHDRAWAL',
@@ -553,22 +559,27 @@ class FinancialEvidenceStore:
             raise ValueError('FINANCIAL_RETENTION_FULL')
         return [row for raw in rows if _time((row := json.loads(raw['receipt']))['available_at']) <= instant]
 
-    def verify_chain(self, *, expected_anchor=None):
+    def verify_chain(self, *, expected_anchor=None, deadline=None):
+        _check_deadline(deadline)
         if expected_anchor is not None:
             _hash(expected_anchor)
         previous, count, found = '0'*64, 0, expected_anchor is None
         with closing(self._connect(True)) as db:
+            if deadline is not None:
+                db.set_progress_handler(lambda: int(time.monotonic() >= deadline), 1000)
             for row in db.execute('SELECT * FROM financial_receipts ORDER BY sequence LIMIT ?', (self.max_records+1,)):
+                _check_deadline(deadline)
                 frame = {'id': row['id'], 'receipt': json.loads(row['receipt']), 'bundle': json.loads(row['bundle']), 'previous': previous}
                 if row['previous'] != previous or digest(frame) != row['hash']:
                     return {'state': 'INVALID', 'records': count, 'reason': 'FINANCIAL_CHAIN_MISMATCH'}
                 previous, count = row['hash'], count+1
                 found = found or expected_anchor == previous
+        _check_deadline(deadline)
         return {'state': 'VALID_LOCAL_CHAIN' if found and count <= self.max_records else 'INVALID',
                 'records': count, 'anchor': previous, 'external_attestation': False}
 
     def coverage(self, registration, originals, *, now, expected_cohort_digest,
-                 expected_account_ref, expected_unit_scale, expected_anchor):
+                 expected_account_ref, expected_unit_scale, expected_anchor, deadline=None):
         """Rebuild stored outcomes from their packets in one anchored snapshot.
 
         Use this for integration, rather than accepting completeness booleans
@@ -579,16 +590,23 @@ class FinancialEvidenceStore:
         """
         receipts, error = [], None
         try:
+            _check_deadline(deadline)
             _hash(expected_anchor)
             cohort = register_forward_cohort(registration)
             if (cohort.digest != expected_cohort_digest or type(originals) is not list
                     or len(originals) > 50000):
                 raise ValueError('RETAINED_COHORT_ANCHOR_REQUIRED')
-            by_digest = {digest(row): row for row in originals}
+            by_digest = {}
+            for row in originals:
+                _check_deadline(deadline)
+                by_digest[digest(row)] = row
             previous, count = '0'*64, 0
             with closing(self._connect(True)) as db, db:
+                if deadline is not None:
+                    db.set_progress_handler(lambda: int(time.monotonic() >= deadline), 1000)
                 db.execute('BEGIN')
                 for row in db.execute('SELECT * FROM financial_receipts ORDER BY sequence LIMIT ?', (self.max_records+1,)):
+                    _check_deadline(deadline)
                     receipt, bundle = json.loads(row['receipt']), json.loads(row['bundle'])
                     frame = {'id':row['id'],'receipt':receipt,'bundle':bundle,'previous':previous}
                     if row['previous'] != previous or digest(frame) != row['hash']:
@@ -612,7 +630,11 @@ class FinancialEvidenceStore:
             receipts, error = [], 'FINANCIAL_JOURNAL_VERIFICATION_REQUIRED'
         result = evaluate_financial_coverage(registration, originals, receipts, now=now,
             expected_cohort_digest=expected_cohort_digest, expected_account_ref=expected_account_ref,
-            expected_unit_scale=expected_unit_scale)
+            expected_unit_scale=expected_unit_scale, deadline=deadline)
+        try:
+            _check_deadline(deadline)
+        except ValueError:
+            error = 'FINANCIAL_JOURNAL_VERIFICATION_REQUIRED'
         result['journal_verified'] = error is None
         if error:
             result['reason_codes'] = [error]
@@ -623,7 +645,7 @@ class FinancialEvidenceStore:
 
 
 def evaluate_financial_coverage(registration, originals, reconciliations, *, now, expected_cohort_digest,
-                                expected_account_ref, expected_unit_scale):
+                                expected_account_ref, expected_unit_scale, deadline=None):
     """Join new financial receipts to retained original windows, as of now.
 
     This is a separate outcome-quality measure, not the old decision-receipt
@@ -636,6 +658,7 @@ def evaluate_financial_coverage(registration, originals, reconciliations, *, now
         'continuous_qualified_days': None, 'late_reconciled_windows': 0, 'missing_windows': None,
         'conflicting_windows': 0, 'external_attestation': False, 'reason_codes': [], **AUTHORITY}
     try:
+        _check_deadline(deadline)
         cohort = register_forward_cohort(registration); instant = _time(now)
         _hash(expected_account_ref)
         if type(expected_unit_scale) is not int or not 0 <= expected_unit_scale <= 12:
@@ -646,17 +669,21 @@ def evaluate_financial_coverage(registration, originals, reconciliations, *, now
             raise ValueError('BOUNDED_FINANCIAL_RECEIPTS_REQUIRED')
         by_digest, slots, conflicts = {}, {}, set()
         for original in originals:
+            _check_deadline(deadline)
             temporal = {**original, **{k: True for k in FLAGS}}
-            if original.get('source_complete') is not True or evaluate_forward_cohort(
-                    registration, [temporal], now=now, expected_digest=cohort.digest)['valid_receipts'] != 1:
+            if original.get('source_complete') is not True:
                 continue
-            slot = int((_time(original['interval_start'])-cohort.starts_at).total_seconds())//cohort.cadence_seconds
+            try:
+                slot = _receipt_slot(temporal, cohort, instant)
+            except (ValueError, TypeError, KeyError, OverflowError):
+                continue
             key = digest(original)
             if slot in slots and slots[slot] != key:
                 conflicts.add(slot)
             slots[slot] = key; by_digest[key] = (slot, original)
         valid = {}
         for row in reconciliations:
+            _check_deadline(deadline)
             key = row.get('original_receipt_digest') if type(row) is dict else None
             if key not in by_digest or row.get('method') != 'FINANCIAL_WINDOW_V1':
                 continue
@@ -686,6 +713,7 @@ def evaluate_financial_coverage(registration, originals, reconciliations, *, now
             valid.pop(slot, None)
         ordered = sorted(valid); runs = []; length = 0; previous = None; discontinuous = False
         for slot in ordered:
+            _check_deadline(deadline)
             if previous is not None:
                 adjacent = slot == previous+1
                 boundary_matches = adjacent and valid[previous][4] == valid[slot][3]
@@ -696,6 +724,7 @@ def evaluate_financial_coverage(registration, originals, reconciliations, *, now
         if length:
             runs.append(length)
         matured = max(0, int((instant-cohort.starts_at).total_seconds())-cohort.max_receipt_delay_seconds)//cohort.cadence_seconds
+        _check_deadline(deadline)
         result.update(state='SUPPLIED_FINANCIAL_WINDOWS_ONLY' if ordered else 'UNKNOWN',
             valid_windows=len(ordered), covered_seconds=len(ordered)*cohort.cadence_seconds,
             qualified_days=sum(n*cohort.cadence_seconds//86400 for n in runs) if runs else None,

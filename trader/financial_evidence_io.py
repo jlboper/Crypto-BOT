@@ -17,7 +17,7 @@ import stat
 import tempfile
 
 from .financial_evidence import (AUTHORITY, MAX_BYTES, FinancialEvidenceStore,
-    _hash, _iso, _time, build_financial_receipt, canonical, digest)
+    _hash, _iso, _time, _check_deadline, build_financial_receipt, canonical, digest)
 
 
 MAX_ORIGINAL_BYTES = 16*1024*1024
@@ -93,7 +93,8 @@ def _paths(journal, anchor, inputs=()):
     return journal,anchor,lock
 
 
-def _journal_state(path):
+def _journal_state(path, *, deadline=None):
+    _check_deadline(deadline)
     if not path.exists():
         return {'state':'VALID_LOCAL_CHAIN','anchor':'0'*64,'records':0,'external_attestation':False}
     _path(path,existing=True)
@@ -101,6 +102,9 @@ def _journal_state(path):
         raise ValueError('BOUNDED_FINANCIAL_JOURNAL_REQUIRED')
     # Refuse to initialize our tables inside a ledger or any other SQLite file.
     with closing(sqlite3.connect(path.resolve().as_uri()+'?mode=ro',uri=True,timeout=.1)) as db:
+        if deadline is not None:
+            import time
+            db.set_progress_handler(lambda: int(time.monotonic() >= deadline), 1000)
         db.execute('PRAGMA query_only=ON')
         db.execute('PRAGMA trusted_schema=OFF')
         entries=list(db.execute('SELECT name,type FROM sqlite_master LIMIT 20'))
@@ -115,7 +119,7 @@ def _journal_state(path):
         largest=db.execute('SELECT MAX(length(receipt)),MAX(length(bundle)) FROM financial_receipts').fetchone()
         if (largest[0] or 0)>32768 or (largest[1] or 0)>MAX_BYTES:
             raise ValueError('BOUNDED_FINANCIAL_JOURNAL_RECORDS_REQUIRED')
-    result=FinancialEvidenceStore(path).verify_chain()
+    result=FinancialEvidenceStore(path).verify_chain(deadline=deadline)
     if result['state']!='VALID_LOCAL_CHAIN':
         raise ValueError('FINANCIAL_JOURNAL_CHAIN_INVALID')
     return result
@@ -125,7 +129,8 @@ def _journal_ref(path):
     return digest({'local_journal':os.path.normcase(str(path.resolve()))})
 
 
-def _anchor(path, journal, *, now):
+def _anchor(path, journal, *, now, deadline=None):
+    _check_deadline(deadline)
     value=read_retained_json(path,max_bytes=4096)
     if (type(value) is not dict or set(value)!=_ANCHOR_KEYS or value['schema']!=1
             or type(value['schema']) is not int or value['kind']!='FINANCIAL_JOURNAL_ANCHOR_V1'
@@ -267,7 +272,7 @@ def ingest_financial_files(registration_path, original_path, bundle_path, *, jou
 
 
 def read_financial_overlay(journal_path, anchor_path, registration, originals, *, now,
-                           expected_cohort_digest, expected_account_ref, expected_unit_scale):
+                           expected_cohort_digest, expected_account_ref, expected_unit_scale, deadline=None):
     """Read-only status helper. Missing/dirty/old anchors qualify no windows.
 
     Returns only bounded coverage counts and timestamps, never source rows,
@@ -281,15 +286,17 @@ def read_financial_overlay(journal_path, anchor_path, registration, originals, *
         'missing_windows':None,'conflicting_windows':0,'external_attestation':False,
         'automatic_source_producer':False,'reason_codes':['FINANCIAL_JOURNAL_VERIFICATION_REQUIRED'],**AUTHORITY}
     try:
+        _check_deadline(deadline)
         closed['at']=_iso(_time(now))
         journal,anchor,_=_paths(journal_path,anchor_path)
         if not journal.exists() or not anchor.exists():return closed
-        state=_journal_state(journal);retained=_anchor(anchor,journal,now=now)
+        state=_journal_state(journal,deadline=deadline);retained=_anchor(anchor,journal,now=now,deadline=deadline)
         if (retained['tail'],retained['records'])!=(state['anchor'],state['records']):return closed
         result=FinancialEvidenceStore(journal).coverage(registration,originals,now=now,
             expected_cohort_digest=expected_cohort_digest,expected_account_ref=expected_account_ref,
-            expected_unit_scale=expected_unit_scale,expected_anchor=retained['tail'])
-        if _anchor(anchor,journal,now=now)!=retained:return closed
+            expected_unit_scale=expected_unit_scale,expected_anchor=retained['tail'],deadline=deadline)
+        if _anchor(anchor,journal,now=now,deadline=deadline)!=retained:return closed
+        _check_deadline(deadline)
         allowed=('state','journal_verified','valid_windows','covered_seconds','qualified_days',
             'continuous_qualified_days','late_reconciled_windows','missing_windows','conflicting_windows','reason_codes')
         closed.update({key:result[key] for key in allowed})

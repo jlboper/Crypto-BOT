@@ -1,3 +1,31 @@
+## 3 noviembre2026 — cierre técnico de candidata 0.10.57
+
+Se reanudó Spot Testnet por el comando local existente tras GETs frescos y la
+pausa automática exacta; ciclo posterior completo sin errores. Futures tuvo sus
+seis posiciones y doce protecciones verificadas por GET. No se habilitó LIVE.
+El precio de ejecución Futures ahora prioriza quote/cantidad confirmados; no se
+reescribe historia ni se eleva la tolerancia de conciliación.
+
+Captura LIVE/Earn y Testnet/Demo separadas, originales cifrados y un único worker.
+El productor Testnet predeterminado retiene RAW_CAPTURED_QUALIFICATION_BLOCKED:
+no existe materializador automático integral de boundaries/fills/flows/protección.
+La lectura de cobertura sí une originales actuales, binding y journal/ancla;
+flags operacionales/cached no bastan para calificar ni aprobar treinta días.
+Recuperación residual y liberación usan intents/fills/fees propios exactos.
+Evaluación de evidencia terminada con decisión NO ELEGIBLE PARA CAPITAL REAL.
+Ver PREPRODUCTION_VALIDATION_57.md; informes privados fuera de Git. Fuente main
+base51532ac/56. CI, firma e instalación57 necesitan su evidencia independiente.
+
+## 28 octubre2026 — preparación 0.10.57
+
+Base actual main `51532ac5956b147c233851891f00b4aff8817411`/PR133/0.10.56.
+Trabajos autorizados: captura y conciliación, integración y recuperación,
+evaluación de evidencia; diagnóstico Pulse separado. Ver
+PREPRODUCTION_VALIDATION_57.md. Conservar historia y pares protegidos actuales.
+Borrador100USDT `OWNER_REVIEWED_INACTIVE`, no activación ni fondos/autorizaciones.
+No confundir evidencia local descriptiva con resultados netos conciliados.
+Validaciones, CI, publicación/firma e instalación57 aún requieren sus pruebas.
+
 ## 27 octubre 2026 — candidata 0.10.56; base 0.10.55 verificada
 
 Main `d78b7ee882236bfbdac14047662abe9ad7154e03`, [PR132](https://github.com/jlboper/Crypto-BOT/pull/132),

@@ -309,12 +309,31 @@ function validateMarketPulse(p) {
   const identifier=value=>Number.isSafeInteger(value)&&value>=0||typeof value==='string'&&/^[a-zA-Z0-9._:-]{1,100}$/.test(value);
   const action=value=>['BUY','SELL','SHORT','HOLD','REJECT','WAIT_FOR_CONFIRMATION','WAIT FOR CONFIRMATION'].includes(value);
   const strings=value=>Array.isArray(value)&&value.length<=16&&value.every(text);
+  const readiness=value=>{
+    const fields=['state','reasons','occupied_seconds','required_seconds','window_seconds','observed_seconds',
+      'anchor_age_seconds','gap_age_seconds','gap_reason','gap_count','provider_lead_seconds'];
+    const reasons=['WINDOW_ANCHOR_MISSING','INSUFFICIENT_TRADE_SECONDS','UNRESOLVED_DATA_GAP','STALE_TRADE_OR_DEPTH'];
+    const gaps=['STALE_TRADE','TRADE_TIME_REGRESSION','TRADE_ID_GAP','OBSERVER_TAKEOVER','STREAM_INTERRUPTED','RECOVERY_PAGE_TOO_OLD'];
+    const bounds={occupied_seconds:[0,603],required_seconds:[1,480],window_seconds:[15,600],observed_seconds:[0,1e12],
+      anchor_age_seconds:[0,602],gap_age_seconds:[0,1e12],gap_count:[0,1e12],provider_lead_seconds:[-30,5]};
+    const integers=['occupied_seconds','required_seconds','window_seconds','gap_count'];
+    const nullable=['anchor_age_seconds','gap_age_seconds','provider_lead_seconds'];
+    return keys(value,fields)&&['READY','WARMING_UP','RECOVERING','DEGRADED'].includes(value.state)
+      &&Array.isArray(value.reasons)&&value.reasons.length<=4&&new Set(value.reasons).size===value.reasons.length
+      &&value.reasons.every(reason=>reasons.includes(reason))
+      &&(value.gap_reason===undefined||value.gap_reason===null||gaps.includes(value.gap_reason))
+      &&Object.entries(bounds).every(([key,[minimum,maximum]])=>value[key]===undefined
+        ||value[key]===null&&nullable.includes(key)
+        ||typeof value[key]==='number'&&Number.isFinite(value[key])&&value[key]>=minimum&&value[key]<=maximum
+          &&(!integers.includes(key)||Number.isSafeInteger(value[key])));
+  };
   const marketFields=['symbol','price','change_1m_pct','change_5m_pct','relative_volume','anomaly_z',
-    'momentum','acceleration','volatility_pct','spread_bps','depth_quote','imbalance','liquidity_change_pct','fresh','complete','at'];
+    'momentum','acceleration','volatility_pct','spread_bps','depth_quote','imbalance','liquidity_change_pct','fresh','complete','at','readiness'];
   const market=value=>keys(value,marketFields)&&symbol(value.symbol)
     &&Object.entries(value).every(([k,v])=>k==='symbol'||k==='at'&&stamp(v)
       ||['fresh','complete'].includes(k)&&typeof v==='boolean'
-      ||!['symbol','at','fresh','complete'].includes(k)&&finite(v));
+      ||k==='readiness'&&readiness(v)
+      ||!['symbol','at','fresh','complete','readiness'].includes(k)&&finite(v));
   const evidence=value=>keys(value,['market','event_id','rule_version','published_at','received_at','decision_at',
     'btc_change_1m_pct','btc_change_5m_pct','estimated_cost_bps','confirmations','selection_rank','selection_pool','selection_rule','institutional_context_ids'])
     &&(value.selection_rank===undefined||value.selection_pool===undefined||value.selection_rank<=value.selection_pool)

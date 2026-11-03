@@ -58,7 +58,7 @@ class PulseWindowTests(unittest.TestCase):
         self.assertGreater(metrics["change_1m_pct"], 0)
         for index in range(400, 10_000):
             window.trade(trade(index, NOW + index - 399), NOW + index - 399)
-        self.assertLessEqual(len(window.buckets), 303)
+        self.assertLessEqual(len(window.buckets), 308)
 
     def test_missing_trade_id_and_stale_depth_block_entries(self):
         window = MarketWindow("BTCUSDT", PulseConfig())

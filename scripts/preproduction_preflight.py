@@ -30,7 +30,10 @@ def technical_report(test_report, *, source=ROOT):
     required = {"trader/" + name for files in SOURCE_REQUIREMENTS.values() for name in files}
     required.update({"trader/engine.py", "trader/preproduction_runtime.py", "trader/live_authorization.py",
                      "tests/test_central_admission.py", "tests/test_live_execution_runtime.py",
-                     "tests/test_preproduction_runtime.py", "tests/test_preproduction_status.py"})
+                     "tests/test_preproduction_runtime.py", "tests/test_preproduction_status.py",
+                     "tests/test_evidence_review.py", "tests/test_financial_capture.py",
+                     "tests/test_financial_capture_runtime.py", "tests/test_live_supervisor.py", "tests/test_live_venue.py",
+                     "tests/test_live_recovery.py", "tests/test_testnet_financial_capture.py"})
     for name in required:
         digest = hashlib.sha256((source/name).read_bytes().replace(b"\r\n", b"\n")).hexdigest()
         if tested.get(name) != digest:

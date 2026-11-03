@@ -447,6 +447,36 @@ test('Market Pulse contract rejects unsafe modes, nested secrets, URLs, metrics 
   assert.deepEqual(stored,base);
 });
 
+test('optional Pulse window readiness is bounded public evidence and cannot grant authority',async t=>{
+  const f=await fixture(t);
+  const base=pulseSample();
+  const readiness={state:'DEGRADED',reasons:['INSUFFICIENT_TRADE_SECONDS'],occupied_seconds:84,
+    required_seconds:240,window_seconds:300,observed_seconds:600,anchor_age_seconds:300,
+    gap_age_seconds:null,gap_reason:null,gap_count:0,provider_lead_seconds:null};
+  base.market[0].readiness=structuredClone(readiness);
+  base.decisions[0].evidence.market=structuredClone(base.market[0]);
+  assert.equal((await f.sync({snapshot:pulseSnapshot(base),acks:[]})).status,200);
+  const changes=[r=>{r.api_key='private';},r=>{r.execution_enabled=true;},r=>{r.state='LIVE';},
+    r=>{r.reasons=['RUN_TRADE'];},r=>{r.reasons=['UNRESOLVED_DATA_GAP','UNRESOLVED_DATA_GAP'];},
+    r=>{r.occupied_seconds=604;},r=>{r.required_seconds=0;},r=>{r.window_seconds=601;},
+    r=>{r.provider_lead_seconds=5.01;},r=>{r.provider_lead_seconds=-31;},r=>{r.gap_reason='SECRET';},
+    r=>{r.gap_count=0.5;},r=>{r.occupied_seconds=true;},r=>{r.observed_seconds='600';},
+    r=>{r.observed_seconds=null;},r=>{r.occupied_seconds=-1;}];
+  for(const field of ['market','decision'])for(const change of changes){
+    const pulse=structuredClone(base);
+    change(field==='market'?pulse.market[0].readiness:pulse.decisions[0].evidence.market.readiness);
+    const response=await f.sync({snapshot:pulseSnapshot(pulse),acks:[]});
+    assert.equal(response.status,400,JSON.stringify(pulse));
+    assert.equal(response.body.error,'Invalid Market Pulse status');
+  }
+  await f.login();
+  assert.deepEqual((await f.request('/v1/status')).body.snapshot.dashboard.market_pulse,base);
+  const legacy=structuredClone(base);
+  delete legacy.market[0].readiness;
+  delete legacy.decisions[0].evidence.market.readiness;
+  assert.equal((await f.sync({snapshot:pulseSnapshot(legacy),acks:[]})).status,200);
+});
+
 test('ten-asset Python projection preserves all markets and three positions inside the existing 20KB budget',async t=>{
   const f=await fixture(t);
   const pulse=JSON.parse(execFileSync(process.env.PYTHON||'python',[

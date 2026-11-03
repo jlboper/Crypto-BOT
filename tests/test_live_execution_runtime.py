@@ -84,12 +84,21 @@ class FakeVenue:
                 executed = Decimal(p["quantity"]) if status == "FILLED" else Decimal(p["quantity"]) / 2 if status == "PARTIALLY_FILLED" else Decimal(0)
                 self.position = executed if p["side"] == "BUY" else -executed
             self.orders[client] = {"clientOrderId": client, "symbol": p["symbol"], "side": p["side"],
-                "status": status, "origQty": p["quantity"], "executedQty": str(executed), "cumQuote": str(executed * 100), "orderId": len(self.orders) + 1}
+                "status": status, "origQty": p["quantity"], "executedQty": str(executed), "cumQuote": str(executed * 100), "orderId": len(self.orders) + 1,
+                "positionSide": "BOTH", "reduceOnly": p.get("reduceOnly") == "true"}
             if self.fail_entry and p.get("reduceOnly") == "false":
                 raise TimeoutError("synthetic unknown after venue execution")
             return Response(self.orders[client])
         if method == "GET" and url.path == "/fapi/v1/order":
             return Response(self.orders[p["origClientOrderId"]] if "origClientOrderId" in p else next(row for row in self.orders.values() if row["orderId"] == int(p["orderId"])))
+        if method == "GET" and url.path == "/fapi/v1/userTrades":
+            order = next(row for row in self.orders.values() if row.get("orderId") == int(p["orderId"]))
+            return Response([] if Decimal(order["executedQty"]) == 0 else [{"id": order["orderId"] * 100,
+                "orderId": order["orderId"], "symbol": order["symbol"], "side": order["side"], "positionSide": "BOTH",
+                "qty": order["executedQty"], "quoteQty": order["cumQuote"], "commission": "0.01", "commissionAsset": "USDT"}])
+        if method == "DELETE" and url.path == "/fapi/v1/order":
+            self.orders[p["origClientOrderId"]]["status"] = "CANCELED"
+            return Response(self.orders[p["origClientOrderId"]])
         if method == "GET" and url.path == "/fapi/v3/positionRisk":
             return Response([{"symbol": "BTCUSDT", "positionSide": "BOTH", "positionAmt": str(self.position)}])
         if method == "POST" and url.path == "/fapi/v1/algoOrder":
@@ -219,11 +228,93 @@ class LiveCoordinatorTests(unittest.TestCase):
         self.assertEqual(self.coordinator.reconcile_by_client_id("PROPOSAL_1", self.intent, event_id="GET_AFTER_TIMEOUT")["state"], "OPEN")
         self.assertEqual(sum(m == "POST" and path == "/fapi/v1/order" for m, path, _ in self.venue.requests), 1)
 
-    def test_partial_fill_keeps_entire_reservation_and_protects_confirmed_quantity(self):
+    def test_partial_fill_cancels_remainder_before_protecting_final_quantity(self):
         self.venue.status = "PARTIALLY_FILLED"
         result = self.execute()
-        self.assertEqual(result["state"], "PARTIAL")
+        self.assertEqual(result["state"], "OPEN")
         self.assertEqual(result["position"].quantity, "0.5")
+        self.assertEqual(self.admission.snapshot()["reserved_units"], 102 * U)
+        self.assertEqual({row["quantity"] for row in self.venue.algos.values()}, {"0.5"})
+        actions = [(m, p) for m, p, _ in self.venue.requests]
+        self.assertEqual(actions.count(("DELETE", "/fapi/v1/order")), 1)
+        self.assertLess(actions.index(("DELETE", "/fapi/v1/order")), actions.index(("POST", "/fapi/v1/algoOrder")))
+
+    def test_partial_cancel_timeout_queries_without_resending_or_releasing(self):
+        self.venue.status = "PARTIALLY_FILLED"
+        original = self.venue.open
+        def uncertain(request, timeout):
+            if request.get_method() == "DELETE" and "/fapi/v1/order?" in request.full_url:
+                original(request, timeout)
+                raise TimeoutError("synthetic timeout after cancel")
+            return original(request, timeout)
+        self.venue.open = uncertain
+        result = self.execute()
+        self.assertEqual(result["state"], "OPEN")
+        self.assertEqual(result["position"].quantity, "0.5")
+        self.clock.value += 1
+        result = self.coordinator.reconcile_by_client_id("PROPOSAL_1", self.intent, event_id="AFTER_CANCEL_TIMEOUT")
+        self.assertEqual(result["state"], "OPEN")
+        self.assertEqual(sum(m == "DELETE" and p == "/fapi/v1/order" for m, p, _ in self.venue.requests), 1)
+        self.assertEqual(self.admission.snapshot()["reserved_units"], 102 * U)
+
+    def test_fill_racing_partial_cancel_is_protected_at_final_quantity(self):
+        self.venue.status = "PARTIALLY_FILLED"
+        original = self.venue.open
+        def raced(request, timeout):
+            if request.get_method() == "DELETE" and "/fapi/v1/order?" in request.full_url:
+                response = original(request, timeout)
+                self.venue.orders[self.intent.client_id].update(status="FILLED", executedQty="1", cumQuote="100")
+                self.venue.position = Decimal("1")
+                return response
+            return original(request, timeout)
+        self.venue.open = raced
+        result = self.execute()
+        self.assertEqual(result["state"], "OPEN")
+        self.assertEqual(result["position"].quantity, "1")
+        self.assertEqual({row["quantity"] for row in self.venue.algos.values()}, {"1"})
+
+    def test_unconfirmed_partial_cancel_retains_budget_and_latches_recovery(self):
+        self.venue.status = "PARTIALLY_FILLED"
+        original = self.venue.open
+        def rejected(request, timeout):
+            if request.get_method() == "DELETE" and "/fapi/v1/order?" in request.full_url:
+                raise TimeoutError("synthetic request did not reach exchange")
+            return original(request, timeout)
+        self.venue.open = rejected
+        result = self.execute()
+        self.assertEqual(result["state"], "RECOVERY_REQUIRED")
+        self.assertIn("PARTIAL_ENTRY_CANCEL_UNCONFIRMED", result["reasons"])
+        self.assertEqual(self.admission.snapshot()["reserved_units"], 102 * U)
+        self.assertEqual({row["quantity"] for row in self.venue.algos.values()}, {"0.5"})
+
+    def test_partial_cancel_cannot_erase_previously_confirmed_fill(self):
+        self.venue.status = "PARTIALLY_FILLED"
+        original = self.venue.open
+        def regressed(request, timeout):
+            response = original(request, timeout)
+            if request.get_method() == "DELETE" and "/fapi/v1/order?" in request.full_url:
+                self.venue.orders[self.intent.client_id].update(executedQty="0", cumQuote="0")
+            return response
+        self.venue.open = regressed
+        result = self.execute()
+        self.assertEqual(result["state"], "RECOVERY_REQUIRED")
+        self.assertEqual(self.admission.snapshot()["reserved_units"], 102 * U)
+
+    def test_late_fill_after_unconfirmed_cancel_does_not_claim_old_stop_covers_more(self):
+        self.venue.status = "PARTIALLY_FILLED"
+        original = self.venue.open
+        def uncertain(request, timeout):
+            if request.get_method() == "DELETE" and "/fapi/v1/order?" in request.full_url:
+                raise TimeoutError("synthetic unknown cancellation")
+            return original(request, timeout)
+        self.venue.open = uncertain
+        self.assertEqual(self.execute()["state"], "RECOVERY_REQUIRED")
+        self.venue.orders[self.intent.client_id].update(status="FILLED", executedQty="1", cumQuote="100")
+        self.venue.position = Decimal("1")
+        self.clock.value += 1
+        result = self.coordinator.reconcile_by_client_id("PROPOSAL_1", self.intent, event_id="LATE_FILL")
+        self.assertEqual(result["state"], "RECOVERY_REQUIRED")
+        self.assertNotIn("protection_verified", result)
         self.assertEqual(self.admission.snapshot()["reserved_units"], 102 * U)
         self.assertEqual({row["quantity"] for row in self.venue.algos.values()}, {"0.5"})
 
@@ -352,7 +443,7 @@ class LiveCoordinatorTests(unittest.TestCase):
         self.venue.algos["native-stop-1"].update(algoStatus="FINISHED", actualOrderId="88")
         self.venue.algos["native-tp-1"]["algoStatus"] = "CANCELED"
         self.venue.orders["native-result"] = {"orderId": 88, "symbol": "BTCUSDT", "side": "SELL", "positionSide": "BOTH",
-            "reduceOnly": True, "status": "FILLED", "executedQty": "1"}
+            "reduceOnly": True, "status": "FILLED", "executedQty": "1", "origQty": "1", "cumQuote": "95", "clientOrderId": "native-result"}
         self.venue.position = Decimal(0)
         writes = sum(method != "GET" for method, _, _ in self.venue.requests)
         result = self.coordinator.reconcile_native_exit_by_client_id("PROPOSAL_1", self.intent, event_id="NATIVE_EXIT_GET")
@@ -392,7 +483,11 @@ class FakeSpotVenue:
         if method == "GET" and url.path == "/api/v3/order":
             return Response(self.orders[p["origClientOrderId"]])
         if method == "GET" and url.path == "/api/v3/myTrades":
-            return Response([{"id": 1, "orderId": 777, "symbol": "BTCUSDT", "qty": "1", "commission": str(self.base_fee), "commissionAsset": "BTC"}])
+            order = next(row for row in self.orders.values() if row.get("orderId") == int(p["orderId"]))
+            return Response([] if Decimal(order["executedQty"]) == 0 else [{"id": order["orderId"], "orderId": order["orderId"],
+                "symbol": "BTCUSDT", "qty": order["executedQty"], "quoteQty": order["cummulativeQuoteQty"],
+                "isBuyer": order["side"] == "BUY", "commission": str(self.base_fee) if order["side"] == "BUY" else "0.01",
+                "commissionAsset": "BTC" if order["side"] == "BUY" else "USDT"}])
         if method == "GET" and url.path == "/api/v3/account":
             return Response({"balances": [{"asset": "BTC", "free": str(self.quantity), "locked": "0"}]})
         if method == "POST" and url.path == "/api/v3/orderList/oco":
@@ -472,7 +567,8 @@ class SpotLiveCoordinatorTests(unittest.TestCase):
     def test_spot_native_oco_fill_requires_flat_wallet_and_no_siblings_before_release(self):
         self.coordinator.execute_entry(self.proposal, facts(self.scope), self.intent, event_id="SPOT_ENTRY")
         self.venue.orders["spot-sl-1"].update(status="FILLED", executedQty="0.999")
-        self.venue.orders["spot-tp-1"].update(status="CANCELED", executedQty="0")
+        self.venue.orders["spot-sl-1"].update(orderId=778, cummulativeQuoteQty="94.905")
+        self.venue.orders["spot-tp-1"].update(status="CANCELED", executedQty="0", orderId=779, cummulativeQuoteQty="0")
         self.venue.lists["spot-oco-1"]["listOrderStatus"] = "ALL_DONE"
         self.venue.quantity = Decimal(0)
         writes = sum(method != "GET" for method, _, _ in self.venue.requests)

@@ -8,6 +8,7 @@ from pathlib import Path
 import sqlite3
 import subprocess
 import sys
+import time
 from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import patch
@@ -54,6 +55,40 @@ class ExplicitFinancialIngestTests(unittest.TestCase):
         self.assertEqual(before,{p:p.read_bytes() for p in before})
         for private in (POSITION,ACCOUNT,'100000','quantity_units','balance_start_units'):
             self.assertNotIn(private,canonical(projection));self.assertNotIn(private,canonical(result))
+
+    def test_expired_or_mid_replay_deadline_never_returns_qualified_coverage(self):
+        from trader.financial_evidence import FinancialEvidenceStore, build_financial_receipt
+        self.ingest()
+        before = {path:path.read_bytes() for path in (self.journal,self.anchor,self.reg,self.original,self.bundle)}
+        projection = self.overlay(deadline=time.monotonic()-1)
+        self.assertFalse(projection['journal_verified'])
+        self.assertFalse(projection['coverage_verified'])
+        self.assertIsNone(projection['qualified_days'])
+        clock = [0.0]
+        def late(*args, **kwargs):
+            outcome = build_financial_receipt(*args, **kwargs)
+            clock[0] = 2.0
+            return outcome
+        with patch('trader.financial_evidence.time.monotonic', side_effect=lambda:clock[0]), \
+             patch('trader.financial_evidence.build_financial_receipt', side_effect=late):
+            projection = self.overlay(deadline=1)
+        self.assertFalse(projection['coverage_verified'])
+        self.assertFalse(projection['journal_verified'])
+        self.assertIsNone(projection['qualified_days'])
+        self.assertEqual(before, {path:path.read_bytes() for path in before})
+
+    def test_chain_verification_checks_budget_after_last_record(self):
+        from trader.financial_evidence import FinancialEvidenceStore, digest
+        self.ingest()
+        clock = [0.0]
+        def delayed_digest(value):
+            outcome = digest(value)
+            clock[0] = 2.0
+            return outcome
+        with patch('trader.financial_evidence.time.monotonic', side_effect=lambda:clock[0]), \
+             patch('trader.financial_evidence.digest', side_effect=delayed_digest), \
+             self.assertRaisesRegex(ValueError, 'READ_BUDGET_EXCEEDED'):
+            FinancialEvidenceStore(self.journal).verify_chain(deadline=1)
 
     def test_duplicate_keeps_anchor_bytes_and_receipt_time_unchanged(self):
         from datetime import timedelta

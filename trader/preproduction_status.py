@@ -9,7 +9,7 @@ import re
 import sqlite3
 import time
 
-from .operational_cohort import OperationalCohortStore
+from .evidence_review import read_verified_cohort_snapshot
 
 MAX_BYTES = 8000
 CONNECTION_EVIDENCE_MAX_AGE_SECONDS = 900
@@ -23,12 +23,14 @@ BLOCKERS = {"OWNER_ACTIVATION_REQUIRED", "READ_ONLY_CONNECTION_UNVERIFIED", "FOR
             "LEGACY_AUDIT_REQUIRED", "NO_AUTOMATIC_THIRTY_DAY_APPROVAL"}
 SOURCE_REQUIREMENTS = {
     "EVIDENCE": ("operational_cohort.py", "preproduction_observer.py", "migration_evidence.py",
-                 "financial_evidence.py", "financial_evidence_io.py"),
-    "ACCOUNT": ("live_account.py", "live_transport.py", "live_credentials.py"),
+                 "financial_evidence.py", "financial_evidence_io.py", "evidence_review.py", "testnet_financial_capture.py"),
+    "ACCOUNT": ("live_account.py", "live_transport.py", "live_credentials.py", "account_inventory.py", "financial_capture.py",
+                "financial_capture_runtime.py"),
     "CAPITAL": ("central_admission.py", "capital_manager_shadow.py", "capital_flow_shadow.py"),
     "RISK": ("central_admission.py", "risk_latches_shadow.py", "global_risk_shadow.py", "live_policy_review.py"),
-    "EXECUTION": ("live_execution_runtime.py", "live_runtime_gate.py", "live_authorization.py", "live_transport.py",
-                  "local_protection.py", "live_strategy_adapter.py", "live_proposal_source.py"),
+    "EXECUTION": ("live_execution_runtime.py", "live_recovery.py", "live_runtime_gate.py", "live_authorization.py", "live_transport.py",
+                  "local_protection.py", "live_strategy_adapter.py", "live_proposal_source.py",
+                  "live_supervisor.py", "live_venue.py"),
 }
 
 
@@ -219,9 +221,8 @@ def read_preproduction_status(data_dir, source_version, *, now=None, source_root
     if value["connection"]["state"] != "READ_ONLY_VERIFIED":
         value["blockers"].append("READ_ONLY_CONNECTION_UNVERIFIED")
     try:
-        store = OperationalCohortStore(data/"operational-cohorts.sqlite3")
-        snapshot = store.snapshot(now=time.time() if now is None else now)
-        if snapshot["state"] not in {"OBSERVING", "NOT_REGISTERED", "UNAVAILABLE"}:
+        snapshot = read_verified_cohort_snapshot(data, now=time.time() if now is None else now)
+        if snapshot["state"] not in {"OBSERVING", "NOT_REGISTERED"}:
             raise ValueError("COHORT_SNAPSHOT_UNAVAILABLE")
         active = [row for row in snapshot["scopes"] if row["active"]]
         for row in active:
@@ -230,7 +231,7 @@ def read_preproduction_status(data_dir, source_version, *, now=None, source_root
                 "registered_at": _normal_stamp(row["registered_at"]), "starts_at": _normal_stamp(row["starts_at"]),
                 "last_capture_at": _normal_stamp(row["last_capture_at"]), "source_at": _normal_stamp(row["source_at"]),
                 "source_complete": row["source_complete"], "stale": row["stale"],
-                "operational_days": row["operational_coverage_days"], "qualified_days": row["qualified_days"],
+                "operational_days": row["operational_coverage_days"], "qualified_days": row["financial_continuous_qualified_days"],
                 "missing_windows": row["operational_missing_windows"]}
             value["cohort"]["scopes"].append(result)
         value["cohort"]["state"] = "OBSERVING" if active else "NOT_REGISTERED"
@@ -244,7 +245,8 @@ def read_preproduction_status(data_dir, source_version, *, now=None, source_root
     # This closure concerns Spot/Futures only. Shadow research engines neither
     # qualify those accounts nor keep them blocked forever; both required scopes
     # must still be present with their own independently complete evidence.
-    if set(forward) != required_forward or any(row["qualified_days"] is None or row["qualified_days"] < 30 for row in forward.values()):
+    if set(forward) != required_forward or any(row["qualified_days"] is None or row["qualified_days"] < 30
+            or row["stale"] or row["source_complete"] is not True for row in forward.values()):
         value["blockers"].append("FORWARD_COHORT_INCOMPLETE")
     try:
         value["packages"] = _technical_packages(data/"live-preproduction"/"technical-status.json", at=at,

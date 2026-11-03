@@ -8,7 +8,7 @@ Existing native stops remain at Binance independently of this component.
 """
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from decimal import Decimal, InvalidOperation, ROUND_CEILING
 import hashlib
 import json
@@ -63,6 +63,7 @@ class ConfirmedPosition:
     observed_at: float
     evidence_digest: str
     execution_complete: bool
+    entry_client_id: str | None = None
 
     @property
     def fingerprint(self):
@@ -100,7 +101,7 @@ class LocalAuthorizationProvider(Protocol):
 class LiveExecutionCoordinator:
     """Explicit dependency injection only. No default execution authority."""
 
-    def __init__(self, admission, transport, *, provider=None, protection_factory=None, clock=time.time):
+    def __init__(self, admission, transport, *, provider=None, protection_factory=None, reduction_validator=None, clock=time.time):
         if type(admission) is not CentralAdmission or admission.scope.environment not in {"SPOT_LIVE", "FUTURES_LIVE"}:
             raise LiveError("DEDICATED_LIVE_ADMISSION_REQUIRED")
         if type(transport) is not LiveOrderTransport or type(transport.journal) is not LiveSubmissionJournal or transport.authority is not None:
@@ -109,6 +110,9 @@ class LiveExecutionCoordinator:
             raise LiveError("LIVE_TRANSPORT_SCOPE_MISMATCH")
         self.admission, self.transport = admission, transport
         self.provider, self.protection_factory, self.clock = provider, protection_factory, clock
+        if reduction_validator is not None and not callable(reduction_validator):
+            raise LiveError("EXPLICIT_REDUCTION_VALIDATOR_REQUIRED")
+        self.reduction_validator = reduction_validator
         self._pending, self._lock = {}, threading.Lock()
         transport.authority = self
 
@@ -279,7 +283,7 @@ class LiveExecutionCoordinator:
             if type(balances) is not list:
                 raise LiveError("LIVE_POSITION_INVENTORY_UNKNOWN")
             matches = [row for row in balances if type(row) is dict and row.get("asset") == base]
-            if len(matches) != 1 or _decimal(matches[0].get("free")) + _decimal(matches[0].get("locked")) < quantity:
+            if len(matches) != 1 or _decimal(matches[0].get("free")) + _decimal(matches[0].get("locked")) != quantity:
                 raise LiveError("LIVE_POSITION_INVENTORY_UNKNOWN")
             evidence += [trades, account]
         else:
@@ -290,7 +294,7 @@ class LiveExecutionCoordinator:
                 raise LiveError("LIVE_POSITION_INVENTORY_UNKNOWN")
             evidence.append(rows)
         return ConfirmedPosition(ticket_id, proposal.scope, proposal.symbol, proposal.direction, format(quantity, "f"),
-            format(quote / executed, "f"), format(executed, "f"), format(quote, "f"), self.clock(), _hash(evidence), terminal), terminal
+            format(quote / executed, "f"), format(executed, "f"), format(quote, "f"), self.clock(), _hash(evidence), terminal, intent.client_id), terminal
 
     def _native_verified(self, intent, position):
         p = dict(intent.fields)
@@ -356,6 +360,19 @@ class LiveExecutionCoordinator:
                 return False
         return True
 
+    def _cancel_entry_remainder(self, entry_intent, position, *, event_id):
+        """One exact cancellation, then GET; neither ACK nor timeout is final."""
+        cancellation = LiveOrderIntent(entry_intent.scope, "CANCEL", "DELETE", entry_intent.endpoint,
+            (("symbol", position.symbol), ("origClientOrderId", entry_intent.client_id)), entry_intent.client_id,
+            entry_intent.policy_digest, int(self.clock() * 1000) + 20_000)
+        pair = self.transport._credentials[cancellation.scope]
+        receipt = self.transport.journal.receipt(cancellation.scope, pair.fingerprint(),
+            cancellation.method, cancellation.endpoint, cancellation.client_id)
+        if receipt is None:
+            self._protective_dispatch(cancellation, position, event_id=event_id)
+        # A previously uncertain cancellation is queried, never blindly resent.
+        return self.transport.reconcile(entry_intent)
+
     def reconcile_by_client_id(self, ticket_id, intent, *, event_id):
         proposal, ticket = self._ticket(ticket_id, intent)
         if ticket.get("claim_id") is None:
@@ -363,6 +380,18 @@ class LiveExecutionCoordinator:
         try:
             raw = self.transport.reconcile(intent)
             position, terminal = self._confirmed_fill(ticket_id, proposal, intent, raw)
+            if position is not None and not terminal:
+                prior_position = position
+                try:
+                    raw = self._cancel_entry_remainder(intent, position, event_id=event_id)
+                except LiveError:
+                    # Preserve a best-effort stop for the quantity already
+                    # confirmed, without claiming it covers possible new fills.
+                    self._ensure_protection(proposal, intent, position, event_id)
+                    return self._recovery(ticket_id, "PARTIAL_ENTRY_CANCEL_UNCONFIRMED", event_id)
+                position, terminal = self._confirmed_fill(ticket_id, proposal, intent, raw)
+                if position is None or _decimal(position.executed_quantity) < _decimal(prior_position.executed_quantity):
+                    raise LiveError("LIVE_PARTIAL_CANCEL_FILL_REGRESSION")
             if position is None:
                 if terminal and self._no_sibling_orders(proposal):
                     event = Reconciliation(_event(event_id, "cancelled:" + _hash(raw)), ticket_id, "BINANCE_LIVE_SIGNED_GET",
@@ -373,6 +402,10 @@ class LiveExecutionCoordinator:
             principal = _ceil(_decimal(position.cumulative_quote) * MICRO * Decimal(1000) / Decimal(proposal.leverage_milli))
             if not self._ensure_protection(proposal, intent, position, event_id):
                 return self._recovery(ticket_id, "NATIVE_STOP_NOT_VERIFIED", event_id)
+            if not terminal:
+                # Confirmed quantity is protected; a later fill is not claimed
+                # covered by those fixed identifiers. Retain the full reserve.
+                return self._recovery(ticket_id, "PARTIAL_ENTRY_CANCEL_UNCONFIRMED", event_id)
             if principal > proposal.principal_units:
                 # A budget violation still gets native protection first. It may
                 # block entries, never suppress an existing position's stop.
@@ -386,6 +419,158 @@ class LiveExecutionCoordinator:
             return self._result(state, ticket_id=ticket_id, protection_verified=True, position=position)
         except (LiveError, AdmissionError):
             return self._recovery(ticket_id, "LIVE_RECONCILIATION_OR_PROTECTION_UNKNOWN", event_id)
+
+    def _owned_execution(self, ticket_id, intent):
+        """Exact signed order and every trade, durably retained before use."""
+        from .live_recovery import exact_execution
+        pair = self.transport._credentials[intent.scope]
+        raw = self.transport.reconcile(intent)
+        order_id = raw.get("orderId") if type(raw) is dict else None
+        if type(order_id) is not int or order_id < 0:
+            raise LiveError("OWNED_EXECUTION_IDENTITY_UNKNOWN")
+        endpoint = "/api/v3/myTrades" if intent.scope == "SPOT_LIVE" else "/fapi/v1/userTrades"
+        trades = self.transport.get(intent.scope, endpoint, {"symbol": dict(intent.fields)["symbol"], "orderId": order_id, "limit": 1000})
+        cut = exact_execution(intent, raw, trades)
+        observation = {"schema": 1, "order": raw, "trades": trades}
+        for previous in self.transport.journal.execution_observations(intent, pair.fingerprint(), ticket_id):
+            if set(previous) != {"schema", "order", "trades"} or previous["schema"] != 1:
+                raise LiveError("RETAINED_EXECUTION_RECORDS_INVALID")
+            old = exact_execution(intent, previous["order"], previous["trades"])
+            if old.order_id != cut.order_id or old.executed > cut.executed or not set(old.trade_ids) <= set(cut.trade_ids):
+                raise LiveError("OWNED_EXECUTION_REGRESSION")
+            current_trades = {row["id"]: row for row in trades}
+            if any(current_trades[row["id"]] != row for row in previous["trades"]):
+                raise LiveError("OWNED_EXECUTION_TRADE_CHANGED")
+        self.transport.journal.record_execution(intent, pair.fingerprint(), ticket_id, observation)
+        return cut, observation
+
+    def _owned_quantity(self, ticket_id, entry_intent):
+        entry, evidence = self._owned_execution(ticket_id, entry_intent)
+        quantity = entry.executed - entry.base_fee
+        pair = self.transport._credentials[entry_intent.scope]
+        closes = self.transport.journal.owned_intents(entry_intent.scope, pair.fingerprint(), ticket_id, "CLOSE")
+        if len(closes) > 16:
+            raise LiveError("OWNED_REDUCTION_COUNT_LIMIT")
+        seen, observations, terminal = set(entry.trade_ids), [evidence], entry.terminal
+        fields = dict(entry_intent.fields)
+        for close in closes:
+            p = dict(close.fields)
+            if (close.policy_digest != entry_intent.policy_digest or p["symbol"] != fields["symbol"]
+                    or p["side"] != ("SELL" if fields["side"] == "BUY" else "BUY")):
+                raise LiveError("OWNED_REDUCTION_BINDING_MISMATCH")
+            execution, original = self._owned_execution(ticket_id, close)
+            if seen & set(execution.trade_ids):
+                raise LiveError("OWNED_EXECUTION_TRADE_REUSED")
+            seen.update(execution.trade_ids)
+            quantity -= execution.executed + execution.base_fee
+            terminal = terminal and execution.terminal
+            observations.append(original)
+        if quantity < 0:
+            raise LiveError("OWNED_REDUCTION_EXCEEDS_ENTRY")
+        return entry, quantity, terminal, observations, closes
+
+    def _retained_native_plan(self, ticket_id, proposal, entry_intent):
+        pair = self.transport._credentials[entry_intent.scope]
+        legs = self.transport.journal.owned_intents(entry_intent.scope, pair.fingerprint(), ticket_id, "PROTECT")
+        plan = NativeProtectionPlan(legs)
+        if plan.terms_fingerprint != dict(entry_intent.risk_terms)["protection_plan_fingerprint"]:
+            raise LiveError("RETAINED_NATIVE_PLAN_MISMATCH")
+        quantities = {_decimal(dict(leg.fields)["quantity"]) for leg in legs}
+        if len(quantities) != 1 or not 0 < next(iter(quantities)) <= _decimal(dict(entry_intent.fields)["quantity"]):
+            raise LiveError("RETAINED_NATIVE_QUANTITY_UNKNOWN")
+        return plan, next(iter(quantities))
+
+    def _residual_cut(self, ticket_id, entry_intent):
+        proposal, ticket = self._ticket(ticket_id, entry_intent)
+        if ticket.get("claim_id") is None or ticket["state"] in {"CANCELLED", "CLOSED"}:
+            raise LiveError("OWNED_SUBMISSION_CLAIM_REQUIRED")
+        entry, quantity, terminal, observations, closes = self._owned_quantity(ticket_id, entry_intent)
+        if not terminal or not entry.terminal or quantity <= 0:
+            raise LiveError("OWNED_ENTRY_OR_REDUCTION_NOT_TERMINAL")
+        plan, covered = self._retained_native_plan(ticket_id, proposal, entry_intent)
+        if covered > quantity:
+            raise LiveError("NATIVE_COVERAGE_EXCEEDS_OWNED_POSITION")
+        position = ConfirmedPosition(ticket_id, proposal.scope, proposal.symbol, proposal.direction, format(quantity, "f"),
+            format(entry.quote / entry.executed, "f"), format(entry.executed, "f"), format(entry.quote, "f"),
+            self.clock(), _hash(observations), True, entry_intent.client_id)
+        coverage = replace(position, quantity=format(covered, "f"))
+        if not all(self._native_verified(leg, coverage) for leg in plan.intents):
+            raise LiveError("ORIGINAL_NATIVE_COVERAGE_NOT_VERIFIED")
+        if entry_intent.scope == "FUTURES_LIVE":
+            rows = self.transport.get(entry_intent.scope, "/fapi/v3/positionRisk", {"symbol": proposal.symbol})
+            matches = [row for row in rows if type(row) is dict and row.get("symbol") == proposal.symbol and row.get("positionSide") == "BOTH"] if type(rows) is list else []
+            signed = quantity if proposal.direction == "LONG" else -quantity
+            if len(matches) != 1 or _decimal(matches[0].get("positionAmt"), signed=True) != signed:
+                raise LiveError("EXACT_OWNED_POSITION_NOT_VERIFIED")
+            orders = self.transport.get(entry_intent.scope, "/fapi/v1/openOrders", {"symbol": proposal.symbol})
+            algos = self.transport.get(entry_intent.scope, "/fapi/v1/openAlgoOrders", {"symbol": proposal.symbol})
+            if (type(orders) is not list or orders or type(algos) is not list or len(algos) != len(plan.intents)
+                    or {row.get("clientAlgoId") for row in algos if type(row) is dict} != {leg.client_id for leg in plan.intents}):
+                raise LiveError("UNKNOWN_SIBLING_ORDERS_BLOCK_REDUCTION")
+            evidence = [observations, rows, orders, algos]
+        else:
+            account = self.transport.get(entry_intent.scope, "/api/v3/account")
+            balances = account.get("balances") if type(account) is dict else None
+            matches = [row for row in balances if type(row) is dict and row.get("asset") == proposal.symbol[:-4]] if type(balances) is list else []
+            if (len(matches) != 1 or _decimal(matches[0].get("free")) != quantity - covered
+                    or _decimal(matches[0].get("locked")) != covered):
+                raise LiveError("EXACT_OWNED_SPOT_FREE_LOCKED_NOT_VERIFIED")
+            orders = self.transport.get(entry_intent.scope, "/api/v3/openOrders", {"symbol": proposal.symbol})
+            lists = self.transport.get(entry_intent.scope, "/api/v3/openOrderList", {})
+            p = dict(plan.intents[0].fields)
+            if (type(orders) is not list or len(orders) != 2
+                    or {row.get("clientOrderId") for row in orders if type(row) is dict} != {p["aboveClientOrderId"], p["belowClientOrderId"]}
+                    or type(lists) is not list or len(lists) != 1 or type(lists[0]) is not dict
+                    or lists[0].get("listClientOrderId") != plan.intents[0].client_id):
+                raise LiveError("UNKNOWN_SIBLING_ORDERS_BLOCK_REDUCTION")
+            evidence = [observations, account, orders, lists]
+        return replace(position, evidence_digest=_hash(evidence)), covered, plan, closes
+
+    def mitigate_residual_by_client_id(self, ticket_id, entry_intent, *, event_id):
+        """Reduce only a terminal entry's provably owned uncovered quantity.
+
+        A retained close is queried with its original terms after restart. ACK,
+        timeout and partial execution never cause a POST retry or capital release.
+        Even a confirmed mitigation leaves the financial recovery latch active.
+        """
+        try:
+            position, covered, plan, closes = self._residual_cut(ticket_id, entry_intent)
+            residual = _decimal(position.quantity) - covered
+            if residual == 0:
+                result = self._recovery(ticket_id, "RESIDUAL_MITIGATED_FINANCIAL_RECONCILIATION_REQUIRED", event_id)
+                return {**result, "mitigation_confirmed": bool(closes), "covered_quantity": format(covered, "f")}
+            if self.reduction_validator is None:
+                return self._recovery(ticket_id, "CURRENT_REDUCTION_FILTERS_REQUIRED", event_id)
+            # Binding includes prior exact owned reductions. A later terminal
+            # partial close has a different identity; an uncertain close never
+            # reaches here because _residual_cut requires all orders terminal.
+            identity = _hash([entry_intent.digest(), sorted(leg.digest() for leg in plan.intents),
+                              format(residual, "f"), sorted(close.digest() for close in closes)])
+            client = "RC-" + identity[:32]
+            fields = {"symbol": position.symbol, "side": "SELL" if position.direction == "LONG" else "BUY",
+                      "type": "MARKET", "quantity": format(residual, "f"), "newClientOrderId": client}
+            if entry_intent.scope == "FUTURES_LIVE":
+                fields.update(positionSide="BOTH", reduceOnly="true")
+            close = LiveOrderIntent(entry_intent.scope, "CLOSE", "POST", "/api/v3/order" if entry_intent.scope == "SPOT_LIVE" else "/fapi/v1/order",
+                tuple(fields.items()), client, entry_intent.policy_digest, int(self.clock() * 1000) + 20_000)
+            if self.reduction_validator(close, position, self.clock()) is not True:
+                return self._recovery(ticket_id, "CURRENT_REDUCTION_FILTERS_NOT_VERIFIED", event_id)
+            current, fresh_covered, fresh_plan, fresh_closes = self._residual_cut(ticket_id, entry_intent)
+            if (current.quantity != position.quantity or fresh_covered != covered
+                    or tuple(leg.digest() for leg in fresh_plan.intents) != tuple(leg.digest() for leg in plan.intents)
+                    or tuple(i.digest() for i in fresh_closes) != tuple(i.digest() for i in closes)):
+                return self._recovery(ticket_id, "RESIDUAL_FACTS_CHANGED_BEFORE_DISPATCH", event_id)
+            result = self.execute_protective(close, current, event_id=event_id)
+            # Always query the exact persisted request; execution can have
+            # happened even when the submit response was UNKNOWN.
+            self._owned_execution(ticket_id, close)
+            final, final_covered, _, _ = self._residual_cut(ticket_id, entry_intent)
+            mitigated = _decimal(final.quantity) == final_covered
+            held = self._recovery(ticket_id, "RESIDUAL_MITIGATED_FINANCIAL_RECONCILIATION_REQUIRED" if mitigated else "OWNED_RESIDUAL_REMAINS", event_id)
+            return {**held, "mitigation_confirmed": mitigated, "close_client_id": close.client_id,
+                    "submission_state": result["state"], "covered_quantity": format(final_covered, "f")}
+        except (LiveError, AdmissionError):
+            return self._recovery(ticket_id, "RESIDUAL_RECONCILIATION_REQUIRED", event_id)
 
     def execute_protective(self, intent, position, *, event_id):
         """No entry capability, loss-gate, Guardian or AI dependency."""
@@ -427,11 +612,12 @@ class LiveExecutionCoordinator:
         entry_fields = dict(entry_intent.fields)
         if (type(raw) is not dict or raw.get("clientOrderId") != entry_intent.client_id or raw.get("symbol") != proposal.symbol
                 or raw.get("side") != entry_fields["side"] or _decimal(raw.get("origQty")) != _decimal(entry_fields["quantity"])
+                or raw.get("status") not in {"FILLED", "CANCELED", "EXPIRED", "REJECTED", "EXPIRED_IN_MATCH"}
                 or not 0 < _decimal(raw.get("executedQty")) <= _decimal(entry_fields["quantity"])):
             raise LiveError("OWNED_ENTRY_EXECUTION_UNKNOWN")
         if entry_intent.scope == "FUTURES_LIVE":
             current = self.transport.get(entry_intent.scope, "/fapi/v3/positionRisk", {"symbol": proposal.symbol})
-            if type(current) is not list or any(type(row) is not dict or row.get("symbol") != proposal.symbol or row.get("positionSide") != "BOTH" or _decimal(row.get("positionAmt"), signed=True) != 0 for row in current):
+            if type(current) is not list or len(current) != 1 or any(type(row) is not dict or row.get("symbol") != proposal.symbol or row.get("positionSide") != "BOTH" or _decimal(row.get("positionAmt"), signed=True) != 0 for row in current):
                 raise LiveError("POSITION_NOT_FLAT_OR_UNKNOWN")
         else:
             current = self.transport.get(entry_intent.scope, "/api/v3/account")
@@ -442,7 +628,7 @@ class LiveExecutionCoordinator:
         quote = _decimal(raw.get("cummulativeQuoteQty") if entry_intent.scope == "SPOT_LIVE" else raw.get("cumQuote"))
         executed = _decimal(raw.get("executedQty"))
         return proposal, ConfirmedPosition(ticket_id, proposal.scope, proposal.symbol, proposal.direction, "0",
-            format(quote / executed, "f"), format(executed, "f"), format(quote, "f"), self.clock(), _hash([raw, current]), True)
+            format(quote / executed, "f"), format(executed, "f"), format(quote, "f"), self.clock(), _hash([raw, current]), True, entry_intent.client_id)
 
     def cancel_native_after_flat(self, ticket_id, entry_intent, *, event_id):
         """Exact native targets only, after a fresh signed venue flat check."""
@@ -486,12 +672,16 @@ class LiveExecutionCoordinator:
                     or _decimal(raw.get("executedQty")) != _decimal(fields["quantity"])
                     or _decimal(raw.get("origQty")) != _decimal(fields["quantity"])):
                 return self._result("UNKNOWN", ticket_id=ticket_id, reasons=["CLOSE_EXECUTION_NOT_COMPLETE"])
+            _, remaining, terminal, owned_evidence, _ = self._owned_quantity(ticket_id, entry_intent)
+            if not terminal or remaining != 0:
+                return self._recovery(ticket_id, "OWNED_EXITS_DO_NOT_EXPLAIN_ENTRY", event_id)
             _, position = self._flat_position(ticket_id, entry_intent)
             if not self._no_sibling_orders(proposal):
                 return self._result("RECONCILIATION_REQUIRED", ticket_id=ticket_id, reasons=["NATIVE_SIBLINGS_STILL_PRESENT"])
+            _, position = self._flat_position(ticket_id, entry_intent)
             principal = _ceil(_decimal(position.cumulative_quote) * MICRO * Decimal(1000) / Decimal(proposal.leverage_milli))
-            event = Reconciliation(_event(event_id, "closed:" + _hash([raw, position.evidence_digest])), ticket_id,
-                "BINANCE_LIVE_SIGNED_GET", _event(event_id, "closed-evidence:" + _hash([raw, position.evidence_digest])), self.clock(), proposal.scope,
+            event = Reconciliation(_event(event_id, "closed:" + _hash([owned_evidence, position.evidence_digest])), ticket_id,
+                "BINANCE_LIVE_SIGNED_GET", _event(event_id, "closed-evidence:" + _hash([owned_evidence, position.evidence_digest])), self.clock(), proposal.scope,
                 "CLOSED", principal, True, True, True)
             result = self.admission.reconcile(event)
             return self._result(result["state"], ticket_id=ticket_id, reservation_release_allowed=result.get("reservation_released", False))
@@ -503,29 +693,35 @@ class LiveExecutionCoordinator:
         proposal, _ = self._ticket(ticket_id, entry_intent)
         try:
             _, position = self._flat_position(ticket_id, entry_intent)
-            plan = self._plan(proposal, entry_intent)
-            matched, evidence = False, []
+            entry, remaining, terminal, evidence, _ = self._owned_quantity(ticket_id, entry_intent)
+            if not terminal:
+                raise LiveError("OWNED_ENTRY_OR_REDUCTION_NOT_TERMINAL")
+            plan, covered = self._retained_native_plan(ticket_id, proposal, entry_intent)
+            matched, seen = False, {trade["id"] for observation in evidence for trade in observation["trades"]}
             for native in plan.intents:
                 fields = dict(native.fields)
+                originals, executions = [], []
                 if native.scope == "FUTURES_LIVE":
                     raw = self.transport.reconcile(native)
+                    native_original = raw
                     evidence.append(raw)
                     if (type(raw) is not dict or raw.get("clientAlgoId") != native.client_id
-                            or raw.get("symbol") != proposal.symbol or raw.get("algoStatus") != "FINISHED"):
+                            or raw.get("symbol") != proposal.symbol or raw.get("side") != fields["side"]
+                            or raw.get("orderType") != fields["type"] or _decimal(raw.get("quantity")) != covered
+                            or _decimal(raw.get("triggerPrice")) != _decimal(fields["triggerPrice"])):
+                        raise LiveError("NATIVE_ACTUAL_EXECUTION_UNKNOWN")
+                    if raw.get("algoStatus") in {"CANCELED", "EXPIRED", "REJECTED"} and raw.get("actualOrderId") in (None, "", "0", 0):
+                        continue
+                    if raw.get("algoStatus") != "FINISHED":
                         continue
                     order_id = raw.get("actualOrderId")
                     if type(order_id) not in {int, str} or not re.fullmatch(r"[0-9]{1,20}", str(order_id), re.ASCII):
                         raise LiveError("NATIVE_ACTUAL_EXECUTION_UNKNOWN")
                     actual = self.transport.get(native.scope, "/fapi/v1/order", {"symbol": proposal.symbol, "orderId": int(order_id)})
                     if (type(actual) is not dict or actual.get("orderId") != int(order_id)
-                            or actual.get("symbol") != proposal.symbol or actual.get("side") != fields["side"]
-                            or actual.get("positionSide") != "BOTH"
-                            or not (actual.get("reduceOnly") is True or type(actual.get("reduceOnly")) is str and actual["reduceOnly"] in {"true", "TRUE"})
-                            or actual.get("status") != "FILLED"
-                            or not 0 < _decimal(actual.get("executedQty")) <= _decimal(dict(entry_intent.fields)["quantity"])):
+                            or actual.get("symbol") != proposal.symbol or actual.get("side") != fields["side"]):
                         raise LiveError("NATIVE_ACTUAL_EXECUTION_UNKNOWN")
-                    evidence.append(actual)
-                    matched = True
+                    originals = [(actual, actual.get("clientOrderId"))]
                 else:
                     listing = self.transport.reconcile(native)
                     evidence.append(listing)
@@ -538,12 +734,36 @@ class LiveExecutionCoordinator:
                         if (type(raw) is not dict or raw.get("clientOrderId") != client or raw.get("symbol") != proposal.symbol
                                 or raw.get("side") != "SELL" or raw.get("type") != kind):
                             raise LiveError("NATIVE_ACTUAL_EXECUTION_UNKNOWN")
-                        if raw.get("status") == "FILLED" and 0 < _decimal(raw.get("executedQty")) <= _decimal(dict(entry_intent.fields)["quantity"]):
-                            matched = True
+                        originals.append((raw, client))
+                from .live_recovery import exact_execution
+                for raw, client in originals:
+                    p = {"symbol": proposal.symbol, "side": fields["side"], "quantity": format(covered, "f"),
+                         "type": "MARKET", "newClientOrderId": client}
+                    if native.scope == "FUTURES_LIVE":
+                        p.update(positionSide="BOTH", reduceOnly="true")
+                    actual_intent = LiveOrderIntent(native.scope, "CLOSE", "POST", "/api/v3/order" if native.scope == "SPOT_LIVE" else "/fapi/v1/order",
+                        tuple(p.items()), client, native.policy_digest, native.expires_utc_ms)
+                    endpoint = "/api/v3/myTrades" if native.scope == "SPOT_LIVE" else "/fapi/v1/userTrades"
+                    trades = self.transport.get(native.scope, endpoint, {"symbol": proposal.symbol, "orderId": raw.get("orderId"), "limit": 1000})
+                    cut = exact_execution(actual_intent, raw, trades)
+                    if not cut.terminal or seen & set(cut.trade_ids):
+                        raise LiveError("NATIVE_ACTUAL_EXECUTION_UNKNOWN")
+                    seen.update(cut.trade_ids)
+                    remaining -= cut.executed + cut.base_fee
+                    matched = matched or cut.executed > 0
+                    executions.append({"order": raw, "trades": trades})
+                if executions:
+                    pair = self.transport._credentials[native.scope]
+                    observation = {"schema": 2, "native": native_original if native.scope == "FUTURES_LIVE" else listing, "executions": executions}
+                    self.transport.journal.record_execution(native, pair.fingerprint(), ticket_id, observation)
+                    evidence.append(observation)
             if not matched:
                 return self._result("UNKNOWN", ticket_id=ticket_id, reasons=["OWNED_NATIVE_EXECUTION_NOT_CONFIRMED"])
+            if remaining != 0:
+                return self._recovery(ticket_id, "OWNED_EXITS_DO_NOT_EXPLAIN_ENTRY", event_id)
             if not self._no_sibling_orders(proposal):
                 return self._result("RECONCILIATION_REQUIRED", ticket_id=ticket_id, reasons=["NATIVE_SIBLINGS_STILL_PRESENT"])
+            _, position = self._flat_position(ticket_id, entry_intent)
             evidence_hash = _hash([position.evidence_digest, evidence])
             principal = _ceil(_decimal(position.cumulative_quote) * MICRO * Decimal(1000) / Decimal(proposal.leverage_milli))
             event = Reconciliation(_event(event_id, "native-closed:" + evidence_hash), ticket_id,
