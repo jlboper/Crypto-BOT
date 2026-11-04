@@ -16,7 +16,9 @@ class TechnicalEvidenceTests(unittest.TestCase):
                       'tests/test_evidence_review.py', 'tests/test_financial_capture.py',
                       'tests/test_financial_capture_runtime.py', 'tests/test_live_supervisor.py',
                       'tests/test_live_venue.py', 'tests/test_live_recovery.py',
-                      'tests/test_testnet_financial_capture.py'})
+                      'tests/test_testnet_financial_capture.py',
+                      'tests/test_testnet_financial_materializer.py','tests/test_testnet_financial_replay.py',
+                      'tests/test_supplemental_account_history.py'})
         hashes = {}
         for name in names:
             path = root/name; path.parent.mkdir(parents=True, exist_ok=True)

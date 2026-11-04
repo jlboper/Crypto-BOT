@@ -258,6 +258,19 @@ class TransportTests(unittest.TestCase):
             with self.assertRaises(inv.InventoryError):
                 inv._json(raw)
 
+    def test_http_diagnostics_retain_only_bounded_numeric_codes(self):
+        for code, expected in ((-2015,-2015),(True,None),('secret',None),(100001,None)):
+            transport=self.make()
+            body=io.BytesIO(json.dumps({'code':code,'msg':'secret provider text'}).encode())
+            error=urllib.error.HTTPError('secret-signed-url',401,'private',{},body)
+            with patch.object(transport,'_opener',return_value=Opener(error)):
+                with self.assertRaises(inv.InventoryHTTPError) as caught:
+                    transport.get('SPOT_TESTNET','/api/v3/time')
+            self.assertEqual(str(caught.exception),'READ_HTTP_UNAVAILABLE')
+            self.assertEqual(caught.exception.http_status,401)
+            self.assertEqual(caught.exception.provider_code,expected)
+            self.assertNotIn('secret',repr(caught.exception))
+
     def test_credentials_never_accept_control_characters(self):
         with self.assertRaises(inv.InventoryError):
             inv.TestnetReadOnlyTransport({"SPOT_TESTNET": ("key\r\ninject", "secret")})

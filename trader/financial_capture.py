@@ -13,7 +13,8 @@ import time
 from .financial_evidence import AUTHORITY, canonical
 from .financial_evidence_io import _atomic_anchor, _path, _writer_lock
 from .live_account import dpapi_protect
-from .live_transport import LiveError, LiveHTTPError, LiveReadOnlyTransport, SYMBOL, SPOT_TRANSFER_TYPES, SIMPLE_EARN_READ
+from .live_transport import (LiveError, LiveHTTPError, LiveReadOnlyTransport, SYMBOL,
+    SPOT_TRANSFER_TYPES, SIMPLE_EARN_READ, SUPPLEMENTAL_ACCOUNT_HISTORY_READ)
 
 MAX_STATE=16*1024*1024
 MAX_RECORDS=50000
@@ -715,6 +716,226 @@ class EarnSourceCapture:
     def retained(self):
         with _writer_lock(self.lock):
             return self._load()
+
+
+COLLATERAL_HISTORY = '/sapi/v1/simple-earn/flexible/history/collateralRecord'
+DIVIDEND_HISTORY = '/sapi/v1/asset/assetDividend'
+
+
+def normalize_supplemental_history_row(endpoint, row, *, start_utc_ms, end_utc_ms):
+    """Keep source units/identity; never infer a wrapper conversion or cashflow."""
+    if endpoint not in SUPPLEMENTAL_ACCOUNT_HISTORY_READ or type(row) is not dict:
+        raise LiveError('SUPPLEMENTAL_ROW_INVALID')
+    collateral = endpoint == COLLATERAL_HISTORY
+    stamp = _stamp(row.get('createTime' if collateral else 'divTime'))
+    if not start_utc_ms <= stamp <= end_utc_ms:
+        raise LiveError('SUPPLEMENTAL_HISTORY_WINDOW_CONTRADICTION')
+    asset, amount = _asset(row.get('asset')), _number(row.get('amount'))
+    if amount < 0:
+        raise LiveError('SUPPLEMENTAL_ROW_INVALID')
+    if collateral:
+        product = _identity(row.get('productId'))
+        operation = row.get('type')
+        if type(operation) is not str or not re.fullmatch('[A-Z_]{1,40}',operation):
+            raise LiveError('SUPPLEMENTAL_COLLATERAL_TYPE_UNKNOWN')
+        if type(row.get('orderId')) is not int or row['orderId'] < 0:
+            raise LiveError('SUPPLEMENTAL_ROW_IDENTITY_UNKNOWN')
+        identity = [asset,product,operation,row['orderId'],stamp]
+        direction = None
+    else:
+        if (type(row.get('id')) is not int or row['id'] < 0
+                or type(row.get('tranId')) is not int or row['tranId'] < 0):
+            raise LiveError('SUPPLEMENTAL_ROW_IDENTITY_UNKNOWN')
+        if type(row.get('direction')) is not int or row['direction'] not in {-1,1}:
+            raise LiveError('SUPPLEMENTAL_DIVIDEND_DIRECTION_UNKNOWN')
+        identity = [asset,row['id'],row['tranId']]
+        direction,product,operation = row['direction'],None,'DISTRIBUTION'
+    return {'identity':canonical(identity),'asset':asset,'amount':format(amount,'f'),
+        'at_ms':stamp,'direction':direction,'product_id':product,'operation':operation,
+        'original_row_digest':hashlib.sha256(canonical(row).encode('ascii')).hexdigest()}
+
+
+class SupplementalHistoryCapture:
+    """Explicit bounded collateral/dividend GETs; no worker or qualification.
+
+    Collateral uses documented page/total semantics. Dividend has no offset, so
+    saturated responses are retained then split into disjoint millisecond
+    intervals. Full pages or unexplained totals never imply source exhaustion.
+    """
+    def __init__(self, transport, directory, *, start_utc_ms, end_utc_ms,
+                 endpoints=(COLLATERAL_HISTORY,DIVIDEND_HISTORY), asset=None,
+                 product_id=None, page_size=100, dividend_limit=500,
+                 clock=time.time, protect=dpapi_protect, unprotect=dpapi_unprotect):
+        if type(transport) is not LiveReadOnlyTransport or set(transport._credentials) != {'SPOT_LIVE'}:
+            raise LiveError('EXPLICIT_SPOT_GET_ONLY_TRANSPORT_REQUIRED')
+        if (type(endpoints) not in {tuple,list} or not endpoints or len(set(endpoints))!=len(endpoints)
+                or not set(endpoints) <= SUPPLEMENTAL_ACCOUNT_HISTORY_READ):
+            raise LiveError('EXPLICIT_SUPPLEMENTAL_SOURCES_REQUIRED')
+        if (any(type(v) is not int for v in (start_utc_ms,end_utc_ms))
+                or not 0 < start_utc_ms < end_utc_ms <= int(clock()*1000)
+                or end_utc_ms-start_utc_ms > 30*DAY):
+            raise LiveError('SUPPLEMENTAL_FIXED_WINDOW_REQUIRED')
+        if (type(page_size) is not int or not 1<=page_size<=100
+                or type(dividend_limit) is not int or not 1<=dividend_limit<=500
+                or asset is not None and (type(asset) is not str or not re.fullmatch('[A-Z0-9]{1,24}',asset))
+                or product_id is not None and (type(product_id) is not str or not re.fullmatch('[A-Za-z0-9_-]{1,96}',product_id))):
+            raise LiveError('SUPPLEMENTAL_SOURCE_PARAMETERS_BLOCKED')
+        self.transport,self.clock,self.protect,self.unprotect = transport,clock,protect,unprotect
+        self.directory = _directory(directory)
+        self.path,self.lock = _path(self.directory/'supplemental-sources.dpapi'),_path(self.directory/'supplemental-sources.lock')
+        self.spec = {'schema':1,'start':start_utc_ms,'end':end_utc_ms,'endpoints':sorted(endpoints),
+            'asset':asset,'product_id':product_id,'page_size':page_size,'dividend_limit':dividend_limit,
+            'key':transport._credentials['SPOT_LIVE'].fingerprint()}
+
+    def _save(self,state):
+        _save_cipher(self.path,state,self.protect)
+
+    def _load(self):
+        if self.path.exists():
+            state=_load_cipher(self.path,self.unprotect)
+            if type(state) is not dict or state.get('spec')!=self.spec:
+                raise LiveError('CAPTURE_SCOPE_OR_KEY_BINDING_CHANGED')
+            return state
+        def segment(a,b):return {'start':a,'end':b,'page':1,'total':None,'count':0,'done':False,'children':[]}
+        return {'spec':self.spec,'originals':[],'not_before_ms':0,'next_source':0,
+            'streams':{endpoint:{'segments':[segment(self.spec['start'],self.spec['end'])],
+                'records':{},'reason':None,'last_error':None} for endpoint in self.spec['endpoints']}}
+
+    @staticmethod
+    def _total(endpoint,raw):
+        if type(raw) is not dict or set(raw)-{'rows','total'} or type(raw.get('rows')) is not list:
+            raise LiveError('SUPPLEMENTAL_ENVELOPE_INVALID')
+        total=raw.get('total')
+        if endpoint==COLLATERAL_HISTORY:
+            # Retained Binance original also returns integer zero for an empty page.
+            # No observed basis for accepting integer totals on nonempty pages.
+            if type(total) is int and total==0 and raw['rows']==[]:
+                return 0
+            if type(total) is not str or not re.fullmatch('0|[1-9][0-9]{0,5}',total):
+                raise LiveError('SUPPLEMENTAL_TOTAL_INVALID')
+            total=int(total)
+        elif type(total) is not int:
+            raise LiveError('SUPPLEMENTAL_TOTAL_INVALID')
+        if not 0<=total<=MAX_RECORDS:
+            raise LiveError('SUPPLEMENTAL_TOTAL_INVALID')
+        return total
+
+    def _page(self,state,endpoint):
+        stream=state['streams'][endpoint]
+        nodes=stream['segments']
+        segment=next((row for row in nodes if not row['done'] and not row['children']),None)
+        if segment is None:
+            raise LiveError('SUPPLEMENTAL_SPLIT_TREE_INCOMPLETE')
+        collateral=endpoint==COLLATERAL_HISTORY
+        limit=self.spec['page_size'] if collateral else self.spec['dividend_limit']
+        params={'startTime':segment['start'],'endTime':segment['end']}
+        if collateral:
+            params.update(current=segment['page'],size=limit)
+            if self.spec['product_id'] is not None:params['productId']=self.spec['product_id']
+        else:
+            params['limit']=limit
+            if self.spec['asset'] is not None:params['asset']=self.spec['asset']
+        if len(state['originals'])>=10000:
+            raise LiveError('CAPTURE_STORAGE_BUDGET_EXHAUSTED')
+        started=int(self.clock()*1000)
+        try:
+            raw=self.transport.get_supplemental_account_history(endpoint,params)
+        except LiveHTTPError as error:
+            state['originals'].append({'scope':'SPOT_LIVE','endpoint':endpoint,'params':params,
+                'started':started,'received':int(self.clock()*1000),'failure':{'code':str(error),**error.diagnostics()}})
+            stream['last_error']=error.diagnostics()
+            self._save(state)
+            raise
+        state['originals'].append({'scope':'SPOT_LIVE','endpoint':endpoint,'params':params,
+            'started':started,'received':int(self.clock()*1000),'response':raw})
+        stream['last_error']=None
+        self._save(state)  # Preserve originals even if normalization rejects them.
+        total=self._total(endpoint,raw)
+        if len(raw['rows'])>limit or total<len(raw['rows']):
+            raise LiveError('SUPPLEMENTAL_TOTAL_CONTRADICTION')
+        if segment['total'] is not None and segment['total']!=total:
+            raise LiveError('SUPPLEMENTAL_TOTAL_CHANGED')
+        parsed={}
+        for row in raw['rows']:
+            normalized=normalize_supplemental_history_row(endpoint,row,
+                start_utc_ms=segment['start'],end_utc_ms=segment['end'])
+            if (collateral and self.spec['product_id'] is not None and normalized['product_id']!=self.spec['product_id']
+                    or not collateral and self.spec['asset'] is not None and normalized['asset']!=self.spec['asset']):
+                raise LiveError('SUPPLEMENTAL_FILTER_CONTRADICTION')
+            identity=normalized['identity']
+            if identity in parsed or identity in stream['records']:
+                raise LiveError('SUPPLEMENTAL_DUPLICATE_OR_CHANGED_ROW')
+            parsed[identity]=normalized
+        segment['total']=total
+        if not collateral and len(raw['rows'])==limit:
+            if segment['start']==segment['end']:
+                raise LiveError('SUPPLEMENTAL_DENSE_TIMESTAMP_WINDOW')
+            if len(nodes)>=2047:
+                raise LiveError('SUPPLEMENTAL_SPLIT_BUDGET_EXHAUSTED')
+            mid=(segment['start']+segment['end'])//2
+            segment['children']=[len(nodes),len(nodes)+1]
+            segment['observed']={identity:row['original_row_digest'] for identity,row in parsed.items()}
+            for a,b in ((segment['start'],mid),(mid+1,segment['end'])):
+                nodes.append({'start':a,'end':b,'page':1,'total':None,'count':0,'done':False,'children':[]})
+            stream['reason']=None
+            return
+        count=segment['count']+len(parsed)
+        if count>total or len(raw['rows'])<limit and count!=total:
+            raise LiveError('SUPPLEMENTAL_TOTAL_CONTRADICTION')
+        if len(stream['records'])+len(parsed)>MAX_RECORDS:
+            raise LiveError('CAPTURE_STORAGE_BUDGET_EXHAUSTED')
+        stream['records'].update(parsed)
+        segment.update(count=count,done=count==total)
+        if collateral and not segment['done']:segment['page']+=1
+        for parent in reversed(nodes):
+            if parent['children'] and all(nodes[index]['done'] for index in parent['children']):
+                count=sum(nodes[index]['count'] for index in parent['children'])
+                if count!=parent['total']:
+                    raise LiveError('SUPPLEMENTAL_SPLIT_TOTAL_CONTRADICTION')
+                if any(stream['records'].get(identity,{}).get('original_row_digest')!=digest
+                        for identity,digest in parent['observed'].items()):
+                    raise LiveError('SUPPLEMENTAL_SPLIT_OBSERVATION_CHANGED')
+                parent.update(count=count,done=True)
+        stream.update(reason=None,last_error=None)
+
+    def run(self,*,max_calls=4):
+        if type(max_calls) is not int or not 1<=max_calls<=4:
+            raise LiveError('SUPPLEMENTAL_CALL_BUDGET_REQUIRED')
+        with _writer_lock(self.lock):
+            state,used,weight,failed=self._load(),0,0,set()
+            while used<max_calls and state['not_before_ms']<=int(self.clock()*1000):
+                pending=[e for e,s in state['streams'].items() if not s['segments'][0]['done'] and e not in failed]
+                if not pending:break
+                endpoint=pending[state['next_source']%len(pending)]
+                state['next_source']+=1
+                used+=1;weight+=1 if endpoint==COLLATERAL_HISTORY else 10
+                try:
+                    self._page(state,endpoint)
+                except (LiveError,ValueError,TypeError,KeyError) as error:
+                    code=str(error)
+                    state['streams'][endpoint]['reason']=(code if isinstance(error,LiveError)
+                        and re.fullmatch('(?:LIVE|SUPPLEMENTAL|CAPTURE|INVALID|UNRECOGNIZED)_[A-Z0-9_]{1,70}',code)
+                        else 'SUPPLEMENTAL_SOURCE_UNKNOWN')
+                    failed.add(endpoint)
+                    if isinstance(error,LiveHTTPError) and error.http_status in {418,429}:
+                        state['not_before_ms']=int(self.clock()*1000)+300000
+                self._save(state)
+            complete=all(s['segments'][0]['done'] for s in state['streams'].values())
+            limited=state['not_before_ms']>int(self.clock()*1000)
+            return {'schema':1,'mode':'EXPLICIT_SUPPLEMENTAL_ACCOUNT_GET',
+                'state':'SUPPLEMENTAL_SOURCES_CAPTURED' if complete else 'SUPPLEMENTAL_RATE_LIMITED' if limited else 'SUPPLEMENTAL_CAPTURE_PENDING',
+                'calls_this_run':used,'documented_endpoint_ip_weight_budget_used':weight,'not_before_ms':state['not_before_ms'],
+                'window_start_ms':self.spec['start'],'window_end_ms':self.spec['end'],
+                'sources_exhausted':sum(s['segments'][0]['done'] for s in state['streams'].values()),
+                'rows_by_source':{e.rsplit('/',1)[-1]:len(s['records']) for e,s in state['streams'].items()},
+                'provider_errors':[{ 'source':e.rsplit('/',1)[-1],**s['last_error']} for e,s in state['streams'].items() if s['last_error']],
+                'raw_encrypted_retention':any('response' in o for o in state['originals']),
+                'reason_codes':sorted({'SUPPLEMENTAL_SOURCES_DO_NOT_CERTIFY_WRAPPER_IDENTITY'}
+                    |{s['reason'] for s in state['streams'].values() if s['reason']}),
+                'account_history_complete':False,'ledger_reconciled':False,'financial_window_complete':False,**AUTHORITY}
+
+    def retained(self):
+        with _writer_lock(self.lock):return self._load()
 
 
 class FinancialCaptureService:

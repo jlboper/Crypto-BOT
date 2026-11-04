@@ -41,6 +41,10 @@ SIMPLE_EARN_READ = frozenset({
     "/sapi/v1/simple-earn/flexible/history/redemptionRecord",
     "/sapi/v1/simple-earn/flexible/history/rewardsRecord",
 })
+SUPPLEMENTAL_ACCOUNT_HISTORY_READ = frozenset({
+    "/sapi/v1/simple-earn/flexible/history/collateralRecord",
+    "/sapi/v1/asset/assetDividend",
+})
 # All documented universal-transfer directions touching the Spot MAIN wallet.
 # This is a GET-parameter allowlist, never transfer/write authority.
 SPOT_TRANSFER_TYPES = frozenset({
@@ -181,6 +185,29 @@ def _simple_earn_params(endpoint, params, now_ms):
         raise LiveError("LIVE_EARN_PARAMETERS_BLOCKED")
 
 
+def _supplemental_history_params(endpoint, params, now_ms):
+    """Separate signed Spot GETs; no generic endpoint or parameter widening."""
+    collateral = endpoint == "/sapi/v1/simple-earn/flexible/history/collateralRecord"
+    required = {"startTime", "endTime"} | ({"current", "size"} if collateral else {"limit"})
+    optional = {"productId"} if collateral else {"asset"}
+    if (endpoint not in SUPPLEMENTAL_ACCOUNT_HISTORY_READ or type(params) is not dict
+            or not required <= set(params) or set(params)-required-optional
+            or any(type(params[key]) is not int for key in ("startTime", "endTime"))
+            or not 0 < params["startTime"] <= params["endTime"] <= now_ms
+            or params["endTime"]-params["startTime"] > 30*86400000):
+        raise LiveError("LIVE_SUPPLEMENTAL_PARAMETERS_BLOCKED")
+    if collateral:
+        if (any(type(params[key]) is not int for key in ("current", "size"))
+                or not 1 <= params["current"] <= 10000 or not 1 <= params["size"] <= 100
+                or "productId" in params and (type(params["productId"]) is not str
+                    or not re.fullmatch(r"[A-Za-z0-9_-]{1,96}", params["productId"], re.ASCII))):
+            raise LiveError("LIVE_SUPPLEMENTAL_PARAMETERS_BLOCKED")
+    elif (type(params["limit"]) is not int or not 1 <= params["limit"] <= 500
+            or "asset" in params and (type(params["asset"]) is not str
+                or not re.fullmatch(r"[A-Z0-9]{1,24}", params["asset"], re.ASCII))):
+        raise LiveError("LIVE_SUPPLEMENTAL_PARAMETERS_BLOCKED")
+
+
 class LiveReadOnlyTransport:
     """Explicit credentials, fixed HTTPS hosts, no proxy/redirect/retry."""
 
@@ -215,14 +242,22 @@ class LiveReadOnlyTransport:
         self._samples[cache_key] = (stamp, received)
         return stamp
 
-    def _request(self, scope, method, endpoint, params, *, _write_capability=None, _key_metadata=False, _simple_earn=False):
+    def _request(self, scope, method, endpoint, params, *, _write_capability=None, _key_metadata=False, _simple_earn=False, _supplemental_history=False):
         if scope not in HOSTS:
             raise LiveError("LIVE_SCOPE_REQUIRED")
         if type(_key_metadata) is not bool:
             raise LiveError("LIVE_KEY_METADATA_GET_BLOCKED")
         if type(_simple_earn) is not bool or _simple_earn and _key_metadata:
             raise LiveError("LIVE_EARN_GET_BLOCKED")
-        if _simple_earn:
+        if (type(_supplemental_history) is not bool
+                or _supplemental_history and (_key_metadata or _simple_earn)):
+            raise LiveError("LIVE_SUPPLEMENTAL_GET_BLOCKED")
+        if _supplemental_history:
+            if method != "GET" or scope != "SPOT_LIVE" or endpoint not in SUPPLEMENTAL_ACCOUNT_HISTORY_READ:
+                raise LiveError("LIVE_SUPPLEMENTAL_GET_BLOCKED")
+            _supplemental_history_params(endpoint, params, int(self.clock()*1000))
+            public, host = PUBLIC[scope], HOSTS[scope]
+        elif _simple_earn:
             if method != "GET" or scope != "SPOT_LIVE" or endpoint not in SIMPLE_EARN_READ:
                 raise LiveError("LIVE_EARN_GET_BLOCKED")
             _simple_earn_params(endpoint, params, int(self.clock()*1000))
@@ -250,7 +285,7 @@ class LiveReadOnlyTransport:
               or int(self.clock() * 1000) >= _write_capability.expires_utc_ms
               or (method, endpoint) not in WRITE[scope]):
             raise LiveError("LIVE_EXECUTION_LOCKED")
-        if not _key_metadata and not _simple_earn:
+        if not _key_metadata and not _simple_earn and not _supplemental_history:
             public, host = PUBLIC[scope], HOSTS[scope]
         if scope not in self._credentials or self.calls >= self.max_calls:
             raise LiveError("LIVE_CREDENTIALS_OR_BUDGET_UNAVAILABLE")
@@ -345,6 +380,10 @@ class LiveReadOnlyTransport:
         change auto-subscribe or use the Futures key as a fallback.
         """
         return self._request("SPOT_LIVE", "GET", endpoint, fields, _simple_earn=True)
+
+    def get_supplemental_account_history(self, endpoint, fields):
+        """Only collateral/dividend originals on this configured Spot origin."""
+        return self._request("SPOT_LIVE", "GET", endpoint, fields, _supplemental_history=True)
 
 
 @dataclass(frozen=True)

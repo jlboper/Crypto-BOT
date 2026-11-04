@@ -1,3 +1,11 @@
+## 0.10.58 — diagnóstico financiero automático
+
+Cada ventana Testnet/Demo normaliza sus originales y conserva una conciliación
+diagnóstica cifrada con gaps concretos. Replay offline, símbolos observados y
+paginación conservan las fuentes sin fabricar cobertura integral o días
+cualificados. Las fuentes Earn adicionales se capturan por GET explícito.
+Ver [alcance y validación58](PREPRODUCTION_VALIDATION_58.md).
+
 ## 0.10.57 — captura, evidencia y recuperación
 
 Revisión explícita de evidencia Spot/Futures sin modificar los ledgers:

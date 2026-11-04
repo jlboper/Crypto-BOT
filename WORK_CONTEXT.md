@@ -1,3 +1,14 @@
+## 4 noviembre2026 — continuación 0.10.58
+
+57 main7ca58e3/PR134 publicada, firmada e instalada325/325; validaciones
+Linux/Windows41699134949 y41699135007 SUCCESS. Se prepara58 sobre ese main:
+diagnóstico cifrado automático por ventana, replay offline separado, actividad
+local y división de páginas llenas, fuentes collateral/dividend GET explícitas.
+No reconstruye aún bundles integrales ni cualifica días financieros; no cambia
+autoridad, capital, riesgo, claves o modo. Validación local1763Python/296NodePASS,
+sin errores/fallos/omisiones, fuentes intactas y red bloqueada. CI/firma/rollout58
+pendientes de verificación propia. Ver PREPRODUCTION_VALIDATION_58.md.
+
 ## 3 noviembre2026 — cierre técnico de candidata 0.10.57
 
 Se reanudó Spot Testnet por el comando local existente tras GETs frescos y la

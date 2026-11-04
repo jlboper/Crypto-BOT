@@ -1,3 +1,20 @@
+## 0.10.58 — conciliación diagnóstica automática de originales
+
+- Cada ventana Testnet/Demo conserva un diagnóstico cifrado de fills, comisiones,
+  income y cortes observados, con inventario local independiente y gaps explícitos.
+- Incluye símbolos con actividad local y divide páginas llenas en subventanas
+  disjuntas; conserva todos los originales y el alcance BOUNDED_SYMBOLS.
+- Para nuevas ventanas usa el recibo válido más reciente; las activas quedan
+  fijadas al reiniciar. Expone los intervalos sin backfill, sin inventar continuidad.
+- Replay offline valida fuentes antes de escribir diagnósticos cifrados separados,
+  sin claves, red, migraciones ni cambios a las cohortes.
+- Fuentes GET explícitas collateralRecord/assetDividend para investigar Earn,
+  sin suponer una explicación de los deltas LDUSDT.
+- Códigos HTTP Testnet numéricos; no infiere permisos de negativas ambiguas.
+- Sin bundles financieros integrales ni días cualificados inventados. Continúan
+  las exigencias de cuenta completa, fronteras, identidad y protección continua.
+  Ver PREPRODUCTION_VALIDATION_58.md. Sin autoridad LIVE ni permisos nuevos.
+
 ## 0.10.57 — captura original y recuperación verificable
 
 - Captura financiera GET reanudable y cifrada, historial Earn explícito y parser
