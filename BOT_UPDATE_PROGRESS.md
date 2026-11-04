@@ -1,3 +1,13 @@
+## 4 noviembre2026 — candidata0.10.58
+
+Base57 main7ca58e3/PR134 publicada y firmada/instalada325/325. 58 añade
+conciliación diagnóstica automática de originales, replay offline, actividad
+local/paginación y fuentes Earn explícitas. Las fuentes siguen acotadas y las
+compuertas financieras/LIVE conservan sus requisitos. Ver
+PREPRODUCTION_VALIDATION_58.md. Validación local final1763Python/296NodePASS,
+sin fallos/errores/omisiones, red bloqueada y fuentes intactas. CI/firma/rollout58
+requieren sus pruebas independientes.
+
 Validación local final27Oct2026: **1573/1573 Python offline PASS**, cero fallos,
 errores u omisiones; fuentes inalteradas durante ejecución, red externa bloqueada.
 **294/294 Node PASS**; Windows5.1 lifecycle, entrada protegida y vista/render

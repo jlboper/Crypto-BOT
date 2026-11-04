@@ -33,7 +33,9 @@ def technical_report(test_report, *, source=ROOT):
                      "tests/test_preproduction_runtime.py", "tests/test_preproduction_status.py",
                      "tests/test_evidence_review.py", "tests/test_financial_capture.py",
                      "tests/test_financial_capture_runtime.py", "tests/test_live_supervisor.py", "tests/test_live_venue.py",
-                     "tests/test_live_recovery.py", "tests/test_testnet_financial_capture.py"})
+                     "tests/test_live_recovery.py", "tests/test_testnet_financial_capture.py",
+                     "tests/test_testnet_financial_materializer.py", "tests/test_testnet_financial_replay.py",
+                     "tests/test_supplemental_account_history.py"})
     for name in required:
         digest = hashlib.sha256((source/name).read_bytes().replace(b"\r\n", b"\n")).hexdigest()
         if tested.get(name) != digest:

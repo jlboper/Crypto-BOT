@@ -19,17 +19,21 @@ import sqlite3
 import tempfile
 import time
 
-from .account_inventory import TestnetReadOnlyTransport, InventoryError, HOSTS, SYMBOL
+from .account_inventory import TestnetReadOnlyTransport, InventoryError, InventoryHTTPError, HOSTS, SYMBOL
 from .financial_capture import _directory, _save_cipher, _load_cipher, dpapi_unprotect
 from .financial_evidence import AUTHORITY, build_financial_receipt, canonical, digest
 from .financial_evidence_io import _atomic_anchor, _writer_lock, ingest_financial_files
 from .live_account import dpapi_protect
 from .migration_evidence import register_forward_cohort, evaluate_forward_cohort
 from .operational_cohort import OperationalCohortStore, FLAGS, iso, fingerprints_for_config
+from .testnet_financial_materializer import reconcile_testnet_sources
 
 ENVIRONMENTS = {'SPOT_TESTNET':'SPOT', 'FUTURES_DEMO':'FUTURES'}
 GAPS = ('ALL_ACCOUNT_SOURCE_COVERAGE_UNPROVEN', 'EXACT_BOUNDARY_RECONSTRUCTION_REQUIRED',
-        'LEDGER_FILL_IDENTITY_MAPPING_REQUIRED', 'PROTECTION_INTERVALS_UNPROVEN')
+        'LEDGER_FILL_IDENTITY_MAPPING_REQUIRED', 'PROTECTION_INTERVALS_UNPROVEN',
+        'BOUNDED_CAPTURE_DOES_NOT_BACKFILL_EVERY_OPERATIONAL_RECEIPT')
+HISTORY_ENDPOINTS = {'/api/v3/myTrades', '/fapi/v1/userTrades', '/fapi/v1/income'}
+MAX_PLAN = 512
 
 
 def _read_db(path):
@@ -65,8 +69,15 @@ def read_ledger_cut(path, environment, *, at, since):
             'scope':'LOCAL_LEDGER_ONLY','complete_account_certificate':False}
 
 
-def read_next_original(cohort_path, environment, *, after, at):
-    """Read a chained prospective receipt, ignoring cached financial bits."""
+def read_next_original(cohort_path, environment, *, after, at, latest=False):
+    """Read a chained prospective receipt, ignoring cached financial bits.
+
+    The explicit legacy default remains oldest-first. The bounded operating
+    producer selects latest-first so its limited GET budget cannot create an
+    ever-growing diagnostic queue. Neither selection proves skipped coverage.
+    """
+    if type(latest) is not bool:
+        raise ValueError('EXPLICIT_ORIGINAL_SELECTION_BOOLEAN_REQUIRED')
     store = OperationalCohortStore(cohort_path)
     if not store.path.is_file():
         return None
@@ -79,7 +90,8 @@ def read_next_original(cohort_path, environment, *, after, at):
         if row is None:
             return None
         reg = json.loads(row['registration']); cohort = register_forward_cohort(reg)
-        candidates = db.execute('SELECT payload FROM receipts WHERE cohort=? ORDER BY slot LIMIT 50000',
+        order = 'DESC' if latest else 'ASC'
+        candidates = db.execute(f'SELECT payload FROM receipts WHERE cohort=? ORDER BY slot {order} LIMIT 50000',
                                 (cohort.digest,))
         for candidate in candidates:
             original = json.loads(candidate['payload'])
@@ -108,6 +120,11 @@ def read_next_original(cohort_path, environment, *, after, at):
     return None
 
 
+def read_current_original(cohort_path, environment, *, after, at):
+    """Select the latest valid new window; do not replay the historical queue."""
+    return read_next_original(cohort_path,environment,after=after,at=at,latest=True)
+
+
 class TestnetFinancialCaptureService:
     """Cooperative service used by the one existing financial capture thread.
 
@@ -118,7 +135,7 @@ class TestnetFinancialCaptureService:
     def __init__(self, credential_source, data_dir, *, ledger_paths, symbols,
                  clock=time.time, protect=dpapi_protect, unprotect=dpapi_unprotect,
                  materializer=None, transport_factory=TestnetReadOnlyTransport,
-                 ledger_reader=read_ledger_cut, original_reader=read_next_original,
+                 ledger_reader=read_ledger_cut, original_reader=read_current_original,
                  expected_fingerprints=None):
         if not callable(credential_source) or materializer is not None and not callable(materializer):
             raise ValueError('EXPLICIT_TESTNET_SOURCE_CALLBACK_REQUIRED')
@@ -157,6 +174,8 @@ class TestnetFinancialCaptureService:
         except InventoryError as error:
             code = str(error)
             original['failure'] = code if re.fullmatch('[A-Z0-9_]{1,80}',code) else 'TESTNET_GET_UNKNOWN'
+            if isinstance(error, InventoryHTTPError):
+                original['http_status'], original['provider_code'] = error.http_status, error.provider_code
         original['received_ms'] = int(self.clock()*1000)
         folder = _directory(self.directory/scope/'responses')
         path = folder/f'{state["sequence"]:012d}.dpapi'
@@ -206,6 +225,45 @@ class TestnetFinancialCaptureService:
         if len(identities)>1:raise ValueError('TESTNET_REPORTED_ACCOUNT_CHANGED')
         return next(iter(identities)) if identities else None
 
+    def _extend_ledger_symbols(self, scope, active):
+        """Include actual local activity, without claiming a whole account."""
+        if active.get('ledger_symbols_added'):
+            return
+        rows = active['closing_ledger']
+        symbols = set(self.symbols[scope])
+        for row in rows.get('positions', []) + rows.get('trades', []):
+            symbol = row.get('symbol')
+            if type(symbol) is not str or not SYMBOL.fullmatch(symbol):
+                raise ValueError('TESTNET_LEDGER_SYMBOL_INVALID')
+            symbols.add(symbol)
+        if len(symbols) > 100:
+            raise ValueError('TESTNET_OBSERVED_SYMBOL_LIMIT')
+        endpoint = '/api/v3/myTrades' if scope == 'SPOT_TESTNET' else '/fapi/v1/userTrades'
+        template = next(params for route, params in active['plan'] if route == endpoint)
+        active['plan'] += [(endpoint, {**template, 'symbol': symbol})
+                           for symbol in sorted(symbols - set(self.symbols[scope]))]
+        active['ledger_symbols_added'] = True
+
+    @staticmethod
+    def _split_full_page(active, raw):
+        """Retain the full parent and query disjoint inclusive child windows.
+
+        A full page in a single millisecond or a bounded plan limit remains an
+        explicit gap. An empty child proves only that requested symbol/time.
+        """
+        if (raw['endpoint'] not in HISTORY_ENDPOINTS or type(raw.get('response')) is not list
+                or len(raw['response']) != 1000):
+            return
+        params = raw['params']; start, end = params['startTime'], params['endTime']
+        entry = {'endpoint': raw['endpoint'], 'params': params, 'children': []}
+        active.setdefault('history_partitions', []).append(entry)
+        if start >= end or len(active['plan']) + 2 > MAX_PLAN:
+            entry['gap'] = 'TESTNET_HISTORY_DENSE_OR_PARTITION_LIMIT'
+            return
+        middle = (start + end) // 2
+        entry['children'] = [{**params, 'endTime': middle}, {**params, 'startTime': middle + 1}]
+        active['plan'] += [(raw['endpoint'], child) for child in entry['children']]
+
     def _retain_window(self, state, scope, item):
         active = item['active']; reg, original = active['registration'], active['original']
         refs = item['baseline']['refs']+active['refs']
@@ -235,10 +293,27 @@ class TestnetFinancialCaptureService:
         _atomic_anchor(binding_path,binding)
         packet = {'schema':1,'environment':scope,'registration':reg,'original':original,
             'baseline':item['baseline'],'closing_ledger':active['closing_ledger'],
-            'source_refs':refs,'sources':sources,'symbol_universe':self.symbols[scope],
+            'source_refs':refs,'sources':sources,'symbol_universe':sorted({params['symbol']
+                for endpoint,params in active['plan'] if endpoint in HISTORY_ENDPOINTS and 'symbol' in params}),
+            'history_partitions':active.get('history_partitions',[]),
+            'selection_scope':active.get('selection_scope','RETAINED_IN_FLIGHT_OPERATIONAL_WINDOW'),
             'source_scope':'BOUNDED_SYMBOLS','reason_codes':sorted(reasons),**AUTHORITY}
         folder = _directory(scope_dir/'windows'/digest(original))
-        _save_cipher(folder/'sources.dpapi',packet,self.protect)
+        source_path = folder/'sources.dpapi'
+        if source_path.exists():
+            if _load_cipher(source_path,self.unprotect) != packet:
+                raise ValueError('TESTNET_RETAINED_SOURCE_WINDOW_CHANGED')
+        else:
+            _save_cipher(source_path,packet,self.protect)
+        diagnostic = reconcile_testnet_sources(deepcopy(packet))
+        # Private normalized quantities and exchange IDs never enter status.json.
+        # This independent diagnostic does not confer canonical window coverage.
+        diagnostic_path = folder/'reconciliation.dpapi'
+        if diagnostic_path.exists():
+            if _load_cipher(diagnostic_path,self.unprotect) != diagnostic:
+                raise ValueError('TESTNET_RETAINED_SOURCE_DIAGNOSTIC_CHANGED')
+        else:
+            _save_cipher(diagnostic_path,diagnostic,self.protect)
         outcome = {'state':'RAW_CAPTURED_QUALIFICATION_BLOCKED','reason_codes':sorted(reasons),
                    'packet_received':False,'financial_window_complete':False,**AUTHORITY}
         if self.materializer is not None and account_ref is not None and not any('failure' in r for r in sources):
@@ -266,8 +341,11 @@ class TestnetFinancialCaptureService:
                         journal_path=scope_dir/'financial-evidence.sqlite3',
                         anchor_path=scope_dir/'financial-evidence.anchor.json',clock=lambda:iso(self.clock()))
                 outcome['reason_codes'] = checked['reason_codes']
+        outcome['reason_codes'] = sorted(set(outcome.get('reason_codes',())) | reasons)
         _atomic_anchor(scope_dir/'status.json',{'schema':1,'environment':scope,'at':iso(self.clock()),
-            'source_window_retained':True,'source_window_ref':digest(original),**outcome})
+            'source_window_retained':True,'source_window_ref':digest(original),
+            'selection_scope':packet['selection_scope'],
+            'source_reconciliation':diagnostic['summary'],**outcome})
         item['retained_windows'] = item.get('retained_windows',0)+1
         item['last'] = outcome
         item['after'] = datetime.fromisoformat(original['interval_end'].replace('Z','+00:00')).timestamp()
@@ -329,7 +407,9 @@ class TestnetFinancialCaptureService:
                         reg,original = found
                         if self.expected_fingerprints is not None and reg['fingerprints'] != self.expected_fingerprints[scope]:
                             raise ValueError('TESTNET_CURRENT_COHORT_FINGERPRINT_MISMATCH')
-                        item['active'] = {'registration':reg,'original':original,'refs':[],'plan':base_plan.copy()}
+                        item['active'] = {'registration':reg,'original':original,'refs':[],'plan':base_plan.copy(),
+                            'selection_scope':'LATEST_AVAILABLE_OPERATIONAL_WINDOW'
+                                if self.original_reader is read_current_original else 'INJECTED_OPERATIONAL_WINDOW'}
                         active = item['active']
                         start = int(datetime.fromisoformat(original['interval_start'].replace('Z','+00:00')).timestamp()*1000)
                         end = int(datetime.fromisoformat(original['interval_end'].replace('Z','+00:00')).timestamp()*1000)-1
@@ -343,17 +423,25 @@ class TestnetFinancialCaptureService:
                         active['closing_ledger']=self.ledger_reader(self.ledger_paths[scope],scope,
                             at=active['closed_at'],since=active['original']['interval_start'])
                         self._save(state)
+                    if 'closing_ledger' in active:
+                        self._extend_ledger_symbols(scope, active); self._save(state)
                     for endpoint,params in active['plan'][len(active['refs']):]:
                         if used >= max_calls or stopping(): break
                         raw,ref=self._fetch(state,transport,scope,endpoint,params);used+=1
                         if 'failure' in raw:
                             item.setdefault('failed_refs',[]).append(ref);self._save(state)
                             return {**public,'reason_codes':[raw['failure']]}
-                        active['refs'].append(ref);self._save(state)
+                        # Publish the consumed source and its child plan in the
+                        # same controller checkpoint; a restart cannot skip a
+                        # durable full parent whose split was not yet saved.
+                        active['refs'].append(ref)
+                        self._split_full_page(active,raw)
+                        self._save(state)
                         if len(active['refs'])==len(base_plan):
                             active['closed_at']=self.clock()
                             active['closing_ledger']=self.ledger_reader(self.ledger_paths[scope],scope,
                                 at=active['closed_at'],since=active['original']['interval_start'])
+                            self._extend_ledger_symbols(scope,active)
                             self._save(state)
                     if len(active['refs'])==len(active['plan']) and not stopping():
                         self._retain_window(state,scope,item)

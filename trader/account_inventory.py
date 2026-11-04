@@ -44,6 +44,14 @@ class InventoryError(ValueError):
     """Only closed error codes; never echo credentials, URLs or provider text."""
 
 
+class InventoryHTTPError(InventoryError):
+    """Numeric diagnostics cannot distinguish key, IP and permission failures."""
+    def __init__(self, code, *, http_status, provider_code=None):
+        super().__init__(code)
+        self.http_status = http_status if type(http_status) is int and 100 <= http_status <= 599 else None
+        self.provider_code = provider_code if type(provider_code) is int and -100000 <= provider_code <= 100000 else None
+
+
 def _unique(pairs):
     result = {}
     for key, value in pairs:
@@ -177,7 +185,19 @@ class TestnetReadOnlyTransport:
                     raise InventoryError("RESPONSE_SIZE_LIMIT")
                 return _json(raw)
         except urllib.error.HTTPError as error:
-            raise InventoryError("RATE_LIMITED" if error.code in (418, 429) else "READ_HTTP_UNAVAILABLE") from None
+            provider_code = None
+            try:
+                body = error.read(4097)
+                if len(body) <= 4096:
+                    value = _json(body)
+                    if type(value) is dict:
+                        provider_code = value.get('code')
+            except (ValueError, OSError, TypeError, AttributeError):
+                pass
+            finally:
+                error.close()
+            raise InventoryHTTPError("RATE_LIMITED" if error.code in (418, 429) else "READ_HTTP_UNAVAILABLE",
+                http_status=error.code, provider_code=provider_code) from None
         except (urllib.error.URLError, TimeoutError, OSError):
             raise InventoryError("READ_NETWORK_UNAVAILABLE") from None
 

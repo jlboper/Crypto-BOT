@@ -1,3 +1,15 @@
+## 4 noviembre 2026 — candidata 0.10.58 desde main 0.10.57
+
+Base7ca58e3/PR134, publicación41699134949 intento2 y seguridad41699135007
+SUCCESS Linux/Windows; firma e instalación57 verificadas325/325. El propietario
+pide adelantar conciliación y avisar si hace falta un permiso Binance concreto.
+58 automatiza diagnósticos cifrados de originales, captura actividad local fuera
+del universo configurado, divide páginas llenas y añade fuentes Earn explícitas.
+No existe aún un materializador financiero integral: BOUNDED_SYMBOLS no acredita
+ALL_ACCOUNT, fronteras exactas, mapping propio o protección continua. El paso
+del tiempo solo no resuelve esos huecos. Ver PREPRODUCTION_VALIDATION_58.md.
+PR/CI/firma/instalación58 necesitan sus pruebas independientes.
+
 ## 28 octubre 2026 — candidata 0.10.57 desde main 0.10.56
 
 Base main `51532ac5956b147c233851891f00b4aff8817411`, PR133, publicación

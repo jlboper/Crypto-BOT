@@ -23,7 +23,8 @@ BLOCKERS = {"OWNER_ACTIVATION_REQUIRED", "READ_ONLY_CONNECTION_UNVERIFIED", "FOR
             "LEGACY_AUDIT_REQUIRED", "NO_AUTOMATIC_THIRTY_DAY_APPROVAL"}
 SOURCE_REQUIREMENTS = {
     "EVIDENCE": ("operational_cohort.py", "preproduction_observer.py", "migration_evidence.py",
-                 "financial_evidence.py", "financial_evidence_io.py", "evidence_review.py", "testnet_financial_capture.py"),
+                 "financial_evidence.py", "financial_evidence_io.py", "evidence_review.py", "testnet_financial_capture.py",
+                 "testnet_financial_materializer.py", "testnet_financial_replay.py"),
     "ACCOUNT": ("live_account.py", "live_transport.py", "live_credentials.py", "account_inventory.py", "financial_capture.py",
                 "financial_capture_runtime.py"),
     "CAPITAL": ("central_admission.py", "capital_manager_shadow.py", "capital_flow_shadow.py"),

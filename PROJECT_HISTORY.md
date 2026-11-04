@@ -1,3 +1,15 @@
+## 4 noviembre2026 — diagnóstico separado de cualificación
+
+Los originales operativos contienen hechos útiles, pero el universo acotado y
+los cortes asincrónicos no cumplen el contrato financiero integral. Se introduce
+un diagnóstico automático independiente del callback de bundles. Normaliza IDs
+nativos/costes sin apropiarse de fills externos, compara fuentes locales separadas
+y conserva huecos; nunca amplía BOUNDED_SYMBOLS a ALL_ACCOUNT. El replay valida
+ciphertext/contenido referenciado y no modifica los originales. Precisión y activos
+desconocidos se conservan como datos/gaps, sin ceros o redondeos implícitos. Los
+eventos collateral/dividend no prueban equivalencia entre LDUSDT y USDT ni
+conceden permiso financiero. Ver PREPRODUCTION_VALIDATION_58.md.
+
 ## 28 octubre2026 — revisión del historial sin certificación retrospectiva
 
 La evaluación explícita conserva historia local y verifica la cadena de recibos
