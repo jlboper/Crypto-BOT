@@ -1,298 +1,38 @@
-## 0.10.58 — diagnóstico financiero automático
+# Crypto AI Trader — Spot Testnet y Futures Demo
 
-Cada ventana Testnet/Demo normaliza sus originales y conserva una conciliación
-diagnóstica cifrada con gaps concretos. Replay offline, símbolos observados y
-paginación conservan las fuentes sin fabricar cobertura integral o días
-cualificados. Las fuentes Earn adicionales se capturan por GET explícito.
-Ver [alcance y validación58](PREPRODUCTION_VALIDATION_58.md).
+Un único motor supervisado opera los entornos de pruebaSpot/Futures. El portal y
+Windows comparten los assets web; las actualizaciones se instalan verificando firma,
+identidad, hashes y salud. Pulse/Quant son experimentalesSHADOW; no capital real.
 
-## 0.10.57 — captura, evidencia y recuperación
+## Estado
 
-Revisión explícita de evidencia Spot/Futures sin modificar los ledgers:
-`python scripts/review_preproduction_evidence.py --data-dir <directorio>`.
-Conserva actividad e historia, separa resultados registrados de P&L neto
-conciliado y comprueba la cadena prospectiva. No certifica30d por uptime ni
-activa el borrador100USDT. Ver [alcance y validación57](PREPRODUCTION_VALIDATION_57.md).
-Las notas siguientes conservan sus fechas; preparar código no prueba instalación.
+Base verificada: main `b79c7dfa2de810a8181b730706a67f2282bd60fe`, PR135,
+0.10.58 firmada e instalada. Auditoría local5 noviembre 2026:332/332 archivos,
+agente 15/15, dos HTTPS nuevos, un solo motor Testnet, fuentes y datos preservados.
+El workflow de publicación41899913559 aprobó Linux/Windows y publicó; el workflow
+separado de seguridad41899913720 falló una prueba Windows de heartbeat. Se conserva
+ese fallo; la candidata 59 corrige la carrera y exige validación propia.
 
-Captura GET segregada en un único worker, originales cifrados, historial Earn
-explícito y cobertura financiera reconstruida desde journals/anclas de cuenta.
-La captura operativa Testnet/Demo conserva gaps concretos y no declara días
-financieros cuando faltan fuentes integrales. La recuperación persiste intents
-exactos antes del envío y concilia fills propios, comisiones y cobertura nativa
-antes de reducir exposición o liberar una reserva. Se corrige también el uso de
-precios medios Futures redondeados y el contrato opcional del diagnóstico Pulse.
-La evaluación estadística y la activación real mantienen sus puertas separadas.
+## Arranque con dinero real
 
-## 27 octubre 2026 — candidata 0.10.56; base 0.10.55 verificada
+LIVE no está comisionado. Hay tres faltantes de implementación: ensamblador del
+runtime conectado al engine, proveedor operativo de AdmissionFacts certificados,
+y flujo protegido de puesta en servicio/activación. Los módulos de ejecución y
+recuperación tienen pruebas sintéticas; eso no equivale a integración operativa.
+Más permisos o más días transcurridos no conectan esas piezas.
 
-Main `d78b7ee882236bfbdac14047662abe9ad7154e03`, [PR132](https://github.com/jlboper/Crypto-BOT/pull/132),
-[publicación40400621712](https://github.com/jlboper/Crypto-BOT/actions/runs/40400621712)
-y seguridad40400621700 SUCCESS Linux/Windows. Base55 firmada e instalada294/294.
-56 añade enlace opcional de identidades/permisos GET, invalidación y caducidad de
-evidencia de claves, ingesta financiera segregada, productor de señales nativas
-y adaptador al coordinador, y preparación de política exclusivamente inactiva.
-Ver [validación y límites56](PREPRODUCTION_VALIDATION_56.md). No confundir pruebas
-con Binance simulado con una integración LIVE comisionada. El guard del motor
-sigue bloqueando LIVE antes de crear wallet. No cambia Testnet, riesgo, stops,
-IA individual ni datos financieros. GuardianL0; Pulse/Quant SHADOW. Aprobación del
-borrador numérico no equivale a activación. CI/firma/instalación56 requieren
-resultados propios; las secciones siguientes son historia fechada.
+La conciliación integral, el historial de protección, la evidencia forward/OOS y
+la revisión explícita del capital/riesgo son requisitos distintos. Los30 días son
+una política interna del proyecto, no una espera que genere aprobación automática.
+No retirar guardas ni fabricar hechos financieros para convertir el estado enGO.
+Ver [auditoría de arranque](LIVE_LAUNCH_AUDIT.md) y [cierre acotado](PREPRODUCTION_CLOSURE.md).
 
-## 0.10.55 — conexión de lectura robusta (en preparación)
+## Desarrollo y documentación
 
-Base verificada0.10.54: main `a5f7c599957f87171c63f359ee016180f7ea4c7b`,
-[PR131](https://github.com/jlboper/Crypto-BOT/pull/131), publicación40374125017 y
-seguridad40374125048 SUCCESS Linux/Windows; firma e instalación290/290 comprobadas.
-Esta candidata valida la entrada HMAC antes de guardar, conserva ámbitos de claves
-con actualizaciones concurrentes y añade **Conexión Binance · solo lectura** al
-menú Windows. El auditor permite elegir un ámbito y conserva códigos HTTP/Binance
-numéricos sin exponer respuestas privadas. Reconoce sólo el sobre vacío verificado
-de transferencias; no certifica toda la cuenta ni habilita órdenes. Pruebas,
-publicación e instalación55 requieren sus propios resultados. Ver
-[Alcance finito de preparación](PREPRODUCTION_CLOSURE.md).
-
-## 0.10.53 — auditoría Futures V3 (en preparación)
-
-Base52 publicada, firmada e instalada: mainb110b7e, [PR129](https://github.com/jlboper/Crypto-BOT/pull/129),
-255/255 hashes23Oct22:39UTC. Publicación40033473861 intento2 y seguridad40033473866
-SUCCESS Linux/Windows;259816 filas históricas y configuración/credenciales intactas.
-53 corrige sólo el auditor GET: Futures V3 omite canTrade. La validación local
-conservadora comprueba totales/listas, sin certificar permisos. Spot sigue estricto.
-No altera trading, límites, protecciones, autoridad o UI. Ver MIGRATION_AUDIT.md.
-Pruebas/CI/firma/instalación53 requieren evidencia nueva. LIVE sigue bloqueado.
-
-## 0.10.52 — historia de preparación
-
-Base main51 `f90f311f53a7c6f338b079f1d37b64bf4cd58459`,
-[PR128](https://github.com/jlboper/Crypto-BOT/pull/128). Workflows39903537643
-y39903537657 SUCCESS Linux/Windows. Corte23Oct15:51UTC: Ed25519 válida,
-237/237 hashes, journal COMMITTED, runtime RUNNING, mismo motor18436/agente25008,
-HTTPS correcto; Spot2/Futures3 ARMED. Son observaciones fechadas.
-
-La candidata52 implementa auditoría GET Testnet/Demo explícita, protocolo conjunto
-riesgo+capital exclusivamente SIM, bloqueos durables de pérdidas SIM, hipótesis
-de capital Spot/Futures y validación de recibos prospectivos, más informe plegable
-compartido. Ver [MIGRATION_AUDIT.md](MIGRATION_AUDIT.md). No cambia admisión, riesgo,
-IA individual, protección, cuentas o trading de los motores. Guardian LEVEL0;
-Pulse/Quant SHADOW. LIVE/control/reservas efectivas/promoción permanecen bloqueados.
-
-No une wallets ni deduce30d certificados. Flow y latches aún tienen almacenes
-independientes; no hay captura/registro durable de cohortes operativas ni
-admisión conjunta de motores. Fuente de cuenta parcial, historia/cashflows y
-validación operativa siguen pendientes. Pruebas, CI, publicación, firma e
-instalación52 requieren evidencia propia. Las secciones siguientes son historia.
-
-## Checkpoint vigente — 0.10.49 instalada; preparación 0.10.50
-
-La base confirmada es main `a3bd52b541868bce498107e9f6a19787db03bbbf`,
-[PR126](https://github.com/jlboper/Crypto-BOT/pull/126).
-[Publicación39615774170](https://github.com/jlboper/Crypto-BOT/actions/runs/39615774170)
-y [seguridad39615774421](https://github.com/jlboper/Crypto-BOT/actions/runs/39615774421)
-finalizaron correctamente en Linux y Windows. Corte21Oct2026 20:25–20:27UTC:
-Ed25519 válida,229/229 archivos, journal COMMITTED, un motor5016/agente14328,
-11/11 módulos del agente y dos sincronizaciones HTTPS distintas verificadas.
-Spot8/Futures6 con8/8 y6/6 protecciones ARMED y cantidad desprotegida observada cero.
-Pulse/Quant SHADOW; Guardian LEVEL0 sin autoridad. Es una observación fechada.
-Las172972 filas previas de11 tablas conservaron cero cambios o ausencias;
-configuración, credenciales y settings preservaron hashes. No es una captura
-atómica de toda la cuenta Binance. Research21Oct13:50UTC COMPLETED permanece archivado.
-
-La candidata50 prepara evaluación RO de migración y viabilidad de costes SIM.
-No habilita LIVE ni programa activación a30 días. Capital propuesto por el dueño
-no significa fondos asignados; pérdida diaria, drawdown, ámbito de motores,
-cuenta, reconciliación y autorización final se validan por separado.
-Los spans legacy no son cohortes continuas certificadas. Pulse/Quant necesitan
-su propia evidencia y el protocolo común de capital sigue sin admisión efectiva.
-La alerta Futures de riesgo inclusivo observado9.308 frente al límite7.5USDT
-no se resuelve elevando topes. Ver [Preparación de migración](LIVE_MIGRATION_PREPARATION.md)
-y [Auditoría de evidencia](LIVE_MIGRATION_EVIDENCE.md).
-Pruebas, PR, CI, publicación, firma e instalación50 requieren comprobaciones nuevas.
-Las secciones anteriores y posteriores de versiones previas son historia fechada.
-
-> Continuación47 en preparación: consultar [Validación y recuperación](VALIDATION_AND_RECOVERY.md).
-> Mantiene Guardian LEVEL0 y Pulse/Quant SHADOW. La evidencia fechada de instalación46
-> no acredita publicación, instalación ni validación operativa de47.
-
-# Crypto AI Trader — CRYPTO-BOT 2.0
-
-## Estado verificado — 0.10.45 instalada; correctiva remota46 en preparación
-
-Main45 **`5d08ca7f78731236386212c2c88983b3e21dd281`**, [PR122](https://github.com/jlboper/Crypto-BOT/pull/122).
-[Publicación39453869690](https://github.com/jlboper/Crypto-BOT/actions/runs/39453869690)
-aprobó validate/validate-windows/publish. A20Oct2026 16:10:01UTC: Ed25519,
-**207/207 hashes**, journal COMMITTED, runtime RUNNING, único motor12020 y PID13968
-anterior salido. Agente23592 autorrefrescado, **11/11 módulos**. Spot3/Futures7
-ARMED y cantidad desprotegida observada cero; Pulse/Quant SHADOW/FRESH.
-
-Observer45 verificado con tres latidos distintos, IDLE/FRESH, cero errores,
-descartes y registros; no se forzaron entradas. Todos los permisos false/LEVEL0.
-Cuatro adaptadores probados sintéticamente, aún sin entradas nuevas observadas
-al corte. Exportador instalado414068bytes incluye observer1035bytes, Guardian,
-cuatro motores y mismo Capital Lab44. Guardian Intelligence PARTIAL por Futures
-STALE_OR_UNPRICED_SOURCE, no caída del motor: fuente desconocida conservada sin
-relajar frescura. A16:11:31UTC volvió OBSERVING: cuatro fuentes FRESH/completas,
-tres assessments/tres replays causales MATCH, cero errores; IA conserva2/2. Preservación de referencia15:59:45–50UTC: diez tablas,
-**138702 filas** sin ausencias/cambios; configuración/credenciales/settings hashes
-intactos. Backup updater45 sólo Spot85trades/53receipts íntegros, no backup global.
-
-Auditoría remota detectó **401** para los dos JS nuevos: se copiaron al build,
-pero faltaban en la lista de recursos estáticos del Worker; incluso con sesión
-habrían terminado404. El resto del portal y trading permanecen disponibles.
-46 agrega exactamente esas dos rutas de código estático, manteniendo CSP,
-no-store y autenticación/CSRF de APIs. No cambia controles ni módulos financieros.
-No declarar45 completamente funcional remotamente ni46 publicada/instalada
-antes de validar su propio CI, firma, rollout y ambos GET200 de recursos.
-
-Validación local46: **959/959 Python offline** (157.844s TEST_RESULTS,
-20Oct2026 16:16:56.557358UTC; runner157.846s), **223/223 Node** (44.546s),
-build/diff PASS, sin fallos/errores/skips; red externa bloqueada, bot no iniciado.
-Regresión de recursos falló401 antes del fix y pasó después. CI/rollout46 pendientes.
-
-Los registros siguientes conservan los cortes anteriores de preparación45/base44.
-
-## Registro histórico — preparación45 desde44
-
-Main **0.10.44** `f79578360f7870321d29cb842966bac2a250dba5`,
-[PR #121](https://github.com/jlboper/Crypto-BOT/pull/121),
-[publicación 39407655253](https://github.com/jlboper/Crypto-BOT/actions/runs/39407655253)
-y [seguridad 39407655107](https://github.com/jlboper/Crypto-BOT/actions/runs/39407655107)
-SUCCESS en Linux/Windows. El 20Oct2026 a10:31–10:34 UTC se verificaron Ed25519,
-**195/195 hashes**, journal COMMITTED, runtime RUNNING y un único motor13968.
-Agente13292: **11/11 módulos** y dos sincronizaciones HTTPS distintas correctas.
-Cinco assets web remotos coincidieron con Git. La publicación no se usó como
-prueba de instalación; ambas se verificaron por separado.
-
-Capital Protocol Lab instalado se ejecutó exactamente una vez: siete casos
-PASSED/siete SQLite SIM nuevas, lecturas posteriores sin mutaciones. Research
-Lab compartido y 47 plegables comprobados. Guardian LEVEL0: cuatro fuentes
-FRESH/completas, tres replays causales MATCH, cero errores y autoridad false.
-Corte operativo posterior **12:23:44 UTC**: Spot1/Futures8, protecciones nativas
-ARMED y cantidad desprotegida observada cero; Pulse/Quant SHADOW/FRESH, Pulse
-WARMING_UP. Son cortes fechados, no conteos permanentes.
-
-Conservación44: las **129773 filas** de diez tablas históricas seleccionadas al
-corte10:20:21–10:20:34 UTC permanecieron sin ausencias/cambios; configuración,
-credenciales y settings congelados conservaron hashes. Backup restaurable44
-sólo Spot:83trades/51receipts íntegros. Los otros hashes son referencias RO,
-no backups SQLite ni captura atómica de todo el sistema.
-
-Candidata45 en rama `feature/opportunity-capital-shadow-v01045`: contrato IA
-Guardian acotado, intenciones finales de cuatro motores, consumidor asíncrono
-persistente y aritmética hipotética; paneles compartidos RO. Véase
-[OPPORTUNITY_CAPITAL_SHADOW.md](OPPORTUNITY_CAPITAL_SHADOW.md). Guardian continúa
-LEVEL0: sin veto, ejecución, reservas efectivas o promoción. Sin cambio de riesgo,
-modelo/presupuesto IA, revisión individual, stops ni reconciliación nativa.
-No declarar Fase3 operativa completa: cuentas/baselines no verificados, cierres
-observacionales pendientes y límites globales incompletos conservan UNKNOWN.
-
-IA instalada44: dos fallos20Oct `AI_COMMENTARY_INVALID` consumen2/2; no resetear
-claims ni forzar llamadas. Uso conocido1166input/526output, estimación cliente
-USD0.0003796, excluye dos fallos anteriores de causa/uso desconocidos. No hay
-respuesta cruda para atribuir causa.45 corrige una discrepancia reproducible del
-contrato; la aceptación real por el API y su utilidad siguen pendientes de
-observación normal con cuota disponible. No confundir tests sintéticos con IA real.
-
-Validación local45:959 Python offline/220 Node PASS, PS5.1 lifecycle/vistas,
-build/diff; foco final contrato+UI32 PASS después de ajustes menores. QA de
-preview sintético a360/768/1366px sin overflow. CI/rollout45 pendientes.
-
-Las secciones siguientes son registros históricos; el checkpoint anterior y la
-evidencia autenticada más reciente prevalecen sobre estados de preparación antiguos.
-
-> Copia de desarrollo aislada de la instalación Windows. El repositorio no contiene credenciales ni datos de la instancia operativa. No inicies un segundo motor. Consulta `BOT_UPDATE_PROGRESS.md` para distinguir versión preparada, publicada e instalada.
-
-**Estado 2026-10-19 00:42:33 UTC:** 0.10.42 publicada, firmada e instalada,
-main `b1e065b1c4934eef80cf4a6d39c52bafa1abb5de`, [PR #119](https://github.com/jlboper/Crypto-BOT/pull/119).
-[Publicación](https://github.com/jlboper/Crypto-BOT/actions/runs/39181606398)
-y [seguridad](https://github.com/jlboper/Crypto-BOT/actions/runs/39181606401)
-aprobadas, Ed25519 verificado, **188/188 hashes** y cinco assets web coincidentes.
-Motor 3680: Spot 1/Futures 5 con protecciones ARMED y cantidad desprotegida cero.
-El agente tenía 9/11 módulos en ese corte. El refresco firmado quedó verificado a
-las **00:54:20 UTC**: agente 21344, **11/11 módulos**, sync_ok y dos heartbeats
-recientes correctos. Motor 3680 sin cambio; Spot 1/Futures 5 ARMED y sin cantidad
-desprotegida observada.
-
-Guardian todavía no queda plenamente verificado: PARTIAL, 0/4 fuentes válidas
-por `WAL_SIDECARS_UNAVAILABLE`, aunque el primer journal real reproduce MATCH.
-Un intento IA real terminó FAILED; uso/causa desconocidos, sin diagnóstico de cuota.
-La correctiva **0.10.43 está en preparación**, con pruebas locales aprobadas: lectura
-SQLite normal en sólo lectura sin exigir sidecars permanentes, metadata WAL/SHM
-transitoria sin DML financiero, filtro determinista que evita IA con todas las
-fuentes UNKNOWN y diagnósticos seguros. No modifica capital, órdenes ni riesgo.
-Capital Protocol Lab sigue como prototipo sintético externo, sin integración.
-
-Prueba candidata43 a las 00:47:04 UTC: copias temporales mediante backup SQLite RO
-de los cuatro esquemas reales dieron fuentes FRESH/completas (posiciones 1/5/1/0),
-sin motor, proveedores ni credenciales. No acredita 43 instalada. Pruebas enfocadas
-87 de captura/servicio y una de no-llamada IA con todo UNKNOWN aprobadas; además
-35 IA PASS (6.961 s), **180/180 Node PASS (106.485 s)**, lifecycle/vistas Windows
-PowerShell 5.1, build y diff PASS. **777/777 Python offline PASS (238.609 s)**,
-sin fallos, errores ni skips, red externa bloqueada y sin iniciar el bot
-(`TEST_RESULTS.json`, 00:55:17 UTC). PR/CI, publicación/firma/instalación de 43
-siguen pendientes.
-
-Los apartados de preparación de 41/42 siguientes conservan contexto histórico;
-este estado operativo fechado prevalece sobre sus checkpoints entonces pendientes.
-
-Desde 0.10.34, AI Market Pulse observa en SHADOW diez activos elegibles por
-capitalización y cinco fuentes públicas primarias/regulatorias. Conserva wallet
-hipotético separado, tres posiciones máximas y cuota IA propia. El portal compartido
-ofrece secciones plegables y navegación directa; no mezcla balances de entornos.
-Ver [Market Pulse](MARKET_PULSE.md) para la selección fechada, fuentes, hipótesis y
-limitaciones. La expansión progresiva a Quant Arbitrage y Portfolio Guardian está
-documentada en [cuatro motores](FOUR_ENGINE_EXPANSION.md).
-
-La base **0.10.41**, main `022fb9135d165d5c52f12b65aa9628ab8c1436af`,
-[PR #118](https://github.com/jlboper/Crypto-BOT/pull/118), está publicada,
-firmada e instalada con **178/178 hashes**.
-[Publicación](https://github.com/jlboper/Crypto-BOT/actions/runs/39134814222)
-y [CI Linux/Windows](https://github.com/jlboper/Crypto-BOT/actions/runs/39134814202)
-exitosas. La auditoría del 18 de octubre a las 14:16:30 UTC verificó continuidad
-del motor/agente y las posiciones Spot/Futures con protección nativa ARMED,
-sin cantidad desprotegida observada ni cambios en las filas financieras comparadas.
-Conserva cuatro motores: Spot Testnet, Futures Demo y dos ledgers
-hipotéticos independientes, Market Pulse y Quant SHADOW. Funding Carry simula
-pares tras sus barreras; StatArb usa hasta 500 cierres Spot 1m con recepción real
-y replay, pero sigue sin entradas. Estos datos retrospectivos no acreditan OOS.
-Guardian continúa **Observer**, sin veto ni reservas compartidas.
-
-La 0.10.41 incorpora el **Intelligent Trading Command Center**:
-auditoría de arquitectura y siete vistas compartidas para Command Center,
-Portfolio & Capital, Trading Engines, Guardian AI, Operations & Decisions,
-Research Lab y System & Settings, con presentación Windows coherente.
-Capital muestra evidencia por entorno; no reparte fondos.
-
-La candidata **0.10.42** añade **Guardian Intelligence SHADOW, nivel 0**:
-captura explícita de los cuatro ledgers en sólo lectura, régimen BTC descriptivo,
-conflictos y códigos de revisión, journal independiente y replay causal.
-No veta, reserva capital ni altera órdenes, riesgos o revisiones IA individuales.
-La explicación IA opcional usa un presupuesto propio autorizado de hasta dos
-intentos/día, intervalo de una hora y caché histórica de 900 s; requiere además
-`ai.enabled`. Pruebas con transporte/claves sintéticos; no se afirma todavía una
-llamada real instalada. Ocho consultas locales de sólo lectura explican resumen,
-régimen, riesgo por ámbito, conflictos, calidad, revisión original, límites y
-contrafactual desconocido, con assessment/corte e identidad de journal disponible.
-Su historial existe sólo en la pestaña; no es auditoría durable. La consulta NL
-general de servidor, Capital Manager y Guardian Control siguen pendientes.
-Ver [arquitectura, límites y fases](COMMAND_CENTER_2_0.md).
-
-Validación local de 42: **767/767 Python offline, 180/180 Node**, ciclo/vistas
-Windows PowerShell 5.1, build del portal y diff aprobados. QA a 1366/360/768 px sin
-desbordamiento horizontal y con un único workspace Guardian. CI de PR/main,
-publicación/firma e instalación de 42 aún no verificadas. La revisión de 41 a las
-19:10 UTC volvió a verificar 178/178 hashes, motor 19240/agente 13056 y posiciones
-Spot 1/Futures 9 con protecciones ARMED y cantidad desprotegida observada cero.
-
-Plataforma supervisada de swing trading con Spot Testnet y un forward test LONG/SHORT de Futures Demo, con cuentas, ledgers, pausas y protecciones separados. PAPER se conserva como respaldo técnico/CI. Market Pulse observa eventos en Shadow; Quant añade investigación y simulación de pares. Consume datos reales de referencia y conserva costes y entornos explícitos. Binance LIVE sigue sin implementación.
-
-El ajuste operativo del 12 de octubre de 2026 amplía Spot Testnet y Futures Demo a diez posiciones por bot. Futures observa 15 monedas y alterna 1x/2x/3x sin multiplicar la cantidad: máximo 100 USDT por entrada, 300 USDT de notional bruto conjunto y 7,5 USDT de pérdida estimada hasta los stops, incluida una reserva de costos del 0,5%. El objetivo de las nuevas entradas Futures pasa de 60 a 30 USDT al distribuir el mismo presupuesto entre diez cupos; las posiciones existentes conservan su tamaño. La cantidad se adapta a filtros actuales y presupuesto disponible; los límites pueden permitir menos de diez posiciones. Son estimaciones previas a órdenes MARKET, no garantías de pérdidas máximas. Publicación e instalación se verifican por separado; las descripciones versionadas anteriores son históricas.
-
-La IA no puede inventar compras, aumentar tamaño, eliminar stops ni cambiar
-límites. La revisión individual Spot admite `ALLOW`, `REJECT` o `REDUCE`;
-Futures admite únicamente `ALLOW` o `REJECT` sobre su propuesta exacta.
-Pulse interpreta eventos con cuota propia; Quant y Guardian Observer usan
-cálculos deterministas. Los cierres protectores y la conciliación no esperan a IA.
+Leer [AGENTS](AGENTS.md), [handover actual](PROJECT_HANDOVER.md),
+[historial de decisiones](PROJECT_HISTORY.md), [operación de releases](BOT_RELEASE_OPERATIONS.md)
+y [progreso actual](BOT_UPDATE_PROGRESS.md). La limpieza conserva evidencia y
+respaldos; un directorio de nombre antiguo puede seguir activo.
 
 ## Límites Spot y simulación PAPER
 
@@ -382,11 +122,11 @@ python -m trader testnet-simulate
 
 ## Binance Testnet: entorno principal y laboratorio Futures
 
-`BINANCE_API_KEY` y `BINANCE_API_SECRET` de **Spot Testnet** deben estar únicamente en `.env.local`. `check-testnet`, `testnet-plan`, `testnet-simulate` y `testnet-validate` siguen disponibles como diagnósticos sin ejecutar operaciones. El TradingEngine principal puede operar en `PAPER` o `TESTNET`; Spot Testnet usa `BinanceTestnetBroker`, un ledger separado y un journal durable antes de cada escritura. No existe host ni modo Binance LIVE.
+`BINANCE_API_KEY` y `BINANCE_API_SECRET` de **Spot Testnet** deben estar únicamente en `.env.local`. `check-testnet`, `testnet-plan`, `testnet-simulate` y `testnet-validate` siguen disponibles como diagnósticos sin ejecutar operaciones. El TradingEngine principal puede operar en `PAPER` o `TESTNET`; Spot Testnet usa `BinanceTestnetBroker`, un ledger separado y un journal durable antes de cada escritura. Existen transportes de producción preparados, pero LIVE no está comisionado: falta el recorrido operativo documentado en LIVE_LAUNCH_AUDIT.md.
 
 A partir de 0.7.0, PAPER queda como entorno de respaldo/CI: se mantiene para regresiones, diagnóstico y fallback, pero las capacidades nuevas se desarrollan sobre Testnet salvo cambios de seguridad necesarios.
 
-El laboratorio paralelo de **USDⓈ-M Futures Demo** usa la API REST de prueba oficial en `https://testnet.binancefuture.com` y credenciales distintas: `BINANCE_FUTURES_TESTNET_API_KEY` y `BINANCE_FUTURES_TESTNET_API_SECRET`. Sus datos se guardan en `data/futures-testnet.db`, separados del ledger Spot. Solo permite margen `ISOLATED`, modo `ONE_WAY` y leverage 1x/2x/3x. La v0.8.0 mantiene Spot y Futures como dos pistas separadas dentro del mismo proceso supervisado. Spot Testnet continúa multi-activo. Futures Demo ejecuta un forward test persistente solo en BTCUSDT, con LONG/SHORT, 1x, margen ISOLATED, modo ONE_WAY, una sola posición y cierre `reduceOnly`. Su activación proviene de la configuración firmada; una pausa operativa se realiza exclusivamente mediante el kill switch de Futures. Usa `data/futures-testnet.db` y un kill switch independiente. Las pruebas manuales 1x–3x se conservan plegadas en Diagnóstico.
+El laboratorio paralelo de **USD-M Futures Demo** utiliza el host oficial de prueba y credenciales propias. Opera LONG/SHORT en múltiples activos y posiciones según el universo y los cupos de la configuración vigente, con margen aislado y modo one-way. Conserva ledger, journal, kill switch y salidas reduce-only independientes de Spot. Los antiguos valores de una posición BTC o leverage fijo describían versiones anteriores y no sustituyen la configuración actual.
 
 Usa únicamente claves dedicadas de entornos Testnet, nunca claves de Binance de producción. Guárdalas en la PC con acceso limitado y no las envíes al portal ni al repositorio. Las pruebas de Spot y Futures validan infraestructura, no rentabilidad.
 
@@ -479,31 +219,21 @@ Desde 0.10.15, volver a abrir la app muestra el indicador existente en la misma 
 
 - El dashboard escucha solo en `127.0.0.1`; no abras el puerto 8765 en el router.
 - Si cambias el host para acceder remotamente, define `DASHBOARD_TOKEN` y usa una VPN privada.
-- El motor principal solo permite `paper` y `testnet`; PAPER queda como respaldo/CI. Futures Demo funciona como laboratorio paralelo con credenciales y ledger separados. Cualquier modo LIVE o desconocido se rechaza y Binance LIVE no está implementado.
+- El motor principal solo permite `paper` y `testnet`; PAPER queda como respaldo/CI. Futures Demo funciona como laboratorio paralelo con credenciales y ledger separados. El engine rechaza LIVE mientras no exista integración operativa comisionada; los transportes preparados no habilitan por sí solos ese modo.
 - Una simulación favorable no garantiza resultados reales: existen slippage, gaps, cambios de régimen, fallas de conectividad y riesgo de contraparte del exchange.
 
 ## Pruebas locales
 
 ```bash
-python -m unittest discover -s tests -v
+python scripts/test_offline.py
 ```
 
 La siguiente fase debe comenzar solo tras revisar resultados fuera de muestra, costos, drawdown, estabilidad por activo y comportamiento durante varias semanas en simulación.
 
 
-## Arquitectura v0.8.0: dos motores de prueba
 
-- **Spot Testnet:** motor multi-activo existente, sin margen ni posiciones cortas.
-- **Futures Demo:** forward test separado de BTCUSDT, LONG/SHORT, apalancamiento automático fijo en 1x y máximo una posición.
-- Futures tiene ledger, journal de órdenes, historial, métricas y kill switch propios. Un fallo del forward test no debe detener el motor Spot.
-- La entrada Futures usa una familia cuantitativa simétrica LONG/SHORT y pasa por una revisión IA final específica para Futures. La IA solo confirma o rechaza la señal; no cambia dirección, tamaño ni leverage.
-- La cantidad inicial es 0.001 BTC, validada con `/order/test`, y la entrada se bloquea si su notional supera el presupuesto automático configurado.
-- Las protecciones de Futures se revisan durante los ticks de protección aunque se pausen nuevas entradas Futures.
-- Ninguna métrica de Testnet autoriza automáticamente LIVE. La evaluación de dinero real es una decisión posterior y separada.
+## Registro histórico
 
-## Candidate 0.10.54: institutional context and bounded preproduction
-
-Market Pulse adds CFTC institutional context and a prepared SEC EDGAR filing
-watcher while remaining SHADOW. Dedicated LIVE keys have not been supplied.
-Prepared real-account libraries do not commission the operating strategy adapters
-or authorize orders. See [the finite closure matrix](PREPRODUCTION_CLOSURE.md).
+Las notas anteriores se conservaron sin alterar en
+[docs/archive/before-0.10.59](docs/archive/before-0.10.59/INDEX.md), con manifiestoSHA-256.
+Esas notas describen cortes pasados; no sustituyen la evidencia de instalación.
