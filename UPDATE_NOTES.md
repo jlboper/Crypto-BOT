@@ -1,3 +1,16 @@
+## 0.10.59 — auditoría de arranque y heartbeat durable
+
+- El espejo en memoria del heartbeat se publica después de su commit SQLite.
+  Una escritura fallida no adelanta la frescura; se conserva la detección de
+  regresiones de reloj. Regresiones determinísticas cubren ambos casos.
+- README, handover, contexto, historial y progreso muestran un estado vigente;
+  sus versiones anteriores se conservan por bytes y SHA256 en docs/archive.
+- LIVE_LAUNCH_AUDIT separa los faltantes reales de integración, hechos financieros,
+  puesta en servicio y evidencia. No presenta los transportes sintéticos como
+  un ejecutor LIVE comisionado ni elimina guardas para simularlo.
+- No cambia estrategias, riesgo, cuentas, capital, credenciales o permisos. Las
+  acciones de limpieza privadas conservan originales y datos financieros.
+
 ## 0.10.58 — conciliación diagnóstica automática de originales
 
 - Cada ventana Testnet/Demo conserva un diagnóstico cifrado de fills, comisiones,

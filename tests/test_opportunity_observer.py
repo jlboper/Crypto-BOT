@@ -72,6 +72,41 @@ class OpportunityObserverTests(unittest.TestCase):
         self.assertEqual(value['state'],'PARTIAL');self.assertIsNone(value['freshness']['age_seconds'])
         self.assertEqual(value['health']['last_error'],'CLOCK_REGRESSION')
 
+    def test_heartbeat_mirror_is_published_after_durable_commit(self):
+        service=self.initialized();before=service._last_heartbeat
+        self.clock[0]-=100
+        entered=threading.Event();release=threading.Event();connect=module._connect
+        class CommitGate:
+            def __init__(self,db):self.db=db
+            def __getattr__(self,name):return getattr(self.db,name)
+            def __enter__(self):self.db.__enter__();return self
+            def __exit__(self,*args):
+                entered.set()
+                if not release.wait(3):raise RuntimeError('synthetic commit gate deadline')
+                return self.db.__exit__(*args)
+        def gated(path,readonly=False):
+            db=connect(path,readonly)
+            return db if readonly else CommitGate(db)
+        with patch.object(module,'_connect',side_effect=gated):
+            worker=threading.Thread(target=lambda:service._flush_health(heartbeat=True))
+            worker.start()
+            try:
+                self.assertTrue(entered.wait(3))
+                self.assertEqual(service._last_heartbeat,before)
+                self.assertEqual(service.snapshot()['state'],'PARTIAL')
+            finally:
+                release.set();worker.join(3)
+            self.assertFalse(worker.is_alive())
+        self.assertEqual(service._last_heartbeat,NOW-100)
+        self.assertEqual(service.snapshot()['state'],'IDLE')
+
+    def test_failed_heartbeat_write_does_not_advance_memory_freshness(self):
+        service=self.initialized();before=(service._last_heartbeat,service._heartbeat_monotonic)
+        self.clock[0]+=10
+        with patch.object(module,'_connect',side_effect=sqlite3.OperationalError('synthetic write failure')):
+            service._flush_health(heartbeat=True)
+        self.assertEqual((service._last_heartbeat,service._heartbeat_monotonic),before)
+
     def test_new_heartbeat_after_utc_rollback_does_not_freshen_future_history(self):
         service=self.initialized();self.assertTrue(register_observer(service))
         self.consume(service);before=service.snapshot()

@@ -226,13 +226,17 @@ class OpportunityObserverService:
 
     def _flush_health(self,*,heartbeat=False,stopped=False):
         try:
+            stamp=self.clock() if heartbeat else None
             with closing(_connect(self.path)) as db,db:
                 values=[('errors',str(self._errors)),('dropped',str(_DROPPED)),('last_error',self._last_error or '')]
                 if heartbeat:
-                    self._last_heartbeat=self.clock()
-                    self._heartbeat_monotonic=time.monotonic()
-                    values.extend([('heartbeat_at',str(self._last_heartbeat)),('running','0' if stopped else '1')])
+                    values.extend([('heartbeat_at',str(stamp)),('running','0' if stopped else '1')])
                 db.executemany('INSERT OR REPLACE INTO opportunity_meta VALUES(?,?)',values)
+            # Publish the mirror only after the same heartbeat is durable.
+            # A reader observing this field can no longer race the DB commit.
+            if heartbeat:
+                self._heartbeat_monotonic=time.monotonic()
+                self._last_heartbeat=stamp
         except Exception:pass
 
     def _run(self):
